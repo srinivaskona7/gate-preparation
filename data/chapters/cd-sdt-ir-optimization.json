@@ -1,0 +1,2069 @@
+{
+  "id": "cd-sdt-ir-optimization",
+  "summary": "The back half of the compiler front end. Syntax-directed translation attaches attribute rules or actions to productions, and GATE asks you to classify them (S- vs L-attributed) or trace what they compute or print. Runtime environments cover activation records, scoping and parameter passing. Intermediate code is three-address code stored as quadruples, triples or indirect triples. Optimization covers basic blocks, DAGs, local transformations and the data-flow analyses: liveness, reaching definitions, available expressions and constant propagation.",
+  "highYield": [
+    "Trace an SDT scheme on a given input: output order equals the order of reductions in a bottom-up parse, which is a postorder walk of the parse tree.",
+    "Count basic blocks with the leader rules: the first instruction, every jump target, and every instruction right after a jump.",
+    "Build the DAG of a basic block and count its nodes, or read off the shortest equivalent code after common subexpression elimination.",
+    "Liveness: IN[B] = USE[B] ∪ (OUT[B] − DEF[B]), solved backward to a fixpoint; asked as the live set at a block entry.",
+    "Classify an SDD as S-attributed, L-attributed or neither by checking where every inherited attribute takes its inputs.",
+    "Parameter passing and static versus dynamic scoping: predict the printed value of a short program under each rule."
+  ],
+  "topics": [
+    {
+      "id": "cd-sdt-ir-optimization.sdd-attributes",
+      "title": "SDDs, SDT schemes and attribute kinds",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        452,
+        457
+      ],
+      "points": [
+        "A syntax-directed definition (SDD) attaches attributes to grammar symbols and semantic rules to productions; it says what to compute but not when.",
+        "A syntax-directed translation scheme (SDT) embeds program fragments called semantic actions inside production bodies, so their position fixes when each action runs during parsing.",
+        "A synthesized attribute of a node is computed from attributes of its children (and itself). Example: E → E₁ + T with E.val = E₁.val + T.val.",
+        "An inherited attribute of a node is computed from attributes of its parent, its siblings or itself. Example: in D → T L with L.inh = T.type, the type flows from T across to L.",
+        "An annotated (decorated) parse tree shows the attribute values at every node; terminals carry only synthesized attributes supplied by the lexer, such as num.lexval."
+      ],
+      "keyTerms": [
+        "SDD",
+        "SDT scheme",
+        "semantic action",
+        "synthesized attribute",
+        "inherited attribute",
+        "annotated parse tree"
+      ],
+      "lesson": {
+        "why": "Attribute questions in GATE ask you to name the kind of an attribute or to compute a value on a parse tree, and both need the synthesized versus inherited split.",
+        "intro": "A compiler often needs facts attached to parts of a program, such as the value of an expression or the type of a variable. A syntax-directed definition (SDD) attaches such facts, called attributes, to the symbols of a grammar and gives a rule for each production that says how to compute them. An attribute is synthesized when its value is built from the node's children, so information flows up the tree. It is inherited when its value comes from the parent or from siblings, so information flows down or sideways.",
+        "analogy": {
+          "text": "A synthesized attribute is a manager's report assembled from the reports of the team below; an inherited attribute is an instruction passed down from above.",
+          "breaksWhen": "A node may hold both kinds at once, and an inherited attribute can also come from a sibling, which a pure reporting line does not allow."
+        },
+        "definitions": [
+          {
+            "term": "Attribute",
+            "meaning": "A named value, such as val or type, attached to a grammar symbol and computed by the rules of the productions."
+          },
+          {
+            "term": "Annotated parse tree",
+            "meaning": "A parse tree with the value of every attribute written at each node."
+          }
+        ],
+        "principle": {
+          "text": "In a rule of the production $A \\to X_1 \\dots X_n$, the attribute on the left side $A$ being defined is synthesized, and the attribute on a body symbol $X_i$ being defined is inherited.",
+          "tex": "A.s = f(X_1.a, \\dots, X_n.a) \\qquad X_i.h = g(A.h,\\; X_1.a, \\dots, X_{i-1}.a)"
+        },
+        "limits": "The kind depends on which node the rule defines, not on the attribute's name, so the same name can be synthesized in one production and inherited in another. Terminals only have synthesized attributes, supplied by the lexer.",
+        "example": {
+          "problem": "Grammar: $E \\to E_1 + T$ with $E.val = E_1.val + T.val$, $E \\to T$, $T \\to T_1 * F$ with $T.val = T_1.val \\times F.val$, $T \\to F$, $F \\to \\text{num}$ with $F.val = \\text{num.lexval}$. Find $E.val$ for the input 2+3*4.",
+          "steps": [
+            "The tree has E at the root with children E, +, T. The left E derives 2 through T and F, so its val is 2.",
+            "The right T has children T, *, F. Its left T derives 3 and its F is 4, so T.val = 3 × 4 = 12.",
+            "At the root, E.val = E1.val + T.val = 2 + 12 = 14."
+          ],
+          "result": "E.val = 14, and every attribute used was synthesized, computed from children."
+        },
+        "misconceptions": [
+          "An attribute is not inherited just because it is used far from where it was computed; only the node being defined by the rule decides the kind.",
+          "Synthesized does not mean the value is a number from the leaves only; a synthesized attribute can be any value, such as a type or a code string, built from the children."
+        ],
+        "recall": [
+          {
+            "q": "What decides whether an attribute is synthesized or inherited?",
+            "a": "Which node the rule defines: the head of the production gives a synthesized attribute, a body symbol gives an inherited one."
+          },
+          {
+            "q": "Which attributes can a terminal have?",
+            "a": "Only synthesized ones, supplied by the lexer, such as num.lexval."
+          },
+          {
+            "q": "What is an annotated parse tree?",
+            "a": "A parse tree with every node's attribute values written in."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In the production $A \\to B\\, C$ the rules are $B.x = A.y + 1$ and $A.z = C.w$. Which statement is correct?",
+          "options": [
+            "B.x is inherited and A.z is synthesized.",
+            "B.x is synthesized and A.z is inherited.",
+            "Both B.x and A.z are synthesized.",
+            "Both B.x and A.z are inherited."
+          ],
+          "answer": 0,
+          "explanation": "B is a body symbol, so B.x defined by the rule is inherited, and it reads the parent's A.y. A is the head, so A.z is synthesized from child C. The second option tempts because B.x uses an attribute of A, but the kind follows the defined symbol, not the symbols read."
+        },
+        "summary": "Attributes live on grammar symbols; a rule that defines the head gives a synthesized attribute (flow up), and a rule that defines a body symbol gives an inherited one (flow down or sideways)."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.s-l-attributed",
+      "title": "S-attributed, L-attributed and evaluation order",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        41,
+        452,
+        457
+      ],
+      "points": [
+        "An SDD is S-attributed when every attribute is synthesized. It can be evaluated during an LR (bottom-up) parse by computing the head's attributes at each reduction, which is how yacc and bison work.",
+        "An SDD is L-attributed when, for each production A → X₁ X₂ … Xₙ, every inherited attribute of Xᵢ depends only on inherited attributes of A and on attributes of X₁ … Xᵢ₋₁ (left siblings), or on Xᵢ itself without a cycle.",
+        "Every S-attributed SDD is L-attributed, but not every L-attributed SDD is S-attributed: one that defines an inherited attribute is not. A rule using a right sibling, such as B.i = C.s in A → B C, or a synthesized attribute of the parent, breaks the L property.",
+        "L-attributed SDDs evaluate in one depth-first, left-to-right pass, which fits a recursive-descent or LL(1) parser.",
+        "The dependency graph has an edge from attribute a to attribute b when b's rule uses a. Any topological order of an acyclic graph is a valid evaluation order; a cycle means no order exists.",
+        "Writing an L-attributed SDD as an SDT: put the action computing Xᵢ's inherited attributes immediately before Xᵢ and the head's synthesized action at the end of the body. A bottom-up parser runs those mid-body actions through marker nonterminals."
+      ],
+      "keyTerms": [
+        "S-attributed",
+        "L-attributed",
+        "dependency graph",
+        "topological sort"
+      ],
+      "lesson": {
+        "why": "Deciding whether a given set of rules is S-attributed or L-attributed is a standard classification task, and it is answered by checking each rule in turn.",
+        "intro": "A parser visits the tree in a fixed order, so only some attribute rules can be computed during parsing. An SDD is S-attributed when every attribute is synthesized, which means each value comes from children and a bottom-up parser can compute it at each reduction. An SDD is L-attributed when inherited attributes are allowed but each one depends only on the parent's inherited attributes and on symbols to its left in the production body. Then one depth-first, left-to-right walk can compute everything.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.sdd-attributes"
+        ],
+        "definitions": [
+          {
+            "term": "S-attributed",
+            "meaning": "Every attribute is synthesized."
+          },
+          {
+            "term": "L-attributed",
+            "meaning": "Every inherited attribute of a body symbol uses only the head's inherited attributes and attributes of symbols to its left."
+          }
+        ],
+        "principle": {
+          "text": "For each inherited rule on a body symbol $X_i$ of $A \\to X_1 \\dots X_n$, the allowed inputs are $A$'s inherited attributes and any attributes of $X_1 \\dots X_{i-1}$. Any reference to a right sibling or to $A$'s synthesized attributes breaks the L property.",
+          "tex": "X_i.h = f(A.h,\\; X_1 \\dots X_{i-1}\\text{ attributes},\\; X_i\\text{ itself})"
+        },
+        "limits": "Synthesized rules on the head may read anything in the body, so they never break L-attribution. The test applies per production; one bad rule anywhere makes the whole SDD fail. An attribute grammar is an SDD whose rules have no side effects; an SDT may run actions with side effects. Bottom-up evaluation of an L-attributed SDD is guaranteed for LL(1) grammars, not for every LR(1) grammar.",
+        "example": {
+          "problem": "Production $A \\to B\\, C$ with rules $B.i = A.i + 1$, $C.i = B.s$ and $A.s = C.s$. Is it S-attributed? Is it L-attributed?",
+          "steps": [
+            "B.i and C.i define body symbols, so they are inherited. The SDD is therefore not S-attributed.",
+            "B.i reads A.i, the parent's inherited attribute, which is allowed.",
+            "C.i reads B.s, an attribute of B, which is to the left of C, so it is allowed. A.s = C.s is synthesized and unrestricted."
+          ],
+          "result": "Not S-attributed, but L-attributed. Replacing the first rule with B.i = C.s would read a right sibling and break L."
+        },
+        "misconceptions": [
+          "Not being S-attributed does not make a definition non-L-attributed; every S-attributed SDD is L-attributed, and L-attributed ones with inherited rules are simply not S-attributed.",
+          "An inherited attribute reading a synthesized attribute of a left sibling is allowed; only the parent's synthesized attributes and right siblings are forbidden.",
+          "Judge a rule by the symbol it defines, not by attribute names: A.s = C.s defines a synthesized attribute of the head and is always fine, while C.i = A.s defines an inherited attribute from the parent's synthesized one and breaks L."
+        ],
+        "recall": [
+          {
+            "q": "What may an inherited attribute of Xi depend on in an L-attributed SDD?",
+            "a": "The parent's inherited attributes and attributes of the symbols to the left of Xi, or Xi itself without a cycle."
+          },
+          {
+            "q": "Why can an S-attributed SDD be evaluated by an LR parser?",
+            "a": "All values come from children, which are on the stack when the reduction happens, so the head's value is computed then."
+          },
+          {
+            "q": "What does a cycle in the dependency graph mean?",
+            "a": "No evaluation order exists."
+          },
+          {
+            "q": "Is every L-attributed SDD on an LR(1) grammar evaluable bottom-up?",
+            "a": "No. The guarantee holds for LL(1) grammars, not for every LR(1) grammar."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "For the production $P \\to Q\\, R$ the rules are $Q.i = R.s$ and $P.s = Q.s + R.s$. Which statement is correct?",
+          "options": [
+            "Both S-attributed and L-attributed.",
+            "L-attributed but not S-attributed.",
+            "Neither S-attributed nor L-attributed.",
+            "S-attributed but not L-attributed."
+          ],
+          "answer": 2,
+          "explanation": "Q.i defines a body symbol, so it is inherited and the SDD is not S-attributed. It reads R.s, and R is to the right of Q, so the L condition fails too. The second option tempts because the head rule P.s is fine, but one violating inherited rule is enough."
+        },
+        "summary": "S-attributed means synthesized only; L-attributed allows inherited attributes that read only the parent's inherited attributes and left siblings; S-attributed implies L-attributed."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.sdt-traces",
+      "title": "Tracing SDT actions and attribute values",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "With actions at the right end of each production (a postfix SDT), a bottom-up parser runs each action at the moment it reduces by that production.",
+        "Reductions in a bottom-up parse follow a postorder walk of the parse tree, so the printed output is that postorder: children's actions first, the parent's last.",
+        "The grammar fixes precedence and associativity: an operator introduced at a deeper nonterminal binds tighter, and a left-recursive production makes it left-associative.",
+        "Method: build the parse tree from the grammar, not from ordinary arithmetic conventions, then evaluate or print bottom-up. Example: with # meaning × at the top level and & meaning + one level lower, 2 # 3 & 5 evaluates to 2 × (3 + 5) = 16.",
+        "An action placed in the middle of a body runs after the symbols to its left are recognized; a bottom-up parser implements it by a marker nonterminal M → ε that reduces at that point."
+      ],
+      "keyTerms": [
+        "postfix SDT",
+        "postorder",
+        "marker nonterminal",
+        "precedence from grammar"
+      ],
+      "lesson": {
+        "why": "Questions give a small grammar with rules and ask for the value at the root for one input, so the skill is tracing the parse tree and computing bottom-up without slips.",
+        "intro": "To trace a translation, first build the parse tree for the input string, then compute each node's value from its children's values, starting at the leaves. Two grammar facts decide the answer. A left-recursive rule, such as $S \\to S_1 \\# T$, makes the operator group from the left, and a right-recursive rule groups from the right. A symbol lower in the grammar is finished first, so it binds tighter.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.sdd-attributes"
+        ],
+        "principle": {
+          "text": "Evaluate children before parents. For a left-recursive rule, the leftmost items form the deepest subtree and are combined first; for a right-recursive rule, the rightmost items are combined first."
+        },
+        "limits": "This applies when every attribute is synthesized. With inherited attributes the order is set by the dependency graph, and the plain leaf-to-root sweep may not work.",
+        "example": {
+          "problem": "Rules: $S \\to S_1 @ T$ with $S.val = 2 \\times S_1.val + T.val$, $S \\to T$ with $S.val = T.val$, and $T \\to \\text{num}$. Find $S.val$ for the input 3@1@4.",
+          "steps": [
+            "The rule is left-recursive, so the tree is S(S(S(T 3) @ T 1) @ T 4).",
+            "Innermost S: S.val = 3.",
+            "Middle S: 2 × 3 + 1 = 7.",
+            "Root S: 2 × 7 + 4 = 18."
+          ],
+          "result": "S.val = 18; grouping from the right would give a different number."
+        },
+        "misconceptions": [
+          "Do not apply the operators in the order they are written without building the tree; the recursion direction and the grammar levels fix the grouping.",
+          "A production deriving the empty string is not skipped: its rule still gives the head a value, often a constant, and that value enters the sum."
+        ],
+        "recall": [
+          {
+            "q": "What does a left-recursive rule imply for grouping?",
+            "a": "The operator groups from the left, because the left operand is the larger subtree built first."
+          },
+          {
+            "q": "In which order are the attributes computed in a purely synthesized translation?",
+            "a": "Leaves first and the root last, each node after all its children."
+          },
+          {
+            "q": "What does an epsilon production contribute to a computed value?",
+            "a": "Whatever its own rule assigns, often a constant, which the parent still combines."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Rules: $S \\to T\\ \\$\\ S_1$ with $S.val = T.val - S_1.val$, $S \\to T$ with $S.val = T.val$, and $T \\to \\text{num}$. Find $S.val$ for the input 8\\$5\\$2.",
+          "answer": 5,
+          "explanation": "The rule is right-recursive, so the rightmost numbers combine first. The last S is 2, then 5 − 2 = 3, then 8 − 3 = 5. Treating it as left-grouped gives (8 − 5) − 2 = 1, which is the tempting wrong answer."
+        },
+        "summary": "Build the parse tree, note the recursion direction, then compute values from the leaves up; left recursion groups from the left and right recursion from the right."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.activation-records",
+      "title": "Storage organisation and activation records",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        453,
+        457,
+        460
+      ],
+      "points": [
+        "Run-time memory holds code, static data, a heap that grows toward higher addresses and a stack that grows toward the heap, so the free space sits between the two.",
+        "Static allocation fixes every name's address at compile time; it cannot support recursion because each activation needs its own locals.",
+        "Stack allocation pushes an activation record per call and pops it on return. It works because procedure lifetimes nest; it fails when a local must outlive its call, as with a returned closure or a pointer to a local.",
+        "An activation record holds the return value, actual parameters, the control link (caller's frame), the access link (frame of the lexically enclosing procedure), saved machine status including the return address, locals and temporaries.",
+        "Recursion depth d means d activation records of that procedure are on the stack at once; the stack space used is d times the frame size."
+      ],
+      "keyTerms": [
+        "activation record",
+        "control link",
+        "access link",
+        "static allocation",
+        "stack allocation",
+        "heap"
+      ],
+      "lesson": {
+        "why": "Questions on activation trees and run-time storage test the nesting of calls, and recursion questions ask you to count frames.",
+        "intro": "Every time a procedure is called, the program creates an activation of it, a record holding its parameters, local variables, saved registers and return address. These records are kept on a stack: a call pushes one and a return pops it. Calls nest, so the callee always finishes before the caller continues. The activation tree has one node per call, with the root as main and the children as the calls a node makes, in order from left to right.",
+        "definitions": [
+          {
+            "term": "Activation record",
+            "meaning": "The stack frame of one call, holding parameters, locals, control link, access link and saved status."
+          },
+          {
+            "term": "Activation tree",
+            "meaning": "A tree with one node per call, children in call order."
+          }
+        ],
+        "principle": {
+          "text": "The calls happen in preorder of the activation tree and the returns happen in postorder. The stack at any moment holds exactly the path from the root to the current activation."
+        },
+        "limits": "A stack works only when procedure lifetimes nest. A local that must outlive its call, such as one returned by pointer or a closure, needs heap storage instead. Recursion needs the stack, not the heap: each call pushes its own record, and the heap is only for storage that outlives its call.",
+        "example": {
+          "problem": "int f(int n) { if (n <= 1) return n; return f(n-1) + f(n-2); } Count the activations created by the call f(4) and the greatest number of f frames on the stack at once.",
+          "steps": [
+            "f(4) calls f(3) and f(2); f(3) calls f(2) and f(1); each f(2) calls f(1) and f(0).",
+            "Counting the nodes of this tree gives 9 activations in total.",
+            "The stack holds one root-to-current path. The longest path is f(4), f(3), f(2), f(1), which has 4 nodes."
+          ],
+          "result": "9 activations, at most 4 frames on the stack at once."
+        },
+        "misconceptions": [
+          "The number of frames on the stack is the depth of the tree, not the number of nodes, because finished calls have been popped.",
+          "A call made twice gives two separate nodes in the activation tree, even if the arguments are the same."
+        ],
+        "recall": [
+          {
+            "q": "Which traversal of the activation tree matches the order of calls?",
+            "a": "Preorder; the returns match postorder."
+          },
+          {
+            "q": "What does the stack hold at any moment?",
+            "a": "The activation records on the path from main to the current call."
+          },
+          {
+            "q": "Does a language with recursion need heap storage?",
+            "a": "No. Recursion needs a stack of activation records; the heap serves only data that outlives its call."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "int f(int n) { if (n <= 1) return n; return f(n-1) + f(n-2); } What is the greatest number of frames of f on the stack at once during the call f(5)?",
+          "answer": 5,
+          "explanation": "The deepest chain is f(5), f(4), f(3), f(2), f(1), which has 5 frames. The total of 15 activations over the whole run is the tempting wrong answer, but finished calls are popped, so only the path counts."
+        },
+        "summary": "Each call pushes an activation record and each return pops it; calls follow preorder of the activation tree, returns follow postorder, and stack depth is the length of the current path."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.scoping",
+      "title": "Static versus dynamic scoping",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Under static (lexical) scoping a non-local name refers to the declaration in the textually enclosing block, fixed at compile time; C, Java and Pascal use it.",
+        "Under dynamic scoping a non-local name refers to the most recent active declaration on the call stack, so the same function can read different variables depending on who called it.",
+        "Static scoping with nested procedures is implemented with access links or a display: code at nesting depth p reaches a name declared at depth d by following p − d access links.",
+        "Dynamic scoping follows control links instead: search the caller's frame, then its caller's, until the name is found.",
+        "Worked case: global x = 10; p() does x = x + 5; q() declares local x = 1, calls p, prints x. Static: q prints 1 and global x becomes 15. Dynamic: p updates q's x, so q prints 6 and global x stays 10."
+      ],
+      "keyTerms": [
+        "lexical scope",
+        "dynamic scope",
+        "access link",
+        "display",
+        "non-local name"
+      ],
+      "lesson": {
+        "why": "Scoping questions give a program with a global and a local variable of the same name and ask what gets printed, and the answer flips with the rule used.",
+        "intro": "A non-local name is a name used inside a function but declared outside it. The language must decide which declaration that name means. Under static (lexical) scoping the compiler decides by reading the text: the name means the declaration in the nearest enclosing block of the source, and this never changes at run time. Under dynamic scoping the decision waits until the program runs: the name means the most recent declaration still active on the call stack, so it depends on who called the function.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.activation-records"
+        ],
+        "definitions": [
+          {
+            "term": "Non-local name",
+            "meaning": "A name used in a function that is not declared inside that function."
+          },
+          {
+            "term": "Access link",
+            "meaning": "A pointer in an activation record to the frame of the textually enclosing procedure, used to reach non-local names under static scoping."
+          }
+        ],
+        "principle": {
+          "text": "Static scoping resolves a non-local name by following the textual nesting outward from the use. Dynamic scoping resolves it by searching the caller's frame, then the caller's caller, and so on down the call stack, and takes the first declaration found. With nested procedures, code at nesting depth $p$ reaches a name declared at depth $d$ by following $p-d$ access links."
+        },
+        "limits": "Only the lookup of non-local names differs; local names and parameters resolve the same way under both rules. A function that touches no non-local name behaves identically under both. Dynamic scoping searches by call chain, so the answer depends on the actual calls made, not on the source layout.",
+        "example": {
+          "problem": "Global x = 2. Function show() prints x. Function run() declares a local x = 7 and calls show(). main calls run() and then show(). What is printed under static and under dynamic scoping?",
+          "steps": [
+            "Inside show, x is a non-local name, so the rule decides which x it means.",
+            "Static: show is written at the top level, so its x is the global x = 2, whoever calls it. Both calls print 2, giving 2 then 2.",
+            "Dynamic, call from run: the stack holds main, run, show. Searching from show outward, the first frame with an x is run's, so show prints 7.",
+            "Dynamic, call from main: the stack holds main, show, and only the global x exists, so show prints 2."
+          ],
+          "result": "Static prints 2 2; dynamic prints 7 2."
+        },
+        "misconceptions": [
+          "Dynamic scoping does not look at where the function is written. It looks at who called it, so the same function body can print different values on two calls.",
+          "Static scoping is not decided at run time just because the stack is used. The access link points to the enclosing procedure in the source, not to the caller, and it can differ from the control link."
+        ],
+        "recall": [
+          {
+            "q": "Under which scoping rule does the caller of a function influence which variable a non-local name means?",
+            "a": "Dynamic scoping, because the name is resolved by searching the call stack from the most recent frame."
+          },
+          {
+            "q": "How many access links does code at depth 4 follow to reach a name declared at depth 1?",
+            "a": "Three, which is the difference of the depths, $4-1$."
+          },
+          {
+            "q": "Which rule do C, Java and Pascal use?",
+            "a": "Static (lexical) scoping."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Global x = 1. Function f() returns x * 10. Function g() declares a local x = 2 and returns f(). Function k() declares a local x = 3 and returns g(). Under dynamic scoping, what does k() return?",
+          "answer": 20,
+          "explanation": "Dynamic scoping searches the stack from the most recent frame: f's own frame has no x, the next frame is g's, which declares x = 2, so f returns 2 * 10 = 20. The answer 30 tempts if you pick the outermost local x = 3 on the stack, and 10 is the static answer using the global x."
+        },
+        "summary": "Static scoping binds a non-local name by the source text and is fixed at compile time; dynamic scoping binds it by the latest active declaration on the call stack, so the caller changes the result."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.parameter-passing",
+      "title": "Parameter-passing mechanisms",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        453,
+        457,
+        460
+      ],
+      "points": [
+        "Call by value copies the actual's value into the formal; changes to the formal never reach the caller.",
+        "Call by reference passes the address, so the formal is an alias for the actual; with f(x, x) both formals alias x and every write is visible through both.",
+        "Call by value-result (copy-restore) copies in on entry and copies the formals back to the actuals on return; with aliasing, the copy-out order decides the final value.",
+        "Call by name substitutes the actual expression and re-evaluates it on every use (Algol 60). Worked case: swap(x, y) { t = x; x = y; y = t } called as swap(i, a[i]) with i = 1, a[1] = 3 sets i = 3, then writes a[3] = 1; a[1] stays 3.",
+        "Call by need is call by name with memoisation: the argument is evaluated at most once, on first use, as in Haskell.",
+        "Worked case: x = 5; f(a, b) { a = a + 1; b = b + a; } called as f(x, x). By value x stays 5; by reference x = 12; by value-result with copy-out a then b, x = 11."
+      ],
+      "keyTerms": [
+        "call by value",
+        "call by reference",
+        "copy-restore",
+        "call by name",
+        "call by need",
+        "aliasing"
+      ],
+      "lesson": {
+        "why": "Parameter-passing questions ask for the final value of a variable after a call, and the value changes with the mechanism, especially when one variable is passed twice.",
+        "intro": "A function is defined with formal parameters and called with actual parameters. The passing mechanism says how the two are connected. Call by value hands the function a private copy, so the caller never sees changes. Call by reference hands over the address, so the formal is another name for the actual. Call by value-result copies in at the start and copies the formals back into the actuals at the end. Call by name pastes the actual expression in and re-evaluates it at each use.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.activation-records"
+        ],
+        "definitions": [
+          {
+            "term": "Aliasing",
+            "meaning": "Two names that refer to the same storage cell, so a write through one is visible through the other."
+          },
+          {
+            "term": "Copy-restore",
+            "meaning": "Another name for value-result: copy in on entry, copy out on return."
+          }
+        ],
+        "principle": {
+          "text": "Value: the formal is a separate cell and the actual is untouched. Reference: the formal and the actual are one cell. Value-result: separate cells during the call, then the copy-out writes each formal back in the stated order, and the last write wins when two formals map to one actual. Name: the actual expression is substituted textually and re-evaluated on every use."
+        },
+        "limits": "When all actuals are distinct variables and the function does not read a changed actual, reference and value-result agree. The difference shows only with aliasing or with the copy-out order. Call by name can also change what an index expression means mid-call, so trace it by substitution rather than by cells.",
+        "example": {
+          "problem": "x = 3. f(a, b) { a = a * 2; b = b + a; } is called as f(x, x). Find x afterwards by value, by reference, and by value-result with copy-out a then b.",
+          "steps": [
+            "By value: a and b are private copies, so x is untouched and stays 3.",
+            "By reference: a and b are both x. a = a * 2 makes x = 6. Then b = b + a is x = x + x = 12.",
+            "By value-result: a = 3 and b = 3 start as copies. a becomes 6, then b becomes 3 + 6 = 9.",
+            "Copy-out in order: x = a = 6, then x = b = 9. The later write wins."
+          ],
+          "result": "Value 3, reference 12, value-result 9."
+        },
+        "misconceptions": [
+          "Value-result is not the same as reference. The formals are separate cells during the call, so b = b + a uses the old copy of b, and the result depends on the copy-out order.",
+          "Call by name is not call by value with a different name. The argument expression is evaluated again at each use, so a changing variable inside it changes its meaning."
+        ],
+        "recall": [
+          {
+            "q": "Which mechanism makes the formal an alias of the actual?",
+            "a": "Call by reference."
+          },
+          {
+            "q": "With value-result and f(x, x), what decides the final value of x?",
+            "a": "The copy-out order, because the last formal copied back overwrites x."
+          },
+          {
+            "q": "How does call by need differ from call by name?",
+            "a": "It evaluates the argument at most once, on first use, and remembers the result."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "x = 1. f(a, b) { a = a + 2; b = b * a; } is called as f(x, x) with call by reference. What is x after the call?",
+          "answer": 9,
+          "explanation": "Both formals are x. a = a + 2 makes x = 3. Then b = b * a is x = x * x = 9. The answer 1 tempts if you think of call by value, and 3 is the value-result outcome, where b = 1 * 3 = 3 is copied out last."
+        },
+        "summary": "Value copies and never reaches the caller, reference aliases the actual, value-result copies in and out with the copy-out order deciding the last write, and name re-evaluates the expression at each use."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.three-address-code",
+      "title": "Three-address code and translation of constructs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        41,
+        454,
+        455,
+        457
+      ],
+      "points": [
+        "Three-address code has at most one operator on the right and at most three addresses per instruction: x = y op z, x = op y, x = y, goto L, if x relop y goto L, param x, call p, n, x = y[i], x[i] = y, x = &y, x = *y.",
+        "Expressions are flattened bottom-up with a fresh temporary for each operator: a + b × c becomes t1 = b × c; t2 = a + t1.",
+        "if (B) S1 else S2 becomes a conditional jump to the then-part, a jump to the else-part, the then-code ending in goto Lnext, then the else-code; while (B) S tests at the top and ends the body with a jump back.",
+        "Array access needs address arithmetic: for row-major A[i][j] with n₂ columns and element width w, the offset is (i × n₂ + j) × w, computed into a temporary before x = A[t].",
+        "Boolean expressions use short-circuit jumps. Backpatching emits jumps with blank targets, keeps them in truelist and falselist, and fills the targets once the label is known, so one pass suffices."
+      ],
+      "keyTerms": [
+        "three-address code",
+        "temporary",
+        "backpatching",
+        "truelist",
+        "falselist",
+        "short-circuit"
+      ],
+      "lesson": {
+        "why": "Intermediate-code questions ask you to turn a statement into three-address code or to say what backpatching does, and both rest on a few fixed shapes.",
+        "intro": "Three-address code is a simple intermediate form for a program. Each instruction has at most one operator and at most three addresses, such as x = y + z. A complex expression is flattened into a sequence of such steps, and the compiler invents a fresh temporary name to hold each intermediate result. Control flow is written with labels and jumps.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.sdd-attributes"
+        ],
+        "definitions": [
+          {
+            "term": "Temporary",
+            "meaning": "A compiler-made name, such as t1, that holds one intermediate value."
+          },
+          {
+            "term": "Backpatching",
+            "meaning": "Emitting a jump with its target left blank, remembering it in a list, and filling the target once the label is known."
+          }
+        ],
+        "principle": {
+          "text": "Translate an expression by emitting one instruction per operator, innermost operator first, each into a new temporary. A jump whose target is not yet known goes on a truelist or falselist and is patched later, so code is produced in one pass."
+        },
+        "limits": "One operator per instruction is the limit; a statement with several operators always needs temporaries. Backpatching removes the second pass, but the patching still has to happen before the code runs.",
+        "example": {
+          "problem": "Write three-address code for x = a + b * c - d.",
+          "steps": [
+            "Multiplication binds tighter than + and -, so b * c comes first: t1 = b * c.",
+            "Then a + t1 is formed: t2 = a + t1.",
+            "Then subtraction, which is left-associative with +: t3 = t2 - d. Finally assign: x = t3."
+          ],
+          "result": "t1 = b * c; t2 = a + t1; t3 = t2 - d; x = t3."
+        },
+        "misconceptions": [
+          "Three-address code may use fewer than three addresses, as in x = y or goto L; three is the maximum.",
+          "Backpatching is not only for Boolean expressions; it also fills the jump targets of flow-of-control statements such as if and while, in one pass."
+        ],
+        "recall": [
+          {
+            "q": "How many operators may one three-address instruction have?",
+            "a": "At most one operator on the right-hand side."
+          },
+          {
+            "q": "Why does backpatching allow one-pass code generation?",
+            "a": "Jumps with unknown targets are put on lists and filled in as soon as the label is known."
+          },
+          {
+            "q": "Which code does backpatching generate in one pass?",
+            "a": "Both Boolean expressions and flow-of-control statements."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which three-address code correctly translates the loop $\\text{while } (x < y)\\; x = x + 1$?",
+          "options": [
+            "L1: if x < y goto L2; goto L3; L2: x = x + 1; goto L1; L3:",
+            "L1: x = x + 1; if x < y goto L1",
+            "L1: if x < y goto L2; L2: x = x + 1; goto L3; L3:",
+            "L1: if x < y goto L3; x = x + 1; goto L2; L3:"
+          ],
+          "answer": 0,
+          "explanation": "A while loop tests at the top, jumps into the body when true, leaves when false, and ends the body with a jump back to the test. The second option tests after the body, which is a do-while, and it tempts because it is shorter. The others never jump back or leave the loop correctly."
+        },
+        "summary": "Flatten each expression into one-operator instructions with fresh temporaries; use labels and jumps for control flow, and backpatching to fill unknown jump targets in a single pass."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.ir-representations",
+      "title": "Quadruples, triples and indirect triples",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        41,
+        454,
+        457,
+        460
+      ],
+      "points": [
+        "A quadruple has four fields (op, arg1, arg2, result). Results are named temporaries, so instructions can be moved freely, at the cost of entering temporaries in the symbol table.",
+        "A triple has three fields (op, arg1, arg2); a result is referred to by the triple's position, such as (0). Triples save space but moving one breaks every reference to its position.",
+        "Indirect triples add a list of pointers to triples in execution order. An optimizer reorders the pointer list instead of the triples, so no reference changes.",
+        "For a = b × −c + b × −c: quadruples use temporaries t1 … t5 and then a = t5; triples (0) … (4) compute the value and triple (5) is the assignment (=, a, (4)).",
+        "Indirect triples cost the triple table plus the pointer list, so they use more space than plain triples but keep their reordering flexibility close to quadruples.",
+        "Other intermediate forms: a syntax tree, a DAG that shares common subexpressions (b × −c appears once in the DAG of a = b × −c + b × −c), and postfix notation, where that statement is a b c uminus × b c uminus × + =."
+      ],
+      "keyTerms": [
+        "quadruple",
+        "triple",
+        "indirect triple",
+        "positional reference"
+      ],
+      "lesson": {
+        "why": "GATE asks you to fill in or choose among triples and quadruples, and to know which form survives reordering.",
+        "intro": "After three-address code is chosen as the form, the compiler still has to store it. A quadruple stores four fields: operator, two arguments and a result name. A triple stores three fields and has no result name; a later instruction refers to an earlier one by its position, such as (2). Indirect triples keep the triples in a table and add a separate list of pointers that gives the execution order.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.three-address-code"
+        ],
+        "definitions": [
+          {
+            "term": "Quadruple",
+            "meaning": "A record (op, arg1, arg2, result) where the result is a named temporary."
+          },
+          {
+            "term": "Triple",
+            "meaning": "A record (op, arg1, arg2) whose result is referred to by its index."
+          }
+        ],
+        "principle": {
+          "text": "Triples save space by naming results by position, but then moving a triple changes every reference to it. Quadruples name results, and indirect triples reorder through a pointer list, so both can be reordered safely."
+        },
+        "limits": "Quadruples must add every temporary to the symbol table. A plain triple table is fine when no optimizer reorders the code. Array reads and writes use two operators: =[] with operands a, i reads a[i], and []= names a[i] as a target for a following =. Only forms that describe the program are IRs: three-address code, the syntax tree and the control flow graph count, the symbol table does not.",
+        "example": {
+          "problem": "Show the triples for x = (a + b) * (a + b), with no common-subexpression sharing.",
+          "steps": [
+            "The first sum: (0) + a b.",
+            "The second sum is built again: (1) + a b.",
+            "The product uses both by position: (2) * (0) (1).",
+            "The assignment: (3) = x (2)."
+          ],
+          "result": "Four triples; as quadruples this would be t1 = a+b, t2 = a+b, t3 = t1*t2, x = t3."
+        },
+        "misconceptions": [
+          "An assignment in triples is itself a triple, (=, x, (2)), not a free field in the producing triple.",
+          "Indirect triples do not shrink the code; they cost extra for the pointer list in return for easy reordering.",
+          "Quadruples do hold temporaries, since the result field names them; it is triples that have no result names and use positions instead."
+        ],
+        "recall": [
+          {
+            "q": "How does a triple refer to the result of an earlier operation?",
+            "a": "By the index of that earlier triple, such as (2)."
+          },
+          {
+            "q": "Why are indirect triples easier to optimize than plain triples?",
+            "a": "The optimizer reorders the pointer list and leaves the triples, so no references change."
+          },
+          {
+            "q": "Is the symbol table an intermediate representation?",
+            "a": "No. It maps names to type, scope and address and holds no statements; the syntax tree, control flow graph and three-address code are IRs."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An optimizer swaps two instructions. Which form refers to earlier results by position in a list, yet lets the swap happen without rewriting any operand?",
+          "options": [
+            "Plain triples",
+            "Indirect triples",
+            "Quadruples",
+            "Postfix notation with no temporaries"
+          ],
+          "answer": 1,
+          "explanation": "Indirect triples keep operands as positions in the triple table and reorder only the pointer list, so no operand changes. Plain triples also refer by position but the swap moves a triple and breaks every reference to it, which is why the first option tempts. Quadruples avoid the problem by naming results, not by position, and postfix has no references at all."
+        },
+        "summary": "Quadruples name results and move freely, triples name them by position and break on reordering, and indirect triples add a pointer list to regain that freedom."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.ssa",
+      "title": "Static single assignment form",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "In SSA form every variable is assigned exactly once in the program text; each new assignment to x creates a fresh version x₁, x₂, … and every use refers to the version that reaches it.",
+        "In straight-line code the conversion is a renaming: the number of new names equals the number of assignments, and inputs that are only read keep their original names.",
+        "Where control paths merge, a φ-function picks the version from the incoming edge: x₃ = φ(x₁, x₂) at the join of an if-else that assigns x on both arms.",
+        "Because each name has one definition, use-def chains are explicit, which makes constant propagation, dead-code elimination and value numbering simpler.",
+        "φ-functions count as definitions. In a loop, i₁ = 0 before the loop, i₂ = φ(i₁, i₃) at the header and i₃ = i₂ + 1 in the body: the header φ merges the entry value with the value carried by the back edge."
+      ],
+      "keyTerms": [
+        "SSA",
+        "versioning",
+        "φ-function",
+        "use-def chain"
+      ],
+      "lesson": {
+        "why": "SSA questions ask you to rename a three-address program or place phi-functions, and every compiler optimisation that follows is simpler on SSA, so the renaming rules are tested directly.",
+        "intro": "Normally a program may assign the same variable many times, so a use of x could mean any of several earlier assignments. Static single assignment form removes that doubt by giving every assignment its own new name: x1, x2, x3. Each use then names exactly one definition. When two paths meet and each carries a different version of x, a special statement called a phi-function chooses between them at the merge point.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.three-address-code",
+          "cd-sdt-ir-optimization.basic-blocks-cfg"
+        ],
+        "definitions": [
+          {
+            "term": "Version",
+            "meaning": "One numbered name, such as x2, created for exactly one assignment to x."
+          },
+          {
+            "term": "phi-function",
+            "meaning": "A statement at a merge point that takes the version arriving along whichever edge was used, for example x3 = φ(x1, x2)."
+          }
+        ],
+        "principle": {
+          "text": "Every name is defined in exactly one place. A use refers to the version that reaches it; where several versions reach a merge point, a phi-function at the top of that block defines a new version that later uses take.",
+          "tex": "x_3 = \\varphi(x_1,\\,x_2)"
+        },
+        "limits": "Renaming alone is enough in straight-line code, and phi-functions appear only where paths join. A name that is only read keeps its original name. A phi-function is a notation for the compiler, not an instruction the machine runs; it disappears before code generation.",
+        "example": {
+          "problem": "Convert to SSA: a = x + y; b = a * 2; a = b - 1; c = a + b.",
+          "steps": [
+            "The first assignment to a becomes a1 = x + y. The inputs x and y are only read, so they keep their names.",
+            "b = a * 2 reads the latest a, which is a1, so it becomes b1 = a1 * 2.",
+            "The second assignment to a gets a new version: a2 = b1 - 1.",
+            "c = a + b reads the latest a and b, which are a2 and b1, so it becomes c1 = a2 + b1."
+          ],
+          "result": "a1 = x + y; b1 = a1 * 2; a2 = b1 - 1; c1 = a2 + b1. Four assignments gave four new names."
+        },
+        "misconceptions": [
+          "A phi-function is not needed after every assignment; it is needed only at a block where paths carrying different versions of the same variable meet.",
+          "SSA does not change what the program computes. Only the names change, so the result must equal the original program's result on every path."
+        ],
+        "recall": [
+          {
+            "q": "In straight-line code, how many new names does SSA create?",
+            "a": "One for each assignment; variables that are only read keep their original names."
+          },
+          {
+            "q": "What does x3 = φ(x1, x2) mean?",
+            "a": "x3 takes the value of x1 if control arrived along the first incoming edge and of x2 if it arrived along the second."
+          },
+          {
+            "q": "Where is a phi-function placed?",
+            "a": "At the start of a block where control paths merge and carry different versions of the same variable."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In if (c) x = 1; else x = 2; the arms are renamed x1 = 1 and x2 = 2. Which choice correctly renames the code that follows the join: y = x + 1; x = y * 2; z = x + y?",
+          "options": [
+            "x3 = φ(x1, x2); y1 = x3 + 1; x3 = y1 * 2; z1 = x3 + y1",
+            "y1 = x1 + 1; x3 = y1 * 2; z1 = x3 + y1",
+            "x3 = φ(x1, x2); y1 = x3 + 1; x4 = y1 * 2; z1 = x4 + y1",
+            "x3 = φ(x1, x2); y1 = x3 + 1; x4 = y1 * 2; z1 = x3 + y1"
+          ],
+          "answer": 2,
+          "explanation": "The merge needs x3 = φ(x1, x2) so that y1 reads the right version, and the later assignment to x needs a fresh name x4, which z1 then reads. The first choice defines x3 twice, which SSA forbids. The second tempts by picking x1 and ignores the else path. The last keeps the stale x3 after x was reassigned."
+        },
+        "summary": "SSA gives each assignment a fresh numbered name so every use has one definition, and inserts phi-functions where paths with different versions merge."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "title": "Basic blocks, flow graphs and loops",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        41,
+        42,
+        456,
+        460,
+        461
+      ],
+      "points": [
+        "A basic block is a maximal run of consecutive instructions entered only at the first and left only at the last, with no jump into or out of the middle.",
+        "Leaders: the first instruction; every target of a conditional or unconditional jump; every instruction immediately after a jump. Each block runs from a leader up to, not including, the next leader.",
+        "The control-flow graph has blocks as nodes and an edge B → C when C can run right after B: by an explicit jump, or by falling through when B does not end in an unconditional goto, return or halt. Edges are distinct pairs, so a conditional jump to the next block adds one edge.",
+        "Block D dominates block B if every path from the entry to B passes through D. An edge n → h is a back edge when h dominates n; its natural loop is h plus all nodes that reach n without passing through h.",
+        "Global (intra-procedural) optimizations work across blocks of the CFG, using the data-flow facts computed on it."
+      ],
+      "keyTerms": [
+        "basic block",
+        "leader",
+        "control-flow graph",
+        "dominator",
+        "back edge",
+        "natural loop"
+      ],
+      "lesson": {
+        "why": "Counting basic blocks and drawing the control-flow graph is the first step of every code-optimisation question, and a wrong leader list spoils the rest of the answer.",
+        "intro": "A basic block is a run of instructions that always runs from its first instruction to its last: you can only enter at the top and only leave at the bottom. To find the blocks, mark the leaders, the instructions that must start a block, and cut the code in front of each leader. Joining the blocks with arrows that show where control can go next gives the control-flow graph.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.three-address-code"
+        ],
+        "definitions": [
+          {
+            "term": "Leader",
+            "meaning": "An instruction that begins a basic block: the first instruction, a jump target, or the instruction right after a jump."
+          },
+          {
+            "term": "Control-flow graph",
+            "meaning": "A graph whose nodes are basic blocks and whose edges show which block can run next."
+          }
+        ],
+        "principle": {
+          "text": "The leaders are the first instruction, every instruction that is the target of a jump, and every instruction that immediately follows a jump. Each block runs from a leader up to the instruction before the next leader, so the number of blocks equals the number of leaders."
+        },
+        "limits": "An instruction that is both a jump target and follows a jump is still one leader, so count distinct instructions. A block that ends in an unconditional goto does not fall through to the next block, but one that ends in a conditional jump has two outgoing edges.",
+        "example": {
+          "problem": "Split into basic blocks: 1 i = 0; 2 s = 0; 3 if i >= n goto 7; 4 s = s + i; 5 i = i + 1; 6 goto 3; 7 return s.",
+          "steps": [
+            "Instruction 1 is a leader because it is the first.",
+            "The targets are 7 (from instruction 3) and 3 (from instruction 6), so 3 and 7 are leaders.",
+            "The instructions after jumps are 4 (after instruction 3) and 7 (after instruction 6), so 4 is a leader and 7 is already one.",
+            "The leaders are 1, 3, 4 and 7, giving the blocks 1-2, 3, 4-6 and 7."
+          ],
+          "result": "4 basic blocks. The conditional in block 3 has two edges, to block 4-6 and to block 7."
+        },
+        "misconceptions": [
+          "The instruction after a conditional jump is a leader even though control may fall into it; forgetting it merges two blocks that should be separate.",
+          "A jump is the last instruction of its block unless it is itself a leader. The leaders are the jump's target and the instruction after the jump, not the jump itself."
+        ],
+        "recall": [
+          {
+            "q": "Name the three kinds of leader.",
+            "a": "The first instruction, any jump target, and any instruction that directly follows a jump."
+          },
+          {
+            "q": "How many outgoing edges does a block ending in a conditional jump have?",
+            "a": "Two: one to the jump target and one to the next block by fall-through."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Count the basic blocks: 1 a = 0; 2 b = n; 3 if a >= b goto 8; 4 if a % 2 goto 6; 5 s = s + a; 6 a = a + 1; 7 goto 3; 8 return s.",
+          "answer": 6,
+          "explanation": "The jump targets are 8, 6 and 3, and the instructions after jumps are 4, 5 and 8. With the first instruction, the distinct leaders are 1, 3, 4, 5, 6 and 8, so there are 6 blocks: 1-2, 3, 4, 5, 6-7 and 8. The answer 5 tempts if instruction 5 is not seen as a leader after the second jump."
+        },
+        "summary": "Find the leaders (first instruction, jump targets, instructions after jumps); the blocks are the stretches between them, and the CFG links blocks by jumps and fall-through."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.dag",
+      "title": "DAG representation of a basic block",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        41,
+        460
+      ],
+      "points": [
+        "Leaves are the initial values of variables and constants (b₀, c₀); each interior node is an operator applied to its child nodes, labelled with the variables currently holding its value.",
+        "Before creating a node for x = y op z, look for an existing node with the same op and the same children. If found, attach x to it: that is common subexpression elimination.",
+        "An assignment moves the variable's label to the new node, so a later use of the variable refers to the latest value, and a node whose variables were all reassigned becomes dead if nothing uses it.",
+        "The DAG gives the shortest equivalent code: one instruction per interior node that is needed, plus copies for extra live variables attached to the same node.",
+        "Example: p = a + b; q = a + b; r = p × c; s = q × c; t = r − s; u = t + a has leaves a, b, c and interior nodes +, ×, −, +, so 7 nodes."
+      ],
+      "keyTerms": [
+        "DAG",
+        "value numbering",
+        "common subexpression",
+        "leaf node"
+      ],
+      "lesson": {
+        "why": "Questions ask for the number of nodes in the DAG of a straight-line block, and the answer depends on spotting reuse and reassignment correctly.",
+        "intro": "A DAG for a basic block draws each distinct value once. The values that exist before the block runs, such as variables and constants, are leaves. Every operation becomes a node pointing at its operands. If the same operation on the same operands appears again, no new node is made; the new variable name is simply attached to the node that already exists. That sharing is what makes it a graph and not a tree.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.three-address-code",
+          "cd-sdt-ir-optimization.basic-blocks-cfg"
+        ],
+        "principle": {
+          "text": "For a statement x = y op z, find the nodes currently holding y and z. If a node with op and those two children exists, attach x to it; otherwise create it. Assigning to a variable moves its label to the new node, so a later use sees the latest value, not the old one."
+        },
+        "limits": "A DAG covers one basic block only. Reassigning an operand makes the next use of that operand a different node, so the same-looking expression a - b may need two nodes. A copy x = y creates no node; it only adds a label.",
+        "example": {
+          "problem": "Count the DAG nodes: t1 = a * b; t2 = a * b; t3 = t1 + t2; a = t3; t4 = a * b.",
+          "steps": [
+            "The leaves are a and b: 2 nodes.",
+            "t1 = a * b creates a * node; t2 = a * b has the same operator and children, so t2 joins that node.",
+            "t3 = t1 + t2 adds a + node with the * node as both children.",
+            "a = t3 is a copy, so a is relabelled to the + node. Now a * b uses the + node and b, which is a new * node."
+          ],
+          "result": "2 leaves + the first * + the + + the second * = 5 nodes."
+        },
+        "misconceptions": [
+          "Two textual copies of a - b are not always one node: if b was reassigned between them, the second uses the new b and needs its own node.",
+          "A copy statement or a repeated expression adds no node, so the count is not the number of statements."
+        ],
+        "recall": [
+          {
+            "q": "What do the leaves of a block's DAG stand for?",
+            "a": "The values the variables and constants hold when the block starts."
+          },
+          {
+            "q": "What happens when x = y op z repeats an existing operation on the same nodes?",
+            "a": "No node is created; the name x is attached to the existing node."
+          },
+          {
+            "q": "How does reassigning a variable affect the DAG?",
+            "a": "The variable's label moves to the new node, so later uses refer to the new value."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Count the DAG nodes: u = a - b; b = b + 1; v = a - b; w = u * v.",
+          "answer": 7,
+          "explanation": "Leaves: a, b and the constant 1 give 3. u = a - b adds one node. b = b + 1 adds another and moves the label b to it. v = a - b now uses the new b, so it is a different node from u. w = u * v adds the last, giving 7. The answer 6 tempts if v is merged with u."
+        },
+        "summary": "One node per distinct value: leaves for initial values, one interior node per distinct operator and operand pair, with reassignment moving labels and creating new nodes for later uses."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.local-optimizations",
+      "title": "Local and loop optimizations",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        41,
+        42,
+        455,
+        456,
+        458
+      ],
+      "points": [
+        "Common subexpression elimination reuses a value already computed when its operands are unchanged; constant folding evaluates constant expressions at compile time (2 + 3 → 5).",
+        "Constant propagation replaces a variable known to hold a constant by that constant, which often exposes more folding; copy propagation replaces uses of x after x = y by y, often leaving x = y dead.",
+        "Dead-code elimination removes an assignment whose result is never used afterwards and code that can never execute; algebraic simplification applies identities such as x + 0 → x and x × 1 → x.",
+        "Strength reduction replaces an expensive operation by a cheaper one: x × 2 → x + x, x × 8 → x << 3, and in a loop j = 4 × i becomes j = j + 4 each time i increments.",
+        "Loop-invariant code motion moves a computation whose operands do not change inside the loop to the preheader, a block that runs once before the loop header.",
+        "An induction variable changes by a fixed amount each iteration; once derived induction variables are strength-reduced, the original counter may be removed if only the loop test still uses it."
+      ],
+      "keyTerms": [
+        "CSE",
+        "constant folding",
+        "copy propagation",
+        "dead code",
+        "strength reduction",
+        "loop-invariant code motion",
+        "induction variable"
+      ],
+      "lesson": {
+        "why": "Questions test which local or loop optimisation applies to a code fragment and count the operations that remain afterwards, so you need each transformation's trigger and its effect.",
+        "intro": "A compiler improves code without changing what it computes. Some rewrites replace a variable by a value it is known to hold, some compute a result once instead of many times, and some replace an expensive operation, like multiplication, with a cheaper one, like addition. Several rewrites together are often stronger than any one: replacing a variable by a constant may let the compiler evaluate an expression, which in turn may leave an assignment nobody reads.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.basic-blocks-cfg"
+        ],
+        "definitions": [
+          {
+            "term": "Strength reduction",
+            "meaning": "Replacing an expensive operation with a cheaper one, such as a multiplication by a running addition inside a loop."
+          },
+          {
+            "term": "Loop-invariant code motion",
+            "meaning": "Moving a computation whose operands do not change in the loop to just before the loop."
+          }
+        ],
+        "principle": {
+          "text": "A rewrite is allowed only when it preserves the program's result. Constant propagation and folding replace known values and evaluate constant expressions, copy propagation replaces x with y after x = y, dead-code elimination deletes unused assignments, common subexpression elimination reuses an unchanged result, and in loops, invariants are hoisted and induction-variable multiplications become additions."
+        },
+        "limits": "Reuse of a common subexpression is legal only while none of its operands changes between the two uses. Hoisting a computation changes behaviour if it could fault when the loop would not have run. Dead-code elimination needs liveness: an assignment is removable only if the value is never read later.",
+        "example": {
+          "problem": "Optimise: a = 3; b = a * 4; c = b + 0; d = c; e = d + a, where only e is used afterwards.",
+          "steps": [
+            "Propagate a = 3 and fold: b = 12.",
+            "Algebraic simplification turns c = b + 0 into c = b, and copy propagation turns the uses of c and d into b, which is the constant 12.",
+            "e = 12 + 3 folds to e = 15.",
+            "a, b, c and d are never read now, so dead-code elimination removes them."
+          ],
+          "result": "One instruction remains: e = 15, from five."
+        },
+        "misconceptions": [
+          "Strength reduction is not only for multiplication by powers of two; in loops a multiplication of the counter by a constant becomes a running addition.",
+          "Moving code out of a loop is not always safe or useful; the computation must be invariant, meaning none of its operands is changed in the loop."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between constant propagation and constant folding?",
+            "a": "Propagation substitutes a known constant for a variable; folding evaluates an expression whose operands are all constants."
+          },
+          {
+            "q": "When is an assignment dead?",
+            "a": "When the value it stores is never read on any path before being overwritten."
+          },
+          {
+            "q": "What does strength reduction do to j = 6 * i inside a loop where i increases by 1?",
+            "a": "It replaces the multiplication with j = j + 6 at each iteration."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A loop runs 10 times with i = 1, 2, ..., 10 and computes j = 6 * i and k = a * b, where a and b are not changed in the loop. After hoisting the invariant and strength-reducing j (its starting value 6 is a constant), how many multiplications are executed in total?",
+          "answer": 1,
+          "explanation": "Originally each iteration does two multiplications, 20 in all. The product a * b is invariant, so it is computed once before the loop. The multiplication 6 * i becomes j = j + 6 with j starting at the constant 6, so it needs none. Total 1. The answer 10 tempts if only one of the two rewrites is applied."
+        },
+        "summary": "Propagate constants and copies, fold, remove dead code and repeated computation, hoist invariants, and turn induction-variable multiplications into additions, each only when the result is preserved."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.dataflow-framework",
+      "title": "Data-flow framework, reaching definitions and available expressions",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        42,
+        456,
+        458,
+        461
+      ],
+      "points": [
+        "Each analysis fixes a direction (forward along edges or backward), a transfer function per block, usually OUT = GEN ∪ (IN − KILL), and a meet at merge points: union for may analyses, intersection for must analyses.",
+        "Reaching definitions (forward, may, union): definition d of x reaches point p if some path from d to p has no other definition of x. It drives use-def chains, constant and copy propagation.",
+        "Available expressions (forward, must, intersection): y + z is available at p if every path from the entry to p computes y + z with no later assignment to y or z. It justifies global common subexpression elimination.",
+        "Liveness (backward, may, union) is the backward counterpart, covered in its own topic.",
+        "The equations are solved by iteration from an initial value (empty set for union analyses, the universal set for intersection analyses except at the entry) until no IN or OUT changes; a worklist does the same with less work.",
+        "Global CSE: if y + z is available at the entry of B and B recomputes it before changing y or z, store y + z into a fresh temporary t at each computation that reaches B and replace B's recomputation by t. A path that assigns y or z without recomputing kills it."
+      ],
+      "keyTerms": [
+        "GEN",
+        "KILL",
+        "meet",
+        "may analysis",
+        "must analysis",
+        "fixpoint",
+        "worklist"
+      ],
+      "lesson": {
+        "why": "Questions give a flow graph and ask which expressions are available or redundant, or which definitions reach a point, so you must know each analysis's direction and merge rule.",
+        "intro": "Data-flow analysis answers a question about every point of a flow graph at once by passing sets of facts along the edges. Each block adds some facts (gen) and cancels others (kill). Where two paths join, the facts from the paths are combined by a merge rule. The sets are recomputed round after round until nothing changes, and the stable sets are the answer.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.basic-blocks-cfg"
+        ],
+        "definitions": [
+          {
+            "term": "Available expression",
+            "meaning": "An expression computed on every path to a point with no operand changed since, so recomputing it there is redundant."
+          },
+          {
+            "term": "Reaching definition",
+            "meaning": "A definition d of x reaches a point p if some path from d to p has no other definition of x in between."
+          },
+          {
+            "term": "Fixpoint",
+            "meaning": "The state when another round of the equations changes no set."
+          }
+        ],
+        "principle": {
+          "text": "Forward analyses compute IN as the merge of the predecessors' OUT, and OUT = GEN ∪ (IN − KILL). A may analysis, such as reaching definitions, merges by union; a must analysis, such as available expressions, merges by intersection.",
+          "tex": "\\mathrm{OUT}[B]=\\mathrm{GEN}[B]\\cup\\bigl(\\mathrm{IN}[B]-\\mathrm{KILL}[B]\\bigr)"
+        },
+        "limits": "A fact is available only if it holds on every path, so one path that kills it removes it at the join. Must analyses start from the full set of facts (except at the entry, which starts empty), not from the empty set. Backward analyses such as liveness reverse the direction of the equations.",
+        "example": {
+          "problem": "Blocks: B1 computes a + b; B2 and B3 both follow B1 and both lead to B4. B2 computes a + b again; B3 assigns a = 1. Is a + b available at the entry of B4?",
+          "steps": [
+            "OUT of B1 contains a + b.",
+            "B2 recomputes a + b with no later change, so OUT of B2 contains a + b.",
+            "B3 changes a, which kills a + b, and it generates nothing, so OUT of B3 is empty.",
+            "At B4 the merge is an intersection: {a + b} ∩ {} = {}."
+          ],
+          "result": "a + b is not available at B4, so a computation there is not redundant."
+        },
+        "misconceptions": [
+          "Available expressions merge with intersection, not union; one path that lacks the expression is enough to lose it.",
+          "An expression generated in a block is not available after it if one of its operands is assigned later in the same block."
+        ],
+        "recall": [
+          {
+            "q": "Which merge operator does available expressions use, and why?",
+            "a": "Intersection, because the expression must be available along every incoming path."
+          },
+          {
+            "q": "What is the transfer function of a forward analysis?",
+            "a": "OUT = GEN ∪ (IN − KILL) for each block."
+          },
+          {
+            "q": "When does iteration stop?",
+            "a": "When a full round leaves every IN and OUT set unchanged."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "B1 computes a + b and c * d. B2 and B3 follow B1 and lead to B4. B2 assigns c = 1 and then computes a + b. B3 computes c * d. How many expressions are available at the entry of B4?",
+          "answer": 1,
+          "explanation": "OUT of B1 is {a + b, c * d}. In B2, c = 1 kills c * d, then a + b is generated, so OUT is {a + b}. B3 keeps both, so OUT is {a + b, c * d}. The intersection at B4 is {a + b}, which has 1 element. Answer 2 tempts if the merge is read as a union."
+        },
+        "summary": "Each block applies OUT = GEN ∪ (IN − KILL); forward analyses merge predecessors by union (may) or intersection (must) and iterate to a fixpoint."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.liveness",
+      "title": "Liveness analysis",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        42,
+        456,
+        458,
+        460
+      ],
+      "points": [
+        "Variable x is live at point p if some path from p uses x before any redefinition of x; otherwise x is dead at p.",
+        "USE[B] is the set of variables read in B before any write to them in B; DEF[B] is the set written in B before any read of them in B.",
+        "IN[B] = USE[B] ∪ (OUT[B] − DEF[B]) and OUT[B] = union of IN[S] over successors S; information flows backward, so process blocks in reverse order and iterate to a fixpoint.",
+        "Loops matter: a variable read at the loop head is live at the end of the loop body, even if the body never reads it.",
+        "Uses: an assignment to a variable dead right after it is dead code, and two variables never live at the same point can share a register."
+      ],
+      "keyTerms": [
+        "live variable",
+        "USE",
+        "DEF",
+        "backward analysis",
+        "register allocation"
+      ],
+      "lesson": {
+        "why": "Liveness questions give a flow graph and ask for the live variables at block exits, and the loop case needs more than one pass.",
+        "intro": "A variable is live at a point if its current value might still be read later. If nothing can read it, it is dead, and the register or assignment is free to go. Because the question depends on what happens later, liveness is worked backward: start at the end of the program and move toward the beginning, collecting variables that are read before being written.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.basic-blocks-cfg",
+          "cd-sdt-ir-optimization.dataflow-framework"
+        ],
+        "definitions": [
+          {
+            "term": "USE",
+            "meaning": "The variables a block reads before it writes them."
+          },
+          {
+            "term": "DEF",
+            "meaning": "The variables a block writes before it reads them."
+          }
+        ],
+        "principle": {
+          "text": "Live-out of a block is the union of live-in of its successors. Live-in is what the block uses, plus what is live-out and not defined in the block. Nothing is live after the program ends. Iterate until no set changes.",
+          "tex": "\\mathrm{IN}[B]=\\mathrm{USE}[B]\\cup\\bigl(\\mathrm{OUT}[B]-\\mathrm{DEF}[B]\\bigr),\\quad \\mathrm{OUT}[B]=\\bigcup_{S\\in \\mathrm{succ}(B)}\\mathrm{IN}[S]"
+        },
+        "limits": "A variable that is written before being read in a block is not in USE, even if the block mentions it. Loops need more than one pass, because the live-in of the loop head feeds the end of the loop body. The method is per variable name; it says nothing about the values.",
+        "example": {
+          "problem": "B1: i = 0; s = 0. B2: if i < n goto B4. B3: s = s + i; i = i + 1; goto B2. B4: return s. What is live at the exit of B1?",
+          "steps": [
+            "B4 returns s, so IN of B4 is {s}, and B4 has no successors. Start the loop blocks with empty sets: IN of B2 and IN of B3 are both {} before pass 1.",
+            "Pass 1, B3: OUT of B3 is IN of B2, still {}. B3 reads s and i before writing them, so IN of B3 is {s, i}.",
+            "Pass 1, B2: B2 reads i and n, and its successors are B3 and B4, so IN of B2 is {i, n} ∪ {s, i} ∪ {s} = {i, n, s}.",
+            "Pass 2, B3: OUT of B3 is now {i, n, s}, and B3 defines s and i, so IN of B3 is {s, i} ∪ {n} = {s, i, n}. Recomputing B2 gives {i, n, s} again, so nothing changes and the fixpoint is reached.",
+            "B1 has the single successor B2, so OUT of B1 equals IN of B2."
+          ],
+          "result": "Live at the exit of B1: {i, n, s}. The variable n is live although B1 never mentions it."
+        },
+        "misconceptions": [
+          "A variable that is not used in a block can still be live there, because it may be read in a later block.",
+          "Dead means no later read, not that the variable is unused in the program; a variable read only before its last assignment can be dead after that assignment."
+        ],
+        "recall": [
+          {
+            "q": "In which direction does liveness flow, and why?",
+            "a": "Backward, since whether a value is still needed depends on the code that comes after."
+          },
+          {
+            "q": "What is live at the exit of the last block?",
+            "a": "Nothing, unless the program says some variable is used afterwards, because the program has ended."
+          },
+          {
+            "q": "Which compiler task uses live-variable information?",
+            "a": "Register allocation, because two variables never live at the same time can share a register."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "B1: x = p + q; y = x * 2. B2: z = x + y; if z > r goto B1 (otherwise fall to B3). B3: print z. How many variables are live at the exit of B1?",
+          "answer": 5,
+          "explanation": "OUT of B3 is empty and IN of B3 is {z}. B2 defines z, so z is not live into B2, but B2 reads x, y and r. OUT of B2 includes IN of B1, which contains p and q, and IN of B2 is therefore {x, y, r, p, q}. B1 has the single successor B2, so OUT of B1 is that set, five variables. The answer 3 tempts if the back edge to B1 is ignored."
+        },
+        "summary": "Liveness runs backward: live-out is the union of successors' live-in, live-in is USE plus live-out minus DEF, and loops need repeated passes until nothing changes."
+      }
+    },
+    {
+      "id": "cd-sdt-ir-optimization.constant-propagation",
+      "title": "Constant propagation as a data-flow analysis",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Each variable takes a lattice value: UNDEF (no definition seen yet), a constant c, or NAC (not a constant). The analysis runs forward.",
+        "Meet at a join: UNDEF ∧ v = v, c ∧ c = c, c₁ ∧ c₂ = NAC when c₁ ≠ c₂, and NAC ∧ v = NAC. A variable is constant only if every incoming path gives the same constant, so it is a must-style analysis.",
+        "Transfer for x = y op z: if y and z are constants, x is their folded value; if either is NAC, x is NAC; otherwise x is UNDEF.",
+        "The framework is monotone but not distributive: after if (p) { x = 2; y = 3 } else { x = 3; y = 2 }, z = x + y is 5 on every path, yet the analysis reports NAC because x and y are each NAC at the join.",
+        "Worked case: x = 3 on both arms, y = 5 on one and 7 on the other; after the join x is 3, y is NAC, x + y is NAC and x × 2 folds to 6."
+      ],
+      "keyTerms": [
+        "UNDEF",
+        "NAC",
+        "lattice",
+        "meet",
+        "non-distributive"
+      ],
+      "lesson": {
+        "why": "Constant propagation questions ask what value the analysis assigns to a variable after a branch join, and the analysis is deliberately weaker than the truth.",
+        "intro": "Constant propagation finds variables whose value is the same known constant every time the program reaches a point, so the compiler can replace them by that constant. For each variable the analysis keeps one of three values: UNDEF, meaning no definition has been seen yet; a specific constant; or NAC, meaning not a constant. It runs forward through the program, and where two paths join it merges what each path says.",
+        "prerequisites": [
+          "cd-sdt-ir-optimization.dataflow-framework"
+        ],
+        "definitions": [
+          {
+            "term": "UNDEF",
+            "meaning": "The variable has no definition on the paths seen so far."
+          },
+          {
+            "term": "NAC",
+            "meaning": "Not a constant: the variable can hold different values or an unknown one at this point."
+          },
+          {
+            "term": "Meet",
+            "meaning": "The rule that combines the values arriving from two paths at a join."
+          }
+        ],
+        "principle": {
+          "text": "At a join, UNDEF meets any value $v$ to give $v$, equal constants stay that constant, different constants give NAC, and NAC meets anything to give NAC. For $x = y \\mathbin{op} z$, if $y$ and $z$ are both constants then $x$ is the folded value, if either is NAC then $x$ is NAC, and otherwise $x$ is UNDEF.",
+          "tex": "c \\wedge c = c,\\qquad c_1 \\wedge c_2 = \\mathrm{NAC}\\ (c_1\\ne c_2),\\qquad \\mathrm{UNDEF}\\wedge v = v,\\qquad \\mathrm{NAC}\\wedge v=\\mathrm{NAC}"
+        },
+        "limits": "The analysis tracks each variable separately, so it cannot see that two variables are related. A value that is the same on every path but arrives through different operand values is still reported NAC, so the result is safe but not always the best possible.",
+        "example": {
+          "problem": "if (p) { u = 4; v = 0 } else { u = 0; v = 4 }. After the join, d = u + v. What does the analysis report for u, v and d?",
+          "steps": [
+            "On the first arm u is 4 and v is 0. On the second arm u is 0 and v is 4.",
+            "Meet for u: 4 and 0 are different constants, so u is NAC. Meet for v: 0 and 4 differ, so v is NAC.",
+            "d = u + v has NAC operands, so d is NAC.",
+            "Along every real path d is 4, but the analysis only sees each variable alone."
+          ],
+          "result": "u, v and d are all NAC, although d equals 4 on every path."
+        },
+        "misconceptions": [
+          "NAC does not mean the variable varies at run time. It means the analysis cannot prove one constant, as with d above, which is always 4.",
+          "UNDEF is not the same as NAC. UNDEF meeting a constant keeps the constant, so a variable defined on only one arm still counts as that constant after the join."
+        ],
+        "recall": [
+          {
+            "q": "What is the meet of the constants 3 and 5?",
+            "a": "NAC, since two different constants arrive and no single constant is guaranteed."
+          },
+          {
+            "q": "What is the meet of UNDEF and the constant 7?",
+            "a": "The constant 7, because UNDEF is the identity of the meet."
+          },
+          {
+            "q": "In which direction does constant propagation run?",
+            "a": "Forward, from the entry of the program toward the exit."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "if (p) { a = 1; b = 6 } else { a = 6; b = 1 }. After the join, c = a + b is computed. What does constant propagation report for c?",
+          "options": [
+            "The constant 7",
+            "NAC",
+            "UNDEF",
+            "The constant 1"
+          ],
+          "answer": 1,
+          "explanation": "Both a and b meet two different constants at the join, so each is NAC, and an operation on NAC operands gives NAC. The constant 7 tempts because c is truly 7 on both paths, but the analysis handles each variable alone and so cannot see that."
+        },
+        "summary": "Each variable is UNDEF, a constant or NAC, and a join gives NAC when different constants meet; the analysis is forward, per-variable, and can report NAC even when the result is the same on every path."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cd-sdt-ir-optimization.liveness-in",
+      "name": "Liveness transfer equation",
+      "tex": "\\mathrm{IN}[B] = \\mathrm{USE}[B] \\cup (\\mathrm{OUT}[B] - \\mathrm{DEF}[B])",
+      "text": "IN[B] = USE[B] ∪ (OUT[B] − DEF[B])",
+      "where": [
+        [
+          "USE[B]",
+          "variables read in B before any write in B"
+        ],
+        [
+          "DEF[B]",
+          "variables written in B before any read in B"
+        ]
+      ],
+      "note": "A variable both read and then written in B (x = x + 1) is in USE, not DEF, so it stays live at entry.",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "origin": "source",
+      "pages": [
+        42,
+        456
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.liveness-out",
+      "name": "Liveness meet over successors",
+      "tex": "\\mathrm{OUT}[B] = \\bigcup_{S \\in \\mathrm{succ}(B)} \\mathrm{IN}[S]",
+      "text": "OUT[B] = ∪ IN[S] over successors S of B",
+      "note": "OUT of the exit block is empty unless variables are live after the procedure, such as globals or a returned value.",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "origin": "source",
+      "pages": [
+        42
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.reaching-out",
+      "name": "Reaching definitions transfer equation",
+      "tex": "\\mathrm{OUT}[B] = \\mathrm{GEN}[B] \\cup (\\mathrm{IN}[B] - \\mathrm{KILL}[B])",
+      "text": "OUT[B] = GEN[B] ∪ (IN[B] − KILL[B])",
+      "where": [
+        [
+          "GEN[B]",
+          "definitions in B that reach the end of B"
+        ],
+        [
+          "KILL[B]",
+          "other definitions of variables that B defines"
+        ]
+      ],
+      "note": "Only the last definition of a variable inside B is in GEN[B]; earlier ones in the same block are killed.",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "source",
+      "pages": [
+        456
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.reaching-in",
+      "name": "Reaching definitions meet over predecessors",
+      "tex": "\\mathrm{IN}[B] = \\bigcup_{P \\in \\mathrm{pred}(B)} \\mathrm{OUT}[P]",
+      "text": "IN[B] = ∪ OUT[P] over predecessors P of B",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.available-in",
+      "name": "Available expressions meet",
+      "tex": "\\mathrm{IN}[B] = \\bigcap_{P \\in \\mathrm{pred}(B)} \\mathrm{OUT}[P], \\qquad \\mathrm{OUT}[B] = e\\_\\mathrm{gen}[B] \\cup (\\mathrm{IN}[B] - e\\_\\mathrm{kill}[B])",
+      "text": "IN[B] = ∩ OUT[P] over predecessors; OUT[B] = e_gen[B] ∪ (IN[B] − e_kill[B])",
+      "where": [
+        [
+          "e_gen[B]",
+          "expressions computed in B whose operands are not redefined afterwards in B"
+        ],
+        [
+          "e_kill[B]",
+          "expressions with an operand assigned in B"
+        ]
+      ],
+      "note": "Intersection makes it a must analysis: initialise every OUT except the entry's to the set of all expressions, or the loop solution comes out too small.",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.dominators",
+      "name": "Dominator equation",
+      "tex": "\\mathrm{Dom}(n) = \\{n\\} \\cup \\bigcap_{p \\in \\mathrm{pred}(n)} \\mathrm{Dom}(p), \\quad \\mathrm{Dom}(\\mathrm{entry}) = \\{\\mathrm{entry}\\}",
+      "text": "Dom(n) = {n} ∪ ∩ Dom(p) over predecessors p; Dom(entry) = {entry}",
+      "note": "An edge n → h is a back edge exactly when h ∈ Dom(n).",
+      "topic": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.row-major-address",
+      "name": "Row-major address of a 2-D array element",
+      "tex": "\\mathrm{addr}(A[i][j]) = \\mathrm{base} + \\big((i - l_1)\\, n_2 + (j - l_2)\\big)\\, w",
+      "text": "addr(A[i][j]) = base + ((i − l1) × n2 + (j − l2)) × w",
+      "where": [
+        [
+          "l₁, l₂",
+          "lower bounds of the two indices (0 in C)"
+        ],
+        [
+          "n₂",
+          "number of columns"
+        ],
+        [
+          "w",
+          "element width in bytes"
+        ]
+      ],
+      "note": "Three-address code computes this offset into temporaries before the indexed load or store.",
+      "topic": "cd-sdt-ir-optimization.three-address-code",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.induction-strength-reduction",
+      "name": "Strength reduction of a derived induction variable",
+      "tex": "j = c\\, i + d,\\ \\ i \\leftarrow i + k \\;\\Longrightarrow\\; j \\leftarrow j + c\\,k",
+      "text": "if j = c·i + d and i increases by k each iteration, replace the multiply by j = j + c·k",
+      "note": "Initialise j = c·i₀ + d in the preheader so the first iteration sees the right value.",
+      "topic": "cd-sdt-ir-optimization.local-optimizations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.constant-meet",
+      "name": "Constant-propagation meet",
+      "tex": "\\mathrm{UNDEF} \\wedge v = v, \\quad c \\wedge c = c, \\quad c_1 \\wedge c_2 = \\mathrm{NAC}\\ (c_1 \\ne c_2), \\quad \\mathrm{NAC} \\wedge v = \\mathrm{NAC}",
+      "text": "UNDEF ∧ v = v; c ∧ c = c; c1 ∧ c2 = NAC if c1 ≠ c2; NAC ∧ v = NAC",
+      "topic": "cd-sdt-ir-optimization.constant-propagation",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cd-sdt-ir-optimization.sdt-output-trace",
+      "title": "Output or value computed by an SDT scheme on an input string",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Build the parse tree of the input from the given grammar; let the grammar, not arithmetic habit, decide precedence and associativity.",
+        "For print actions at the end of productions, list the actions in postorder (the order of reductions).",
+        "For value attributes, evaluate each node from its children upward and read the root's value."
+      ],
+      "trap": "Applying the usual × before + rules when the grammar gives the operators the opposite precedence.",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.classify-sdd",
+      "title": "Is this SDD S-attributed, L-attributed or neither",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Mark each attribute synthesized (defined at the head) or inherited (defined for a body symbol).",
+        "No inherited attributes at all: S-attributed, hence also L-attributed.",
+        "For each inherited Xᵢ.a, check that its inputs come only from the head's inherited attributes or from X₁ … Xᵢ₋₁; one right-sibling or head-synthesized input makes it not L-attributed."
+      ],
+      "trap": "Rejecting a rule like A.s = B.s + C.s as not L-attributed: synthesized rules at the head are always allowed.",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "origin": "source",
+      "pages": [
+        40,
+        41,
+        452,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.count-basic-blocks",
+      "title": "Count basic blocks and flow-graph edges",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Mark leaders: instruction 1, every jump target, every instruction immediately after a jump.",
+        "Each block runs from a leader to the instruction before the next leader; the count of leaders is the count of blocks.",
+        "For edges, count distinct successor blocks of each block: the jump target, plus the next block unless the last instruction is an unconditional goto, return or halt. A conditional jump to the next block gives one edge, not two."
+      ],
+      "trap": "Forgetting that the instruction after a conditional jump is a leader even when nothing jumps to it.",
+      "topic": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "origin": "source",
+      "pages": [
+        41,
+        456,
+        460,
+        461
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.dag-count",
+      "title": "DAG nodes or minimal code for a basic block",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Create a leaf for each variable's initial value the first time it is read.",
+        "For each statement, reuse a node with the same operator and the same child nodes if one exists; otherwise create it. Move the target variable's label to that node.",
+        "Count leaves plus interior nodes, or count interior nodes that feed a live output to get the minimum instruction count."
+      ],
+      "trap": "Matching expressions by variable names instead of by nodes: after b is reassigned, a later b + c is a different expression.",
+      "topic": "cd-sdt-ir-optimization.dag",
+      "origin": "source",
+      "pages": [
+        41,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.live-sets",
+      "title": "Live variables at a block entry or exit",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Compute USE and DEF for each block, reading its statements in order.",
+        "Start with all IN sets empty and apply OUT = ∪ IN[succ], IN = USE ∪ (OUT − DEF), visiting blocks in reverse order.",
+        "Repeat until no set changes; loops usually need a second pass."
+      ],
+      "trap": "Stopping after one pass when a back edge carries uses from the loop head into the body.",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "origin": "source",
+      "pages": [
+        42,
+        456
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.param-scope-output",
+      "title": "Printed value under a parameter-passing or scoping rule",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write a table of storage cells and which names alias which cell under the stated rule.",
+        "Execute statement by statement, updating cells; for value-result, perform the copy-out in the stated order at return.",
+        "For scoping, resolve each non-local name by text nesting (static) or by the latest active frame on the call stack (dynamic)."
+      ],
+      "trap": "Ignoring aliasing when the same variable is passed twice by reference or by value-result.",
+      "topic": "cd-sdt-ir-optimization.parameter-passing",
+      "origin": "source",
+      "pages": [
+        453,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.ssa-count",
+      "title": "Variables or temporaries needed in SSA or three-address form",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Give each assignment a fresh version of its target, renaming every later use to the latest version.",
+        "Count the new versions plus the input variables that are read but never assigned.",
+        "For a temporaries count, use one temporary per operator unless the question allows reuse or direct assignment to the target."
+      ],
+      "trap": "Leaving out the read-only inputs when the question asks for the total number of variables.",
+      "topic": "cd-sdt-ir-optimization.ssa",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.available-cse",
+      "title": "Which computations global common subexpression elimination can remove",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "List the expressions computed in the flow graph; for each block find e_gen (computed, operands not reassigned later in the block) and e_kill (an operand assigned in the block).",
+        "Solve IN[B] = ∩ OUT[P] over predecessors forward, starting every OUT except the entry's at the full set.",
+        "A computation of y + z in B is redundant when y + z is in IN[B] and B does not change y or z before it; replace it by a temporary set on every incoming path."
+      ],
+      "trap": "Calling an expression available because one path computes it: a single path that skips it or reassigns an operand removes it from the intersection.",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "cd-sdt-ir-optimization.q-l-attributed-rules",
+      "type": "msq",
+      "marks": 1,
+      "stem": "For the production A → B C D, each of the following semantic rules is added alone to an otherwise S-attributed SDD (.s denotes synthesized, .i inherited). Which rules keep the SDD L-attributed?",
+      "options": [
+        "C.i = A.i + B.s",
+        "B.i = C.s",
+        "A.s = D.s + B.s",
+        "D.i = B.s × C.s"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "An inherited attribute of a body symbol may depend only on the head's inherited attributes and on attributes of symbols to its left. C.i uses A.i and B.s, both allowed. B.i uses C.s from a right sibling, which an LL left-to-right pass has not computed yet, so it breaks L-attribution. A.s is synthesized, always allowed. D.i uses B.s and C.s, both left siblings of D.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2018) — SDT",
+      "pages": [
+        40,
+        41,
+        452,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-print-trace",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Consider the translation scheme S → A B { print 1 }, A → a A { print 2 } | b { print 3 }, B → c B { print 4 } | d { print 5 }. A bottom-up parser parses the input a a b c d and runs each action when it reduces by that production. What is printed?",
+      "options": [
+        "322541",
+        "145223",
+        "223541",
+        "322451"
+      ],
+      "answer": 0,
+      "explanation": "Parse tree: S → A B, A → a A → a a A → a a b, B → c B → c d. Reductions in order: A → b (3), A → a A twice (2, 2), then B → d (5), B → c B (4) and finally S → A B (1). Output 322541. Option 223541 runs parent actions before the child's, and 322451 swaps the order of the two B reductions.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-attribute-value",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An SDD has the rules E → E₁ # T { E.val = E₁.val × T.val }, E → T { E.val = T.val }, T → T₁ & F { T.val = T₁.val + F.val }, T → F { T.val = F.val }, F → num { F.val = num.lexval }. What is E.val at the root for the input 2 # 3 & 5 # 6 & 4?",
+      "answer": 160,
+      "explanation": "& is generated one level below #, so it binds tighter, and both are left-associative. The input groups as (2 # (3 & 5)) # (6 & 4). The & subterms give 3 + 5 = 8 and 6 + 4 = 10, and # multiplies: 2 × 8 = 16, then 16 × 10 = 160. Reading # and & with ordinary left-to-right evaluation would give ((2 × 3) + 5) × 6 + 4 = 70, the classic wrong answer.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-stack-allocation-limit",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Activation records are allocated on a run-time stack. Which language feature cannot be supported by stack allocation alone?",
+      "options": [
+        "Recursive procedures",
+        "Procedures nested inside other procedures, called only while the enclosing procedure is active",
+        "A function that returns a nested function which still refers to the outer function's local variables",
+        "Procedures taking a variable number of arguments"
+      ],
+      "answer": 2,
+      "explanation": "Stack allocation works because callee lifetimes nest inside caller lifetimes. A returned closure keeps using the outer function's locals after that function has returned and its frame has been popped, so those locals must live on the heap. Recursion is exactly what the stack handles, nested procedures are handled with access links, and variable argument lists only change the frame layout.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.activation-records",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Activation",
+      "pages": [
+        453,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-parameter-passing",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "int x = 5; void f(int a, int b) { a = a + 1; b = b + a; } main calls f(x, x) and then prints x. What does it print under call by value, call by reference and call by value-result (copy-out of a first, then b), respectively?",
+      "options": [
+        "5, 12, 11",
+        "5, 12, 6",
+        "5, 11, 11",
+        "6, 12, 11"
+      ],
+      "answer": 0,
+      "explanation": "By value: f changes only its copies, x stays 5. By reference: a and b both alias x. a = a + 1 makes x = 6, then b = b + a reads x twice: 6 + 6 = 12. By value-result: a = 5 and b = 5 locally; a becomes 6 and b becomes 5 + 6 = 11. Copy-out writes a (6) into x, then b (11) into x, so x = 11. Option 5, 12, 6 reverses the copy-out order (b first, then a, leaves x = 6); 6, 12, 11 wrongly lets call by value change x.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.parameter-passing",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Param passing",
+      "pages": [
+        453,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-static-dynamic-scope",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "int x = 10; void p() { x = x + 5; } void q() { int x = 1; p(); print(x); } main() { q(); print(x); }. What are the two printed values (first from q, then from main) under static scoping and under dynamic scoping?",
+      "options": [
+        "Static: 1 15; dynamic: 6 10",
+        "Static: 1 15; dynamic: 6 15",
+        "Static: 15 15; dynamic: 6 10",
+        "Static: 1 10; dynamic: 1 15"
+      ],
+      "answer": 0,
+      "explanation": "Static: x inside p is the global, as p's text sits at global level. p makes global x = 15; q prints its own local x = 1; main prints 15. Dynamic: when p runs, the most recent active x on the call stack is q's local, so p sets it to 1 + 5 = 6; q prints 6; the global is untouched and main prints 10.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.scoping",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-temporaries",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The statement x = a + b * c − d is translated into three-address code with the usual precedence, a fresh temporary for the result of every operator, and a final copy of the last temporary into x. How many temporaries are used?",
+      "answer": 3,
+      "explanation": "There are three binary operators. t1 = b * c; t2 = a + t1; t3 = t2 − d; x = t3. That is 3 temporaries and 4 instructions. If the last operator writes x directly the count drops to 2, and if temporaries may be reused it drops to 1 (t1 = b * c; t1 = a + t1; x = t1 − d).",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.three-address-code",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2017) — 3AC",
+      "pages": [
+        454,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-ir-forms",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about quadruples, triples and indirect triples are true?",
+      "options": [
+        "Quadruples name each result explicitly, so an instruction can be moved without changing the instructions that use its result.",
+        "Moving a triple requires updating every triple that refers to it by position.",
+        "Indirect triples need less storage than triples.",
+        "Triples require each temporary to be entered in the symbol table."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Quadruples carry a result field holding a named temporary, so references survive reordering. Triples refer to results by position, so moving one invalidates those references; indirect triples fix this by reordering a separate pointer list, which costs extra space, so the third statement is false. It is quadruples, not triples, whose temporaries go into the symbol table.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.ir-representations",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Indirect triples",
+      "pages": [
+        454,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-basic-blocks",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many basic blocks does this code have? (1) sum = 0 (2) i = 1 (3) if i > n goto (10) (4) t1 = i * i (5) sum = sum + t1 (6) if t1 < 50 goto (8) (7) sum = sum − 1 (8) i = i + 1 (9) goto (3) (10) print sum",
+      "answer": 6,
+      "explanation": "Leaders: (1) as the first instruction; (3), (8) and (10) as jump targets; (4), (7) and (10) as instructions right after a jump. The distinct leaders are 1, 3, 4, 7, 8, 10, giving blocks {1–2}, {3}, {4–6}, {7}, {8–9}, {10}: 6 blocks. The flow graph has 7 edges.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Basic block",
+      "pages": [
+        456,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-dag-nodes",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A basic block is p = a + b; q = a + b; r = p * c; s = q * c; t = r − s; u = t + a. How many nodes (leaves and interior nodes together) does its DAG have?",
+      "answer": 7,
+      "explanation": "Leaves: a, b, c. p = a + b creates node n1; q = a + b matches n1, so q labels n1. r = p * c creates n2 = n1 * c; s = q * c is again n1 * c, so s labels n2. t = r − s creates n3 = n2 − n2. u = t + a creates n4 = n3 + a. Interior nodes n1 … n4 plus 3 leaves make 7 nodes.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.dag",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — DAG",
+      "pages": [
+        41,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-match-optimizations",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Match each transformation to its name. P: a = 3 * 4 becomes a = 12. Q: y = x * 8 becomes y = x << 3. R: after b = c, a later d = b + 1 becomes d = c + 1. S: x = x * 1 is deleted. Names: 1 constant folding, 2 strength reduction, 3 copy propagation, 4 algebraic simplification.",
+      "options": [
+        "P-1, Q-2, R-3, S-4",
+        "P-1, Q-4, R-3, S-2",
+        "P-3, Q-2, R-1, S-4",
+        "P-4, Q-2, R-3, S-1"
+      ],
+      "answer": 0,
+      "explanation": "Evaluating 3 * 4 at compile time is constant folding. Replacing a multiply by a shift is strength reduction. Replacing a use of b by the c it was copied from is copy propagation. Removing x = x * 1 uses the identity x × 1 = x, which is algebraic simplification.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.local-optimizations",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Optimization",
+      "pages": [
+        455,
+        456,
+        460
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-live-at-entry",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Flow graph: B1: a = read(); b = read() → B2. B2: c = a + b; if c > 10 goto B4 else B3. B3: a = c − 1; d = b * 2 → B5. B4: d = a + 1 → B5. B5: e = d + c; if e < 100 goto B2, else exit. No variable is live at exit. Which variables are live at the entry of B4?",
+      "options": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Iterating IN = USE ∪ (OUT − DEF) backward to a fixpoint gives IN[B2] = {a, b}, IN[B5] = {a, b, c, d}, IN[B3] = {b, c}. B4 uses a and defines d, and OUT[B4] = IN[B5] = {a, b, c, d}, so IN[B4] = {a} ∪ {a, b, c} = {a, b, c}. c is live because B5 reads it, b because the back edge to B2 reads it. d is defined in B4 before any use, so it is dead at entry.",
+      "difficulty": "hard",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Live",
+      "pages": [
+        42,
+        456
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-reaching-direction",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which pair correctly describes reaching-definitions analysis?",
+      "options": [
+        "Forward analysis; union at merge points",
+        "Backward analysis; union at merge points",
+        "Forward analysis; intersection at merge points",
+        "Backward analysis; intersection at merge points"
+      ],
+      "answer": 0,
+      "explanation": "A definition reaches a point if it survives along some path from the definition to that point, so facts flow forward with the program and combine by union (a may analysis). Backward with union describes liveness; forward with intersection describes available expressions.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Reaching def",
+      "pages": [
+        456,
+        461
+      ]
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-ssa-variables",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The straight-line code x = a + b; y = x * c; x = y − a; y = x + y; z = x * y is converted to static single assignment form. Counting the input variables a, b and c, how many distinct variable names does the SSA code use?",
+      "answer": 8,
+      "explanation": "Each assignment gets a fresh version: x1 = a + b; y1 = x1 * c; x2 = y1 − a; y2 = x2 + y1; z1 = x2 * y2. That is 5 new names (x1, y1, x2, y2, z1) plus the 3 read-only inputs a, b, c, for 8 names in all. No φ-functions are needed because there is no join point.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.ssa",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-constant-propagation",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "B1: if p goto B2 else B3. B2: x = 3; y = 5; goto B4. B3: x = 3; y = 7. B4: z = x + y; w = x * 2. The value of p is unknown at compile time. After data-flow constant propagation, which statement about B4 is correct?",
+      "options": [
+        "x and w are constants (3 and 6); y and z are not constants",
+        "x, y, z and w are all constants",
+        "Only x is a constant; w is not, because it is computed after the join",
+        "None of x, y, z, w is a constant, because B4 has two predecessors"
+      ],
+      "answer": 0,
+      "explanation": "At the join, x meets 3 ∧ 3 = 3, while y meets 5 ∧ 7 = NAC. Then z = x + y has a NAC operand and is NAC, while w = x * 2 folds to 6. Constant propagation requires agreement on every path, which is why a join with different constants yields NAC.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.constant-propagation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-licm-placement",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Loop-invariant code motion finds t = a * b inside a loop, where neither a nor b is assigned in the loop. Where is the computation placed so that it executes once?",
+      "options": [
+        "In the loop header",
+        "In a preheader block that runs once before control enters the header",
+        "In the block holding the back edge to the header",
+        "In the loop's exit block"
+      ],
+      "answer": 1,
+      "explanation": "The header is part of the loop and runs on every iteration, so code there still repeats. A preheader is inserted on the edges entering the header from outside the loop, so it runs exactly once per entry into the loop. The latch also runs every iteration, and the exit block runs after the loop, too late for uses inside it.",
+      "difficulty": "easy",
+      "topic": "cd-sdt-ir-optimization.local-optimizations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-sdt-ir-optimization.q-global-cse",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "B1: if p goto B2 else B3. B2: x = a + b; y = c * d; goto B4. B3: z = a + b; c = c + 1. B4: u = a + b; v = c * d. Which computations in B4 can global common subexpression elimination replace by a previously computed value?",
+      "options": [
+        "Only u = a + b",
+        "Only v = c * d",
+        "Both u = a + b and v = c * d",
+        "Neither, because B4 has two predecessors"
+      ],
+      "answer": 0,
+      "explanation": "Available expressions meet by intersection. OUT[B2] = {a + b, c * d}. B3 computes a + b and then assigns c, which kills c * d (and c + 1), so OUT[B3] = {a + b}. IN[B4] = OUT[B2] ∩ OUT[B3] = {a + b}. So u can reuse a temporary set by a + b on both paths, while c * d is not available along B3 and v must be recomputed.",
+      "difficulty": "medium",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Every S-attributed SDD is L-attributed, but an L-attributed SDD with an inherited attribute is not S-attributed; an inherited attribute that reads a right sibling makes the SDD neither.",
+      "origin": "source",
+      "pages": [
+        41,
+        452,
+        461
+      ]
+    },
+    {
+      "text": "A labelled jump target starts a new basic block; the previous block ends at the instruction just before it, not at the label.",
+      "origin": "source",
+      "pages": [
+        456,
+        461
+      ]
+    },
+    {
+      "text": "Liveness runs backward with union; reaching definitions runs forward with union; available expressions runs forward with intersection. Mixing the directions gives wrong sets.",
+      "origin": "source",
+      "pages": [
+        456,
+        461
+      ]
+    },
+    {
+      "text": "Triples have no result field: a result is named by its position, so reordering triples breaks references, which is what indirect triples avoid.",
+      "origin": "source",
+      "pages": [
+        454,
+        461
+      ]
+    },
+    {
+      "text": "In SDT trace questions the grammar fixes precedence; an operator that looks like + may bind looser than one that looks like ×.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "With call by reference or value-result and the same variable passed twice, the formals alias; trace the shared cell, and for value-result the copy-out order.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Loop-invariant code goes to the preheader, not the header: the header runs every iteration.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Attributes and SDT",
+      "lines": [
+        "Synthesized: from children; inherited: from parent or siblings",
+        "S-attributed: only synthesized; evaluate at LR reductions",
+        "L-attributed: inherited uses only parent's inherited + left siblings",
+        "S-attributed ⊂ L-attributed; evaluation order = topological sort",
+        "Postfix SDT output = postorder of the parse tree"
+      ],
+      "origin": "source",
+      "pages": [
+        40,
+        41,
+        461
+      ]
+    },
+    {
+      "heading": "Runtime and IR",
+      "lines": [
+        "AR: return value, params, control link, access link, saved state, locals, temps",
+        "Control link → caller; access link → lexically enclosing frame",
+        "Value / reference / value-result / name / need",
+        "3AC: ≤ 3 addresses, one operator per instruction",
+        "Quads name results; triples use positions; indirect triples reorder pointers"
+      ],
+      "origin": "source",
+      "pages": [
+        453,
+        454,
+        461
+      ]
+    },
+    {
+      "heading": "Blocks and optimization",
+      "lines": [
+        "Leaders: first instruction, jump targets, instruction after a jump",
+        "DAG: reuse node with same op and children = CSE",
+        "Folding, propagation, copy propagation, dead code, strength reduction",
+        "LICM moves invariants to the preheader",
+        "Back edge n → h when h dominates n"
+      ],
+      "origin": "source",
+      "pages": [
+        41,
+        42,
+        456,
+        461
+      ]
+    },
+    {
+      "heading": "Data flow",
+      "lines": [
+        "Reaching definitions: forward, may, union",
+        "Liveness: backward, may, union; IN = USE ∪ (OUT − DEF)",
+        "Available expressions: forward, must, intersection",
+        "Constant propagation: forward, all paths must agree; c₁ ∧ c₂ = NAC"
+      ],
+      "origin": "source",
+      "pages": [
+        42,
+        456,
+        461
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 460,
+      "claim": "Translating x = a + b * c − d needs 3 temporaries, explained as one per binary operator (2) plus the final assignment.",
+      "correction": "The statement has three binary operators (*, + and −), not two, and the final copy into x needs no temporary of its own. With a fresh temporary per operator the code is t1 = b * c; t2 = a + t1; t3 = t2 − d; x = t3, so 3 temporaries. Writing the last result straight into x needs 2, and reusing temporaries needs only 1."
+    },
+    {
+      "page": 456,
+      "claim": "Constant propagation is a forward may-analysis.",
+      "correction": "It is forward, but a variable counts as constant at a point only if every path reaching that point gives it the same constant (c₁ ∧ c₂ = NAC for c₁ ≠ c₂). That all-paths requirement makes it a must-style analysis, and the framework is monotone but not distributive."
+    },
+    {
+      "page": 42,
+      "claim": "Loop-invariant code motion moves invariant computations to the loop header.",
+      "correction": "The header belongs to the loop and executes on every iteration. Invariant code is moved to a preheader, a new block placed on the edges entering the header from outside the loop, so it runs once per entry into the loop."
+    },
+    {
+      "page": 461,
+      "claim": "A basic block ends at a branch or at a label.",
+      "correction": "A block ends at a branch or just before a labelled instruction. The labelled instruction is a jump target, hence a leader, and starts the next block."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cd-syntax-directed-translation",
+      "status": "partial",
+      "topics": [
+        "cd-sdt-ir-optimization.sdd-attributes",
+        "cd-sdt-ir-optimization.s-l-attributed",
+        "cd-sdt-ir-optimization.sdt-traces"
+      ]
+    },
+    {
+      "item": "cd-runtime-environments",
+      "status": "partial",
+      "topics": [
+        "cd-sdt-ir-optimization.activation-records",
+        "cd-sdt-ir-optimization.parameter-passing",
+        "cd-sdt-ir-optimization.scoping"
+      ]
+    },
+    {
+      "item": "cd-intermediate-code",
+      "status": "partial",
+      "topics": [
+        "cd-sdt-ir-optimization.three-address-code",
+        "cd-sdt-ir-optimization.ir-representations",
+        "cd-sdt-ir-optimization.ssa"
+      ]
+    },
+    {
+      "item": "cd-local-optimisation",
+      "status": "covered",
+      "topics": [
+        "cd-sdt-ir-optimization.basic-blocks-cfg",
+        "cd-sdt-ir-optimization.dag",
+        "cd-sdt-ir-optimization.local-optimizations"
+      ]
+    },
+    {
+      "item": "cd-data-flow-analyses",
+      "status": "partial",
+      "topics": [
+        "cd-sdt-ir-optimization.dataflow-framework",
+        "cd-sdt-ir-optimization.liveness",
+        "cd-sdt-ir-optimization.constant-propagation",
+        "cd-sdt-ir-optimization.dag"
+      ]
+    }
+  ]
+}

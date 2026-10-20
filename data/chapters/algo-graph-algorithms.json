@@ -1,0 +1,2132 @@
+{
+  "id": "algo-graph-algorithms",
+  "summary": "Graph algorithms reduce to a small toolkit: BFS and DFS in O(V + E), and the algorithms built on them, namely topological sort, strongly connected components, cut vertices and bridges. On weighted graphs come minimum spanning trees (Kruskal, Prim, the cut and cycle properties) and shortest paths (Dijkstra for non-negative weights, Bellman-Ford with negative edges, DAG relaxation, Floyd-Warshall and Johnson for all pairs). GATE asks for hand traces on small graphs and for the right complexity under a given data structure.",
+  "highYield": [
+    "Kruskal or Prim on a small weighted graph: MST weight, or which edge is added k-th, as a 1- or 2-mark question.",
+    "Dijkstra traces, and why Dijkstra fails with a negative edge while Bellman-Ford and DAG relaxation do not.",
+    "Counting topological orders of a small DAG, and recognising a valid order.",
+    "Complexity matching: Dijkstra heap O((V + E) log V) vs array O(V²), Bellman-Ford O(VE), Floyd-Warshall O(V³), traversals O(V + E).",
+    "MST uniqueness and the cut and cycle properties, especially with tied weights."
+  ],
+  "topics": [
+    {
+      "id": "algo-graph-algorithms.representations",
+      "title": "Graph representations and their cost",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "An adjacency list stores each vertex with its neighbours: Θ(V + E) space, and listing the neighbours of u costs O(deg u).",
+        "An adjacency matrix uses Θ(V²) space whatever E is, answers \"is (u, v) an edge?\" in O(1), but listing neighbours of u costs Θ(V).",
+        "Every traversal bound in this chapter assumes adjacency lists; on a matrix BFS and DFS cost Θ(V²) because each vertex scans a full row.",
+        "Handshake lemma: in an undirected graph the degrees sum to 2E, so an adjacency list holds 2E entries (E entries for a directed graph)."
+      ],
+      "keyTerms": [
+        "adjacency list",
+        "adjacency matrix",
+        "handshake lemma"
+      ],
+      "lesson": {
+        "why": "Every running time in this chapter assumes a particular way of storing the graph, so choosing the wrong one changes an O(V + E) answer into O(V^2). Questions also use degree sums to recover the number of edges.",
+        "intro": "A graph has to be stored before an algorithm can read it. The adjacency list keeps, for each vertex, a short list of the vertices it is joined to. The adjacency matrix is a square table with one row and one column per vertex, where the cell in row u and column v holds 1 if there is an edge from u to v and 0 otherwise. The list is small when the graph has few edges. The matrix answers 'is there an edge between these two?' instantly but always occupies the same space.",
+        "definitions": [
+          {
+            "term": "Degree",
+            "meaning": "The number of edges that touch a vertex in an undirected graph."
+          },
+          {
+            "term": "Sparse graph",
+            "meaning": "A graph whose edge count E is close to the vertex count V."
+          },
+          {
+            "term": "Dense graph",
+            "meaning": "A graph whose edge count E is close to V squared."
+          }
+        ],
+        "principle": {
+          "text": "A list stores V heads plus 2E entries for an undirected graph (E for a directed one), so it takes space proportional to V + E, and scanning all neighbours of all vertices costs V + E. A matrix takes V^2 cells, tests one edge in constant time, and needs V steps to list the neighbours of one vertex. The handshake lemma links degrees to edges.",
+          "tex": "\\sum_{v\\in V}\\deg(v)=2|E|"
+        },
+        "limits": "The handshake lemma is for undirected graphs; in a directed graph the in-degrees sum to E and the out-degrees sum to E separately. The V + E bound for BFS and DFS holds only with lists. For a dense graph, where E is about V^2, the two representations cost about the same and the matrix is simpler.",
+        "example": {
+          "problem": "An undirected graph has 6 vertices and the edges 1-2, 1-3, 2-3, 3-4, 4-5, 5-6 and 4-6. Count the entries of its adjacency list and the cells of its adjacency matrix, and say what a BFS costs on each.",
+          "steps": [
+            "There are 7 edges. Each undirected edge is stored once at each end, so the lists hold 2 x 7 = 14 entries, plus one head per vertex for 6 heads.",
+            "The matrix has 6 x 6 = 36 cells, of which 14 hold a 1, because each edge sets two cells symmetrically.",
+            "BFS with lists looks at each of the 14 entries once, so it takes about V + E steps. BFS with the matrix scans one full row of 6 cells for each of the 6 vertices, which is 36 steps, or V^2 in general."
+          ],
+          "result": "Lists: 14 entries and 6 heads. Matrix: 36 cells. BFS costs O(V + E) on lists and O(V^2) on the matrix."
+        },
+        "misconceptions": [
+          "Treating the matrix as faster for traversal. It answers one edge query faster, but a traversal must still find each vertex's neighbours, and scanning a row costs V.",
+          "Counting an undirected edge once in the list. It appears in both end vertices' lists, which is why the total is 2E and not E."
+        ],
+        "recall": [
+          {
+            "q": "What are the space costs of an adjacency list and an adjacency matrix?",
+            "a": "The list takes Theta(V + E) and the matrix takes Theta(V^2)."
+          },
+          {
+            "q": "What does the handshake lemma say?",
+            "a": "In an undirected graph the sum of all degrees is 2E, since each edge adds 1 to the degree of both its ends."
+          },
+          {
+            "q": "How long does it take to test whether the edge (u, v) exists in each representation?",
+            "a": "O(1) on a matrix; on a list, O(deg u) because the list of u must be scanned."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A simple undirected graph has 10 vertices with degrees 4, 4, 3, 3, 3, 2, 2, 2, 2 and 1. How many edges does it have?",
+          "answer": 13,
+          "explanation": "The degrees sum to 26, and by the handshake lemma that is 2E, so E = 13. The answer 26 is tempting because it is the number of entries in the adjacency list, but each edge contributes two of those entries."
+        },
+        "summary": "Lists cost V + E space and give V + E traversals; a matrix costs V^2 space, tests an edge in O(1) and makes traversal V^2; degrees always sum to 2E."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.bfs",
+      "title": "Breadth-first search and its applications",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        32,
+        390,
+        393
+      ],
+      "points": [
+        "BFS explores from the source in layers using a FIFO queue; each vertex is enqueued once and each adjacency list scanned once, so it runs in O(V + E).",
+        "The layer number of a vertex equals its fewest-edges distance from the source, so BFS solves single-source shortest paths when every edge has the same weight.",
+        "In an undirected graph every non-tree edge joins vertices in the same or adjacent layers; the graph is bipartite exactly when no edge joins two vertices of the same layer.",
+        "Restarting BFS from each still-unvisited vertex counts connected components in O(V + E)."
+      ],
+      "keyTerms": [
+        "queue",
+        "BFS layer",
+        "bipartite",
+        "connected component"
+      ],
+      "lesson": {
+        "why": "BFS questions ask for fewest-edge distances, layer counts, bipartiteness and component counts, and all of them come from one idea: the order in which a queue releases vertices.",
+        "intro": "Breadth-first search visits a graph in rings around a starting vertex. First it visits the start, then every vertex one edge away, then every vertex two edges away, and so on. To keep that order it uses a queue, a line where the vertex that joined first leaves first. Each time a vertex leaves the queue, the search looks at its neighbours and adds the ones it has not seen before. The ring number of a vertex is called its layer.",
+        "prerequisites": [
+          "algo-graph-algorithms.representations"
+        ],
+        "analogy": {
+          "text": "A ripple on a pond: the wave reaches everything one step away before anything two steps away.",
+          "breaksWhen": "A ripple spreads in all directions at once, while BFS handles one vertex at a time, so the visiting order inside a layer depends on the order of the adjacency lists."
+        },
+        "definitions": [
+          {
+            "term": "Queue",
+            "meaning": "A line in which items leave in the order they arrived, first in and first out."
+          },
+          {
+            "term": "Layer",
+            "meaning": "The set of vertices that are the same number of edges away from the start."
+          }
+        ],
+        "principle": {
+          "text": "BFS marks a vertex when it first sees it, so every vertex is queued once and every adjacency list is read once. The layer of a vertex equals its fewest-edges distance from the start.",
+          "tex": "\\text{time} = O(V + E), \\qquad \\operatorname{dist}(s, v) = \\text{layer of } v"
+        },
+        "limits": "Layers equal shortest distances only when every edge counts the same. With different edge weights a path with fewer edges can be heavier, so BFS does not give weighted shortest paths. Vertices the start cannot reach never get a layer.",
+        "example": {
+          "problem": "An undirected graph has edges A-B, A-C, B-D, C-D, C-F and D-E. Run BFS from A, scanning neighbours in alphabetical order. List the visiting order and the layers.",
+          "steps": [
+            "Queue holds A. Remove A and add its unseen neighbours B and C, both in layer 1.",
+            "Remove B: its neighbour D is new, so D joins in layer 2. Remove C: D is already seen, F is new, so F joins in layer 2.",
+            "Remove D: its neighbour E is new, so E joins in layer 3. Remove F and then E; they add nothing new."
+          ],
+          "result": "Visiting order A, B, C, D, F, E; layers {A}, {B, C}, {D, F}, {E}, so E is 3 edges from A."
+        },
+        "misconceptions": [
+          "The path BFS finds first is the fewest-edges path, not the lightest one; adding weights to the edges does not change the order BFS follows.",
+          "The layer of a vertex is fixed by the earliest vertex that reaches it, so an edge found later never moves it to a lower layer.",
+          "The height of the BFS tree is not the diameter of the graph. It is the largest distance from the start vertex.",
+          "An undirected edge joins vertices whose layers differ by 0 or 1, never more. A valid BFS visiting order lists whole layers in sequence, and each vertex comes after a neighbour from the layer before it."
+        ],
+        "recall": [
+          {
+            "q": "Which data structure drives BFS, and why?",
+            "a": "A queue, because first in, first out keeps every vertex of layer k ahead of every vertex of layer k + 1."
+          },
+          {
+            "q": "What does an undirected edge between two vertices of the same layer tell you?",
+            "a": "The graph has an odd cycle, so it is not bipartite."
+          },
+          {
+            "q": "How do you count connected components with BFS?",
+            "a": "Start a new BFS from each vertex that is still unvisited; the number of starts is the number of components."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An undirected graph on vertices 1 to 8 has edges 1-2, 1-3, 2-4, 3-4, 4-5, 3-6, 5-7, 6-7 and 7-8. How many edges are on a shortest path from vertex 1 to vertex 8?",
+          "answer": 4,
+          "explanation": "BFS from 1 gives layers {1}, {2, 3}, {4, 6}, {5, 7}, {8}, so vertex 7 sits in layer 3 (via 1-3-6-7) and vertex 8 in layer 4. The answer 5 is tempting because the route through 2, 4 and 5 is the first one most people trace, but it is one edge longer."
+        },
+        "summary": "BFS visits vertices layer by layer with a queue in O(V + E) time, and a vertex's layer is its fewest-edges distance from the start."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.dfs",
+      "title": "Depth-first search and timestamps",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        32,
+        390,
+        393
+      ],
+      "points": [
+        "DFS goes as deep as possible before backtracking, using recursion or an explicit stack; it records a discovery time d[u] and a finishing time f[u] for each vertex, in O(V + E).",
+        "Parenthesis property: for any two vertices the intervals [d, f] are either disjoint or one nests inside the other, and nesting means one is a DFS-tree descendant of the other.",
+        "DFS is the engine behind cycle detection, topological sort, SCCs, articulation points and bridges.",
+        "A vertex is white before discovery, grey while on the recursion stack and black once finished; an edge to a grey vertex points back into the current path."
+      ],
+      "keyTerms": [
+        "discovery time",
+        "finishing time",
+        "parenthesis theorem"
+      ],
+      "lesson": {
+        "why": "DFS questions ask for discovery and finishing times, the order of visits and the number of forest edges, and every later graph algorithm in this chapter builds on the same traversal.",
+        "intro": "Depth-first search follows one path as far as it can go. At each vertex it moves to a neighbour it has not visited, and when a vertex has no unvisited neighbour left it backs up to the vertex it came from. A clock ticks once when a vertex is first reached, giving its discovery time, and once when the search finishes with it, giving its finishing time. Recursion supplies the backing up for free.",
+        "prerequisites": [
+          "algo-graph-algorithms.bfs"
+        ],
+        "analogy": {
+          "text": "Exploring a maze with a ball of thread: walk down a corridor until it dead-ends, then rewind the thread to the last junction with an untried branch.",
+          "breaksWhen": "In a maze you recognise a place you have been before by sight; DFS needs its colour marks to know a vertex was already reached by another route."
+        },
+        "definitions": [
+          {
+            "term": "Discovery time d[u]",
+            "meaning": "The clock value when u is first reached."
+          },
+          {
+            "term": "Finishing time f[u]",
+            "meaning": "The clock value when every neighbour of u has been handled and the search leaves u."
+          },
+          {
+            "term": "DFS forest",
+            "meaning": "The trees formed by the edges along which new vertices were discovered, one tree per restart."
+          }
+        ],
+        "principle": {
+          "text": "For any two vertices u and v the intervals [d, f] are either disjoint or nested, never partly overlapping. Nesting means one vertex is a descendant of the other in the DFS tree. An undirected graph with c components gives a forest with exactly V - c edges.",
+          "tex": "d[u] < d[v] < f[v] < f[u] \\iff v \\text{ is a descendant of } u"
+        },
+        "limits": "The visiting order, and therefore every timestamp, depends on the order of the adjacency lists and on which vertex starts each tree. Properties of the intervals hold for any order, but a specific number needs the order the question fixes.",
+        "example": {
+          "problem": "A directed graph has edges A to B, A to C, B to D and C to D. Run DFS from A, taking neighbours in alphabetical order, with the clock starting at 1. Give d and f for every vertex.",
+          "steps": [
+            "Reach A at time 1, then B at 2 and D at 3. D has no outgoing edge, so it finishes at 4.",
+            "Back at B there is nothing else to try, so B finishes at 5. Back at A, move on to C, discovered at 6.",
+            "C looks at D, which is already finished, so C finishes at 7 and A finishes at 8."
+          ],
+          "result": "A 1/8, B 2/5, D 3/4, C 6/7. Every interval is nested in A's or disjoint from its sibling's."
+        },
+        "misconceptions": [
+          "The clock ticks at finishing as well as at discovery, so the last finishing time is twice the number of vertices, not the number of vertices.",
+          "The edges of the DFS forest are not all edges of the graph; an undirected graph on V vertices with c components has V - c forest edges, however many edges it has in total."
+        ],
+        "recall": [
+          {
+            "q": "What are the three colours of a vertex during DFS?",
+            "a": "White before discovery, grey while it is on the recursion path, and black once it has finished."
+          },
+          {
+            "q": "What does the parenthesis property say about two vertices' intervals?",
+            "a": "The intervals [d, f] are either disjoint or one contains the other; they never overlap partly."
+          },
+          {
+            "q": "A DFS forest of an undirected graph with 20 vertices has 14 edges. How many components?",
+            "a": "Six, because forest edges equal vertices minus components, so 20 - 14."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph has edges 1 to 2, 1 to 3, 2 to 4, 3 to 2, 4 to 1 and 4 to 5. Run DFS from vertex 1, taking neighbours in increasing order, with the clock starting at 1 and ticking at each discovery and each finish. What is f[3]?",
+          "answer": 9,
+          "explanation": "The search goes 1 (time 1), 2 (2), 4 (3), 5 (4). Vertex 5 finishes at 5, 4 at 6 (its edge to 1 leads to a grey vertex), 2 at 7. Back at 1, vertex 3 is discovered at 8; its only edge goes to 2, already finished, so 3 finishes at 9. The answer 5 is tempting when only discoveries are counted and the clock is not advanced at finishing."
+        },
+        "summary": "DFS goes deep before backing up, stamps each vertex with a discovery and a finishing time in O(V + E), and its intervals are always nested or disjoint."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.dfs-edge-types",
+      "title": "DFS edge classification and cycle detection",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "In a directed graph DFS sorts edges (u, v) into tree edges (v white), back edges (v grey, an ancestor), forward edges (v black, a descendant, d[u] < d[v]) and cross edges (v black, d[v] < d[u]).",
+        "A directed graph has a cycle if and only if DFS finds a back edge; forward and cross edges never close a cycle.",
+        "In an undirected graph DFS produces only tree and back edges, so any non-tree edge to an already visited vertex other than the parent proves a cycle.",
+        "For a back edge u→v, f[u] < f[v]; for tree, forward and cross edges f[u] > f[v]. Ordering by decreasing finishing time therefore works only when no back edge exists."
+      ],
+      "keyTerms": [
+        "tree edge",
+        "back edge",
+        "forward edge",
+        "cross edge"
+      ],
+      "lesson": {
+        "why": "Cycle detection, DAG properties and statements about DFS edges recur as true-or-false options, and each reduces to knowing which edge class can occur where.",
+        "intro": "After a DFS on a directed graph, every edge from u to v can be named by looking at v at the moment the search examines the edge. If v is new, the edge is a tree edge. If v is on the current path, so the search is still inside it, the edge points back up and is a back edge. If v has already finished, the edge is either a forward edge, when v is a descendant of u, or a cross edge, when v lies in a different branch.",
+        "prerequisites": [
+          "algo-graph-algorithms.dfs"
+        ],
+        "definitions": [
+          {
+            "term": "Grey",
+            "meaning": "A vertex the search has entered but not finished, so it is on the current path."
+          },
+          {
+            "term": "Black",
+            "meaning": "A vertex whose search has finished."
+          },
+          {
+            "term": "Back edge",
+            "meaning": "An edge from a vertex to one of its ancestors in the DFS tree."
+          },
+          {
+            "term": "Forward edge",
+            "meaning": "An edge from a vertex to a descendant that is not its child."
+          },
+          {
+            "term": "Cross edge",
+            "meaning": "An edge between two vertices where neither is an ancestor of the other."
+          }
+        ],
+        "principle": {
+          "text": "A directed graph has a cycle exactly when DFS finds a back edge. In an undirected graph DFS produces only tree and back edges. Finishing times satisfy f[u] < f[v] for a back edge u to v, and f[u] > f[v] for the other three kinds.",
+          "tex": "\\text{cycle} \\iff \\exists\\ \\text{back edge}"
+        },
+        "limits": "In an undirected graph the edge back to the parent is not a back edge, so cycle detection must skip it. The classification depends on the adjacency order, so one graph can label an edge forward under one order and a tree edge under another; the cycle verdict does not change.",
+        "example": {
+          "problem": "A directed graph has edges A to B, B to C, A to C, C to A and D to C. Run DFS from A, then from D if needed, with neighbours in alphabetical order. Classify each edge.",
+          "steps": [
+            "A to B and B to C are new targets, so both are tree edges. At C, the edge C to A points to A, which is still grey, so it is a back edge.",
+            "Back at A, the edge A to C finds C already black, and C is a descendant of A, so it is a forward edge.",
+            "D is a new root. Its edge D to C reaches a black vertex in another tree, so it is a cross edge."
+          ],
+          "result": "Tree: A-B, B-C. Back: C-A. Forward: A-C. Cross: D-C. The back edge shows a cycle A, B, C."
+        },
+        "misconceptions": [
+          "A forward or cross edge into a finished vertex never closes a cycle, so seeing two paths to a vertex is not evidence of a cycle in a directed graph.",
+          "Undirected DFS has no cross edges, because any edge between two branches would have been used to explore the other branch before it finished."
+        ],
+        "recall": [
+          {
+            "q": "How do you recognise a back edge while running DFS?",
+            "a": "Its target is grey, meaning it is still on the current recursion path."
+          },
+          {
+            "q": "Which edge kinds can occur in a DFS of an undirected graph?",
+            "a": "Only tree edges and back edges; no forward or cross edges."
+          },
+          {
+            "q": "Which edge kinds can a DFS of a DAG produce?",
+            "a": "Tree, forward and cross edges; a back edge would give a cycle."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph has edges 1 to 2, 1 to 3, 2 to 4, 3 to 4, 3 to 2, 4 to 5, 5 to 3 and 5 to 6. Run DFS from vertex 1, taking neighbours in increasing order. How many back edges does it find?",
+          "answer": 2,
+          "explanation": "The path goes 1, 2, 4, 5, 3. From 3, the edge to 4 and the edge to 2 both hit vertices still on the path, so they are back edges. The edge 1 to 3 arrives at 3 after it has finished, so it is a forward edge. The answer 3 is tempting because that shortcut looks like a cycle, but it only joins an ancestor to a descendant."
+        },
+        "summary": "Classify an edge by the colour of its target: new is tree, grey is back, finished descendant is forward, finished elsewhere is cross, and only back edges mean a cycle."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.topological-sort",
+      "title": "Topological sort",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        32,
+        390,
+        391,
+        394,
+        396
+      ],
+      "points": [
+        "A topological order lists the vertices of a DAG so that every edge u→v has u before v; it exists if and only if the graph is acyclic.",
+        "DFS method: run DFS over the whole graph and output vertices in decreasing finishing time (push on finish, then pop the stack), in O(V + E).",
+        "Kahn method: repeatedly remove a vertex of in-degree 0 and decrement its successors; if the queue empties with fewer than V vertices output, the vertices left over lie on a cycle or are reachable from one.",
+        "The order is unique exactly when the DAG has a Hamiltonian path, that is every consecutive pair in the order is joined by an edge; a DAG with n vertices and no edges has n! orders."
+      ],
+      "keyTerms": [
+        "DAG",
+        "in-degree",
+        "Kahn algorithm",
+        "finishing order"
+      ],
+      "lesson": {
+        "why": "Topological sort appears both as 'write a valid order' and as 'count the valid orders' on a small DAG, and it is the basis of shortest paths on DAGs and of dependency scheduling.",
+        "intro": "Suppose tasks depend on each other, with an arrow from task u to task v meaning u must be done before v. A topological order is a list of all the tasks in which every arrow points forward. It can exist only if there is no circular dependency, that is, if the graph is a directed acyclic graph. There are two standard ways to build one. Kahn's method repeatedly takes a task that has no unfinished prerequisite. The DFS method runs a depth-first search and lists the tasks in reverse of the order in which the search finished them.",
+        "prerequisites": [
+          "algo-graph-algorithms.dfs",
+          "algo-graph-algorithms.dfs-edge-types"
+        ],
+        "definitions": [
+          {
+            "term": "DAG",
+            "meaning": "A directed graph with no cycle."
+          },
+          {
+            "term": "In-degree",
+            "meaning": "The number of edges that arrive at a vertex."
+          },
+          {
+            "term": "Source",
+            "meaning": "A vertex with in-degree 0; it has no prerequisite."
+          }
+        ],
+        "principle": {
+          "text": "A directed graph has a topological order if and only if it is acyclic. Kahn's method removes an in-degree 0 vertex, lowers the in-degree of its successors, and repeats; if it stops before V vertices are output, a cycle exists. The DFS method outputs vertices by decreasing finishing time. Both take O(V + E).",
+          "tex": "u\\to v\\in E\\ \\Rightarrow\\ \\text{pos}(u)<\\text{pos}(v)"
+        },
+        "limits": "A graph with a cycle has no topological order. The order is usually not unique: whenever two or more vertices are ready at once, either can go first, so the answer to 'which order does the algorithm print' depends on the tie rule it states.",
+        "example": {
+          "problem": "A DAG on vertices 1 to 6 has the edges 1->2, 1->3, 2->4, 3->4, 4->5 and 3->6. Run Kahn's method, always taking the smallest ready vertex, and say how many valid orders exist.",
+          "steps": [
+            "In-degrees are 1:0, 2:1, 3:1, 4:2, 5:1, 6:1. Only vertex 1 is ready, so output 1; vertices 2 and 3 drop to in-degree 0.",
+            "Take 2 (the smaller). Vertex 4 drops from 2 to 1, so it is not ready yet. Take 3. Now 4 drops to 0 and 6 drops to 0.",
+            "Ready are 4 and 6. Take 4, which makes 5 ready, then 5 and 6 remain and the smaller is 5, then 6.",
+            "To count all orders, note that 1 is first, and 4 then 5 must follow both 2 and 3. If 2 comes before 3, the chain is 2, 3, 4, 5 and vertex 6 may sit in any of the 3 slots after 3. If 3 comes before 2, the chain is 3, 2, 4, 5 and 6 may sit in any of the 4 slots after 3. That gives 3 + 4 = 7 valid orders."
+          ],
+          "result": "Output 1, 2, 3, 4, 5, 6. This DAG has 7 topological orders."
+        },
+        "misconceptions": [
+          "Believing the order is unique. Only a DAG whose consecutive vertices are all joined by an edge has exactly one order.",
+          "Reading 'queue empties early' as a sign of a bug. It is the cycle test: the vertices never output lie on a cycle or are reachable from one."
+        ],
+        "recall": [
+          {
+            "q": "When does a directed graph have a topological order?",
+            "a": "Exactly when it has no cycle."
+          },
+          {
+            "q": "How does the DFS method produce the order?",
+            "a": "List the vertices in decreasing order of DFS finishing time."
+          },
+          {
+            "q": "How does Kahn's method detect a cycle?",
+            "a": "It outputs fewer than V vertices, because the vertices on a cycle never reach in-degree 0."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DAG on vertices 1 to 6 has the edges 1->2, 1->3, 2->4, 3->5, 4->6 and 5->6. How many different topological orders does it have?",
+          "answer": 6,
+          "explanation": "Vertex 1 must come first and 6 last. The middle four vertices form two independent chains, 2 then 4 and 3 then 5, and interleaving two chains of length 2 gives C(4,2) = 6 orders, confirmed by enumeration. The answer 24 is tempting because it is 4!, but it ignores that 2 must precede 4 and 3 must precede 5."
+        },
+        "summary": "A topological order exists only for a DAG and is built either by repeatedly removing in-degree 0 vertices or by sorting on decreasing DFS finishing time; ties make it non-unique."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.scc",
+      "title": "Strongly connected components",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        391,
+        394,
+        397
+      ],
+      "points": [
+        "An SCC is a maximal set of vertices in which every vertex reaches every other; the SCCs partition the vertices, and contracting each to a node gives an acyclic condensation graph.",
+        "Kosaraju: DFS on G records finishing order, then DFS on the transpose Gᵀ in decreasing finishing time; each tree of the second pass is one SCC. Two passes, O(V + E).",
+        "Tarjan: a single DFS that keeps a stack and low-link values; a vertex with low[v] = disc[v] is the root of an SCC, which is popped off the stack. Also O(V + E).",
+        "G and Gᵀ have exactly the same SCCs; a vertex on no cycle is an SCC by itself."
+      ],
+      "keyTerms": [
+        "transpose graph",
+        "condensation",
+        "low-link"
+      ],
+      "lesson": {
+        "why": "Questions ask for the number of strongly connected components, the effect of adding one edge, or the steps of Kosaraju's algorithm, and all rest on the idea of mutual reachability.",
+        "intro": "In a directed graph, two vertices belong together if each can reach the other. A group of such vertices that cannot be enlarged is a strongly connected component. Every vertex lies in exactly one component, and a vertex on no cycle is a component of its own. If each component is shrunk to a single node, the resulting graph has no cycle, so the components can be ordered like tasks. Kosaraju's algorithm finds them with two depth-first searches, the second one on the graph with all edges reversed.",
+        "prerequisites": [
+          "algo-graph-algorithms.dfs",
+          "algo-graph-algorithms.topological-sort"
+        ],
+        "definitions": [
+          {
+            "term": "Transpose graph",
+            "meaning": "The same vertices with every edge reversed."
+          },
+          {
+            "term": "Condensation",
+            "meaning": "The graph obtained by merging each strongly connected component into one node; it is always a DAG."
+          },
+          {
+            "term": "Low-link",
+            "meaning": "In Tarjan's algorithm, the earliest discovered vertex still reachable from a vertex through its subtree and one back edge."
+          }
+        ],
+        "principle": {
+          "text": "Kosaraju: run DFS on G and record finishing times, then run DFS on the transpose in decreasing finishing time; each tree of the second pass is one component. Tarjan finds them in one DFS: a vertex v with low[v] = disc[v] is the root of a component, which is popped from the stack. Both take O(V + E), and G and its transpose have the same components.",
+          "tex": "u\\sim v\\iff u\\leadsto v\\ \\text{and}\\ v\\leadsto u"
+        },
+        "limits": "Strong connectivity is only for directed graphs; in an undirected graph the components are ordinary connected components. The second pass must follow decreasing finishing time from the first pass, and starting the second pass in any other order merges components wrongly.",
+        "example": {
+          "problem": "A directed graph on vertices 1 to 6 has the edges 1->2, 2->3, 3->1, 3->4, 4->5, 5->4 and 5->6. Find its strongly connected components with Kosaraju's algorithm.",
+          "steps": [
+            "DFS from 1 follows 1, 2, 3, 4, 5, 6 in a path, with the edges 3->1 and 5->4 hitting vertices already on the path. Vertices finish in the order 6, 5, 4, 3, 2, 1.",
+            "Reverse every edge. Take vertices in decreasing finishing time, starting at 1. The reversed edges leaving 1 lead to 3, and from 3 to 2, so one tree is {1, 3, 2}. Reversed edges out of 4 lead to 3, which is used, and to 5, so the next tree is {4, 5}.",
+            "Vertex 6 is next. Its only reversed edge goes to 5, which is used, so 6 forms the tree {6} alone."
+          ],
+          "result": "Three components: {1, 2, 3}, {4, 5} and {6}."
+        },
+        "misconceptions": [
+          "Thinking every vertex with an edge to a component belongs to it. Joining needs a path back as well; the edge 3->4 is one-way, so 3 and 4 stay apart.",
+          "Running the second DFS on the transpose in the first pass's finishing order, rather than decreasing finishing time, which breaks the correctness of the separation."
+        ],
+        "recall": [
+          {
+            "q": "What is a strongly connected component?",
+            "a": "A maximal set of vertices in which every vertex can reach every other."
+          },
+          {
+            "q": "What are the two passes of Kosaraju's algorithm?",
+            "a": "DFS on G to get finishing times, then DFS on the transpose in decreasing finishing time; each tree is a component."
+          },
+          {
+            "q": "What is the condensation of a graph, and what kind of graph is it?",
+            "a": "The graph made by contracting each component to one node, and it is always a DAG."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph on vertices 1 to 8 has the edges 1->2, 2->3, 3->1, 3->4, 4->5, 5->6, 6->4, 6->7, 7->8 and 8->7. How many strongly connected components does it have?",
+          "answer": 3,
+          "explanation": "The cycle 1, 2, 3 is one component, the cycle 4, 5, 6 is another, and 7 and 8 reach each other so they form a third; a brute-force reachability check agrees. The answer 8 is tempting if each vertex is counted alone, and 2 if one assumes the one-way edges 3->4 and 6->7 join the cycles, but they cannot because nothing leads back."
+        },
+        "summary": "Strongly connected components are the maximal groups of mutually reachable vertices; Kosaraju finds them with a DFS on G and then a DFS on the transpose in decreasing finishing order."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.mst-properties",
+      "title": "Minimum spanning trees: cut and cycle properties",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        391,
+        392,
+        394,
+        397
+      ],
+      "points": [
+        "A spanning tree of a connected graph on n vertices has exactly n − 1 edges; an MST minimises total weight among them. A disconnected graph has a minimum spanning forest with n − c edges for c components.",
+        "Cut property: for any cut, a minimum-weight crossing edge belongs to some MST; if it is the unique lightest crossing edge it belongs to every MST.",
+        "Cycle property: an edge that is strictly heavier than every other edge on some cycle belongs to no MST.",
+        "Distinct edge weights force a unique MST. Equal weights only allow several MSTs: a graph that is already a tree has one MST whatever its weights.",
+        "All MSTs of a graph have the same multiset of edge weights, so the k-th smallest MST edge weight is the same in every MST."
+      ],
+      "keyTerms": [
+        "cut property",
+        "cycle property",
+        "unique MST",
+        "spanning forest"
+      ],
+      "lesson": {
+        "why": "Statements about which edges must or cannot appear in a minimum spanning tree, and how many such trees exist, are standard graph questions.",
+        "intro": "A spanning tree of a connected graph keeps every vertex and just enough edges to stay connected with no cycle, which is always one fewer edge than there are vertices. A minimum spanning tree is the spanning tree with the smallest total weight. Two rules tell you which edges to trust. Split the vertices into two groups; the lightest edge between the groups is safe to keep. In any cycle, an edge heavier than all the others on it is safe to throw away.",
+        "definitions": [
+          {
+            "term": "Cut",
+            "meaning": "A split of the vertices into two non-empty groups; the edges that join the groups are the crossing edges."
+          },
+          {
+            "term": "Spanning tree",
+            "meaning": "A connected set of edges with no cycle that touches every vertex."
+          }
+        ],
+        "principle": {
+          "text": "Cut property: a lightest crossing edge of any cut belongs to some minimum spanning tree, and to every one when it is the unique lightest. Cycle property: an edge strictly heavier than every other edge of some cycle is in no minimum spanning tree. Distinct weights give exactly one tree; all minimum trees share the same sorted list of weights.",
+          "tex": "|T| = V - 1, \\qquad \\text{distinct weights} \\Rightarrow \\text{unique MST}"
+        },
+        "limits": "The converse of uniqueness fails: a graph can have a unique minimum spanning tree with repeated weights, for instance a tree. With ties, the lightest edge of the graph need not be in every minimum tree. A disconnected graph has no spanning tree, only a forest with V - c edges.",
+        "example": {
+          "problem": "A graph on a, b, c, d, e has edges ab = 2, ac = 2, bc = 2, cd = 5, de = 1 and be = 6. How many minimum spanning trees does it have, and what is their weight?",
+          "steps": [
+            "Vertex e has edges de = 1 and be = 6, and the cut around d and e is crossed by cd = 5 and be = 6, so de and cd are forced by the cut property.",
+            "The edge be = 6 is the heaviest edge on the cycle b, c, d, e, so the cycle property removes it.",
+            "The triangle a, b, c has three equal edges and needs exactly two of them: three choices, each of weight 4."
+          ],
+          "result": "Three minimum spanning trees, each of weight 4 + 5 + 1 = 10."
+        },
+        "misconceptions": [
+          "Equal weights do not make a tree unique or non-unique by themselves; the question is whether some cut or cycle has a tie that matters.",
+          "The shortest path between two vertices is not forced to lie in the minimum spanning tree, so distances in the tree can exceed distances in the graph."
+        ],
+        "recall": [
+          {
+            "q": "How many edges does a spanning tree of a connected graph with n vertices have?",
+            "a": "Exactly n - 1."
+          },
+          {
+            "q": "When does a graph have a unique minimum spanning tree for sure?",
+            "a": "When all edge weights are distinct, or when every cut has a unique lightest crossing edge."
+          },
+          {
+            "q": "Does adding the same constant to every edge weight change the minimum spanning tree?",
+            "a": "No, because every spanning tree has the same number of edges, so every tree's weight shifts by the same amount."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A graph on vertices 0 to 6 has these edges: 0-1, 1-2 and 0-2 of weight 3; 2-3, 3-4, 4-5 and 5-2 of weight 4; and 5-6 of weight 1. How many distinct minimum spanning trees does it have?",
+          "answer": 12,
+          "explanation": "The edge 5-6 is forced. The triangle needs two of its three equal edges, 3 ways. The four-cycle 2, 3, 4, 5 needs three of its four equal edges, 4 ways. The choices are independent, so 3 times 4 gives 12. The answer 7 is tempting when the two counts are added instead of multiplied."
+        },
+        "summary": "Use the cut property to force the lightest crossing edge and the cycle property to discard the heaviest cycle edge; ties in a cycle multiply the count of minimum trees."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.kruskal",
+      "title": "Kruskal algorithm and union-find",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        391,
+        396
+      ],
+      "points": [
+        "Kruskal sorts edges by weight and accepts each edge whose endpoints lie in different components, stopping after n − 1 acceptances; a rejected edge would close a cycle.",
+        "Components are tracked with a disjoint-set (union-find) structure; with union by rank and path compression the 2E finds and n − 1 unions cost O(E α(V)), effectively linear.",
+        "Sorting dominates, so the total is O(E log E), which equals O(E log V) because E ≤ V² gives log E ≤ 2 log V.",
+        "At every step the accepted edges form a forest, not necessarily a single tree; this is why Kruskal suits sparse graphs given as edge lists."
+      ],
+      "keyTerms": [
+        "union-find",
+        "path compression",
+        "union by rank"
+      ],
+      "lesson": {
+        "why": "Kruskal asks for the weight or edge order of a minimum spanning tree, and counts of accepted edges, and it is the quickest way to hand-solve MST questions.",
+        "intro": "Kruskal builds a minimum spanning tree by sorting all edges from lightest to heaviest and walking down the list. For each edge it asks whether the two ends are already connected by edges chosen earlier. If not, the edge is accepted. If they are, the edge would close a cycle, so it is rejected. The algorithm stops once it has accepted one edge fewer than the number of vertices. A disjoint-set structure answers the question of whether two vertices are already connected.",
+        "prerequisites": [
+          "algo-graph-algorithms.mst-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Disjoint set (union-find)",
+            "meaning": "A structure that groups vertices into components, answers which component a vertex is in, and merges two components."
+          },
+          {
+            "term": "Path compression",
+            "meaning": "After finding a component's representative, point every vertex on the way directly at it so later lookups are faster."
+          }
+        ],
+        "principle": {
+          "text": "Accept the lightest edge that joins two different components. At every step the accepted edges form a forest, and the lightest edge leaving a component is safe by the cut property. Sorting dominates the cost.",
+          "tex": "T = O(E \\log E) = O(E \\log V)"
+        },
+        "limits": "Kruskal needs the edges as a sortable list, so on a very dense graph stored as adjacency lists Prim's algorithm can be handier. With ties in weight, the order of equal edges decides which of several equally good trees you get, but not the total weight.",
+        "example": {
+          "problem": "A graph on A to E has edges AB = 4, AC = 1, BC = 2, BD = 5, CD = 8, DE = 3 and CE = 9. Run Kruskal and give the tree weight.",
+          "steps": [
+            "Sorted order: AC 1, BC 2, DE 3, AB 4, BD 5, CD 8, CE 9. Accept AC, BC and DE; they join A, B, C into one component and D, E into another.",
+            "AB 4 connects two vertices already in the first component, so it is rejected.",
+            "BD 5 joins the two components and is accepted. That makes four edges for five vertices, so stop."
+          ],
+          "result": "Accepted AC, BC, DE, BD with total weight 1 + 2 + 3 + 5 = 11."
+        },
+        "misconceptions": [
+          "Kruskal does not grow a single tree from a start vertex; the accepted edges are several separate trees until the last merge.",
+          "Rejecting an edge because it is heavy is wrong; an edge is rejected only when both its ends are already connected."
+        ],
+        "recall": [
+          {
+            "q": "When does Kruskal reject an edge?",
+            "a": "When both endpoints are already in the same component, because accepting it would form a cycle."
+          },
+          {
+            "q": "How many edges does Kruskal accept on a connected graph with n vertices?",
+            "a": "n - 1, after which it can stop."
+          },
+          {
+            "q": "What dominates Kruskal's running time and what is the total?",
+            "a": "Sorting the edges dominates, so the total is O(E log E), which equals O(E log V)."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A graph on A to F has edges AB = 6, AC = 2, BC = 3, BD = 7, CD = 4, CE = 9, DE = 5, DF = 8 and EF = 1. What is the weight of its minimum spanning tree?",
+          "answer": 15,
+          "explanation": "Sorted: EF 1, AC 2, BC 3, CD 4, DE 5, AB 6, and so on. EF, AC, BC, CD and DE are all accepted, giving five edges for six vertices, so the search stops with weight 1 + 2 + 3 + 4 + 5 = 15. The answer 21 is tempting if AB = 6 is added because it is the next edge in the list, but AB would join A and B, which are already connected."
+        },
+        "summary": "Kruskal sorts the edges, accepts each one that joins two different components, and stops after V - 1 acceptances, in O(E log V) time."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.prim",
+      "title": "Prim algorithm",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        391,
+        392
+      ],
+      "points": [
+        "Prim grows one tree from a start vertex, each time adding the lightest edge from the tree to a vertex outside it; the partial result is always a single connected tree.",
+        "With a binary heap keyed on each outside vertex's cheapest connecting edge the cost is O(E log V); with a Fibonacci heap O(E + V log V).",
+        "With an adjacency matrix and a plain array of keys the cost is O(V²), which beats the heap version on dense graphs where E = Θ(V²).",
+        "Prim and Kruskal usually add the same MST edges in different orders, and questions often hinge on that order."
+      ],
+      "keyTerms": [
+        "key array",
+        "decrease-key",
+        "dense graph"
+      ],
+      "lesson": {
+        "why": "Prim's algorithm gives MST weights and edge orders in NAT and MCQ questions, and the choice between its heap and array versions is a standard time-bound question.",
+        "intro": "To connect all vertices cheaply, start from one vertex and treat it as a small tree. At each step look at every edge that joins a vertex inside the tree to a vertex outside it, choose the lightest one, and add it with its new vertex. Repeat until every vertex is in the tree. The tree is always one connected piece, which is what makes the order of edges differ from Kruskal's, who sorts all edges first and may join separate pieces.",
+        "prerequisites": [
+          "algo-graph-algorithms.mst-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Key",
+            "meaning": "For a vertex outside the tree, the weight of the lightest edge joining it to the tree, kept in the key array."
+          },
+          {
+            "term": "Decrease-key",
+            "meaning": "Lowering the stored key of a vertex in a priority queue when a lighter connecting edge is found."
+          }
+        ],
+        "principle": {
+          "text": "Prim adds the minimum-weight edge crossing the cut between the tree and the remaining vertices. By the cut property every such edge belongs to some MST. With a binary heap it costs O(E log V), with a Fibonacci heap O(E + V log V), and with an array of keys O(V^2).",
+          "tex": "T=O(E\\log V)\\ \\text{or}\\ O(V^2)"
+        },
+        "limits": "The graph must be connected and undirected, or Prim reaches only the start vertex's component. Different start vertices may add edges in a different order but give the same total weight when edge weights are distinct. With tied weights the set of edges can differ, though not the total.",
+        "example": {
+          "problem": "A graph on vertices 1 to 6 has the edges 1-2 (4), 1-3 (2), 2-3 (1), 2-4 (5), 3-4 (8), 3-5 (10), 4-5 (3), 4-6 (6) and 5-6 (7). Run Prim from vertex 1.",
+          "steps": [
+            "Tree {1}. Crossing edges are 1-2 (4) and 1-3 (2). Add 1-3. Tree {1, 3}: crossing edges are 1-2 (4), 2-3 (1), 3-4 (8), 3-5 (10). Add 2-3.",
+            "Tree {1, 2, 3}: crossing edges are 2-4 (5), 3-4 (8), 3-5 (10). Add 2-4. Tree {1, 2, 3, 4}: crossing edges are 3-5 (10), 4-5 (3), 4-6 (6). Add 4-5.",
+            "Tree {1, 2, 3, 4, 5}: crossing edges are 4-6 (6) and 5-6 (7). Add 4-6. The five edges and their weights add to 2 + 1 + 5 + 3 + 6."
+          ],
+          "result": "Edges in order: 1-3, 2-3, 2-4, 4-5, 4-6, with total weight 17."
+        },
+        "misconceptions": [
+          "Reading the Kruskal order as a Prim order. Kruskal may take the globally lightest edge anywhere, but every Prim edge must touch the current tree.",
+          "Picking the lightest edge at the last vertex added instead of the lightest crossing edge over the whole tree."
+        ],
+        "recall": [
+          {
+            "q": "Which edge does Prim add at each step?",
+            "a": "The lightest edge with exactly one end in the current tree."
+          },
+          {
+            "q": "What are Prim's running times by data structure?",
+            "a": "O(E log V) with a binary heap, O(E + V log V) with a Fibonacci heap, O(V^2) with an array and matrix."
+          },
+          {
+            "q": "When is the array version preferable?",
+            "a": "On dense graphs with E close to V^2, where O(V^2) beats O(E log V)."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A graph on vertices 1 to 6 has the edges 1-2 (3), 1-3 (6), 2-3 (2), 2-4 (7), 3-4 (4), 3-5 (5), 4-5 (1), 4-6 (8) and 5-6 (3). What is the weight of its minimum spanning tree?",
+          "answer": 13,
+          "explanation": "Prim from 1 adds 1-2 (3), 2-3 (2), 3-4 (4), 4-5 (1) and 5-6 (3), for a total of 13, and this agrees with a script run of the algorithm. The answer 14 is tempting if 3-5 (5) is taken instead of 3-4 (4) at the third step; both cross the cut, but 4 is lighter."
+        },
+        "summary": "Prim grows a single tree by adding the lightest edge that leaves it, costing O(E log V) with a heap and O(V^2) with an array, which suits dense graphs."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.dijkstra",
+      "title": "Dijkstra algorithm",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        392,
+        394,
+        396,
+        397
+      ],
+      "points": [
+        "Dijkstra solves single-source shortest paths when every edge weight is non-negative: repeatedly extract the unsettled vertex with the smallest tentative distance and relax its outgoing edges.",
+        "Relaxation of (u, v) sets d[v] = min(d[v], d[u] + w(u, v)); each vertex is extracted once, so each directed edge is relaxed once.",
+        "Cost: O((V + E) log V) with a binary heap, O(V²) with an array, O(E + V log V) with a Fibonacci heap.",
+        "A negative edge breaks the greedy invariant: a vertex settled early can later be reached more cheaply through the negative edge, and its successors keep the stale distance.",
+        "Adding the same constant to every edge does not fix negative edges, because it penalises paths with more edges."
+      ],
+      "keyTerms": [
+        "relaxation",
+        "priority queue",
+        "settled vertex"
+      ],
+      "lesson": {
+        "why": "Dijkstra questions ask for a distance, an extraction order, or why a negative edge breaks the method, and the heap versus array time bounds are also tested.",
+        "intro": "To find the cheapest route from a start vertex to every other vertex, keep a best-known cost for each vertex, starting at 0 for the start and unknown (infinite) for the rest. Repeatedly pick the vertex with the smallest cost that has not been finalised, declare its cost final, and use it to see whether any neighbour can be reached more cheaply through it. This works because, with no negative edge, any other route to the chosen vertex would have to pass through vertices that cost at least as much.",
+        "prerequisites": [
+          "algo-graph-algorithms.bfs"
+        ],
+        "definitions": [
+          {
+            "term": "Relaxation",
+            "meaning": "Replacing the estimate d[v] by d[u] + w(u, v) when that is smaller."
+          },
+          {
+            "term": "Settled vertex",
+            "meaning": "A vertex whose shortest distance has been fixed because it was extracted from the queue."
+          },
+          {
+            "term": "Priority queue",
+            "meaning": "A structure that returns the item with the smallest key quickly."
+          }
+        ],
+        "principle": {
+          "text": "Each step extracts the unsettled vertex u with minimum d[u] and relaxes its outgoing edges. Every vertex is extracted once and every edge relaxed once, so the cost is O((V + E) log V) with a binary heap, O(V^2) with an array, and O(E + V log V) with a Fibonacci heap. It is correct only if all weights are non-negative.",
+          "tex": "d[v]\\leftarrow\\min\\bigl(d[v],\\,d[u]+w(u,v)\\bigr)"
+        },
+        "limits": "A single negative edge can make a settled vertex wrong, because a cheaper route through that edge appears after the vertex was fixed. Adding a constant to every weight does not repair this, since it charges paths with more edges more. Use Bellman-Ford when negative edges are present.",
+        "example": {
+          "problem": "A directed graph has the edges 1->2 (7), 1->3 (2), 3->2 (3), 2->4 (1), 3->4 (8), 3->5 (5), 5->4 (2), 4->6 (4) and 5->6 (9). Run Dijkstra from vertex 1.",
+          "steps": [
+            "Extract 1 (distance 0). Relax: d[2] = 7, d[3] = 2. Extract 3 (2). Relax: d[2] = min(7, 2 + 3) = 5, d[4] = 10, d[5] = 7.",
+            "Extract 2 (5). Relax 2->4: d[4] = min(10, 5 + 1) = 6. Extract 4 (6). Relax 4->6: d[6] = 10.",
+            "Extract 5 (7). Relax 5->4 gives 9, no gain, and 5->6 gives 16, no gain. Extract 6 (10)."
+          ],
+          "result": "Distances from 1 are 2 -> 5, 3 -> 2, 4 -> 6, 5 -> 7, 6 -> 10, extracted in the order 1, 3, 2, 4, 5, 6."
+        },
+        "misconceptions": [
+          "Believing that adding a large constant to all weights makes negative edges safe. It changes which path is cheapest, because longer paths gain more.",
+          "Stopping at the first time a vertex receives a distance. The value is final only when the vertex is extracted as the minimum, not when it is first reached."
+        ],
+        "recall": [
+          {
+            "q": "What does relaxing the edge (u, v) do?",
+            "a": "It sets d[v] to the smaller of d[v] and d[u] + w(u, v)."
+          },
+          {
+            "q": "Why does Dijkstra fail with a negative edge?",
+            "a": "A settled vertex can later be reached more cheaply through the negative edge, but it is never reconsidered."
+          },
+          {
+            "q": "What does Dijkstra cost with a binary heap and with an array?",
+            "a": "O((V + E) log V) with a heap and O(V^2) with an array."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph has the edges 1->2 (4), 1->3 (1), 3->2 (2), 2->4 (5), 3->4 (8), 3->5 (10), 4->5 (3), 4->6 (6) and 5->6 (2). What is the shortest distance from vertex 1 to vertex 6?",
+          "answer": 13,
+          "explanation": "The extraction order is 1, 3, 2, 4, 5, 6 with distances 0, 1, 3, 8, 11, 13, so the shortest path is 1, 3, 2, 4, 5, 6 with cost 1 + 2 + 5 + 3 + 2 = 13, confirmed by a script. The answer 14 is tempting from the direct step 4->6 (8 + 6), which ignores the cheaper route through vertex 5 found after 5 is extracted."
+        },
+        "summary": "Dijkstra repeatedly settles the closest unsettled vertex and relaxes its edges, in O((V + E) log V) with a heap, and works only when no edge is negative."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.bellman-ford",
+      "title": "Bellman-Ford algorithm",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        33,
+        392,
+        394,
+        397
+      ],
+      "points": [
+        "Bellman-Ford relaxes every edge in V − 1 passes, in O(VE) time, and allows negative edge weights.",
+        "After pass i every vertex whose shortest path uses at most i edges has its final distance, and a shortest simple path has at most V − 1 edges, hence V − 1 passes.",
+        "If a V-th pass still lowers some distance, a negative cycle is reachable from the source and shortest paths to vertices it reaches are undefined.",
+        "It can stop early as soon as a full pass changes nothing."
+      ],
+      "keyTerms": [
+        "negative cycle",
+        "pass",
+        "early termination"
+      ],
+      "lesson": {
+        "why": "Bellman-Ford questions ask what distances look like after a given pass, how many passes are needed, and how a negative cycle is detected, and it is the algorithm to name when edge weights can be negative.",
+        "intro": "Bellman-Ford finds the cheapest route from one start vertex to every other vertex, even when some edges have negative weight. It keeps a current best distance for each vertex, starting at zero for the start and infinity elsewhere. One pass goes through every edge and checks whether going along that edge gives a vertex a smaller distance than it has now; if so, it updates the vertex. This improvement step is called relaxing the edge. The pass is repeated until nothing changes.",
+        "definitions": [
+          {
+            "term": "Relax an edge",
+            "meaning": "For an edge from u to v with weight w, replace the distance of v by the distance of u plus w when that is smaller."
+          },
+          {
+            "term": "Negative cycle",
+            "meaning": "A cycle whose edge weights sum to less than zero, so going around it again always lowers the total."
+          }
+        ],
+        "principle": {
+          "text": "After pass i, every vertex whose cheapest path uses at most i edges has its final distance. A cheapest path with no repeated vertex has at most V - 1 edges, so V - 1 passes suffice. If a further pass still improves some distance, a negative cycle is reachable from the start.",
+          "tex": "T = O(VE), \\qquad \\text{passes} \\le V - 1"
+        },
+        "limits": "If a negative cycle is reachable, distances to the vertices it reaches are not defined, and the passes never settle. For an undirected graph with a negative edge, the edge itself acts as a negative cycle because it can be walked back and forth.",
+        "example": {
+          "problem": "A directed graph has vertices S, A, B, C and edges, listed in this order, A to B with weight -2, S to A with weight 4, B to C with weight 3 and S to B with weight 5. Run Bellman-Ford from S, relaxing edges in the listed order.",
+          "steps": [
+            "Pass 1: A to B does nothing because A is still infinite; S to A sets A = 4; B to C does nothing; S to B sets B = 5.",
+            "Pass 2: A to B gives 4 - 2 = 2 < 5, so B = 2; B to C then sets C = 5. The later edges change nothing.",
+            "Pass 3 changes no distance, so the algorithm stops early."
+          ],
+          "result": "Distances S 0, A 4, B 2, C 5, found because the second pass passed through the negative edge."
+        },
+        "misconceptions": [
+          "A negative edge is not the same as a negative cycle; Bellman-Ford handles the first and only reports the second.",
+          "The number of passes that change something can be fewer than V - 1, but the order in which edges are listed can make it as large as V - 1, so the bound is on the worst case.",
+          "After pass k the table is at most $d_k(v)$, the cheapest weight of a path using at most k edges, and equals it only when each pass uses the previous pass's values. A favourable edge order lets one pass chain several edges, so a table after pass 2 can already beat $d_2$. In the example above, C = 5 after pass 2 through three edges, while $d_2(C) = 8$. The opposite order is the worst case."
+        ],
+        "recall": [
+          {
+            "q": "Why does Bellman-Ford need at most V - 1 passes when there is no negative cycle?",
+            "a": "A cheapest path with no repeated vertex has at most V - 1 edges, and each pass fixes one more edge of every such path."
+          },
+          {
+            "q": "How does Bellman-Ford detect a negative cycle?",
+            "a": "Run one more pass after V - 1; if any distance still decreases, a negative cycle is reachable."
+          },
+          {
+            "q": "What is the running time of Bellman-Ford?",
+            "a": "O(VE), since each of at most V passes relaxes every edge."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph has vertices S, A, B, C, T and edges, listed in this order, C to T = 2, B to C = -1, A to B = 4, S to A = 3 and S to B = 9. Bellman-Ford from S relaxes the edges in the listed order. In how many passes does at least one distance change?",
+          "answer": 4,
+          "explanation": "The list runs against the direction of the path S, A, B, C, T, so each pass advances the correct distances by one edge only. Pass 1 sets A = 3 and B = 9. Pass 2 sets B = 7 and C = 8. Pass 3 sets C = 6 and T = 10. Pass 4 sets T = 8. A fifth pass finds no change. The answer 2 is tempting from the idea that a five-vertex graph settles quickly, but this edge order is the worst case."
+        },
+        "summary": "Bellman-Ford relaxes every edge up to V - 1 times in O(VE), handles negative edges, and a still-improving extra pass reveals a reachable negative cycle."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.dag-unweighted-sp",
+      "title": "Shortest paths in DAGs and unweighted graphs",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        392,
+        396
+      ],
+      "points": [
+        "On a DAG, relax the outgoing edges of each vertex in topological order: every shortest path is relaxed edge by edge in order, so O(V + E) suffices even with negative weights.",
+        "Negating all weights and running the same procedure gives longest paths in a DAG, the basis of critical-path scheduling; longest path in a general graph has no such shortcut.",
+        "With all edges of equal weight BFS from the source already gives shortest distances in O(V + E); Dijkstra would add an unnecessary log factor."
+      ],
+      "keyTerms": [
+        "DAG shortest path",
+        "critical path"
+      ],
+      "lesson": {
+        "why": "A DAG shortest-path question usually asks for the best time bound, and the answer is linear, which beats Dijkstra and Bellman-Ford. The same idea scores longest-path questions.",
+        "intro": "A directed acyclic graph has no directed cycle, so its vertices can be written in a line with every edge pointing forward. Fix a source. Keep a guess d[v] for the cost of reaching each vertex, starting at 0 for the source and infinity elsewhere. Relaxing an edge (u, v) means checking whether going through u gives a cheaper way to reach v and, if so, lowering d[v]. Walk the line from left to right and relax every edge leaving the vertex you stand on.",
+        "prerequisites": [
+          "algo-graph-algorithms.topological-sort"
+        ],
+        "principle": {
+          "text": "When the edges leaving each vertex are relaxed in topological order, every edge into a vertex has already been relaxed before the walk reaches that vertex, so its distance is final. Each edge is relaxed once, and the sign of the weights does not matter.",
+          "tex": "d[v]=\\min_{(u,v)\\in E}\\bigl(d[u]+w(u,v)\\bigr),\\qquad T=\\Theta(V+E)"
+        },
+        "limits": "A cycle destroys the topological order, so the method is only for DAGs. If every edge has the same weight, BFS gives the same distances without a sort. Vertices not reachable from the source keep distance infinity.",
+        "example": {
+          "problem": "Vertices s, a, b, c with edges s to a (4), s to b (2), a to b (-3), a to c (5), b to c (1). Find the shortest distance from s to every vertex.",
+          "steps": [
+            "A topological order is s, a, b, c. Start with d[s] = 0 and the rest infinity.",
+            "Standing on s: d[a] becomes 4 and d[b] becomes 2.",
+            "Standing on a: the edge to b offers 4 - 3 = 1, which beats 2, so d[b] = 1. The edge to c offers 4 + 5 = 9, so d[c] = 9.",
+            "Standing on b: the edge to c offers 1 + 1 = 2, which beats 9, so d[c] = 2."
+          ],
+          "result": "d[s] = 0, d[a] = 4, d[b] = 1, d[c] = 2, found in one pass."
+        },
+        "misconceptions": [
+          "A negative edge does not force Bellman-Ford here; in a DAG one pass in topological order is enough, because no cycle can make a settled value stale.",
+          "Dijkstra is not the fastest choice just because the weights are shortest-path weights; its priority queue adds a log factor that the topological order makes unnecessary."
+        ],
+        "recall": [
+          {
+            "q": "What is the time to find single-source shortest paths in a DAG with V vertices and E edges?",
+            "a": "$\\Theta(V+E)$: one topological sort and one relaxation of each edge."
+          },
+          {
+            "q": "Why does the order of relaxation make each distance final?",
+            "a": "All edges into a vertex come from earlier vertices in the order, so all of them have been relaxed before the walk reaches it."
+          },
+          {
+            "q": "How do you find longest paths in a DAG?",
+            "a": "Negate the weights and run the same procedure, or take the maximum instead of the minimum in the same order."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DAG has vertices p, q, r, t, u in topological order and edges p to q (3), p to r (6), q to r (-2), q to t (4), r to t (1), r to u (5), t to u (-3). What is the shortest distance from p to u?",
+          "answer": -1,
+          "explanation": "Relaxing in order gives d[q] = 3, d[r] = min(6, 3 - 2) = 1, d[t] = min(3 + 4, 1 + 1) = 2 and d[u] = min(1 + 5, 2 - 3) = -1. The answer 6 tempts if you stop at the first value of d[u] from r, and 2 tempts if you forget the negative edge from t to u; the best path is p, q, r, t, u."
+        },
+        "summary": "On a DAG, relax each vertex's outgoing edges in topological order for $\\Theta(V+E)$ shortest paths, negative weights allowed."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.floyd-warshall",
+      "title": "Floyd-Warshall and Johnson (all pairs)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        32,
+        33,
+        393,
+        394,
+        396
+      ],
+      "points": [
+        "Floyd-Warshall lets d_k[i][j] be the shortest i-to-j distance using only vertices 1..k as intermediates; d_k[i][j] = min(d_{k−1}[i][j], d_{k−1}[i][k] + d_{k−1}[k][j]).",
+        "The k loop must be outermost: phase k needs every pair already finished for phase k − 1. Three nested loops give O(V³) time and the update can run in place in O(V²) space.",
+        "It handles negative edges; a negative entry d[i][i] < 0 at the end reveals a negative cycle through i.",
+        "Johnson reweights with w'(u, v) = w(u, v) + h(u) − h(v), where h comes from one Bellman-Ford run, making all weights non-negative; V Dijkstra runs then give O(VE + V² log V), better than V³ on sparse graphs.",
+        "Running Dijkstra from every vertex gives all pairs in O(VE log V) with heaps, but only when no edge is negative."
+      ],
+      "keyTerms": [
+        "intermediate vertex",
+        "reweighting",
+        "all-pairs"
+      ],
+      "lesson": {
+        "why": "Floyd-Warshall is the all-pairs method that tolerates negative edges, and exam questions ask for a table after a given phase, the loop order or the running time.",
+        "intro": "All-pairs shortest paths asks for the cheapest route between every ordered pair of vertices. Number the vertices 1 to n. Floyd-Warshall builds the answer in phases. After phase k, the table d[i][j] holds the cheapest route from i to j that is allowed to pass through vertices 1 to k only as middle stops. Phase k asks, for every pair, whether detouring through vertex k beats the current entry.",
+        "prerequisites": [
+          "algo-graph-algorithms.bellman-ford"
+        ],
+        "principle": {
+          "text": "A best route using middle stops from 1 to k either avoids k or passes through k once, splitting into a best route from i to k and one from k to j, both using stops 1 to k-1. The outermost loop must be k. Reweighting with $w'(u,v)=w(u,v)+f(u)-f(v)$, the idea behind Johnson's algorithm, adds $f(\\text{start})-f(\\text{end})$ to every path, because the middle terms cancel in pairs.",
+          "tex": "d_k[i][j]=\\min\\bigl(d_{k-1}[i][j],\\; d_{k-1}[i][k]+d_{k-1}[k][j]\\bigr),\\qquad T=\\Theta(V^3)"
+        },
+        "limits": "Negative edges are fine, but a negative cycle makes some d[i][i] negative and the distances meaningless. The cubic time is poor for sparse graphs, where Johnson's reweighting plus Dijkstra from every vertex is faster. Reweighting never changes which path between two vertices is cheapest, for any $f$, and it leaves every cycle weight unchanged.",
+        "example": {
+          "problem": "Three vertices 1, 2, 3 with edges 1 to 2 (3), 2 to 3 (-1), 1 to 3 (5), 3 to 1 (2). Run the three phases.",
+          "steps": [
+            "Start: d[1][2] = 3, d[2][3] = -1, d[1][3] = 5, d[3][1] = 2, diagonal 0, other entries infinity.",
+            "Phase 1 (via vertex 1): the only pair that improves is 3 to 2, which becomes 2 + 3 = 5.",
+            "Phase 2 (via vertex 2): 1 to 3 improves from 5 to 3 + (-1) = 2.",
+            "Phase 3 (via vertex 3): 2 to 1 becomes -1 + 2 = 1, and 2 to 2 stays 0."
+          ],
+          "result": "Final distances: 1 to 2 is 3, 1 to 3 is 2, 2 to 1 is 1, 2 to 3 is -1, 3 to 1 is 2, 3 to 2 is 5."
+        },
+        "misconceptions": [
+          "Putting k in the innermost loop looks harmless but is wrong: phase k needs every pair finished for phase k-1 first, so k must be outermost.",
+          "A table entry after phase k is not the true shortest distance in general; it only uses vertices 1 to k as middle stops."
+        ],
+        "recall": [
+          {
+            "q": "What does d[i][j] mean after phase k of Floyd-Warshall?",
+            "a": "The cheapest route from i to j whose middle vertices all lie in 1 to k."
+          },
+          {
+            "q": "What is the running time and which loop is outermost?",
+            "a": "$\\Theta(V^3)$, with the loop over the intermediate vertex k outermost."
+          },
+          {
+            "q": "How does the algorithm reveal a negative cycle?",
+            "a": "Some diagonal entry d[i][i] ends below 0."
+          },
+          {
+            "q": "After reweighting every edge by $w'(u,v)=w(u,v)+f(u)-f(v)$, how does the weight of a path from s to t change?",
+            "a": "It rises by exactly $f(s)-f(t)$, the same amount for every path with those ends, so the shortest paths stay the same for every $f$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four vertices 1 to 4 have edges 1 to 2 (5), 2 to 3 (-2), 3 to 4 (1), 1 to 4 (9), 2 to 4 (6) and 4 to 1 (3). After Floyd-Warshall finishes, what is the shortest distance from vertex 3 to vertex 2?",
+          "answer": 9,
+          "explanation": "Vertex 3 has only the edge to 4, and 4 only to 1, so the route must be 3, 4, 1, 2 with cost 1 + 3 + 5 = 9. Entry d[3][2] stays infinity until the last phase, when vertex 4 is allowed as a middle stop. Answering infinity tempts if you stop after phase 3, and answering 4 tempts if you read the cost to vertex 1 instead of vertex 2."
+        },
+        "summary": "Floyd-Warshall updates d[i][j] with a detour through k for each k in turn, in $\\Theta(V^3)$ time, with k as the outermost loop."
+      }
+    },
+    {
+      "id": "algo-graph-algorithms.articulation-bridges",
+      "title": "Articulation points and bridges",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        33,
+        34,
+        393,
+        394,
+        397
+      ],
+      "points": [
+        "An articulation point (cut vertex) is a vertex whose removal increases the number of connected components; a bridge (cut edge) is an edge whose removal does so.",
+        "One DFS computes disc[v] and low[v], the smallest discovery time reachable from v's subtree using tree edges down and at most one back edge up.",
+        "A non-root v is an articulation point if and only if some DFS child c has low[c] ≥ disc[v]; the DFS root is one if and only if it has at least two DFS children.",
+        "Tree edge (u, v), with v the child, is a bridge if and only if low[v] > disc[u]. No edge on a cycle is a bridge, and both endpoints of a bridge are cut vertices unless one has degree 1."
+      ],
+      "keyTerms": [
+        "cut vertex",
+        "cut edge",
+        "low value",
+        "biconnected"
+      ],
+      "lesson": {
+        "why": "Questions ask which vertices or edges disconnect a graph, or test the root rule and the low-value conditions of the DFS method.",
+        "intro": "A connected undirected graph may have a weak spot. An articulation point is a vertex whose removal, together with its edges, splits the graph into two or more pieces. A bridge is an edge whose removal does the same. To find them, run a depth-first search and record for each vertex v its discovery time disc[v], the order in which it was first visited. Also record low[v], the smallest discovery time reachable from v's subtree by going down tree edges and then using at most one non-tree edge back up.",
+        "prerequisites": [
+          "algo-graph-algorithms.dfs",
+          "algo-graph-algorithms.dfs-edge-types"
+        ],
+        "principle": {
+          "text": "In an undirected DFS every non-tree edge joins a vertex to an ancestor, so a child subtree can only reach the rest of the graph through its parent or through a back edge. If low of the child stays at or after the parent's discovery time, the subtree cannot get around the parent.",
+          "tex": "\\text{non-root } u \\text{ is a cut vertex} \\iff \\exists\\text{ child } c:\\ \\mathrm{low}[c]\\ge \\mathrm{disc}[u];\\quad (u,c)\\text{ is a bridge} \\iff \\mathrm{low}[c]>\\mathrm{disc}[u]"
+        },
+        "limits": "The root needs a separate rule: it is a cut vertex exactly when it has two or more DFS children. The tests assume an undirected graph and ignore the edge back to the parent when computing low. A leaf of the DFS tree is never a cut vertex.",
+        "example": {
+          "problem": "Undirected graph on a, b, c, d, e with edges a-b, b-c, c-a, b-d, d-e. Start DFS at a, visiting neighbours in alphabetical order. Find the cut vertices and bridges.",
+          "steps": [
+            "The visit order is a, b, c, d, e with disc values 0, 1, 2, 3, 4. From c the edge to a is a back edge, so low[c] = 0 and low[b] = 0, low[a] = 0.",
+            "Vertex d has low[d] = 3 and e has low[e] = 4: nothing in their subtrees reaches higher up.",
+            "Child d of b has low[d] = 3, which is at least disc[b] = 1, so b is a cut vertex. Child e of d has low 4, at least disc[d] = 3, so d is a cut vertex.",
+            "Edge b-d has low[d] = 3 > disc[b] = 1 and edge d-e has low[e] = 4 > 3, so both are bridges. The root a has one child, so it is not a cut vertex."
+          ],
+          "result": "Cut vertices b and d; bridges b-d and d-e."
+        },
+        "misconceptions": [
+          "The root of the DFS tree is not automatically a cut vertex or never one; it is one exactly when it has at least two children.",
+          "Both ends of a bridge are not always cut vertices: an end of degree 1, such as e above, is not."
+        ],
+        "recall": [
+          {
+            "q": "When is the DFS root an articulation point?",
+            "a": "Exactly when it has two or more children in the DFS tree."
+          },
+          {
+            "q": "State the test for a non-root vertex u with child c.",
+            "a": "u is a cut vertex if low[c] >= disc[u] for some child c."
+          },
+          {
+            "q": "What is the test for a bridge (u, c) with c the child?",
+            "a": "low[c] > disc[u], so the subtree of c has no back edge to u or above."
+          },
+          {
+            "q": "Can an edge on a cycle be a bridge?",
+            "a": "No, removing an edge of a cycle leaves its ends still connected through the rest of the cycle."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An undirected graph has vertices A to H and edges A-B, B-C, C-D, D-B, D-E, E-F, F-G, G-E, A-H. How many articulation points does it have?",
+          "answer": 4,
+          "explanation": "Run DFS from A. A has two children, B and H, so A is a cut vertex. B separates A and H from the triangle B, C, D, D separates that triangle from E, F, G, and E separates the triangle E, F, G from D. So the cut vertices are A, B, D and E. Counting 3 tempts if you treat the root A as safe, and counting 5 or more tempts if you add vertices inside a triangle such as C or F, which lie on a cycle."
+        },
+        "summary": "Run one DFS and compare low[c] with disc[u]: at least gives a cut vertex, strictly greater gives a bridge, and the root needs two children."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "algo-graph-algorithms.handshake",
+      "name": "Handshake lemma",
+      "tex": "\\sum_{v \\in V} \\deg(v) = 2|E|",
+      "text": "Σ deg(v) = 2|E|",
+      "note": "Gives the 2E entries of an undirected adjacency list and the E ≤ V(V − 1)/2 bound for simple graphs.",
+      "topic": "algo-graph-algorithms.representations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.traversal-time",
+      "name": "BFS / DFS running time",
+      "tex": "T_{\\text{list}} = O(V + E), \\qquad T_{\\text{matrix}} = O(V^2)",
+      "text": "Adjacency list: O(V + E); adjacency matrix: O(V²)",
+      "note": "The representation decides the bound, not the algorithm: a matrix forces a full row scan per vertex.",
+      "topic": "algo-graph-algorithms.bfs",
+      "origin": "source",
+      "pages": [
+        32,
+        390
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.spanning-tree-edges",
+      "name": "Edges in a spanning tree or forest",
+      "tex": "|E_T| = n - 1, \\qquad |E_F| = n - c",
+      "text": "Spanning tree: n − 1 edges; spanning forest with c components: n − c edges",
+      "where": [
+        [
+          "n",
+          "number of vertices"
+        ],
+        [
+          "c",
+          "number of connected components"
+        ]
+      ],
+      "topic": "algo-graph-algorithms.mst-properties",
+      "origin": "source",
+      "pages": [
+        391,
+        395
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.kruskal-time",
+      "name": "Kruskal running time",
+      "tex": "O(E \\log E) = O(E \\log V)",
+      "text": "O(E log E) = O(E log V)",
+      "note": "Equal because E ≤ V² gives log E ≤ 2 log V. With pre-sorted edges the union-find work alone is O(E α(V)).",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "source",
+      "pages": [
+        33,
+        391
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.prim-time",
+      "name": "Prim running time",
+      "tex": "O(E \\log V)\\ \\text{(binary heap)},\\quad O(E + V \\log V)\\ \\text{(Fibonacci)},\\quad O(V^2)\\ \\text{(array)}",
+      "text": "O(E log V) binary heap; O(E + V log V) Fibonacci heap; O(V²) array",
+      "note": "On a dense graph, E = Θ(V²), the O(V²) array version beats the binary heap version at O(V² log V).",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.relaxation",
+      "name": "Edge relaxation",
+      "tex": "d[v] \\leftarrow \\min\\bigl(d[v],\\ d[u] + w(u,v)\\bigr)",
+      "text": "d[v] ← min(d[v], d[u] + w(u, v))",
+      "where": [
+        [
+          "d[v]",
+          "current shortest-distance estimate of v"
+        ],
+        [
+          "w(u,v)",
+          "weight of edge u→v"
+        ]
+      ],
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.dijkstra-time",
+      "name": "Dijkstra running time",
+      "tex": "O\\bigl((V + E)\\log V\\bigr)\\ \\text{(binary heap)},\\quad O(V^2)\\ \\text{(array)},\\quad O(E + V \\log V)\\ \\text{(Fibonacci)}",
+      "text": "O((V + E) log V) binary heap; O(V²) array; O(E + V log V) Fibonacci heap",
+      "note": "Valid only for non-negative weights. V extract-min plus up to E decrease-key operations.",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        33,
+        392,
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.bellman-ford-time",
+      "name": "Bellman-Ford passes and time",
+      "tex": "(V - 1)\\ \\text{passes} \\times E\\ \\text{relaxations} = O(VE)",
+      "text": "(V − 1) passes × E relaxations = O(VE)",
+      "note": "One extra pass that still lowers a distance proves a reachable negative cycle.",
+      "topic": "algo-graph-algorithms.bellman-ford",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.floyd-warshall-recurrence",
+      "name": "Floyd-Warshall recurrence",
+      "tex": "d_k[i][j] = \\min\\bigl(d_{k-1}[i][j],\\ d_{k-1}[i][k] + d_{k-1}[k][j]\\bigr)",
+      "text": "d_k[i][j] = min(d_(k−1)[i][j], d_(k−1)[i][k] + d_(k−1)[k][j])",
+      "where": [
+        [
+          "d_k[i][j]",
+          "shortest i→j distance using only vertices 1..k as intermediates"
+        ],
+        [
+          "d_0",
+          "the weight matrix: 0 on the diagonal, ∞ for non-edges"
+        ]
+      ],
+      "note": "k is the outermost loop. Time O(V³), space O(V²); d[i][i] < 0 at the end means a negative cycle.",
+      "topic": "algo-graph-algorithms.floyd-warshall",
+      "origin": "source",
+      "pages": [
+        32,
+        393
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.johnson-reweight",
+      "name": "Johnson reweighting",
+      "tex": "w'(u,v) = w(u,v) + h(u) - h(v) \\ge 0",
+      "text": "w'(u, v) = w(u, v) + h(u) − h(v) ≥ 0",
+      "where": [
+        [
+          "h(v)",
+          "Bellman-Ford distance to v from an added source joined to every vertex by weight-0 edges"
+        ]
+      ],
+      "note": "Every u→v path changes by the same h(u) − h(v), so shortest paths are preserved. Total O(VE + V² log V).",
+      "topic": "algo-graph-algorithms.floyd-warshall",
+      "origin": "source",
+      "pages": [
+        393
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.articulation-test",
+      "name": "Articulation point and bridge tests",
+      "tex": "\\text{non-root } v:\\ \\exists\\,\\text{child } c,\\ \\mathrm{low}[c] \\ge \\mathrm{disc}[v]; \\qquad \\text{bridge } (u,v):\\ \\mathrm{low}[v] > \\mathrm{disc}[u]",
+      "text": "Non-root v is a cut vertex iff some child c has low[c] ≥ disc[v]; tree edge (u, v) is a bridge iff low[v] > disc[u]",
+      "note": "The root is a cut vertex iff it has at least two DFS children. Note ≥ for vertices but strict > for bridges.",
+      "topic": "algo-graph-algorithms.articulation-bridges",
+      "origin": "source",
+      "pages": [
+        393,
+        394
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.low-value",
+      "name": "Low value",
+      "tex": "\\mathrm{low}[v] = \\min\\bigl(\\mathrm{disc}[v],\\ \\min_{(v,w)\\,\\text{back}} \\mathrm{disc}[w],\\ \\min_{c\\,\\text{child}} \\mathrm{low}[c]\\bigr)",
+      "text": "low[v] = min(disc[v], disc[w] over back edges (v, w), low[c] over DFS children c)",
+      "topic": "algo-graph-algorithms.articulation-bridges",
+      "origin": "source",
+      "pages": [
+        393
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.topo-count-empty",
+      "name": "Topological orders of an edgeless DAG",
+      "tex": "\\#\\text{orders} = n!",
+      "text": "Number of topological orders = n! when there are no edges",
+      "note": "Each edge only removes orders; a Hamiltonian path leaves exactly one.",
+      "topic": "algo-graph-algorithms.topological-sort",
+      "origin": "source",
+      "pages": [
+        396
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "algo-graph-algorithms.cost-bfs",
+      "name": "BFS (adjacency list)",
+      "worst": "O(V + E)",
+      "space": "O(V)",
+      "notes": "O(V²) on an adjacency matrix.",
+      "topic": "algo-graph-algorithms.bfs",
+      "origin": "source",
+      "pages": [
+        32,
+        390
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-dfs",
+      "name": "DFS (adjacency list)",
+      "worst": "O(V + E)",
+      "space": "O(V) recursion stack",
+      "notes": "O(V²) on an adjacency matrix.",
+      "topic": "algo-graph-algorithms.dfs",
+      "origin": "source",
+      "pages": [
+        32,
+        390
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-topo",
+      "name": "Topological sort (DFS or Kahn)",
+      "worst": "O(V + E)",
+      "space": "O(V)",
+      "topic": "algo-graph-algorithms.topological-sort",
+      "origin": "source",
+      "pages": [
+        32,
+        391
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-scc",
+      "name": "SCC: Kosaraju or Tarjan",
+      "worst": "O(V + E)",
+      "space": "O(V + E)",
+      "notes": "Kosaraju builds the transpose and makes two DFS passes; Tarjan makes one.",
+      "topic": "algo-graph-algorithms.scc",
+      "origin": "source",
+      "pages": [
+        33,
+        391
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-union-find",
+      "name": "Union-find, m operations on n elements",
+      "worst": "O(m α(n))",
+      "notes": "With union by rank and path compression; O(m log n) with union by rank alone.",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.cost-kruskal",
+      "name": "Kruskal MST",
+      "worst": "O(E log E) = O(E log V)",
+      "space": "O(V + E)",
+      "notes": "Sorting dominates; O(E α(V)) if edges arrive sorted.",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "source",
+      "pages": [
+        33,
+        391
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-prim-heap",
+      "name": "Prim MST, binary heap",
+      "worst": "O(E log V)",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-prim-fib",
+      "name": "Prim MST, Fibonacci heap",
+      "worst": "O(E + V log V)",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-prim-array",
+      "name": "Prim MST, adjacency matrix + array",
+      "worst": "O(V²)",
+      "notes": "Best choice for dense graphs.",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.cost-dijkstra-heap",
+      "name": "Dijkstra, binary heap",
+      "worst": "O((V + E) log V)",
+      "space": "O(V)",
+      "notes": "Non-negative weights only.",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-dijkstra-array",
+      "name": "Dijkstra, array",
+      "worst": "O(V²)",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.cost-dijkstra-fib",
+      "name": "Dijkstra, Fibonacci heap",
+      "worst": "O(E + V log V)",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-bellman-ford",
+      "name": "Bellman-Ford",
+      "best": "O(E) with early exit",
+      "worst": "O(VE)",
+      "space": "O(V)",
+      "topic": "algo-graph-algorithms.bellman-ford",
+      "origin": "source",
+      "pages": [
+        33,
+        392
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-dag-sp",
+      "name": "DAG shortest paths (topological relaxation)",
+      "worst": "O(V + E)",
+      "topic": "algo-graph-algorithms.dag-unweighted-sp",
+      "origin": "source",
+      "pages": [
+        392,
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-floyd-warshall",
+      "name": "Floyd-Warshall",
+      "worst": "O(V³)",
+      "space": "O(V²)",
+      "topic": "algo-graph-algorithms.floyd-warshall",
+      "origin": "source",
+      "pages": [
+        33,
+        393
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-johnson",
+      "name": "Johnson all-pairs",
+      "worst": "O(VE + V² log V)",
+      "space": "O(V²)",
+      "notes": "Fibonacci-heap Dijkstra; O(VE log V) with binary heaps.",
+      "topic": "algo-graph-algorithms.floyd-warshall",
+      "origin": "source",
+      "pages": [
+        393
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cost-articulation",
+      "name": "Articulation points and bridges",
+      "worst": "O(V + E)",
+      "notes": "One DFS with disc and low.",
+      "topic": "algo-graph-algorithms.articulation-bridges",
+      "origin": "source",
+      "pages": [
+        34,
+        393
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "algo-graph-algorithms.mst-weight",
+      "title": "MST weight or edge set by Kruskal on a given graph",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "List every edge with its weight and sort ascending.",
+        "Scan in order; accept an edge only if its endpoints are in different components, and cross out the edges that would close a cycle.",
+        "Stop at n − 1 accepted edges and add their weights."
+      ],
+      "trap": "Stopping too early or too late: count accepted edges, not edges scanned. With ties, the total weight is fixed even though the edge set may vary.",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "source",
+      "pages": [
+        391,
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.mst-order",
+      "title": "Order in which Prim or Kruskal adds edges",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "For Kruskal the order is simply the accepted edges by increasing weight.",
+        "For Prim, keep the current tree set and at each step pick the lightest edge leaving it; write the frontier explicitly.",
+        "Eliminate options that add an edge not touching the current tree (invalid for Prim) or that skip a lighter accepted edge (invalid for Kruskal)."
+      ],
+      "trap": "Reading a Kruskal order as a Prim order: Prim never adds an edge disconnected from its tree.",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.dijkstra-trace",
+      "title": "Dijkstra trace: distances, extraction order, or a negative-edge failure",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Tabulate d[] with d[s] = 0 and ∞ elsewhere.",
+        "Extract the smallest unsettled d, then relax its outgoing edges; record the extraction order.",
+        "For a negative edge, compare the result with Bellman-Ford: a vertex settled before the negative edge is used keeps a wrong value, and so do its descendants."
+      ],
+      "trap": "Updating a settled vertex but forgetting that its successors are never re-relaxed in the textbook version.",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        392,
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.topo-count",
+      "title": "Count or validate topological orders",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Draw the DAG and fix the forced vertices (unique sources at the start, unique sinks at the end).",
+        "Branch on the set of in-degree-0 vertices at each step, or multiply independent chains using interleavings: C(a + b, a) for two independent chains of lengths a and b.",
+        "To validate one order, check every edge points forward in it."
+      ],
+      "trap": "Counting all permutations of a level without checking edges inside it.",
+      "topic": "algo-graph-algorithms.topological-sort",
+      "origin": "source",
+      "pages": [
+        396
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.scc-count",
+      "title": "Number of SCCs, or effect of adding an edge",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Find directed cycles and merge every vertex on a common cycle.",
+        "Repeat until no two components can reach each other; isolated or acyclic vertices stay singletons.",
+        "An added edge from component X to Y merges every component on a path from Y back to X."
+      ],
+      "trap": "Treating weak (undirected) connectivity as strong connectivity.",
+      "topic": "algo-graph-algorithms.scc",
+      "origin": "source",
+      "pages": [
+        391,
+        397
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.cut-vertices",
+      "title": "Find articulation points and bridges",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Spot cycles first: no edge on a cycle is a bridge.",
+        "For each candidate vertex, delete it and check whether the rest stays connected; a vertex joining two blocks is a cut vertex.",
+        "For larger graphs run DFS and apply low[c] ≥ disc[v] (vertices) and low[v] > disc[u] (bridges)."
+      ],
+      "trap": "Forgetting the root rule, or using ≥ instead of > for bridges.",
+      "topic": "algo-graph-algorithms.articulation-bridges",
+      "origin": "source",
+      "pages": [
+        393,
+        397
+      ]
+    },
+    {
+      "id": "algo-graph-algorithms.algo-choice",
+      "title": "Pick the algorithm and its complexity",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Classify the problem: single-source or all-pairs, weighted or not, negative edges or not, DAG or not.",
+        "Map: unweighted → BFS; DAG → topological relaxation; non-negative → Dijkstra; negative → Bellman-Ford; all pairs → Floyd-Warshall or Johnson.",
+        "Then plug in the data structure: heap or array, list or matrix, and compare for sparse vs dense E."
+      ],
+      "trap": "Quoting O((V + E) log V) for Dijkstra on a dense graph when the array version O(V²) is better.",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        33,
+        395,
+        396
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "algo-graph-algorithms.q-kruskal-weight",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An undirected graph has vertices A–F and edges AB = 4, AC = 1, BC = 3, BD = 2, CD = 5, CE = 7, DE = 6, DF = 9, EF = 8. What is the total weight of its minimum spanning tree?",
+      "answer": 20,
+      "explanation": "Kruskal in weight order: AC (1) accept, BD (2) accept, BC (3) accept and joins {A, C} with {B, D}, AB (4) reject (A, B already connected), CD (5) reject, DE (6) accept, CE (7) reject, EF (8) accept. Five edges for six vertices: 1 + 2 + 3 + 6 + 8 = 20. DF (9) is never needed.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "source",
+      "pages": [
+        391,
+        396
+      ],
+      "sourceLabel": "PYQ-1 (GATE 2018) — MST"
+    },
+    {
+      "id": "algo-graph-algorithms.q-prim-order",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "On the same graph (AB = 4, AC = 1, BC = 3, BD = 2, CD = 5, CE = 7, DE = 6, DF = 9, EF = 8), Prim's algorithm starts at A. In which order are MST edges added?",
+      "options": [
+        "AC, BD, BC, DE, EF",
+        "AC, BC, BD, DE, EF",
+        "AC, BC, BD, CE, EF",
+        "AC, AB, BD, DE, EF"
+      ],
+      "answer": 1,
+      "explanation": "Tree {A}: lightest leaving edge AC (1). Tree {A, C}: candidates AB 4, BC 3, CD 5, CE 7, so BC. Tree {A, B, C}: BD 2 wins. Tree {A, B, C, D}: DE 6 beats CE 7 and DF 9. Last EF 8 brings in F. The first option is the Kruskal order: BD cannot come second in Prim because it does not touch {A, C}.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.prim",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.q-dijkstra-distance",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A directed graph has edges s→a 4, s→b 1, b→a 2, b→c 5, b→d 8, a→c 1, a→d 2, c→t 3, d→t 1. Dijkstra's algorithm is run from s. What is the shortest distance from s to t?",
+      "answer": 6,
+      "explanation": "Extract s (0): a = 4, b = 1. Extract b (1): a = min(4, 3) = 3, c = 6, d = 9. Extract a (3): c = min(6, 4) = 4, d = min(9, 5) = 5. Extract c (4): t = 7. Extract d (5): t = min(7, 6) = 6. Extract t. The path is s→b→a→d→t, 1 + 2 + 2 + 1 = 6.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.q-dijkstra-negative",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A directed graph has edges s→a 2, s→b 4, b→a −3, a→c 1. Dijkstra's algorithm (each vertex extracted exactly once, edges relaxed only when their tail is extracted) runs from s. What distance does it report for c, and what is the true shortest distance?",
+      "options": [
+        "Reports 3, true distance 2",
+        "Reports 2, true distance 2",
+        "Reports 3, true distance 3",
+        "Reports 2, true distance 1"
+      ],
+      "answer": 0,
+      "explanation": "Extraction order is s (0), a (2), c (3), b (4). When a is extracted it sets c = 3. Extracting b relaxes b→a to 1, but a has already been processed, so a→c is never relaxed again and c stays 3. The true path s→b→a→c costs 4 − 3 + 1 = 2. Bellman-Ford gives a = 1, c = 2.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        392,
+        396
+      ],
+      "sourceLabel": "PYQ-2 (GATE 2014) — Dijkstra"
+    },
+    {
+      "id": "algo-graph-algorithms.q-floyd-loop-order",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Floyd-Warshall is written with three nested loops over k (intermediate), i and j, using d[i][j] = min(d[i][j], d[i][k] + d[k][j]). Which statement is correct?",
+      "options": [
+        "Any loop order gives correct results in O(V³)",
+        "k must be the outermost loop; the algorithm then takes O(V³) time and O(V²) space",
+        "k must be the innermost loop so each pair sees all intermediates at once",
+        "It needs O(V³) space to store one matrix per value of k"
+      ],
+      "answer": 1,
+      "explanation": "Phase k uses distances that are already optimal for intermediates 1..k − 1 for every pair, so all pairs must finish phase k − 1 first: k is outermost. The update can be done in place, because row k and column k do not change during phase k, giving O(V²) space and V³ updates.",
+      "difficulty": "easy",
+      "topic": "algo-graph-algorithms.floyd-warshall",
+      "origin": "source",
+      "pages": [
+        393,
+        397
+      ],
+      "sourceLabel": "PYQ-3 (GATE 2017) — Floyd-Warshall"
+    },
+    {
+      "id": "algo-graph-algorithms.q-topo-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A DAG has vertices a, b, c, d, e, f and edges a→b, a→c, b→d, c→d, c→e, d→f, e→f. How many distinct topological orderings does it have?",
+      "answer": 5,
+      "explanation": "a must be first and f last. The middle four need b before d, c before d and c before e. Orders of b, c, d, e: starting with b: b c d e, b c e d. Starting with c: c b d e, c b e d, c e b d. d and e cannot start. Total 5, confirmed by enumerating all 720 permutations.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.topological-sort",
+      "origin": "source",
+      "pages": [
+        396
+      ],
+      "sourceLabel": "PYQ-4 (GATE 2016) — Topo"
+    },
+    {
+      "id": "algo-graph-algorithms.q-scc-count",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A directed graph on vertices 1–8 has edges 1→2, 2→3, 3→1, 3→4, 4→5, 5→6, 6→4, 6→7, 7→8, 8→7. How many strongly connected components does it have?",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "answer": 2,
+      "explanation": "Cycles 1→2→3→1, 4→5→6→4 and 7→8→7 give components {1, 2, 3}, {4, 5, 6} and {7, 8}. Edges 3→4 and 6→7 go one way only, so no two components merge: 3 SCCs. Treating the graph as undirected would wrongly give 1.",
+      "difficulty": "easy",
+      "topic": "algo-graph-algorithms.scc",
+      "origin": "source",
+      "pages": [
+        391,
+        397
+      ],
+      "sourceLabel": "PYQ-5 (GATE 2019) — SCC"
+    },
+    {
+      "id": "algo-graph-algorithms.q-bellman-ford-passes",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Bellman-Ford runs on a graph with V vertices and no negative cycle, relaxing all edges in an arbitrary fixed order in each pass. What is guaranteed after pass i?",
+      "options": [
+        "The i vertices closest to the source have final distances",
+        "Every vertex has a final distance once i ≥ log₂ V",
+        "Every vertex whose shortest path has at most i edges has its final distance",
+        "Exactly i vertices have changed their distance"
+      ],
+      "answer": 2,
+      "explanation": "By induction, after pass i the distance of v is at most the weight of the best path to v using at most i edges, since that path's i edges were each relaxed in some pass in order. A shortest simple path has at most V − 1 edges, which is why V − 1 passes suffice. A lucky edge order can finish earlier, but nothing more is guaranteed.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.bellman-ford",
+      "origin": "source",
+      "pages": [
+        392,
+        397
+      ],
+      "sourceLabel": "PYQ-6 (GATE 2015) — Bellman-Ford"
+    },
+    {
+      "id": "algo-graph-algorithms.q-mst-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "For a connected, undirected, weighted graph G, which statements are always true?",
+      "options": [
+        "If all edge weights are distinct, G has exactly one MST",
+        "If two edges have equal weight, G has more than one MST",
+        "An edge strictly heavier than every other edge on some cycle is in no MST",
+        "If the minimum-weight edge of G is unique, it is in every MST"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Distinct weights force uniqueness. Equal weights only permit multiple MSTs: if G is itself a tree with two equal edges, its only spanning tree is G. The cycle property removes a strictly heaviest cycle edge from every MST. A unique lightest edge is the unique lightest edge across the cut separating one endpoint from the rest, so every MST contains it.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.mst-properties",
+      "origin": "source",
+      "pages": [
+        391,
+        392,
+        397
+      ],
+      "sourceLabel": "PYQ-7 (GATE 2013) — MST count"
+    },
+    {
+      "id": "algo-graph-algorithms.q-articulation-points",
+      "type": "msq",
+      "marks": 1,
+      "stem": "An undirected graph on vertices 1–7 has edges 1–2, 2–3, 3–1, 3–4, 4–5, 5–6, 6–4, 6–7. Which vertices are articulation points?",
+      "options": [
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Removing 3 cuts {1, 2} off. Removing 4 cuts {5, 6, 7} off from {1, 2, 3}, because 3–4 is the only link. Removing 6 isolates 7. Removing 5 leaves 4–6 joined directly, so the graph stays connected. The bridges are 3–4 and 6–7; their endpoints of degree above 1 (3, 4 and 6) are exactly the cut vertices.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.articulation-bridges",
+      "origin": "source",
+      "pages": [
+        393,
+        397
+      ],
+      "sourceLabel": "PYQ-8 (GATE 2020) — Articulation"
+    },
+    {
+      "id": "algo-graph-algorithms.q-dijkstra-dense",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Dijkstra's algorithm is run on a dense graph with E = Θ(V²). Which implementation has the best worst-case running time?",
+      "options": [
+        "Binary heap with adjacency lists: O((V + E) log V)",
+        "Unsorted array of distances: O(V²)",
+        "Binary heap with an adjacency matrix: O(V² log V)",
+        "Sorted linked list of distances: O(V³)"
+      ],
+      "answer": 1,
+      "explanation": "With E = Θ(V²) the binary heap version costs Θ(V² log V), while scanning an array for the minimum costs O(V) per extraction, O(V²) in all, and each edge relaxation is O(1). The array version wins on dense graphs, the heap version on sparse ones.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.dijkstra",
+      "origin": "source",
+      "pages": [
+        392,
+        397
+      ],
+      "sourceLabel": "PYQ-9 (GATE 2021) — Dijkstra"
+    },
+    {
+      "id": "algo-graph-algorithms.q-dag-negative",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A DAG has some negative edge weights. Which methods always compute correct single-source shortest distances on it?",
+      "options": [
+        "Bellman-Ford",
+        "Relaxing outgoing edges of vertices in topological order",
+        "Dijkstra with a binary heap",
+        "Floyd-Warshall, reading the source row"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "A DAG has no cycles, so no negative cycle: Bellman-Ford and Floyd-Warshall are both correct, and topological relaxation is correct in O(V + E). Dijkstra can settle a vertex before a cheaper route through a negative edge is seen, as in s→a 2, s→b 4, b→a −3, a→c 1, so it is not always correct.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.dag-unweighted-sp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.q-dfs-back-edge",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "During DFS of a directed graph, edge u→v is examined while v has been discovered but not yet finished. What kind of edge is it, and what does it imply?",
+      "options": [
+        "Tree edge; nothing about cycles",
+        "Forward edge; the graph has a cycle",
+        "Cross edge; the graph is not strongly connected",
+        "Back edge; the graph has a cycle"
+      ],
+      "answer": 3,
+      "explanation": "v is grey, so it is on the current recursion path and is an ancestor of u. The tree path v ⇝ u plus u→v is a directed cycle. Tree edges reach white vertices; forward and cross edges reach black (finished) vertices and never close a cycle.",
+      "difficulty": "easy",
+      "topic": "algo-graph-algorithms.dfs-edge-types",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.q-bfs-hypercube",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The 4-dimensional hypercube has the 16 binary strings of length 4 as vertices, with an edge between two strings that differ in exactly one bit. BFS is run from 0000. How many vertices are in BFS layer 2 (distance exactly 2)?",
+      "answer": 6,
+      "explanation": "Each edge flips one bit, so the BFS distance from 0000 equals the number of 1 bits. Layer 2 holds the strings with exactly two 1s: C(4, 2) = 6. The layers have sizes 1, 4, 6, 4, 1.",
+      "difficulty": "easy",
+      "topic": "algo-graph-algorithms.bfs",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-graph-algorithms.q-kruskal-presorted",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The edges of a connected graph are supplied already sorted by weight. Kruskal's algorithm uses union-find with union by rank and path compression. What is its running time?",
+      "options": [
+        "O(E log E)",
+        "O(E α(V))",
+        "O(V²)",
+        "O(E log V + V log V)"
+      ],
+      "answer": 1,
+      "explanation": "Without the sort, the work is at most 2E finds and V − 1 unions. With both heuristics m operations cost O(m α(n)), where α is the inverse Ackermann function, so the total is O(E α(V)), effectively linear. O(E log E) is the cost when sorting is needed.",
+      "difficulty": "medium",
+      "topic": "algo-graph-algorithms.kruskal",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Running Dijkstra on a graph with a negative edge: it can settle a vertex too early. Use Bellman-Ford, or topological relaxation if the graph is a DAG.",
+      "origin": "source",
+      "pages": [
+        392,
+        397
+      ]
+    },
+    {
+      "text": "Putting the k loop of Floyd-Warshall inside the i and j loops; it must be outermost or some pairs miss improvements.",
+      "origin": "source",
+      "pages": [
+        394,
+        397
+      ]
+    },
+    {
+      "text": "Topological order exists only for DAGs. In Kahn's method the queue always empties; a cycle shows up as fewer than V vertices output.",
+      "origin": "source",
+      "pages": [
+        391,
+        397
+      ]
+    },
+    {
+      "text": "Prim and Kruskal need a connected graph to give a spanning tree; on a disconnected graph Kruskal yields a minimum spanning forest and Prim covers only the start vertex's component.",
+      "origin": "source",
+      "pages": [
+        397
+      ]
+    },
+    {
+      "text": "The DFS root is a cut vertex only if it has two or more DFS children; the low[c] ≥ disc[v] test does not apply to it.",
+      "origin": "source",
+      "pages": [
+        393,
+        397
+      ]
+    },
+    {
+      "text": "Bridge test uses strict low[v] > disc[u]; the cut-vertex test uses low[c] ≥ disc[v]. Swapping them misclassifies edges on cycles.",
+      "origin": "source",
+      "pages": [
+        393
+      ]
+    },
+    {
+      "text": "Assuming equal weights mean several MSTs, or that the cut and cycle properties hold for every MST under ties. With ties they hold only for some MST.",
+      "origin": "source",
+      "pages": [
+        392,
+        397
+      ]
+    },
+    {
+      "text": "Quoting adjacency-list bounds for a matrix input: BFS, DFS and Dijkstra on an adjacency matrix take Θ(V²) at least.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Traversals and DFS uses",
+      "lines": [
+        "BFS (queue), DFS (stack): O(V + E) lists, O(V²) matrix",
+        "BFS layers = unweighted shortest paths; bipartite iff no same-layer edge",
+        "Back edge ⇔ directed cycle; undirected DFS has no cross or forward edges",
+        "Topo: decreasing finish time, or Kahn (output < V ⇒ cycle)",
+        "SCC: Kosaraju (G, then Gᵀ) or Tarjan (one pass), O(V + E)"
+      ],
+      "origin": "source",
+      "pages": [
+        398
+      ]
+    },
+    {
+      "heading": "MST",
+      "lines": [
+        "n − 1 edges; distinct weights ⇒ unique MST",
+        "Cut: lightest crossing edge is in some MST",
+        "Cycle: strictly heaviest cycle edge is in no MST",
+        "Kruskal: sort + union-find, O(E log V)",
+        "Prim: O(E log V) heap, O(E + V log V) Fibonacci, O(V²) array"
+      ],
+      "origin": "source",
+      "pages": [
+        398
+      ]
+    },
+    {
+      "heading": "Shortest paths",
+      "lines": [
+        "Unweighted: BFS O(V + E); DAG: topological relaxation O(V + E)",
+        "Dijkstra (w ≥ 0): O((V + E) log V) heap, O(V²) array",
+        "Bellman-Ford: V − 1 passes, O(VE); V-th pass change ⇒ negative cycle",
+        "Floyd-Warshall: k outermost, O(V³) time, O(V²) space; d[i][i] < 0 ⇒ negative cycle",
+        "Johnson: reweight by h, then V Dijkstras, O(VE + V² log V)"
+      ],
+      "origin": "source",
+      "pages": [
+        398
+      ]
+    },
+    {
+      "heading": "Cut vertices and bridges",
+      "lines": [
+        "Non-root v cut vertex ⇔ some child c has low[c] ≥ disc[v]",
+        "Root cut vertex ⇔ at least 2 DFS children",
+        "Tree edge (u, v) bridge ⇔ low[v] > disc[u]",
+        "Edge on any cycle is never a bridge"
+      ],
+      "origin": "source",
+      "pages": [
+        393,
+        398
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 32,
+      "claim": "Topological order is \"unique if all in-degrees ≤ 1 path\".",
+      "correction": "In-degrees do not decide uniqueness. A DAG has exactly one topological order if and only if it has a Hamiltonian path, that is every pair of consecutive vertices in the order is joined by an edge. For example a→b, a→c has all in-degrees ≤ 1 but two orders."
+    },
+    {
+      "page": 33,
+      "claim": "Cut property: the min-weight edge crossing any cut belongs to the MST; cycle property: the max-weight edge in any cycle does not belong to the MST.",
+      "correction": "With ties both statements fail. A minimum crossing edge belongs to some MST (to every MST only if it is the unique lightest crossing edge), and only an edge strictly heavier than all others on a cycle is excluded. In a triangle with three equal weights every edge is a maximum on the cycle, yet each MST uses two of them."
+    },
+    {
+      "page": 394,
+      "claim": "In Kahn's algorithm, if you cannot empty the queue, the graph has a cycle.",
+      "correction": "The queue always empties. A cycle shows up because it empties before all V vertices are output: vertices on a cycle never reach in-degree 0."
+    },
+    {
+      "page": 397,
+      "claim": "A graph with multiple equal weights has multiple possible MSTs, one per choice in a tie.",
+      "correction": "Equal weights permit but do not force several MSTs, and the count is not one per tie. A graph that is itself a tree has exactly one MST whatever its weights; a 4-cycle with all weights equal has 4 MSTs."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "algo-graph-traversals",
+      "status": "covered",
+      "topics": [
+        "algo-graph-algorithms.bfs",
+        "algo-graph-algorithms.dfs",
+        "algo-graph-algorithms.dfs-edge-types",
+        "algo-graph-algorithms.representations",
+        "algo-graph-algorithms.topological-sort",
+        "algo-graph-algorithms.scc",
+        "algo-graph-algorithms.articulation-bridges"
+      ]
+    },
+    {
+      "item": "algo-mst",
+      "status": "covered",
+      "topics": [
+        "algo-graph-algorithms.mst-properties",
+        "algo-graph-algorithms.kruskal",
+        "algo-graph-algorithms.prim"
+      ]
+    },
+    {
+      "item": "algo-shortest-paths",
+      "status": "covered",
+      "topics": [
+        "algo-graph-algorithms.dijkstra",
+        "algo-graph-algorithms.bellman-ford",
+        "algo-graph-algorithms.dag-unweighted-sp",
+        "algo-graph-algorithms.floyd-warshall",
+        "algo-graph-algorithms.bfs"
+      ]
+    }
+  ]
+}

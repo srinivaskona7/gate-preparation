@@ -1,0 +1,2202 @@
+{
+  "id": "dl-combinational-circuits",
+  "summary": "A combinational circuit has no memory: every output is a Boolean function of the present inputs only. The chapter is a toolkit of standard blocks (gates, adders and subtractors, multiplexers, decoders, encoders, comparators, ROM/PLA/PAL) plus the design method that turns a word specification into a truth table, a minimized expression and a gate or block netlist. GATE asks for the function a given MUX or decoder network realizes, the data inputs that make a smaller MUX realize a function, adder delays, and block or memory counts.",
+  "highYield": [
+    "Read the function off a MUX network: write Y = Σ (select minterm)·(data input) for each MUX, substitute, and simplify; a 1- or 2-mark MCQ in most years.",
+    "Implement an n-variable function on a 2ⁿ⁻¹:1 MUX by splitting the truth table into pairs and feeding 0, 1, x or x′ to each data input.",
+    "Ripple-carry delay grows as 2n + 1 gate delays for n bits; a carry-lookahead block computes its carries in 2 levels after P and G, at the price of fan-in that grows with n.",
+    "Counts: (N − 1)/(k − 1) k:1 MUXes build an N:1 MUX, a ROM for m functions of n inputs needs 2ⁿ × m bits, and a PLA needs one AND line per distinct product term.",
+    "Decoder plus OR (active-high) or decoder plus NAND (active-low) realizes any function as a sum of minterms; AND-ing active-low outputs gives the complement."
+  ],
+  "topics": [
+    {
+      "id": "dl-combinational-circuits.combinational-basics",
+      "title": "Combinational versus sequential logic",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        211,
+        216
+      ],
+      "points": [
+        "A combinational circuit's outputs depend only on the inputs present now; there is no feedback loop and no stored state.",
+        "A sequential circuit adds memory (latches, flip-flops), so its output depends on the input history as well.",
+        "Any combinational circuit with n inputs and m outputs is fully described by a truth table of 2ⁿ rows and m output columns.",
+        "After an input change, outputs settle after the propagation delay of the longest (critical) path; until then they may show transient wrong values."
+      ],
+      "keyTerms": [
+        "combinational",
+        "sequential",
+        "propagation delay",
+        "critical path"
+      ],
+      "lesson": {
+        "why": "Two skills recur in this chapter: reading a gate network into a Boolean expression and simplifying it, and telling what a circuit with propagation delays can output for a moment even when its function says otherwise.",
+        "intro": "A combinational circuit is built only from gates, with no wire looping back and nothing that remembers. Give it the same inputs and it gives the same outputs, whatever happened before. A sequential circuit adds memory elements, so its output also depends on what it saw earlier. Because the output is a function of the inputs alone, a table listing every input pattern and its output describes the whole circuit.",
+        "analogy": {
+          "text": "A calculator that shows the sum of whatever two numbers you are holding on its keys right now, with no memory key.",
+          "breaksWhen": "A real calculator takes time to show the result, and a circuit likewise needs its propagation delay before the output is correct."
+        },
+        "definitions": [
+          {
+            "term": "Propagation delay",
+            "meaning": "The time a gate or path takes to show a new output after its input changes."
+          },
+          {
+            "term": "Critical path",
+            "meaning": "The input-to-output path with the largest total delay; it fixes how long the whole circuit takes to settle."
+          },
+          {
+            "term": "Glitch",
+            "meaning": "A short unwanted pulse at an output, caused by two paths from the same input reaching a gate at different times."
+          }
+        ],
+        "principle": {
+          "text": "The output function is found by writing each gate's output from the inputs towards the output, then simplifying. With $n$ inputs there are $2^n$ input rows. After an input change the outputs are final only once the critical path delay has passed, and before that a glitch can appear.",
+          "tex": "\\text{rows} = 2^{n}, \\qquad t_{\\text{settle}} = \\max_{\\text{paths}} \\sum \\text{gate delays}"
+        },
+        "limits": "The truth table description fails as soon as a feedback loop or a stored bit appears, because the same inputs can then give different outputs. A delay-free analysis also misses glitches. In $X \\cdot \\overline{X}$ the function is always 0, but when $X$ rises the direct path is already 1 while the NOT output is still 1, so the AND output is 1 for one NOT delay. When $X$ falls, the direct path is 0 first, so the AND output stays 0.",
+        "example": {
+          "problem": "A circuit has three AND gates feeding one OR gate: $G_1 = A \\cdot B$, $G_2 = \\overline{A} \\cdot B$ and $G_3 = A \\cdot \\overline{B}$. Find its output $F$ in simplest form.",
+          "steps": [
+            "Read the OR of the three gates: $F = AB + \\overline{A}B + A\\overline{B}$.",
+            "Combine the first two terms on $B$: $AB + \\overline{A}B = B(A + \\overline{A}) = B$, so $F = B + A\\overline{B}$.",
+            "Use $B + A\\overline{B} = B + A$, because when $B = 0$ the second term reduces to $A$ and when $B = 1$ the whole sum is 1.",
+            "Check on the four rows $AB = 00, 01, 10, 11$: the original gives $0, 1, 1, 1$ and $A + B$ gives $0, 1, 1, 1$."
+          ],
+          "result": "$F = A + B$."
+        },
+        "misconceptions": [
+          "A circuit with many gates is not automatically sequential; what makes it sequential is memory or feedback, not size.",
+          "A circuit whose function is constant can still glitch. The function describes the settled output. During the delay the output can differ for a moment.",
+          "The settling time is the longest path delay, not the sum over all paths."
+        ],
+        "recall": [
+          {
+            "q": "What separates a combinational circuit from a sequential one?",
+            "a": "A combinational circuit has no memory and no feedback, so its output depends only on the present inputs."
+          },
+          {
+            "q": "How do you find the function of a gate network?",
+            "a": "Write each gate's output from the inputs towards the output, then simplify and check on the truth table rows."
+          },
+          {
+            "q": "What sets the time a combinational circuit takes to settle?",
+            "a": "The critical path, the path with the largest sum of gate delays."
+          },
+          {
+            "q": "When does $X \\cdot \\overline{X}$ glitch to 1 if the NOT gate has a delay?",
+            "a": "When $X$ rises: for one NOT delay both AND inputs are 1. When $X$ falls it stays 0."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In a circuit $Y = X + \\overline{X}$ the NOT gate has a propagation delay and the OR gate and wires have none. Without delays $Y$ is always 1. Which input change can make $Y$ show a transient 0?",
+          "options": [
+            "$X$ rises from 0 to 1",
+            "$X$ falls from 1 to 0",
+            "Both changes",
+            "Neither, because $Y$ is always 1"
+          ],
+          "answer": 1,
+          "explanation": "When $X$ falls from 1 to 0, the direct input becomes 0 at once while the NOT output is still 0 for one delay, so both OR inputs are 0 and $Y$ drops to 0 briefly. When $X$ rises, the direct input is 1 at once and the OR output stays 1. The last option tempts because it is true of the function, but it ignores the delay."
+        },
+        "summary": "Read a gate network into an expression and simplify it, check it on the truth table, and remember that the settled function ignores delays, so a glitch can still appear before the critical path delay has passed."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.logic-gates-xor",
+      "title": "Logic gates and XOR/XNOR algebra",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        211
+      ],
+      "points": [
+        "The seven basic gates are AND, OR, NOT, NAND, NOR, XOR and XNOR; NAND and NOR are the complements of AND and OR, and XNOR is the complement of XOR.",
+        "XOR outputs 1 when the inputs differ: A ⊕ B = A′B + AB′. XNOR outputs 1 when they agree: A ⊙ B = AB + A′B′.",
+        "Identities used constantly: A ⊕ 0 = A, A ⊕ 1 = A′, A ⊕ A = 0, A ⊕ A′ = 1; XOR is commutative and associative, so A ⊕ B = C implies A ⊕ C = B.",
+        "An n-input XOR is 1 exactly when an odd number of inputs are 1, so it is the odd-parity generator and checker; XNOR of two inputs is a 1-bit equality detector.",
+        "For three variables A ⊙ B ⊙ C equals A ⊕ B ⊕ C, because complementing an even number of times cancels; for two variables they are complements."
+      ],
+      "keyTerms": [
+        "XOR",
+        "XNOR",
+        "parity",
+        "equivalence"
+      ],
+      "lesson": {
+        "why": "XOR and XNOR identities shorten many circuit and expression questions, and parity (odd number of ones) is the idea behind several one-mark items.",
+        "intro": "A logic gate takes bits and returns one bit. AND gives 1 only when every input is 1. OR gives 1 when at least one input is 1. NOT flips a bit. NAND and NOR are AND and OR followed by NOT. XOR is the 'differ' gate: it gives 1 when its two inputs are different. XNOR is its complement: it gives 1 when the two inputs are equal.",
+        "prerequisites": [
+          "dl-combinational-circuits.combinational-basics"
+        ],
+        "definitions": [
+          {
+            "term": "XOR",
+            "meaning": "Output is 1 when the inputs differ; for many inputs, when an odd number of them are 1."
+          },
+          {
+            "term": "XNOR",
+            "meaning": "Complement of XOR; for two inputs it is 1 exactly when the inputs are equal."
+          },
+          {
+            "term": "Parity",
+            "meaning": "Whether the count of 1 bits in a word is odd or even."
+          }
+        ],
+        "principle": {
+          "text": "XOR is commutative and associative, and it obeys four identities with constants. These let any repeated variable cancel in pairs.",
+          "tex": "A\\oplus 0=A,\\quad A\\oplus 1=\\overline{A},\\quad A\\oplus A=0,\\quad A\\oplus\\overline{A}=1"
+        },
+        "limits": "The cancel-in-pairs rule applies only to XOR chains. It does not carry over to OR or AND, where $A+A=A$ and $AA=A$ merely absorb. XNOR is associative too, but the XNOR of two variables is the complement of their XOR, so the two gates agree only when the number of inputs is odd.",
+        "example": {
+          "problem": "Simplify $F = A \\oplus B \\oplus A \\oplus \\overline{B}$.",
+          "steps": [
+            "XOR is commutative and associative, so regroup: $F = (A\\oplus A)\\oplus(B\\oplus\\overline{B})$.",
+            "Each pair simplifies by an identity: $A\\oplus A = 0$ and $B\\oplus\\overline{B} = 1$.",
+            "So $F = 0\\oplus 1 = 1$, whatever A and B are. A truth table over the four rows of A and B confirms the output is 1 in every row."
+          ],
+          "result": "$F = 1$ for all inputs."
+        },
+        "misconceptions": [
+          "XOR is not 'OR with a different name': for $A=B=1$ OR gives 1 but XOR gives 0.",
+          "XNOR of three variables is not the complement of their XOR; complementing twice cancels, so $A\\odot B\\odot C = A\\oplus B\\oplus C$.",
+          "A multi-input XOR does not mean 'exactly one input is 1'; it means an odd number of inputs are 1."
+        ],
+        "recall": [
+          {
+            "q": "When does an n-input XOR output 1?",
+            "a": "When an odd number of its inputs are 1, which makes it an odd-parity detector."
+          },
+          {
+            "q": "What does $A \\oplus A\\oplus A$ equal?",
+            "a": "It equals $A$, because the first two copies cancel to 0 and $0\\oplus A = A$."
+          },
+          {
+            "q": "What is the two-input XNOR used for?",
+            "a": "It is a one-bit equality detector: the output is 1 when the two inputs are the same."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which expression equals the three-input XNOR $A \\odot B \\odot C$, where the XNOR is applied twice in a chain?",
+          "options": [
+            "$A\\oplus B\\oplus C$",
+            "$\\overline{A\\oplus B\\oplus C}$",
+            "$ABC$",
+            "$0$"
+          ],
+          "answer": 0,
+          "explanation": "Each two-input XNOR is an XOR with one extra complement. Two XNORs add two complements, which cancel, leaving $A\\oplus B\\oplus C$. The second option tempts because XNOR means complement of XOR, but that holds only for two inputs."
+        },
+        "summary": "XOR means 'inputs differ' and an n-input XOR is odd parity. Repeated variables cancel in pairs, and XNOR of an odd number of variables equals their XOR."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.universal-gates",
+      "title": "Universal gates and functional completeness",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13
+      ],
+      "points": [
+        "NAND alone is functionally complete: NOT A = NAND(A, A), AND = NAND followed by NOT, OR = NAND(A′, B′). NOR is complete by the dual constructions.",
+        "A two-level AND-OR (SOP) circuit converts directly to NAND-NAND, and an OR-AND (POS) circuit to NOR-NOR, with the same gate count.",
+        "Minimum two-input NAND counts: NOT 1, AND 2, OR 3, XOR 4, half adder 5 (the first NAND of the XOR is reused for the carry), full adder 9.",
+        "{AND, OR} is not complete because both gates are monotone and cannot produce NOT; {XOR, AND} is complete only when the constant 1 is available, since without it every output is 0 on the all-zero input.",
+        "A 2:1 MUX with constants 0 and 1 available is complete: S = A, I₀ = 1, I₁ = 0 gives A′, and S = A, I₀ = 0, I₁ = B gives AB."
+      ],
+      "keyTerms": [
+        "NAND",
+        "NOR",
+        "functional completeness",
+        "NAND-NAND"
+      ],
+      "lesson": {
+        "why": "Questions ask which gate sets can build every function and how a two-level circuit converts to NAND or NOR form.",
+        "intro": "A set of gates is universal, or functionally complete, when circuits made only from those gates can compute every Boolean function. NAND gives 0 only when both inputs are 1, and NOR gives 1 only when both inputs are 0. Each one alone is enough, because from it you can build NOT, AND and OR, and those three build everything else.",
+        "prerequisites": [
+          "dl-combinational-circuits.logic-gates-xor"
+        ],
+        "definitions": [
+          {
+            "term": "Functional completeness",
+            "meaning": "A gate set is complete when every Boolean function can be built from it."
+          },
+          {
+            "term": "NAND-NAND",
+            "meaning": "A two-level circuit of NAND gates that computes the same function as an AND-OR (sum of products) circuit."
+          }
+        ],
+        "principle": {
+          "text": "NAND builds NOT by tying its inputs together, AND by adding that NOT after it, and OR by complementing the inputs first. NOR is complete by the dual constructions.",
+          "tex": "\\overline{A\\cdot A}=\\overline{A},\\qquad \\overline{\\overline{A}\\cdot\\overline{B}}=A+B"
+        },
+        "limits": "A set that includes only AND and OR is not complete: both are monotone, so they can never produce NOT. XOR with AND is complete only if the constant 1 is also available. A product term that is a single literal still needs a NAND used as an inverter on the first level, so that it enters the second-level NAND complemented.",
+        "example": {
+          "problem": "Build $A + B$ using only two-input NAND gates and count the gates.",
+          "steps": [
+            "Make $\\overline{A}$ with one NAND whose two inputs are both A. Make $\\overline{B}$ the same way.",
+            "Feed $\\overline{A}$ and $\\overline{B}$ into a third NAND, giving $\\overline{\\overline{A}\\,\\overline{B}}$.",
+            "By De Morgan this equals $A+B$. A check over the four input rows of A and B matches the OR table."
+          ],
+          "result": "OR takes 3 NAND gates."
+        },
+        "misconceptions": [
+          "Having AND, OR and NOT available does not mean each is needed: NAND alone already covers all three.",
+          "{AND, OR} feels rich enough but is not complete: raising an input can never lower the output, so no circuit of them gives $\\overline{A}$.",
+          "Converting AND-OR to NAND-NAND does not need extra gates for the OR; the second-level NAND does the work of the OR."
+        ],
+        "recall": [
+          {
+            "q": "Why is {AND, OR} not functionally complete?",
+            "a": "Both gates are monotone, so any circuit of them is monotone and cannot compute NOT."
+          },
+          {
+            "q": "How do you make NOT from a NAND gate?",
+            "a": "Tie both inputs together: $\\overline{A\\cdot A} = \\overline{A}$."
+          },
+          {
+            "q": "What does an AND-OR circuit become in NAND-only form?",
+            "a": "A NAND-NAND circuit: one NAND per product term, then one NAND combining them."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following gate sets is NOT functionally complete?",
+          "options": [
+            "{NAND}",
+            "{NOR}",
+            "{AND, OR}",
+            "{AND, NOT}"
+          ],
+          "answer": 2,
+          "explanation": "{AND, OR} produces only monotone functions, so it can never build NOT. NAND and NOR are each complete alone, and {AND, NOT} is complete because OR follows from De Morgan: $A+B=\\overline{\\overline{A}\\,\\overline{B}}$. The set {AND, OR} tempts because it feels as expressive as AND and NOT together."
+        },
+        "summary": "NAND alone, or NOR alone, can build every function. Sets of AND and OR only are never complete, and SOP maps to NAND-NAND with the same shape."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.adders",
+      "title": "Half adder and full adder",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        211,
+        212,
+        217,
+        219
+      ],
+      "points": [
+        "A half adder adds two bits: S = A ⊕ B and C = AB. It has no carry input, so it can only serve the least significant position.",
+        "A full adder adds A, B and Cin: S = A ⊕ B ⊕ Cin and Cout = AB + Cin(A ⊕ B), which equals the majority function AB + ACin + BCin.",
+        "Two half adders and one OR gate make a full adder: HA1 gives S₁ = A ⊕ B and C₁ = AB, HA2 adds Cin to give S and C₂ = S₁Cin, and Cout = C₁ + C₂.",
+        "The OR in that construction may be replaced by XOR, because C₁ and C₂ are never both 1.",
+        "Example: A = 1, B = 1, Cin = 1 gives S = 1 and Cout = 1, i.e. 1 + 1 + 1 = 11₂."
+      ],
+      "keyTerms": [
+        "half adder",
+        "full adder",
+        "majority function"
+      ],
+      "lesson": {
+        "why": "The full adder is the base block for every arithmetic circuit, and its sum and carry equations are tested directly.",
+        "intro": "Adding two bits gives a sum bit and a carry bit: $1+1$ is $10$ in binary, so the sum bit is 0 and the carry is 1. A half adder does exactly that for two inputs. A full adder also accepts the carry coming in from the position to its right, so three bits are added at once and the result is still a sum bit and a carry-out.",
+        "prerequisites": [
+          "dl-combinational-circuits.logic-gates-xor"
+        ],
+        "definitions": [
+          {
+            "term": "Half adder",
+            "meaning": "Adds two bits with no carry input; sum is $A\\oplus B$ and carry is $AB$."
+          },
+          {
+            "term": "Full adder",
+            "meaning": "Adds two bits and a carry-in; the carry-out is the majority of the three inputs."
+          }
+        ],
+        "principle": {
+          "text": "The sum is 1 when an odd number of the three inputs are 1, and the carry-out is 1 when at least two are 1.",
+          "tex": "S=A\\oplus B\\oplus C_{in},\\qquad C_{out}=AB+C_{in}(A\\oplus B)=AB+AC_{in}+BC_{in}"
+        },
+        "limits": "A half adder cannot be used above the least significant position because it has no carry input. The two-half-adder construction of a full adder may join the two carries with OR or XOR, since they are never 1 together.",
+        "example": {
+          "problem": "Find S and $C_{out}$ of a full adder for $A=1$, $B=0$, $C_{in}=1$.",
+          "steps": [
+            "Compute $A\\oplus B = 1\\oplus 0 = 1$.",
+            "Sum: $S = 1\\oplus C_{in} = 1\\oplus 1 = 0$.",
+            "Carry: $AB + C_{in}(A\\oplus B) = 0 + 1\\cdot 1 = 1$. Check: $1+0+1 = 10_2$, so sum bit 0, carry 1."
+          ],
+          "result": "$S = 0$ and $C_{out} = 1$."
+        },
+        "misconceptions": [
+          "Writing $C_{out} = AB$ is the half adder's carry; the full adder also carries when $C_{in}=1$ and exactly one of A, B is 1.",
+          "The sum bit is not an OR: it is the three-way XOR, so $1+1+1$ gives sum 1, not 0.",
+          "A full adder is not three half adders; it needs two half adders and one OR (or XOR) gate."
+        ],
+        "recall": [
+          {
+            "q": "What are the half adder outputs?",
+            "a": "Sum $S = A\\oplus B$ and carry $C = AB$."
+          },
+          {
+            "q": "Which function is the full adder's carry-out?",
+            "a": "The majority function $AB+AC_{in}+BC_{in}$: 1 when at least two inputs are 1."
+          },
+          {
+            "q": "How is a full adder built from half adders?",
+            "a": "Two half adders and one OR: the first adds A and B, the second adds the result to $C_{in}$, and the two carries are ORed."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A full adder has three inputs, giving 8 input combinations. For how many of them is the sum bit 0 while the carry-out is 1?",
+          "answer": 3,
+          "explanation": "Sum 0 with carry 1 means the three bits add to $10_2$, that is exactly two of the inputs are 1. There are $\\binom{3}{2}=3$ such rows. The count 4 tempts when all carry-out-1 rows are counted, but the row 111 gives sum 1."
+        },
+        "summary": "A half adder gives $A\\oplus B$ and $AB$. A full adder adds a carry-in: sum is the three-way XOR and carry-out is the majority of the inputs."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.subtractors",
+      "title": "Subtractors and the two's-complement adder-subtractor",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        13,
+        212
+      ],
+      "points": [
+        "A half subtractor computes A − B: difference D = A ⊕ B and borrow = A′B, which is 1 only for 0 − 1.",
+        "A full subtractor computes A − B − Bin: D = A ⊕ B ⊕ Bin and Bout = A′B + (A ⊙ B)·Bin = A′B + A′Bin + BBin. The difference is the same XOR as the full-adder sum.",
+        "In practice subtraction reuses the adder: A − B = A + B′ + 1, so an n-bit adder with each Bᵢ passed through an XOR with mode bit M, and Cin = M, adds when M = 0 and subtracts when M = 1.",
+        "For signed operands, overflow V = Cₙ ⊕ Cₙ₋₁; for unsigned subtraction, a final carry-out of 1 means A ≥ B and 0 means a borrow occurred.",
+        "Example: 4-bit A = 0101, B = 0111, M = 1 gives 0101 + 1000 + 1 = 1110 (−2) with carry-out 0 and no overflow."
+      ],
+      "keyTerms": [
+        "borrow",
+        "adder-subtractor",
+        "overflow"
+      ],
+      "lesson": {
+        "why": "Hardware subtracts by adding, and questions test the adder-subtractor, the borrow equations and how to read the carry and overflow flags.",
+        "intro": "Subtracting bit by bit needs a borrow: $0-1$ cannot be done in one position, so we borrow from the next. A half subtractor handles two bits and a full subtractor also accepts a borrow from the lower position. In real hardware there is a shortcut: in two's complement, $A-B$ equals $A$ plus the inverted bits of $B$ plus 1, so the same adder serves both operations.",
+        "prerequisites": [
+          "dl-combinational-circuits.adders"
+        ],
+        "definitions": [
+          {
+            "term": "Borrow",
+            "meaning": "A signal that a position needed 1 from the next higher position to complete its subtraction."
+          },
+          {
+            "term": "Mode bit M",
+            "meaning": "A control input: 0 makes the circuit add, 1 makes it subtract."
+          }
+        ],
+        "principle": {
+          "text": "Pass each bit of B through an XOR with M and feed M as the carry-in. With M = 0 the adder computes $A+B$; with M = 1 it computes $A+\\overline{B}+1 = A-B$.",
+          "tex": "A-B=A+\\overline{B}+1,\\qquad B_i'=B_i\\oplus M,\\quad C_0=M"
+        },
+        "limits": "The shortcut gives the correct signed result only if it fits in $n$ bits. For signed numbers check overflow $V = C_n\\oplus C_{n-1}$. For unsigned numbers the carry-out is the flag: 1 means $A\\ge B$, and 0 means a borrow occurred.",
+        "example": {
+          "problem": "With a 4-bit adder-subtractor in subtract mode, compute $A=0110$ minus $B=0011$.",
+          "steps": [
+            "Set M = 1. Each bit of B is XORed with 1, giving $\\overline{B}=1100$.",
+            "The adder computes $0110 + 1100 + 1$. Adding gives $10011$ in five bits.",
+            "The low four bits are $0011$ and the carry-out is 1, which for unsigned operands means $A\\ge B$, with no borrow."
+          ],
+          "result": "$0110-0011 = 0011$ (6 − 3 = 3), carry-out 1."
+        },
+        "misconceptions": [
+          "Forgetting the carry-in of 1 gives the one's-complement answer, off by one.",
+          "The carry-out of subtraction has the opposite feel to a borrow: carry-out 1 means no borrow.",
+          "The difference bit of a full subtractor is the same XOR as the full adder's sum; only the borrow differs."
+        ],
+        "recall": [
+          {
+            "q": "What are the half subtractor outputs for $A-B$?",
+            "a": "Difference $D = A\\oplus B$ and borrow $A'B$, which is 1 only for $0-1$."
+          },
+          {
+            "q": "How does one adder also subtract?",
+            "a": "XOR every bit of B with the mode bit M and set the carry-in to M, so M = 1 computes $A+\\overline{B}+1$."
+          },
+          {
+            "q": "How is signed overflow detected?",
+            "a": "It is the XOR of the carry into and the carry out of the sign position: $V=C_n\\oplus C_{n-1}$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 4-bit adder-subtractor is in subtract mode with $A=0010$ and $B=0111$. Read the 4-bit result as a signed two's-complement number. What is its decimal value?",
+          "answer": -5,
+          "explanation": "Invert B to get $1000$, then add: $0010+1000+1=1011$. In two's complement $1011$ is $-5$, which equals $2-7$. The value 11 tempts if the result is read as unsigned; the carry-out is 0, which also signals a borrow for unsigned operands."
+        },
+        "summary": "Subtraction is $A+\\overline{B}+1$ on the same adder, selected by a mode bit. Read carry-out as no-borrow for unsigned and $C_n\\oplus C_{n-1}$ as overflow for signed."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.ripple-carry",
+      "title": "Ripple-carry adder and its delay",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        212,
+        217,
+        219
+      ],
+      "points": [
+        "An n-bit ripple-carry adder chains n full adders, feeding each Cout into the next Cin. Hardware is O(n) but the carry must pass through every stage, so delay is O(n).",
+        "Standard model with every gate (including XOR) costing one delay: Pᵢ = Aᵢ ⊕ Bᵢ and Gᵢ = AᵢBᵢ are ready at 1, each carry Cᵢ₊₁ = Gᵢ + PᵢCᵢ adds 2 (AND then OR), and Sᵢ = Pᵢ ⊕ Cᵢ adds 1.",
+        "Under that model C₁ is ready at 3, Cᵢ at 2i + 1, the carry-out Cₙ at 2n + 1 and the last sum Sₙ₋₁ at 2n; for 8 bits the adder settles after 17 gate delays.",
+        "When a question gives per-FA delays instead (carry delay t_c, sum delay t_s), the answer is (n − 1)·t_c + max(t_c, t_s): the last stage waits for n − 1 carries."
+      ],
+      "keyTerms": [
+        "ripple-carry",
+        "carry propagation",
+        "gate delay"
+      ],
+      "lesson": {
+        "why": "Adder delay is a standard numerical question, and the answer depends on counting how far the carry must travel.",
+        "intro": "To add two n-bit numbers, chain n full adders. Each stage's carry-out feeds the next stage's carry-in. The chain is cheap, but the top stage cannot finish until the carry has passed through all the stages below it, so the longer the numbers, the longer the wait. That waiting is called the ripple delay.",
+        "prerequisites": [
+          "dl-combinational-circuits.adders"
+        ],
+        "definitions": [
+          {
+            "term": "Gate delay",
+            "meaning": "The time one gate takes to respond; delay questions count gates along the slowest path."
+          },
+          {
+            "term": "Carry propagation",
+            "meaning": "The carry travelling from one full adder to the next along the chain."
+          }
+        ],
+        "principle": {
+          "text": "Each stage forms $P_i = A_i \\oplus B_i$ and $G_i = A_i B_i$, and its carry-out is $C_{i+1} = G_i + P_i C_i$. Assume every gate, including XOR, costs one delay. Then $P_i$ and $G_i$ are ready at time 1, each carry adds two delays (AND, then OR), and a sum adds one more delay after its carry.",
+          "tex": "T(C_n)=2n+1,\\qquad T(S_{n-1})=2n"
+        },
+        "limits": "The formulas hold only for that gate model. If the stem gives a carry delay $t_c$ and a sum delay $t_s$ per full adder, use $(n-1)t_c+\\max(t_c,t_s)$ instead. Hardware cost still grows only linearly, which is why the design stays popular despite the delay.",
+        "example": {
+          "problem": "A 4-bit ripple-carry adder has $C_0 = 0$ available at time 0 and every gate costs one unit. When is the carry-out $C_4$ ready?",
+          "steps": [
+            "$P_i$ and $G_i$ are ready at time 1, and $C_1$ is ready at $1+2=3$.",
+            "Each later carry adds two: $C_2$ at 5, $C_3$ at 7, $C_4$ at 9.",
+            "The last sum $S_3$ needs $C_3$ at 7 plus one XOR, giving 8."
+          ],
+          "result": "$C_4$ is ready at 9 gate delays, and the last sum bit at 8."
+        },
+        "misconceptions": [
+          "The delay does not shrink when the numbers are small in value; it depends on the number of stages, because the circuit does not know the carry is 0.",
+          "Counting n full-adder carry delays for the final sum overcounts, since the last stage waits only for the $n-1$ carries before it.",
+          "The $2n+1$ formula does not apply when the stem gives per-full-adder delays."
+        ],
+        "recall": [
+          {
+            "q": "Why is a ripple-carry adder slow?",
+            "a": "Each stage waits for the carry from the stage below, so delay grows linearly with the number of bits."
+          },
+          {
+            "q": "When is the carry-out of an n-bit ripple adder ready in the one-delay-per-gate model?",
+            "a": "At $2n+1$ gate delays; the last sum bit is ready at $2n$."
+          },
+          {
+            "q": "What is the formula for n full adders with carry delay $t_c$ and sum delay $t_s$?",
+            "a": "$(n-1)t_c+\\max(t_c,t_s)$, since the last stage waits for $n-1$ carries."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 10-bit ripple-carry adder has every gate, including XOR, costing one delay, and the carry-in is ready at time 0. At what time is the carry-out $C_{10}$ ready?",
+          "answer": 21,
+          "explanation": "$C_n$ is ready at $2n+1$. Here $P$ and $G$ are ready at 1 and each of the ten stages adds two delays, so $1+2\\cdot 10 = 21$. The value 20 tempts because it is the time of the last sum bit, not the carry-out."
+        },
+        "summary": "A ripple-carry adder chains full adders, so carry delay grows with n: $2n+1$ gate delays for the carry-out and $2n$ for the last sum in the standard model."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.carry-lookahead",
+      "title": "Carry-lookahead adder",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        212,
+        213,
+        216,
+        217,
+        219
+      ],
+      "points": [
+        "Generate Gᵢ = AᵢBᵢ means position i makes a carry on its own; propagate Pᵢ = Aᵢ ⊕ Bᵢ means it passes an incoming carry on. Then Cᵢ₊₁ = Gᵢ + PᵢCᵢ.",
+        "Unrolling the recurrence writes every carry in terms of the G's, P's and C₀ only: C₂ = G₁ + P₁G₀ + P₁P₀C₀ and C₃ = G₂ + P₂G₁ + P₂P₁G₀ + P₂P₁P₀C₀.",
+        "Each carry is a two-level AND-OR, so all carries are ready 2 gate delays after P and G (3 from the inputs) and all sums at 4, whatever n is, if gates of any fan-in are allowed.",
+        "The cost is fan-in and area: Cᵢ needs an (i + 1)-input OR and AND gates of up to i + 1 inputs, about n²/2 AND gates in total, so real designs use 4-bit lookahead blocks.",
+        "Blocks rippled together: with 4-bit blocks a 16-bit adder settles at 10 gate delays (block carries at 3, 5, 7, 9, last sums at 10), against 33 for plain ripple. A lookahead tree over blocks gives O(log n) delay."
+      ],
+      "keyTerms": [
+        "generate",
+        "propagate",
+        "lookahead",
+        "fan-in"
+      ],
+      "lesson": {
+        "why": "This adder is the standard answer to ripple delay, and questions ask for its carry equations, its delay and its cost.",
+        "intro": "In a ripple adder each stage waits for the previous carry. Lookahead avoids this by deciding in advance. Position i generates a carry on its own when both input bits are 1. It propagates an incoming carry when exactly one input bit is 1. With those two signals, every carry can be computed directly from the inputs, in parallel, instead of one after another.",
+        "prerequisites": [
+          "dl-combinational-circuits.ripple-carry"
+        ],
+        "definitions": [
+          {
+            "term": "Generate",
+            "meaning": "$G_i=A_iB_i$: position i produces a carry regardless of the carry-in."
+          },
+          {
+            "term": "Propagate",
+            "meaning": "$P_i=A_i\\oplus B_i$: position i passes the carry-in to its carry-out."
+          }
+        ],
+        "principle": {
+          "text": "A carry out of position i exists if position i generates one, or it propagates a carry that came in. Unrolling that rule writes every carry using only G, P and $C_0$.",
+          "tex": "C_{i+1}=G_i+P_iC_i,\\qquad C_3=G_2+P_2G_1+P_2P_1G_0+P_2P_1P_0C_0"
+        },
+        "limits": "The constant delay needs gates of unlimited fan-in: the carry $C_{i+1}$ needs an OR with $i+2$ inputs and ANDs of up to that many. For wide words, fan-in and area explode, so designs use 4-bit lookahead blocks, with the block carries rippled or combined in a tree.",
+        "example": {
+          "problem": "Find G, P and the carries of a 4-bit lookahead adder for $A=1011$, $B=0110$, $C_0=0$.",
+          "steps": [
+            "Bit by bit from the least significant: $G=(0,1,0,0)$ for positions 0 to 3, and $P=(1,0,1,1)$.",
+            "Apply $C_{i+1}=G_i+P_iC_i$: $C_1=0$, $C_2=1$, $C_3=1$, $C_4=1$.",
+            "Sum bits $S_i=P_i\\oplus C_i$ give $S_3S_2S_1S_0 = 0001$, with $C_4=1$. Check: $11+6=17=10001_2$."
+          ],
+          "result": "The sum is $0001$ with carry-out 1, that is 17."
+        },
+        "misconceptions": [
+          "Lookahead does not remove the carries; it computes them all at once from G and P instead of one after another.",
+          "Constant delay is not free: the price is large fan-in and about $n^2/2$ AND gates.",
+          "$P_i$ and $G_i$ are different signals: with both bits 1, position i generates (and $P_i=0$ in the XOR form); with exactly one bit 1, it propagates."
+        ],
+        "recall": [
+          {
+            "q": "What do generate and propagate mean?",
+            "a": "$G_i=A_iB_i$ makes a carry by itself; $P_i=A_i\\oplus B_i$ passes an incoming carry along."
+          },
+          {
+            "q": "Why is a lookahead adder faster than ripple?",
+            "a": "Every carry is a two-level AND-OR of G, P and $C_0$, so all carries are ready together after a fixed delay."
+          },
+          {
+            "q": "What limits lookahead for wide adders?",
+            "a": "Gate fan-in and area grow quickly with the width, so designs use small lookahead blocks."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "When $C_4$ of a lookahead adder is written using only $G_i$, $P_i$ and $C_0$, how many product terms does the expression have?",
+          "answer": 5,
+          "explanation": "The expansion is $G_3+P_3G_2+P_3P_2G_1+P_3P_2P_1G_0+P_3P_2P_1P_0C_0$, which has five terms. The number 4 tempts if the final term carrying $C_0$ is forgotten. In general $C_{i+1}$ has $i+2$ terms."
+        },
+        "summary": "Lookahead computes every carry directly from G, P and $C_0$, so delay is constant in n with enough fan-in; the cost is wide gates, which is why blocks are used."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.bcd-adder",
+      "title": "BCD adder",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        13
+      ],
+      "points": [
+        "Two BCD digits (0–9) plus a carry give a binary sum from 0 to 19, but a BCD result must keep each digit ≤ 9.",
+        "If the 4-bit binary sum exceeds 9 or produces a carry K, add 6 (0110) to skip the six unused codes 1010–1111; the correction also produces the decimal carry.",
+        "The correction signal is C = K + Z₈Z₄ + Z₈Z₂, where Z₈Z₄Z₂Z₁ is the binary sum; it is 1 exactly for sums 10 to 19.",
+        "Example: 9 + 9 = 18 gives K = 1 and Z = 0010; adding 0110 gives 1000 with decimal carry 1, i.e. BCD 0001 1000."
+      ],
+      "keyTerms": [
+        "BCD",
+        "+6 correction",
+        "decimal carry"
+      ],
+      "lesson": {
+        "why": "BCD adder questions ask for the corrected digit and carry when two decimal digits are added, or for the condition that triggers the correction. The rule $C = K + Z_8Z_4 + Z_8Z_2$ is short and worth knowing cold.",
+        "intro": "BCD stores each decimal digit in 4 bits and uses only the codes 0000 to 1001. A plain 4-bit binary adder knows nothing about this: adding two digits plus a carry can give a binary sum from 0 to 19, and any sum above 9 is not a valid BCD digit. The six codes 1010 to 1111 are unused, so a binary sum that lands past 9 is six steps too far into the unused region. Adding 6 (0110) to such a sum jumps over the six unused codes and leaves the right digit, and the carry that comes out of this second addition is the decimal carry into the next digit.",
+        "prerequisites": [
+          "dl-combinational-circuits.adders",
+          "dl-combinational-circuits.ripple-carry"
+        ],
+        "definitions": [
+          {
+            "term": "BCD",
+            "meaning": "Binary-coded decimal: each decimal digit is written as its own 4-bit code from 0000 to 1001."
+          },
+          {
+            "term": "+6 correction",
+            "meaning": "Adding 0110 to the binary sum when it exceeds 9, to skip the six unused codes 1010 to 1111."
+          },
+          {
+            "term": "Decimal carry",
+            "meaning": "The carry passed to the next decimal digit; it equals the correction signal $C$."
+          }
+        ],
+        "principle": {
+          "text": "Add the two digits and the carry-in with a 4-bit binary adder, giving carry-out $K$ and sum $Z_8Z_4Z_2Z_1$. The sum needs correction exactly when it is 10 to 19, which is when $K = 1$, or $Z_8 = 1$ together with $Z_4 = 1$ or $Z_2 = 1$. When $C = 1$, add 0110 with a second 4-bit adder and use $C$ as the decimal carry.",
+          "tex": "C = K + Z_8 Z_4 + Z_8 Z_2"
+        },
+        "limits": "The rule is for two BCD digits and at most one carry-in, so the binary sum never passes 19. Inputs that are not valid BCD digits (1010 to 1111) give meaningless results. The correction is per digit, so a multi-digit number needs one corrected adder per digit, chained by the decimal carry.",
+        "example": {
+          "problem": "Add the BCD digits 7 (0111) and 8 (1000) with no carry-in. Give the result digit and the decimal carry.",
+          "steps": [
+            "The binary sum is $7 + 8 = 15$, which is 1111, so $K = 0$ and $Z_8Z_4Z_2Z_1 = 1111$.",
+            "Check the rule: $Z_8Z_4 = 1$, so $C = 1$ and a correction is needed.",
+            "Add 0110 to 1111: the result is 10101, so the low four bits are 0101 and the carry out is 1.",
+            "The digit is 0101 = 5 and the decimal carry is 1, so the BCD result is 0001 0101."
+          ],
+          "result": "The result is 0001 0101, which is decimal 15."
+        },
+        "misconceptions": [
+          "The correction is not needed only when the carry $K$ is 1. A sum such as 15 gives $K = 0$ but is still above 9, which is why the terms $Z_8Z_4$ and $Z_8Z_2$ exist.",
+          "Adding 6 does not turn the binary sum into BCD for sums 0 to 9; applying it to every sum corrupts valid digits, so it is added only when $C = 1$."
+        ],
+        "recall": [
+          {
+            "q": "Why is 6 added in a BCD adder?",
+            "a": "Six binary codes, 1010 to 1111, are not valid BCD digits, and adding 0110 skips over them."
+          },
+          {
+            "q": "What is the correction condition for the BCD adder?",
+            "a": "$C = K + Z_8Z_4 + Z_8Z_2$, which is 1 exactly when the binary sum is 10 to 19."
+          },
+          {
+            "q": "What does the correction signal $C$ also serve as?",
+            "a": "The decimal carry into the next BCD digit."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Two BCD digits $a$ and $b$, each from 0 to 9, are added with no carry-in. For how many of the 100 ordered pairs $(a, b)$ does the adder need the +6 correction?",
+          "answer": 45,
+          "explanation": "The correction is needed exactly when $a + b \\ge 10$. Counting by $a$: for $a = 1$ one value of $b$ works (9), for $a = 2$ two work, and so on up to $a = 9$ with nine, giving $1 + 2 + \\dots + 9 = 45$. The value 55 tempts by counting $a + b \\ge 9$, and 50 by assuming half of the pairs."
+        },
+        "summary": "A BCD adder is a binary adder plus a +6 correction applied when the sum exceeds 9, detected by $C = K + Z_8Z_4 + Z_8Z_2$, with $C$ also acting as the decimal carry."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.multiplexers",
+      "title": "Multiplexers and MUX trees",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        213,
+        217,
+        218
+      ],
+      "points": [
+        "A 2ⁿ:1 MUX has 2ⁿ data inputs, n select lines and one output; the select value i routes Iᵢ to the output, so Y = Σ mᵢ(S)·Iᵢ.",
+        "2:1 MUX: Y = S′I₀ + SI₁. 4:1 MUX: Y = S₁′S₀′I₀ + S₁′S₀I₁ + S₁S₀′I₂ + S₁S₀I₃, with S₁ the more significant select bit.",
+        "MUXes cascade into trees: two 4:1 and one 2:1 make an 8:1, and an N:1 MUX from k:1 MUXes takes N/k + N/k² + … + 1 = (N − 1)/(k − 1) units when N is a power of k.",
+        "Examples: a 16:1 from 4:1 MUXes needs 4 + 1 = 5; a 64:1 needs 16 + 4 + 1 = 21; an 8:1 from 2:1 MUXes needs 7.",
+        "In a tree the low-order select bits drive the first level and the high-order bits drive the last level."
+      ],
+      "keyTerms": [
+        "select lines",
+        "MUX tree",
+        "data selector"
+      ],
+      "lesson": {
+        "why": "Multiplexer questions ask for select line counts, tree sizes and outputs for given selects, all of which come from one routing rule.",
+        "intro": "A multiplexer, or MUX, has several data inputs and one output. A few extra wires called select lines carry a binary number, and the data input with that number is copied to the output. With $n$ select lines the numbers run from 0 to $2^n - 1$, so the MUX has $2^n$ data inputs. Small MUXes can be wired into a tree to make a bigger one.",
+        "prerequisites": [
+          "dl-combinational-circuits.combinational-basics"
+        ],
+        "analogy": {
+          "text": "A railway switch yard where the select lines set the points so that exactly one incoming track connects to the single outgoing track.",
+          "breaksWhen": "A yard may be set for several routes at once, but a MUX connects exactly one input to the output at any moment."
+        },
+        "definitions": [
+          {
+            "term": "Select lines",
+            "meaning": "The control inputs that carry the binary number of the data input to pass to the output."
+          },
+          {
+            "term": "MUX tree",
+            "meaning": "Several small MUXes wired in levels so that the outputs of one level feed the data inputs of the next."
+          }
+        ],
+        "principle": {
+          "text": "A MUX with select value $i$ outputs $I_i$. An $N:1$ MUX needs $\\lceil \\log_2 N \\rceil$ select lines, and when $N$ is a power of $k$ it can be built from $(N-1)/(k-1)$ MUXes of size $k:1$.",
+          "tex": "Y = I_{i}, \\quad s = \\lceil \\log_2 N \\rceil, \\quad \\text{units} = \\frac{N-1}{k-1}"
+        },
+        "limits": "The unit count formula assumes $N$ is a power of $k$. When it is not, round the number of MUXes at each level up. The select line count rounds up, so 33 inputs need 6 lines, not 5.",
+        "example": {
+          "problem": "How many 2:1 MUXes build a 16:1 MUX, how many select lines does it have, and which select bit drives the last level?",
+          "steps": [
+            "The first level has $16/2 = 8$ MUXes, then $4$, then $2$, then $1$ at the last level.",
+            "The total is $8 + 4 + 2 + 1 = 15$, which matches $(16-1)/(2-1) = 15$.",
+            "Sixteen inputs need $\\log_2 16 = 4$ select lines.",
+            "The low-order select bit drives the first level, so the highest-order bit drives the single MUX at the last level."
+          ],
+          "result": "15 MUXes, 4 select lines, and the most significant select bit drives the last level."
+        },
+        "misconceptions": [
+          "The number of select lines is not the number of inputs; it is the number of bits needed to number the inputs, so 32 inputs need 5 lines, not 32.",
+          "A tree of $k:1$ MUXes is not built by dividing $N$ by $k$ once. Each level feeds the next, so add the counts $N/k$, $N/k^2$, and so on down to 1."
+        ],
+        "recall": [
+          {
+            "q": "How many data inputs does a MUX with $n$ select lines have?",
+            "a": "$2^n$ data inputs, one for each value of the select number."
+          },
+          {
+            "q": "How many $4:1$ MUXes make a $64:1$ MUX?",
+            "a": "$16 + 4 + 1 = 21$, which equals $(64-1)/(4-1)$."
+          },
+          {
+            "q": "Which select bits drive the first level of a MUX tree?",
+            "a": "The low-order bits; the high-order bits drive the last level."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many 4:1 multiplexers are needed to build a 256:1 multiplexer?",
+          "answer": 85,
+          "explanation": "The levels hold $64$, $16$, $4$ and $1$ MUXes, and $64 + 16 + 4 + 1 = 85$, which equals $(256-1)/(4-1)$. The value 64 counts only the first level. The value 4 counts only the last level."
+        },
+        "summary": "A MUX copies the data input numbered by its select lines, needs $\\lceil \\log_2 N \\rceil$ selects, and an $N:1$ tree of $k:1$ MUXes takes $(N-1)/(k-1)$ units."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.mux-function",
+      "title": "Implementing functions with a MUX (Shannon expansion)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        213,
+        216,
+        217,
+        219,
+        220
+      ],
+      "points": [
+        "Shannon expansion f = x·f(x = 1) + x′·f(x = 0) is exactly a 2:1 MUX with select x, so a MUX tree is a repeated Shannon expansion.",
+        "A 2ⁿ:1 MUX realizes any n-variable function directly: put the variables on the select lines and tie Iᵢ to the truth-table value of minterm i.",
+        "A 2ⁿ⁻¹:1 MUX also suffices: use n − 1 variables as selects and, for each pair of rows that differ only in the remaining variable x, feed 0, 1, x or x′.",
+        "Example: F(A,B,C) = Σm(1,2,4,7) with selects A, B gives row pairs (0,1), (1,0), (1,0), (0,1), so I₀ = C, I₁ = C′, I₂ = C′, I₃ = C.",
+        "Reading a given MUX network is the reverse: write the sum of select minterms times inputs, substitute nested outputs, and simplify; I = (0,1,1,0) on a 4:1 MUX with selects A, B gives A ⊕ B."
+      ],
+      "keyTerms": [
+        "Shannon expansion",
+        "residue",
+        "MUX implementation"
+      ],
+      "lesson": {
+        "why": "A recurring question gives a function and asks which data inputs make a MUX realise it, or shows a MUX network and asks which function it computes. Both come from pairing truth table rows by the leftover variable and from the sum of select minterms times data inputs.",
+        "intro": "A MUX with its select lines tied to some variables outputs one of its data inputs. So if you list a function's truth table, each select value picks one group of rows, and the data input for that value must reproduce those rows. When all variables are used as selects, each data input is just the constant 0 or 1. When one variable is left out, each data input may also be that variable or its complement.",
+        "prerequisites": [
+          "dl-combinational-circuits.multiplexers"
+        ],
+        "definitions": [
+          {
+            "term": "Shannon expansion",
+            "meaning": "Splitting a function on one variable $x$ as $f = x \\cdot f(x{=}1) + x' \\cdot f(x{=}0)$, which is exactly a 2:1 MUX with select $x$."
+          },
+          {
+            "term": "Residue",
+            "meaning": "What is left of a function after fixing the select variables; here it is the value or the formula for the one remaining variable."
+          }
+        ],
+        "principle": {
+          "text": "With $n-1$ variables on the selects and the last variable $x$ left over, the data input for each select value is $0$, $1$, $x$ or $x'$, depending on the two rows that differ only in $x$: values $(0,0)$ give 0, $(1,1)$ give 1, $(0,1)$ give $x$ and $(1,0)$ give $x'$. Read in reverse, a network with select minterms $m_i(S)$ and data inputs $I_i$ computes the sum of $m_i(S) \\cdot I_i$.",
+          "tex": "f = \\sum_{i} m_i(S)\\, I_i, \\qquad I_i \\in \\{0,\\; 1,\\; x,\\; x'\\}"
+        },
+        "limits": "Which rows pair depends on where the leftover variable sits. If it is the least significant bit, rows $2i$ and $2i+1$ pair. If it is the most significant bit of a 3-variable function, rows $i$ and $i+4$ pair, so $m_0$ pairs with $m_4$. In every case, pair the rows that differ only in the leftover variable.",
+        "example": {
+          "problem": "Implement $F(A,B,C) = \\sum m(1,3,6,7)$ on a 4:1 MUX with $A$ as the more significant select and $B$ as the less significant.",
+          "steps": [
+            "For $AB = 00$ the rows are $m_0$ and $m_1$; only $m_1$ is in $F$, so the pair is $(0,1)$ and the input is $C$.",
+            "For $AB = 01$ the rows are $m_2$ and $m_3$; only $m_3$ is in $F$, so the input is $C$.",
+            "For $AB = 10$ the rows are $m_4$ and $m_5$; neither is in $F$, so the input is 0.",
+            "For $AB = 11$ the rows are $m_6$ and $m_7$; both are in $F$, so the input is 1."
+          ],
+          "result": "$(I_0, I_1, I_2, I_3) = (C, C, 0, 1)$."
+        },
+        "misconceptions": [
+          "The data input for a pair of rows is $C$ when the pair reads $(0,1)$ in the order $C = 0$ then $C = 1$, not when it contains a 1; the pair $(1,0)$ gives $C'$.",
+          "Pair the rows that differ only in the leftover variable. With $C$ leftover, $m_0$ pairs with $m_1$; with $A$ leftover and selects $B, C$, $m_0$ pairs with $m_4$. Pairing neighbours by habit gives the wrong data inputs.",
+          "Reading a network backwards, a data input of 0 removes its select minterm from $F$, and a data input of $C'$ keeps that minterm only on the rows where $C = 0$."
+        ],
+        "recall": [
+          {
+            "q": "What data input does a select value get when both of its rows are 1?",
+            "a": "The constant 1."
+          },
+          {
+            "q": "Which leftover-variable function appears when the two rows read $(1,0)$?",
+            "a": "The complement of the variable, since the function is 1 only when the variable is 0."
+          },
+          {
+            "q": "Why is a 2:1 MUX the same as Shannon expansion?",
+            "a": "Its output is $S' I_0 + S I_1$, which is $f = x' f(x{=}0) + x f(x{=}1)$ with $S = x$."
+          },
+          {
+            "q": "A 4:1 MUX with selects $A$ (high), $B$ (low) has $(I_0,I_1,I_2,I_3) = (C, 1, 0, \\overline{C})$. Which minterms are in $F(A,B,C)$?",
+            "a": "$F = \\sum m(1,2,3,6)$: $I_0 = C$ gives $m_1$, $I_1 = 1$ gives $m_2, m_3$, $I_2 = 0$ gives none, and $I_3 = \\overline{C}$ gives $m_6$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A 4:1 MUX has selects $B$ (more significant) and $C$ (less significant), and $A$ is the leftover variable, the most significant bit of the row number. Which data inputs $(I_0, I_1, I_2, I_3)$ realise $F(A,B,C) = \\sum m(0,3,4,6)$?",
+          "options": [
+            "$(1, 0, A, \\overline{A})$",
+            "$(1, 0, \\overline{A}, A)$",
+            "$(\\overline{A}, A, \\overline{A}, A)$",
+            "$(0, 1, A, \\overline{A})$"
+          ],
+          "answer": 0,
+          "explanation": "The leftover $A$ is the high bit, so the pairs are $(m_0,m_4)$, $(m_1,m_5)$, $(m_2,m_6)$, $(m_3,m_7)$. For $BC=00$ both $m_0$ and $m_4$ are in $F$, giving 1. For $01$ neither $m_1$ nor $m_5$ is, giving 0. For $10$ only $m_6$ is, which is the pair $(0,1)$ and gives $A$. For $11$ only $m_3$ is, the pair $(1,0)$, which gives $\\overline{A}$. The second option tempts by swapping $A$ and $\\overline{A}$, and the third by pairing neighbouring rows as if $A$ were the low bit."
+        },
+        "summary": "Group the truth table by select value; each pair of rows gives 0, 1, $x$ or $x'$, and that value goes on the matching data input."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.decoders-demux",
+      "title": "Decoders and demultiplexers",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        13,
+        214,
+        216,
+        218,
+        219
+      ],
+      "points": [
+        "An n-to-2ⁿ decoder raises exactly one output, Yᵢ = mᵢ, so it is a minterm generator; with an enable input, all outputs stay inactive when it is disabled.",
+        "Any n-variable function is a decoder plus an OR of the outputs where F = 1. With active-low outputs, feed those outputs to a NAND instead; F = Σm(0,3,5,6) uses Y₀, Y₃, Y₅, Y₆.",
+        "AND-ing active-low outputs yields the complement of their OR, i.e. a product of maxterms; this is the usual trap when a NAND is swapped for an AND.",
+        "A 1-to-2ⁿ DEMUX routes one data input to the output picked by the selects. A decoder with enable is a DEMUX: the enable is the data, the code inputs are the selects.",
+        "Cascading: two 2-to-4 decoders plus an inverter on the top address bit (driving the enables) make a 3-to-8 decoder; a 4-to-16 from 2-to-4 decoders takes 4 + 1 = 5."
+      ],
+      "keyTerms": [
+        "decoder",
+        "minterm generator",
+        "enable",
+        "DEMUX",
+        "active-low"
+      ],
+      "lesson": {
+        "why": "Decoder questions ask you to size a decoder, use it as a memory address decoder, build a bigger one from smaller ones, tell it from an encoder or MUX, or evaluate a decoder feeding a MUX. The active-low trap catches many learners.",
+        "intro": "A decoder has $n$ input wires and $2^n$ output wires. The inputs form a binary number, and exactly one output, the one with that number, is switched on while all others stay off. So output $Y_i$ is the minterm $m_i$ of the inputs. An enable input, when not active, keeps every output off. A demultiplexer does the opposite job of a MUX, sending one data signal to the output chosen by the selects. In a memory, a decoder turns the address into one word line, so a RAM with $W$ words needs a decoder with $\\log_2 W$ inputs and $W$ outputs. An encoder is the reverse of a decoder: it takes $2^n$ lines, one of them on, and produces its $n$-bit number.",
+        "prerequisites": [
+          "dl-combinational-circuits.multiplexers"
+        ],
+        "definitions": [
+          {
+            "term": "Enable",
+            "meaning": "An extra input that must be active for the decoder to switch any output on."
+          },
+          {
+            "term": "Active-low output",
+            "meaning": "An output that is 0 when selected and 1 otherwise, the opposite of the usual convention."
+          },
+          {
+            "term": "Encoder",
+            "meaning": "The reverse of a decoder: $2^n$ input lines, one active, give the $n$-bit number of that line."
+          }
+        ],
+        "principle": {
+          "text": "An $n$-to-$2^n$ decoder gives $Y_i = m_i$. Any function equals the OR of the outputs for its minterms; with active-low outputs, the NAND of those outputs does the same. A decoder with enable $E$ works as a demultiplexer: the enable carries the data and the code inputs act as selects. When decoder outputs feed the data inputs of a MUX, take each select value in turn, read which decoder output the MUX passes, and count the input codes that make it 1.",
+          "tex": "F = \\sum_{i \\in S} Y_i \\;=\\; \\overline{\\prod_{i \\in S} \\overline{Y_i}}"
+        },
+        "limits": "The OR rule holds for active-high outputs only. With active-low outputs, an AND gate does not give the sum of minterms but the complement of it. A bigger decoder from smaller ones needs enables to be used, otherwise several outputs are on together.",
+        "example": {
+          "problem": "A 3-to-8 decoder is built from two 2-to-4 decoders with enable. For inputs $ABC = 101$, which decoder is enabled and which output of the 3-to-8 decoder goes high?",
+          "steps": [
+            "The top bit $A$ chooses between the two small decoders: $A = 0$ enables the first and $A = 1$ enables the second, so here the second.",
+            "The remaining bits $BC = 01$ have value 1, so the second small decoder raises its output number 1.",
+            "The second decoder covers outputs 4 to 7, so its output 1 is the overall output $4 + 1 = 5$.",
+            "This agrees with $ABC = 101$, whose binary value is 5."
+          ],
+          "result": "The second decoder is enabled and output $Y_5$ goes high."
+        },
+        "misconceptions": [
+          "Active-low outputs combined by an AND gate do not give $F$; AND-ing them gives a product of maxterms, the complement of the sum, so a NAND is needed.",
+          "A decoder does not pick one of many data inputs to pass on; that is a MUX. A decoder takes an address and raises one line, and an encoder does the reverse by turning one active line into an address."
+        ],
+        "recall": [
+          {
+            "q": "How many outputs does an $n$-input decoder have?",
+            "a": "$2^n$ outputs, exactly one of which is on at a time."
+          },
+          {
+            "q": "Which gate combines active-low decoder outputs to give a sum of minterms?",
+            "a": "A NAND gate."
+          },
+          {
+            "q": "How does a decoder with enable act as a demultiplexer?",
+            "a": "The enable input carries the data and the code inputs choose which output follows it."
+          },
+          {
+            "q": "What decoder addresses a 1 KB RAM with one word line per byte?",
+            "a": "A 10-to-1024 decoder, since $1024 = 2^{10}$ words need 10 address inputs and 1024 outputs."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 6-to-64 decoder is to be built only from 3-to-8 decoders with enable. How many 3-to-8 decoders are needed?",
+          "answer": 9,
+          "explanation": "The last level has $64 / 8 = 8$ decoders, one per group of 8 outputs. One more 3-to-8 decoder takes the high 3 bits and drives their 8 enables, so the total is $8 + 1 = 9$. The value 8 tempts by forgetting the decoder that drives the enables, and 64 tempts by assuming one decoder per output."
+        },
+        "summary": "A decoder raises the one output named by its input number, so it generates minterms; chain them with enables for larger sizes and use NAND with active-low outputs."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.encoders",
+      "title": "Encoders and priority encoders",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        13,
+        214,
+        216,
+        217,
+        219
+      ],
+      "points": [
+        "A 2ⁿ-to-n encoder outputs the binary index of the single active input; for an 8-to-3 encoder, Y₂ = I₄ + I₅ + I₆ + I₇, Y₁ = I₂ + I₃ + I₆ + I₇, Y₀ = I₁ + I₃ + I₅ + I₇.",
+        "A plain encoder assumes exactly one active input: with I₃ and I₅ both high it outputs 011 OR 101 = 111, a code nobody asked for, and all-zero input looks like input 0.",
+        "A priority encoder outputs the index of the highest-priority active input and adds a valid bit V that is 1 when at least one input is active, which separates idle from input 0.",
+        "Example: an 8-input priority encoder with I₇ highest and inputs I₇…I₀ = 00101100 outputs 101 (I₅) with V = 1.",
+        "Interrupt controllers use a priority encoder to pick the highest-priority pending request."
+      ],
+      "keyTerms": [
+        "encoder",
+        "priority encoder",
+        "valid bit"
+      ],
+      "lesson": {
+        "why": "Encoder questions give an input pattern and ask for the output code, or ask what goes wrong with a plain encoder when two inputs are active. The valid bit and the bit order are the usual traps.",
+        "intro": "An encoder is the reverse of a decoder. It has $2^n$ input lines and $n$ output wires, and it writes out, in binary, the number of the input line that is on. With eight inputs $I_0$ to $I_7$ and three outputs, input $I_5$ alone gives 101. Each output bit is the OR of the inputs whose number has a 1 in that position, so the most significant output is $I_4 + I_5 + I_6 + I_7$. This only works when exactly one input is on. A priority encoder removes that limit by looking at the highest-numbered active input and ignoring the rest, and a valid bit says whether any input was active at all.",
+        "prerequisites": [
+          "dl-combinational-circuits.decoders-demux"
+        ],
+        "definitions": [
+          {
+            "term": "Encoder",
+            "meaning": "A circuit with $2^n$ inputs and $n$ outputs that gives the binary number of the single active input."
+          },
+          {
+            "term": "Priority encoder",
+            "meaning": "An encoder that outputs the number of the highest-priority active input and tolerates several active inputs."
+          },
+          {
+            "term": "Valid bit",
+            "meaning": "An output $V$ that is 1 when at least one input is active, so idle can be told apart from input 0."
+          }
+        ],
+        "principle": {
+          "text": "For a plain 8-to-3 encoder each output is the OR of the inputs whose index has that bit set. A priority encoder outputs the index of the highest-priority active input, and the valid bit is the OR of all inputs.",
+          "tex": "Y_2 = I_4+I_5+I_6+I_7,\\quad Y_1 = I_2+I_3+I_6+I_7,\\quad Y_0 = I_1+I_3+I_5+I_7,\\quad V = \\sum_{i=0}^{7} I_i"
+        },
+        "limits": "The OR equations are correct only when exactly one input is active. With none active, a plain encoder gives 000, the same as input 0, and with two active it gives the OR of both codes, which names neither. Which input has priority is a design choice, so read it from the question.",
+        "example": {
+          "problem": "An 8-input priority encoder gives $I_7$ the highest priority. The inputs $I_7 \\dots I_0$ are 01010010. Give the output code and $V$.",
+          "steps": [
+            "Read the string from the left: $I_7 = 0$, $I_6 = 1$, so $I_6$ is the first active input and the highest-priority one.",
+            "The lower active inputs $I_4$ and $I_1$ are ignored because $I_6$ outranks them.",
+            "The output is the number 6 in three bits, which is 110.",
+            "At least one input is active, so $V = 1$."
+          ],
+          "result": "The output is 110 and $V = 1$."
+        },
+        "misconceptions": [
+          "A plain encoder does not pick the highest or lowest active input. With two active inputs it ORs their codes, so $I_3$ and $I_5$ give 111.",
+          "An output of 000 does not always mean input 0 is active. Without a valid bit, an idle encoder gives the same 000, which is why priority encoders add $V$."
+        ],
+        "recall": [
+          {
+            "q": "How many outputs does an encoder with 16 inputs have?",
+            "a": "Four, since $\\log_2 16 = 4$."
+          },
+          {
+            "q": "What does the valid bit of a priority encoder tell you?",
+            "a": "Whether any input is active, so an all-zero input is not mistaken for input 0."
+          },
+          {
+            "q": "What does a plain 8-to-3 encoder output when $I_3$ and $I_5$ are both 1?",
+            "a": "111, the OR of 011 and 101, which is neither input."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An 8-input priority encoder gives $I_7$ the highest priority. The inputs $I_7 \\dots I_0$ are 00010110. What is the output code?",
+          "options": [
+            "100",
+            "111",
+            "001",
+            "010"
+          ],
+          "answer": 0,
+          "explanation": "The active inputs are $I_4$, $I_2$ and $I_1$, and $I_4$ has the highest priority, so the output is 4 in binary, 100. The code 111 tempts by ORing all three active codes as a plain encoder would, and 001 by choosing the lowest active input."
+        },
+        "summary": "An encoder turns one active line among $2^n$ into its $n$-bit number; a priority encoder picks the highest-priority active line and adds a valid bit so idle differs from input 0."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.comparators",
+      "title": "Magnitude comparators",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        13,
+        215,
+        218,
+        219
+      ],
+      "points": [
+        "A 1-bit comparator gives E = A ⊙ B, G = AB′ and L = A′B.",
+        "For n-bit numbers, A = B is the AND of the n bitwise XNORs xᵢ, e.g. 4 XNORs and one 4-input AND for 4 bits.",
+        "A > B is decided by the most significant differing bit: for 2 bits, G = A₁B₁′ + x₁A₀B₀′, and in general each term is AᵢBᵢ′ ANDed with the equality of all higher bits.",
+        "A magnitude comparator has three outputs (A > B, A = B, A < B), exactly one of which is 1; for 2-bit operands 6 of the 16 input pairs give A > B.",
+        "Cascadable comparators such as the 4-bit 7485 take the lower stage's three outputs as inputs, used only when the higher bits are all equal."
+      ],
+      "keyTerms": [
+        "magnitude comparator",
+        "equality",
+        "cascading"
+      ],
+      "lesson": {
+        "why": "Comparator questions ask for the gate count or the Boolean expression of an equality or greater-than output, or how many input pairs give A > B. The most-significant-bit-first logic carries all of them.",
+        "intro": "A magnitude comparator takes two $n$-bit numbers $A$ and $B$ and has three outputs: $A > B$, $A = B$ and $A < B$. Exactly one of them is 1. Two bits are equal when they are the same, which is the XNOR gate, so $A = B$ is true when every bit position matches. For greater-than, think of how you compare two decimal numbers: look at the leftmost digit, and only if those match move to the next one. In binary, $A > B$ as soon as, at the highest position where the bits differ, $A$ has a 1 and $B$ has a 0.",
+        "prerequisites": [
+          "dl-combinational-circuits.logic-gates-xor"
+        ],
+        "definitions": [
+          {
+            "term": "Magnitude comparator",
+            "meaning": "A circuit that compares two binary numbers and flags greater, equal or less."
+          },
+          {
+            "term": "Equality bit",
+            "meaning": "$x_i = A_i \\odot B_i$, which is 1 when bit $i$ of both numbers is the same."
+          },
+          {
+            "term": "Cascading",
+            "meaning": "Joining comparator chips for wider numbers by feeding the lower chip's three outputs into the higher chip."
+          }
+        ],
+        "principle": {
+          "text": "Define $x_i = A_i \\odot B_i$. Then $A = B$ is the AND of all $x_i$. $A > B$ is the OR over positions $i$ of the term where $A_i = 1$, $B_i = 0$ and all higher bits are equal. $A < B$ is the same with the roles swapped.",
+          "tex": "E = \\prod_i x_i,\\qquad G = \\sum_i A_i\\overline{B_i}\\prod_{j>i} x_j"
+        },
+        "limits": "The expressions assume unsigned numbers. For signed two's complement numbers the sign bit reverses its meaning, so the top position needs its roles swapped. Each extra bit adds one more term to $G$, so very wide comparators are built by cascading rather than as a single two-level circuit.",
+        "example": {
+          "problem": "Compare the 2-bit numbers $A = 10$ and $B = 01$ using $G = A_1\\overline{B_1} + x_1 A_0\\overline{B_0}$.",
+          "steps": [
+            "Here $A_1 = 1, A_0 = 0$ and $B_1 = 0, B_0 = 1$.",
+            "The top bits differ, so $x_1 = A_1 \\odot B_1 = 0$ and the second term of $G$ is 0 whatever the low bits are.",
+            "The first term is $A_1\\overline{B_1} = 1 \\cdot 1 = 1$, so $G = 1$.",
+            "Then $E = 0$ and $L = 0$, as exactly one output is 1."
+          ],
+          "result": "$G = 1$, so $A > B$ (2 > 1)."
+        },
+        "misconceptions": [
+          "Equality is not an AND of the raw bits. $A = B$ needs the XNOR of each pair first, AND of raw bits fails because 00 and 00 are equal yet every $A_iB_i$ is 0; XNOR gives 1 for each matching pair.",
+          "The low bits matter only when all higher bits are equal. A larger low bit of $A$ never makes $A > B$ if a higher bit of $B$ is larger."
+        ],
+        "recall": [
+          {
+            "q": "Which gate tests whether two bits are equal?",
+            "a": "The XNOR gate, which outputs 1 when its inputs match."
+          },
+          {
+            "q": "When is $A > B$ for two $n$-bit numbers?",
+            "a": "At the most significant position where the bits differ, $A$ has 1 and $B$ has 0."
+          },
+          {
+            "q": "How many of the three comparator outputs can be 1 at once?",
+            "a": "Exactly one."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A magnitude comparator takes two 3-bit unsigned numbers $A$ and $B$. For how many of the 64 input pairs is the output $A > B$ equal to 1?",
+          "answer": 28,
+          "explanation": "Equal pairs number 8, one for each value, so the remaining $64 - 8 = 56$ pairs split evenly between $A > B$ and $A < B$ by symmetry, giving 28. The value 32 tempts by halving all 64 pairs and ignoring the equal ones, and 8 by counting only the equal pairs."
+        },
+        "summary": "A comparator forms an XNOR per bit for equality and decides greater-than at the most significant differing bit; exactly one of its three outputs is 1."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.programmable-logic",
+      "title": "ROM, PLA and PAL",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        215,
+        216,
+        218,
+        219,
+        220
+      ],
+      "points": [
+        "A ROM has a fixed AND plane that is a full n-to-2ⁿ decoder and a programmable OR plane; m functions of n inputs need 2ⁿ × m bits, whatever the functions are.",
+        "A PLA programs both planes, so it needs one AND line per distinct product term of the minimized SOP forms, and a product term can be shared by several outputs.",
+        "A PAL programs the AND plane but has a fixed OR plane with a set number of product terms per output, so terms cannot be shared; it is cheaper and faster but less flexible than a PLA.",
+        "PLA size is quoted as n × k × m (inputs × product terms × outputs); each AND line connects to up to 2n literals and each OR to up to k terms.",
+        "Example: a 4 × 4 unsigned multiplier has 8 inputs and 8 outputs, so a ROM implementation needs 2⁸ × 8 = 2048 bits."
+      ],
+      "keyTerms": [
+        "ROM",
+        "PLA",
+        "PAL",
+        "AND plane",
+        "OR plane"
+      ],
+      "lesson": {
+        "why": "Questions on ROM, PLA and PAL ask for the number of bits in a ROM that realizes a function, or for the differences between the three. The ROM size rule is a one-line calculation.",
+        "intro": "Programmable logic lets one chip realize many different functions by choosing which connections to keep. Each chip has an AND plane that forms product terms from the inputs and an OR plane that adds the product terms into outputs. The three types differ in which plane can be programmed. A ROM has a fixed AND plane that forms every possible minterm of its inputs, and a programmable OR plane. A PLA has both planes programmable, so you pick only the product terms you need. A PAL programs the AND plane but its OR plane is fixed, so each output gets its own set of product terms.",
+        "prerequisites": [
+          "dl-combinational-circuits.decoders-demux"
+        ],
+        "definitions": [
+          {
+            "term": "ROM",
+            "meaning": "A fixed AND plane giving all $2^n$ minterms and a programmable OR plane; it stores $2^n$ words of $m$ bits."
+          },
+          {
+            "term": "PLA",
+            "meaning": "Both the AND plane and the OR plane are programmable, so product terms can be shared between outputs."
+          },
+          {
+            "term": "PAL",
+            "meaning": "A programmable AND plane with a fixed OR plane, so product terms cannot be shared between outputs."
+          }
+        ],
+        "principle": {
+          "text": "A ROM with $n$ address inputs and $m$ outputs stores $2^n$ words of $m$ bits, whatever function it realizes. A PLA needs one AND line per distinct product term across all minimized outputs, and its size is quoted as inputs by product terms by outputs.",
+          "tex": "\\text{ROM bits} = 2^{n} \\times m"
+        },
+        "limits": "The ROM size depends only on $n$ and $m$, so it grows fast with the number of inputs and is wasteful for functions with few minterms. PLA term counts hold only after minimizing all outputs together. A PAL cannot share terms, so a function that needs more terms than its output allows does not fit.",
+        "example": {
+          "problem": "A ROM holds the square of a 3-bit unsigned number. How many bits does the ROM need?",
+          "steps": [
+            "The input is 3 bits, so there are $n = 3$ address lines and $2^3 = 8$ words.",
+            "The largest square is $7^2 = 49$, which needs 6 bits, so the word width is $m = 6$.",
+            "The size is $2^3 \\times 6$ = 48 bits."
+          ],
+          "result": "The ROM needs 48 bits."
+        },
+        "misconceptions": [
+          "A ROM's size is not set by the number of minterms the function has. Every one of the $2^n$ words exists whether it stores zeros or ones.",
+          "A PAL is not a PLA with extra features. Its OR plane is fixed, which is why it is cheaper and faster but cannot share product terms between outputs."
+        ],
+        "recall": [
+          {
+            "q": "How many bits does a ROM with $n$ inputs and $m$ outputs hold?",
+            "a": "$2^n \\times m$ bits."
+          },
+          {
+            "q": "Which planes can be programmed in a PLA?",
+            "a": "Both the AND plane and the OR plane."
+          },
+          {
+            "q": "What is fixed in a PAL?",
+            "a": "The OR plane, so each output has its own set of product terms."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A ROM implements a 4-bit adder with carry-in, taking two 4-bit operands and a carry-in and giving a 4-bit sum and a carry-out. How many bits does the ROM hold?",
+          "answer": 2560,
+          "explanation": "The inputs are $4 + 4 + 1 = 9$ bits, so there are $2^9 = 512$ words, and the outputs are $4 + 1 = 5$ bits wide. The size is $512 \\times 5 = 2560$. The value 512 tempts by forgetting the word width, and 1280 by using 8 inputs and ignoring the carry-in."
+        },
+        "summary": "A ROM has a fixed AND plane and holds $2^n \\times m$ bits; a PLA programs both planes and shares product terms; a PAL programs only the AND plane."
+      }
+    },
+    {
+      "id": "dl-combinational-circuits.design-procedure",
+      "title": "Designing a combinational circuit",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Design steps: name inputs and outputs, write the truth table from the specification, minimize each output (K-map, using don't-cares for impossible inputs), then map to gates or standard blocks and check the critical path.",
+        "Code converters are the classic exercise: binary to Gray is gᵢ = bᵢ₊₁ ⊕ bᵢ with the MSB copied; Gray to binary is bᵢ = bᵢ₊₁ ⊕ gᵢ, which ripples from the MSB.",
+        "A BCD-to-7-segment decoder has 4 inputs and 7 outputs; codes 1010–1111 never occur and become don't-cares, which shrinks every segment's expression.",
+        "Multi-level logic factors common subexpressions (e.g. AB + AC + AD = A(B + C + D)) to cut gate count and fan-in, at the cost of more levels and delay.",
+        "An n × n array multiplier forms n² partial-product ANDs and adds them with about n(n − 1) adder cells; the product has 2n bits.",
+        "A static-1 hazard is a momentary 0 when one input changes between two adjacent 1-cells covered by different implicants; adding the consensus term removes it."
+      ],
+      "keyTerms": [
+        "truth table",
+        "code converter",
+        "don't-care",
+        "hazard",
+        "array multiplier"
+      ],
+      "lesson": {
+        "why": "Design questions ask you to convert between binary and Gray code, count don't-cares in a code converter, or count the gates of a multiplier. Following the standard steps keeps these systematic.",
+        "intro": "Designing a combinational circuit follows the same four steps every time. First name the inputs and outputs. Second, write a truth table that says what each output should be for every input. Third, simplify each output, for example with a K-map. Fourth, draw the gates and check that the longest path is fast enough. A code converter is the classic exercise: it turns one code into another, such as binary into Gray code, where only one bit changes between neighbouring numbers. Some input patterns can never occur, such as the codes 1010 to 1111 for a decimal digit. These are don't-cares, and the simplifier may treat each as 0 or 1, whichever gives a smaller expression.",
+        "prerequisites": [
+          "dl-combinational-circuits.logic-gates-xor"
+        ],
+        "definitions": [
+          {
+            "term": "Code converter",
+            "meaning": "A combinational circuit that turns the bit pattern of one code into the pattern of another."
+          },
+          {
+            "term": "Don't-care",
+            "meaning": "An input combination that never occurs, so its output may be chosen freely to simplify the logic."
+          },
+          {
+            "term": "Gray code",
+            "meaning": "A binary code in which neighbouring numbers differ in exactly one bit."
+          }
+        ],
+        "principle": {
+          "text": "To convert binary $b$ to Gray $g$, copy the top bit and XOR each bit with the bit above it. To convert Gray to binary, copy the top bit and XOR each Gray bit with the binary bit just obtained above it, so the work runs from the most significant bit down.",
+          "tex": "g_i = b_{i+1}\\oplus b_i,\\qquad b_i = b_{i+1}\\oplus g_i"
+        },
+        "limits": "The formulas assume the most significant bit is copied unchanged (set $b_{n}=0$ above it). Binary to Gray uses only the inputs, so all bits are computed in parallel, while Gray to binary chains through the higher binary bits and is slower. Don't-cares help only when the specification really guarantees the pattern never occurs.",
+        "example": {
+          "problem": "Convert the binary number 1011 to Gray code.",
+          "steps": [
+            "Copy the top bit: $g_3 = b_3 = 1$.",
+            "Then $g_2 = b_3 \\oplus b_2 = 1 \\oplus 0 = 1$.",
+            "Then $g_1 = b_2 \\oplus b_1 = 0 \\oplus 1 = 1$, and $g_0 = b_1 \\oplus b_0 = 1 \\oplus 1 = 0$."
+          ],
+          "result": "The Gray code is 1110."
+        },
+        "misconceptions": [
+          "Gray to binary is not the same operation as binary to Gray. Applying the binary-to-Gray rule to a Gray code gives a wrong number, because the Gray-to-binary rule XORs with the binary bit above, not the Gray bit above.",
+          "A don't-care is not a free 0. Setting it to 0 or 1 is a choice made per K-map group to enlarge groups, and the specification must guarantee the input never occurs."
+        ],
+        "recall": [
+          {
+            "q": "What is the first step of the combinational design procedure?",
+            "a": "Name the inputs and outputs, then write the truth table from the specification."
+          },
+          {
+            "q": "How is the top Gray bit obtained from binary?",
+            "a": "It is the same as the top binary bit."
+          },
+          {
+            "q": "Why do the codes 1010 to 1111 become don't-cares in a BCD design?",
+            "a": "They never occur as a decimal digit, so the outputs for them can be chosen to simplify the logic."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The 4-bit Gray code 1101 is converted to binary. What is the binary number?",
+          "options": [
+            "1001",
+            "1011",
+            "1101",
+            "0110"
+          ],
+          "answer": 0,
+          "explanation": "Copy the top bit: $b_3 = 1$. Then $b_2 = b_3 \\oplus g_2 = 1 \\oplus 1 = 0$, $b_1 = b_2 \\oplus g_1 = 0 \\oplus 0 = 0$ and $b_0 = b_1 \\oplus g_0 = 0 \\oplus 1 = 1$, giving 1001. The option 1011 tempts by applying the binary-to-Gray rule to the input, and 1101 by copying the code unchanged."
+        },
+        "summary": "Design is truth table, simplify, then gates; code converters use XOR with the bit above, and impossible input codes become don't-cares that shrink the logic."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "dl-combinational-circuits.half-adder",
+      "name": "Half adder",
+      "tex": "S = A \\oplus B, \\qquad C = AB",
+      "text": "S = A ⊕ B, C = AB",
+      "topic": "dl-combinational-circuits.adders",
+      "origin": "source",
+      "pages": [
+        13,
+        211,
+        220
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.full-adder",
+      "name": "Full adder",
+      "tex": "S = A \\oplus B \\oplus C_{in}, \\qquad C_{out} = AB + C_{in}(A \\oplus B) = AB + AC_{in} + BC_{in}",
+      "text": "S = A ⊕ B ⊕ Cin, Cout = AB + Cin(A ⊕ B) = AB + ACin + BCin",
+      "note": "Cout is the majority of the three inputs. Writing only AB for Cout is the common slip.",
+      "topic": "dl-combinational-circuits.adders",
+      "origin": "source",
+      "pages": [
+        13,
+        212,
+        217,
+        220
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.full-subtractor",
+      "name": "Full subtractor",
+      "tex": "D = A \\oplus B \\oplus B_{in}, \\qquad B_{out} = \\overline{A}B + \\overline{(A \\oplus B)}\\,B_{in}",
+      "text": "D = A ⊕ B ⊕ Bin, Bout = A′B + (A ⊕ B)′·Bin",
+      "where": [
+        [
+          "Bin",
+          "borrow from the lower position"
+        ]
+      ],
+      "note": "Bout expands to A′B + A′Bin + BBin: the majority of A′, B and Bin.",
+      "topic": "dl-combinational-circuits.subtractors",
+      "origin": "source",
+      "pages": [
+        13,
+        212
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.twos-complement-subtract",
+      "name": "Subtraction on an adder",
+      "tex": "A - B = A + \\overline{B} + 1, \\qquad B_i' = B_i \\oplus M,\\; C_0 = M",
+      "text": "A − B = A + B′ + 1; feed Bᵢ ⊕ M and C₀ = M",
+      "where": [
+        [
+          "M",
+          "mode bit: 0 adds, 1 subtracts"
+        ]
+      ],
+      "topic": "dl-combinational-circuits.subtractors",
+      "origin": "source",
+      "pages": [
+        13
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.signed-overflow",
+      "name": "Signed overflow",
+      "tex": "V = C_n \\oplus C_{n-1}",
+      "text": "V = Cₙ ⊕ Cₙ₋₁",
+      "where": [
+        [
+          "Cₙ",
+          "carry out of the sign position"
+        ],
+        [
+          "Cₙ₋₁",
+          "carry into the sign position"
+        ]
+      ],
+      "note": "Equivalently, overflow happens when both operands have the same sign and the result's sign differs.",
+      "topic": "dl-combinational-circuits.subtractors",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.ripple-delay",
+      "name": "Ripple-carry adder delay",
+      "tex": "T_{C_n} = 2n + 1, \\qquad T_{S_{n-1}} = 2n \\quad \\text{(gate delays)}",
+      "text": "carry-out Cₙ at 2n + 1 gate delays, last sum at 2n",
+      "where": [
+        [
+          "n",
+          "number of bits"
+        ]
+      ],
+      "note": "Assumes P, G at 1 delay and 2 delays per carry stage. With per-FA delays t_c and t_s use (n − 1)t_c + max(t_c, t_s).",
+      "topic": "dl-combinational-circuits.ripple-carry",
+      "origin": "source",
+      "pages": [
+        212,
+        217,
+        219,
+        220
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.generate-propagate",
+      "name": "Generate, propagate and the carry recurrence",
+      "tex": "G_i = A_iB_i, \\quad P_i = A_i \\oplus B_i, \\quad C_{i+1} = G_i + P_iC_i, \\quad S_i = P_i \\oplus C_i",
+      "text": "Gᵢ = AᵢBᵢ, Pᵢ = Aᵢ ⊕ Bᵢ, Cᵢ₊₁ = Gᵢ + PᵢCᵢ, Sᵢ = Pᵢ ⊕ Cᵢ",
+      "note": "Pᵢ = Aᵢ + Bᵢ also gives correct carries, but then the sum needs the XOR form separately.",
+      "topic": "dl-combinational-circuits.carry-lookahead",
+      "origin": "source",
+      "pages": [
+        13,
+        212,
+        220
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.cla-carries",
+      "name": "Lookahead carry expansion",
+      "tex": "C_{i+1} = G_i + P_iG_{i-1} + P_iP_{i-1}G_{i-2} + \\cdots + P_iP_{i-1}\\cdots P_0C_0",
+      "text": "Cᵢ₊₁ = Gᵢ + PᵢGᵢ₋₁ + PᵢPᵢ₋₁Gᵢ₋₂ + … + PᵢPᵢ₋₁…P₀C₀",
+      "note": "Cᵢ₊₁ has i + 2 product terms and its last AND has i + 2 inputs; e.g. C₃ = G₂ + P₂G₁ + P₂P₁G₀ + P₂P₁P₀C₀.",
+      "topic": "dl-combinational-circuits.carry-lookahead",
+      "origin": "source",
+      "pages": [
+        212,
+        217,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.bcd-correction",
+      "name": "BCD adder correction",
+      "tex": "C = K + Z_8Z_4 + Z_8Z_2",
+      "text": "C = K + Z₈Z₄ + Z₈Z₂; add 0110 when C = 1",
+      "where": [
+        [
+          "K",
+          "carry out of the 4-bit binary adder"
+        ],
+        [
+          "Z₈Z₄Z₂Z₁",
+          "4-bit binary sum"
+        ]
+      ],
+      "note": "C is also the decimal carry to the next digit.",
+      "topic": "dl-combinational-circuits.bcd-adder",
+      "origin": "source",
+      "pages": [
+        13
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.mux-equation",
+      "name": "Multiplexer output",
+      "tex": "Y = \\sum_{i=0}^{2^n-1} m_i(S_{n-1},\\dots,S_0)\\, I_i, \\qquad Y_{2:1} = \\overline{S}I_0 + SI_1",
+      "text": "Y = Σ mᵢ(S)·Iᵢ; 2:1 MUX: Y = S′I₀ + SI₁",
+      "where": [
+        [
+          "mᵢ(S)",
+          "minterm i of the select lines"
+        ],
+        [
+          "Iᵢ",
+          "data input i"
+        ]
+      ],
+      "topic": "dl-combinational-circuits.multiplexers",
+      "origin": "source",
+      "pages": [
+        213,
+        217
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.shannon",
+      "name": "Shannon expansion",
+      "tex": "f(x_1,\\dots,x_n) = x_1\\, f(1,x_2,\\dots,x_n) + \\overline{x_1}\\, f(0,x_2,\\dots,x_n)",
+      "text": "f = x₁·f(1, x₂, …, xₙ) + x₁′·f(0, x₂, …, xₙ)",
+      "note": "The two cofactors are the data inputs of a 2:1 MUX with select x₁.",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "source",
+      "pages": [
+        13
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.mux-tree-count",
+      "name": "MUXes needed for a MUX tree",
+      "tex": "\\#\\text{MUX} = \\frac{N}{k} + \\frac{N}{k^2} + \\cdots + 1 = \\frac{N-1}{k-1}",
+      "text": "number of k:1 MUXes for an N:1 MUX = (N − 1)/(k − 1)",
+      "where": [
+        [
+          "N",
+          "inputs of the target MUX, a power of k"
+        ],
+        [
+          "k",
+          "inputs of each building MUX"
+        ]
+      ],
+      "note": "When N is not a power of k, sum ⌈N/k⌉, ⌈N/k²⌉, … level by level instead.",
+      "topic": "dl-combinational-circuits.multiplexers",
+      "origin": "source",
+      "pages": [
+        213,
+        218
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.decoder-tree-count",
+      "name": "Decoders needed for a larger decoder",
+      "tex": "n\\text{-to-}2^n \\text{ from } 2\\text{-to-}4,\\ n \\text{ even}: \\; \\frac{2^n}{4} + \\frac{2^n}{16} + \\cdots + 1",
+      "text": "n-to-2ⁿ from 2-to-4 decoders, n even: 2ⁿ/4 + 2ⁿ/16 + … + 1 (4-to-16 needs 4 + 1 = 5)",
+      "where": [
+        [
+          "n",
+          "number of input lines; the sum holds only for even n"
+        ]
+      ],
+      "note": "The first level produces all outputs; each higher level only drives the enables of the level below. For odd n the top level is a 1-to-2 decoder (one inverter) driving two enables: 3-to-8 takes two 2-to-4 plus an inverter, 5-to-32 takes 8 + 2 plus an inverter.",
+      "topic": "dl-combinational-circuits.decoders-demux",
+      "origin": "source",
+      "pages": [
+        214
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.rom-size",
+      "name": "ROM size",
+      "tex": "\\text{ROM bits} = 2^{n} \\times m",
+      "text": "ROM bits = 2ⁿ × m",
+      "where": [
+        [
+          "n",
+          "number of inputs (address lines)"
+        ],
+        [
+          "m",
+          "number of outputs (word width)"
+        ]
+      ],
+      "note": "Independent of the functions themselves; 16 functions of 8 variables need 256 × 16 = 4096 bits.",
+      "topic": "dl-combinational-circuits.programmable-logic",
+      "origin": "source",
+      "pages": [
+        218,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.equality",
+      "name": "n-bit equality and greater-than",
+      "tex": "E = \\prod_{i} x_i,\\; x_i = A_i \\odot B_i, \\qquad G = \\sum_{i} A_i\\overline{B_i} \\prod_{j>i} x_j",
+      "text": "E = x₀x₁…xₙ₋₁ with xᵢ = Aᵢ ⊙ Bᵢ; G = Σ AᵢBᵢ′·(product of xⱼ for j > i)",
+      "topic": "dl-combinational-circuits.comparators",
+      "origin": "source",
+      "pages": [
+        215
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "dl-combinational-circuits.cx-ripple",
+      "name": "Ripple-carry adder, n bits",
+      "worst": "2n + 1 gate delays, O(n)",
+      "space": "n full adders, O(n) gates",
+      "notes": "Delay is set by the carry chain.",
+      "topic": "dl-combinational-circuits.ripple-carry",
+      "origin": "source",
+      "pages": [
+        212,
+        213
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.cx-cla-flat",
+      "name": "Single-level carry-lookahead adder, n bits",
+      "worst": "4 gate delays, O(1) levels",
+      "space": "O(n²) gates, fan-in up to n + 1",
+      "notes": "Constant depth only with unbounded fan-in; bounded fan-in forces blocks or a tree.",
+      "topic": "dl-combinational-circuits.carry-lookahead",
+      "origin": "source",
+      "pages": [
+        213
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.cx-cla-tree",
+      "name": "Hierarchical (tree) carry-lookahead adder",
+      "worst": "O(log n) gate delays",
+      "space": "O(n) to O(n log n) gates",
+      "notes": "Group generate and propagate signals combined in a tree, bounded fan-in.",
+      "topic": "dl-combinational-circuits.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.cx-mux-tree",
+      "name": "N:1 MUX tree of 2:1 MUXes",
+      "worst": "log₂ N MUX levels",
+      "space": "N − 1 MUXes",
+      "topic": "dl-combinational-circuits.multiplexers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.cx-array-multiplier",
+      "name": "n × n array multiplier",
+      "worst": "O(n) adder delays",
+      "space": "n² AND gates, about n(n − 1) adder cells",
+      "notes": "Product has 2n bits.",
+      "topic": "dl-combinational-circuits.design-procedure",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "dl-combinational-circuits.pt-read-mux-network",
+      "title": "Find the function realized by a given MUX or decoder network",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Note which select line is the MSB; the data input index is the select value read in that order.",
+        "Write each MUX output as Σ (select minterm)·(data input), starting from the MUXes nearest the inputs.",
+        "Substitute those expressions into the next level and simplify, or tabulate all 2ⁿ input rows and read off the minterms.",
+        "Match against the options; test one or two input rows to rule out look-alikes."
+      ],
+      "trap": "Swapping the MSB and LSB select lines silently permutes the data inputs and changes the function.",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "source",
+      "pages": [
+        217,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-implement-with-mux",
+      "title": "Choose the data inputs that make a 2ⁿ⁻¹:1 MUX realize a function",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Put the chosen n − 1 variables on the selects and list the truth table in select order.",
+        "Group the rows in pairs that differ only in the leftover variable x.",
+        "For each pair (f at x = 0, f at x = 1): (0,0) → 0, (1,1) → 1, (0,1) → x, (1,0) → x′."
+      ],
+      "trap": "When the leftover variable is not the least significant one, its rows are not adjacent in minterm order; build the pairs from the variable values, not row positions.",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "source",
+      "pages": [
+        213,
+        217,
+        219,
+        220
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-adder-delay",
+      "title": "Delay of a ripple-carry, lookahead or block adder",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Fix the delay model from the stem: per gate, per XOR, or per full-adder carry and sum.",
+        "Time P and G first, then each carry as max(arrival of its inputs) + gate delay, stage by stage or block by block.",
+        "Take the latest of all sum and carry outputs unless the stem asks for one specific output."
+      ],
+      "trap": "Counting n full adders on the carry path when the last stage only waits for n − 1 incoming carries, or ignoring a different XOR delay.",
+      "topic": "dl-combinational-circuits.ripple-carry",
+      "origin": "source",
+      "pages": [
+        212,
+        217,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-block-count",
+      "title": "How many smaller MUXes or decoders build a larger one",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Level 1 uses N/k blocks to take all N inputs (MUX) or produce all outputs (decoder).",
+        "Each further level combines the previous level's outputs or enables, dividing by k again until one block remains.",
+        "Add the counts per level, or use (N − 1)/(k − 1) when N is a power of k."
+      ],
+      "trap": "Stopping at the first level; a 16:1 from 4:1 MUXes needs the fifth MUX that selects among the four.",
+      "topic": "dl-combinational-circuits.multiplexers",
+      "origin": "source",
+      "pages": [
+        213,
+        218
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-rom-pla-size",
+      "title": "ROM bits or PLA product terms for a given function",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Count inputs n and outputs m of the whole function; arithmetic circuits need their full operand widths as inputs.",
+        "ROM: 2ⁿ words of m bits.",
+        "PLA: minimize all outputs together and count distinct product terms, sharing terms across outputs."
+      ],
+      "trap": "Counting minterms instead of minimized product terms for a PLA.",
+      "topic": "dl-combinational-circuits.programmable-logic",
+      "origin": "source",
+      "pages": [
+        218,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-gate-count",
+      "title": "Minimum NAND or NOR gates for a function",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Write the function as two-level SOP (for NAND) or POS (for NOR).",
+        "Convert AND-OR to NAND-NAND; single literals entering the second level need an inverter NAND.",
+        "Look for shared subterms, as in XOR where NAND(A, B) feeds both inner gates."
+      ],
+      "trap": "Forgetting that the half adder's carry can reuse the XOR's first NAND, giving 5 rather than 6.",
+      "topic": "dl-combinational-circuits.universal-gates",
+      "origin": "source",
+      "pages": [
+        13,
+        218
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.pt-encoder-output",
+      "title": "Output of a priority encoder or decoder for a given input",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Fix the priority order and bit order from the stem.",
+        "Find the highest-priority active input; its index in binary is the output, and V = 1 if any input is active."
+      ],
+      "trap": "Reading the input string in the wrong bit order and reporting the lowest active input.",
+      "topic": "dl-combinational-circuits.encoders",
+      "origin": "source",
+      "pages": [
+        217,
+        219
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "dl-combinational-circuits.q-mux-xor",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4:1 multiplexer has select lines S₁ = A (MSB) and S₀ = B, and data inputs I₀ = 0, I₁ = 1, I₂ = 1, I₃ = 0. The output F equals",
+      "options": [
+        "A ⊕ B",
+        "A ⊙ B",
+        "A + B",
+        "AB"
+      ],
+      "answer": 0,
+      "explanation": "F = A′B′·0 + A′B·1 + AB′·1 + AB·0 = A′B + AB′ = A ⊕ B. XNOR would need the inputs (1, 0, 0, 1).",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2017) — MUX",
+      "pages": [
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-mux-reduced",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "F(A, B, C) = Σm(1, 2, 4, 7) is to be realized on a 4:1 MUX with S₁ = A and S₀ = B. Which data inputs (I₀, I₁, I₂, I₃) are correct?",
+      "options": [
+        "(C, C′, C′, C)",
+        "(C′, C, C, C′)",
+        "(C, C′, C, C′)",
+        "(0, 1, 1, C)"
+      ],
+      "answer": 0,
+      "explanation": "Pair the rows by AB. AB = 00: m0 = 0, m1 = 1, so I₀ = C. AB = 01: m2 = 1, m3 = 0, so I₁ = C′. AB = 10: m4 = 1, m5 = 0, so I₂ = C′. AB = 11: m6 = 0, m7 = 1, so I₃ = C. The function is A ⊕ B ⊕ C, and (C′, C, C, C′) would give its complement.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "source",
+      "pages": [
+        217
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-ripple-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An 8-bit ripple-carry adder is built from full adders with Pᵢ = Aᵢ ⊕ Bᵢ, Gᵢ = AᵢBᵢ, Cᵢ₊₁ = Gᵢ + PᵢCᵢ (an AND then an OR) and Sᵢ = Pᵢ ⊕ Cᵢ. Every gate, XOR included, has delay τ, and all inputs including C₀ arrive at time 0. After how many τ are all sum and carry outputs stable?",
+      "answer": 17,
+      "explanation": "P and G are ready at 1. C₁ = G₀ + P₀C₀ needs an AND (2) and an OR (3). Each later carry adds 2, so Cᵢ is ready at 2i + 1 and C₈ at 17. The last sum S₇ = P₇ ⊕ C₇ is ready at 15 + 1 = 16. The latest output is C₈ at 17τ.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.ripple-carry",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Adder delay",
+      "pages": [
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-block-cla-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 16-bit adder is made of four 4-bit carry-lookahead blocks, with the carry-out of each block rippling into the next. Every gate has delay 1 unit. Pᵢ and Gᵢ take 1 unit, every carry inside a block (including its carry-out) is a two-level AND-OR of the P's, G's and the block's carry-in, and each sum is Pᵢ ⊕ Cᵢ. All inputs arrive at time 0. When is the last output stable?",
+      "answer": 10,
+      "explanation": "Block 0: P, G at 1, so its carries, including C₄, are ready at 1 + 2 = 3. Each later block's carries are ready 2 units after its carry-in: C₈ at 5, C₁₂ at 7, and the carries of block 3 (C₁₃ to C₁₆) at 9. The sums S₁₃ to S₁₅ need one more XOR: 10. Plain ripple under the same model would take 2·16 + 1 = 33.",
+      "difficulty": "hard",
+      "topic": "dl-combinational-circuits.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-mux-tree-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "What is the minimum number of 4:1 multiplexers (no other gates) needed to build a 64:1 multiplexer?",
+      "answer": 21,
+      "explanation": "Level 1 takes 64 inputs with 16 MUXes, level 2 combines 16 outputs with 4, and level 3 combines 4 with 1: 16 + 4 + 1 = 21, which matches (64 − 1)/(4 − 1).",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.multiplexers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-rom-multiplier",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A ROM is used to implement an unsigned 4-bit × 4-bit multiplier, the two operands forming the address and the full product forming the data word. How many bits must the ROM hold?",
+      "answer": 2048,
+      "explanation": "Inputs: 4 + 4 = 8 address lines, so 2⁸ = 256 words. The product of two 4-bit numbers needs up to 8 bits (15 × 15 = 225). Size = 256 × 8 = 2048 bits.",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.programmable-logic",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-nand-half-adder",
+      "type": "nat",
+      "marks": 1,
+      "stem": "What is the minimum number of 2-input NAND gates needed to build a half adder (both the sum and the carry outputs)? Complemented inputs are not available.",
+      "answer": 5,
+      "explanation": "XOR needs 4 NANDs: g₁ = NAND(A, B), g₂ = NAND(A, g₁), g₃ = NAND(B, g₁), S = NAND(g₂, g₃). The carry AB = NAND(g₁, g₁) reuses g₁, adding one gate: 5. An exhaustive search over all 4-gate NAND circuits finds none that produces both outputs.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.universal-gates",
+      "origin": "source",
+      "pages": [
+        218
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-priority-encoder",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An 8-to-3 priority encoder gives I₇ the highest priority and has a valid output V. The inputs I₇ I₆ … I₀ are 0 0 1 0 1 1 0 0. What are the outputs Y₂Y₁Y₀ and V?",
+      "options": [
+        "101, V = 1",
+        "010, V = 1",
+        "111, V = 1",
+        "101, V = 0"
+      ],
+      "answer": 0,
+      "explanation": "Active inputs are I₅, I₃ and I₂. The highest priority one is I₅, so Y₂Y₁Y₀ = 101 and V = 1 because at least one input is active. 010 is the lowest active input, and 111 is what a plain encoder would output by OR-ing the codes 101, 011 and 010.",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.encoders",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2020) — Priority encoder",
+      "pages": [
+        217,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-pla-pal-rom",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following statements about programmable logic devices are correct?",
+      "options": [
+        "A ROM's AND array is a fixed, complete decoder of its address inputs.",
+        "A PAL has a programmable OR array and a fixed AND array.",
+        "In a PLA one product term can feed several outputs.",
+        "A PLA needs one AND line for every minterm of the functions it implements."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "A ROM decodes all 2ⁿ addresses with a fixed AND plane and programs the OR plane, so the first is true. A PAL is the reverse of the second statement: programmable AND, fixed OR. A PLA's OR plane is programmable, so a product term can be shared. A PLA needs one AND line per distinct product term of the minimized expressions, not per minterm: Σm(0, 1, 2, 3, 4) of three variables is A′ + B′C′, two lines.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.programmable-logic",
+      "origin": "source",
+      "pages": [
+        215,
+        218
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-complete-sets",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following can realize every Boolean function?",
+      "options": [
+        "2-input NOR gates alone",
+        "2-input AND and OR gates alone",
+        "2:1 multiplexers, with constants 0 and 1 available",
+        "2-input XOR and AND gates, with no constants available"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "NOR is universal: NOR(A, A) = A′ and OR, AND follow. AND and OR are monotone and cannot produce A′. A 2:1 MUX with S = A, I₀ = 1, I₁ = 0 gives A′ and with I₀ = 0, I₁ = B gives AB, so it is complete. Without the constant 1, XOR and AND both output 0 when all inputs are 0, so NOT cannot be built.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.universal-gates",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-add-sub",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-bit adder-subtractor XORs each Bᵢ with the mode bit M and uses C₀ = M. With A = 0101, B = 0111 and M = 1, what are the 4-bit result and the carry-out C₄?",
+      "options": [
+        "1110, C₄ = 0",
+        "1110, C₄ = 1",
+        "0010, C₄ = 1",
+        "1101, C₄ = 0"
+      ],
+      "answer": 0,
+      "explanation": "With M = 1 the adder computes A + B′ + 1 = 0101 + 1000 + 1 = 1110 with no carry out of bit 3, so C₄ = 0. 1110 is −2 in two's complement, which is 5 − 7. For unsigned operands C₄ = 0 signals a borrow (A < B). 1101 forgets the +1.",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.subtractors",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-bcd-adder",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A BCD adder adds the digits 1001 and 1001 with carry-in 0. What does it output?",
+      "options": [
+        "Digit 1000 with decimal carry 1",
+        "Digit 0010 with decimal carry 1",
+        "Digit 1000 with decimal carry 0",
+        "Digit 1110 with decimal carry 0"
+      ],
+      "answer": 0,
+      "explanation": "The binary adder gives 9 + 9 = 18 = 1 0010, so K = 1 and Z = 0010. The correction C = K + Z₈Z₄ + Z₈Z₂ = 1, so 0110 is added: 0010 + 0110 = 1000, and the decimal carry is C = 1. The result is BCD 0001 1000 = 18. Option 2 skips the correction, which is needed here even though Z = 0010 ≤ 9, because K = 1.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.bcd-adder",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-active-low-decoder",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 3-to-8 decoder has active-low outputs Y₀′ … Y₇′ for input code ABC (A the MSB). Outputs Y₁′, Y₂′, Y₄′ and Y₇′ feed a 4-input NAND gate whose output is F. Then F equals",
+      "options": [
+        "A ⊕ B ⊕ C",
+        "(A ⊕ B ⊕ C)′",
+        "AB + BC + CA",
+        "A′B′C′ + ABC"
+      ],
+      "answer": 0,
+      "explanation": "An active-low output Yᵢ′ is 0 only for minterm i. The NAND output is 1 when any of its inputs is 0, so F = m1 + m2 + m4 + m7: the codes with an odd number of 1s, which is A ⊕ B ⊕ C. Replacing the NAND by an AND would give the complement, Σm(0, 3, 5, 6).",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.decoders-demux",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-mux-facts",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following statements are true?",
+      "options": [
+        "A 4:1 MUX whose data inputs may be 0, 1, C or C′ can realize every function of A, B and C.",
+        "A 1-to-4 DEMUX with its data input tied to 1 behaves as a 2-to-4 decoder.",
+        "A 3-to-8 decoder with enable asserted always has exactly one output active.",
+        "Realizing a 4-variable function with MUXes alone requires a 16:1 MUX."
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Every row pair (C = 0, C = 1) of a 3-variable truth table is one of (0,0), (1,1), (0,1), (1,0), giving 0, 1, C or C′, so the first is true. A DEMUX with data 1 drives a 1 onto exactly the selected output, which is a decoder. An enabled decoder activates exactly the minterm of its input. The last is false: an 8:1 MUX with D and D′ as data inputs suffices.",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.decoders-demux",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Decoder",
+      "pages": [
+        213,
+        214,
+        219
+      ]
+    },
+    {
+      "id": "dl-combinational-circuits.q-comparator-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A 2-bit magnitude comparator receives A = A₁A₀ and B = B₁B₀. For how many of the 16 input combinations is the A > B output 1?",
+      "answer": 6,
+      "explanation": "Of the 16 pairs, 4 have A = B and the other 12 split evenly by symmetry between A > B and A < B, giving 6. Listing them: A = 1 > 0; A = 2 > 0, 1; A = 3 > 0, 1, 2, a total of 1 + 2 + 3 = 6.",
+      "difficulty": "easy",
+      "topic": "dl-combinational-circuits.comparators",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-combinational-circuits.q-two-mux-chain",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "MUX M1 (2:1) has select A, I₀ = B and I₁ = B′. MUX M2 (2:1) has select C, I₀ = output of M1 and I₁ = 0. The output of M2 is",
+      "options": [
+        "C′(A ⊕ B)",
+        "C(A ⊕ B)",
+        "C′(A ⊙ B)",
+        "A ⊕ B ⊕ C"
+      ],
+      "answer": 0,
+      "explanation": "M1 = A′B + AB′ = A ⊕ B. M2 = C′·M1 + C·0 = C′(A ⊕ B). Checking all eight rows, the output is 1 only for ABC = 010 and 100, which matches C′(A ⊕ B).",
+      "difficulty": "medium",
+      "topic": "dl-combinational-circuits.mux-function",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "A MUX selects one of many inputs onto one line; a DEMUX sends one input to one of many lines. Do not swap their input and output counts.",
+      "origin": "source",
+      "pages": [
+        220
+      ]
+    },
+    {
+      "text": "A plain encoder is only correct when exactly one input is active; with several active inputs it ORs their codes. Use a priority encoder with a valid bit.",
+      "origin": "source",
+      "pages": [
+        214,
+        220
+      ]
+    },
+    {
+      "text": "Full-adder carry is AB + Cin(A ⊕ B), not AB: the carry-in terms matter whenever exactly one of A, B is 1.",
+      "origin": "source",
+      "pages": [
+        220
+      ]
+    },
+    {
+      "text": "When implementing a function on a smaller MUX, pair rows by the leftover variable's value; the pairs are adjacent minterms only if that variable is the least significant one.",
+      "origin": "source",
+      "pages": [
+        220
+      ]
+    },
+    {
+      "text": "Lookahead carries are constant-depth only with unlimited fan-in; Cᵢ₊₁ needs (i + 2)-input gates, so large adders use 4-bit blocks and their delay grows again.",
+      "origin": "source",
+      "pages": [
+        213,
+        220
+      ]
+    },
+    {
+      "text": "With active-low decoder outputs, the minterms combine through a NAND; an AND of those outputs produces the complement of the intended function.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A PLA's size counts distinct minimized product terms shared across outputs, not minterms; a ROM's size ignores the functions entirely and is always 2ⁿ × m.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Adders",
+      "lines": [
+        "HA: S = A ⊕ B, C = AB; FA: S = A ⊕ B ⊕ Cin, Cout = AB + Cin(A ⊕ B)",
+        "FA = 2 HA + OR; FS borrow = A′B + (A ⊙ B)Bin",
+        "A − B = A + B′ + 1 (XOR B with M, Cin = M); V = Cₙ ⊕ Cₙ₋₁",
+        "Ripple: Cₙ at 2n + 1 gate delays (8 bits → 17)",
+        "CLA: G = AB, P = A ⊕ B, Cᵢ₊₁ = Gᵢ + PᵢCᵢ; carries 2 levels after P, G",
+        "BCD: add 0110 when K + Z₈Z₄ + Z₈Z₂ = 1"
+      ],
+      "origin": "source",
+      "pages": [
+        13,
+        212,
+        220
+      ]
+    },
+    {
+      "heading": "MUX and decoder",
+      "lines": [
+        "2ⁿ:1 MUX = any n-variable function; 2ⁿ⁻¹:1 with x, x′, 0, 1",
+        "Residue pairs: (0,0) 0, (1,1) 1, (0,1) x, (1,0) x′",
+        "N:1 from k:1 MUXes: (N − 1)/(k − 1); 16:1 from 4:1 → 5",
+        "Decoder output Yᵢ = mᵢ; F = OR of its minterms (NAND if active-low)",
+        "Decoder with enable = DEMUX; two 2-to-4 + inverter → 3-to-8"
+      ],
+      "origin": "source",
+      "pages": [
+        213,
+        214,
+        218,
+        220
+      ]
+    },
+    {
+      "heading": "Encoders, comparators, PLDs",
+      "lines": [
+        "Priority encoder: index of highest active input, V = any input active",
+        "A = B: AND of bitwise XNORs; A > B: first differing bit from MSB",
+        "ROM: fixed AND, programmable OR, 2ⁿ × m bits",
+        "PLA: both programmable, one AND line per product term; PAL: programmable AND, fixed OR"
+      ],
+      "origin": "source",
+      "pages": [
+        214,
+        215,
+        220
+      ]
+    },
+    {
+      "heading": "Gate counts",
+      "lines": [
+        "2-input NAND: NOT 1, AND 2, OR 3, XOR 4, HA 5, FA 9",
+        "{AND, OR} incomplete; {XOR, AND} needs constant 1; 2:1 MUX + constants complete"
+      ],
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "errata": [
+    {
+      "page": 218,
+      "claim": "A PLA implementing a function with 5 minterms needs 5 AND lines, one per minterm.",
+      "correction": "A PLA needs one AND line per distinct product term of the minimized SOP, which can be far fewer than the minterms: Σm(0, 1, 2, 3, 4) of A, B, C minimizes to A′ + B′C′, so 2 AND lines suffice. 5 is only an upper bound."
+    },
+    {
+      "page": 213,
+      "claim": "Carry-lookahead delay is independent of bit-width, and also O(log n) in practice.",
+      "correction": "The two statements describe different designs. A single-level CLA with unbounded fan-in computes all carries in 2 levels after P and G, a constant. With bounded fan-in the lookahead is built as a tree of group generate and propagate signals, and the delay is O(log n)."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "dl-combinational-design",
+      "status": "covered",
+      "topics": [
+        "dl-combinational-circuits.logic-gates-xor",
+        "dl-combinational-circuits.universal-gates",
+        "dl-combinational-circuits.adders",
+        "dl-combinational-circuits.subtractors",
+        "dl-combinational-circuits.ripple-carry",
+        "dl-combinational-circuits.carry-lookahead",
+        "dl-combinational-circuits.bcd-adder",
+        "dl-combinational-circuits.multiplexers",
+        "dl-combinational-circuits.mux-function",
+        "dl-combinational-circuits.decoders-demux",
+        "dl-combinational-circuits.encoders",
+        "dl-combinational-circuits.comparators",
+        "dl-combinational-circuits.programmable-logic",
+        "dl-combinational-circuits.design-procedure"
+      ]
+    }
+  ]
+}

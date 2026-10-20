@@ -1,0 +1,3169 @@
+{
+  "chapter": "coa-memory-hierarchy",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q52",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B",
+      "topic": "coa-memory-hierarchy.miss-counting",
+      "difficulty": "hard",
+      "stem": "Consider a system with a processor and a 4 KB direct mapped cache with block size of 16 bytes. The system has a 16 MB physical memory. Four words P, Q, R, and S are accessed by the processor in the same order 10 times. That is, there are a total of 40 memory references in the sequence P, Q, R, S, P, Q, R, S,…\n\nAssume that the cache memory is initially empty. The physical addresses of the words are given below (1 word = 1 byte).\n\nP: 0x845B32, Q: 0x845B26, R: 0x845B36, S: 0x846B32\n\nWhich of the following statements is/are true?\n\nNote: $1\\text{K}=2^{10}$ and $1\\text{M}=2^{20}$",
+      "options": [
+        "Every access to P results in a cache miss",
+        "Every access to R results in a cache hit",
+        "Every access to Q results in a cache miss",
+        "Except the first access to S, all subsequent accesses to S result in cache hits"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "solutionDiagram": {
+        "alt": "Cache lines 0xB3 and 0xB2 over the first two rounds of P, Q, R, S, showing which block each line holds and whether each access hits."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a direct mapped cache does",
+            "body": "The cache stores memory in blocks (here 16 bytes). A block with number $b$ (address divided by the block size) may live in exactly one cache line, line number $b \\bmod L$, where $L$ is the number of lines. Each line remembers the block it holds (its tag). An access is a hit when the line already holds the block that contains the address, otherwise a miss that replaces the line. Everything depends on two questions per access: which line, and which block.",
+            "tex": "\\text{line}=\\lfloor a/B\\rfloor \\bmod L,\\qquad \\text{tag}=\\lfloor a/B\\rfloor \\operatorname{div} L"
+          },
+          {
+            "title": "Split the address",
+            "body": "Block size 16 B gives 4 offset bits. Lines: $4\\text{ KB}/16\\text{ B}=2^{12}/2^4=2^8=256$, so 8 index bits. The memory is 16 MB, 24 address bits, so the tag has $24-8-4=12$ bits. In hex, the last hex digit is the offset and the next two digits are the index.",
+            "tex": "24 = \\underbrace{12}_{\\text{tag}}+\\underbrace{8}_{\\text{index}}+\\underbrace{4}_{\\text{offset}}"
+          },
+          {
+            "title": "Block and line of each word",
+            "body": "P = 0x845B32: offset 2, index 0xB3, tag 0x845. Q = 0x845B26: offset 6, index 0xB2, tag 0x845. R = 0x845B36: offset 6, index 0xB3, tag 0x845, so R lies in the same block as P (block 0x845B3). S = 0x846B32: offset 2, index 0xB3, tag 0x846, a different block that maps to the same line as P and R."
+          },
+          {
+            "title": "Run the first two rounds",
+            "body": "Round 1: P misses and loads block 845B3 into line B3. Q misses and loads line B2. R hits, since its block is already in line B3. S misses and replaces block 845B3 with 846B3. Round 2: P misses (845B3 was thrown out), reloading it. Q hits (line B2 is untouched). R hits (P just loaded the block). S misses and evicts it again. From round 2 onward the pattern repeats: P miss, Q hit, R hit, S miss."
+          },
+          {
+            "title": "Judge the statements",
+            "body": "P: miss every time, A is true. R: hit every time, B is true. Q: misses only the first time, so C is false. S: always misses, because P pulls the block back into line B3 every round, so D is false. The answer is A and B."
+          }
+        ],
+        "shortcut": {
+          "body": "Only the index and the block number matter. Compare the middle two hex digits: P, R, S share index B3, Q is alone on B2 and never conflicts. Then ask who shares a block: P and R (same upper digits 845B3). P, S alternate on one line, so both always miss; R rides on P; Q is cold-miss only. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Calling every access to Q a miss because the four words look alike. Q sits on line B2, which no other word uses, so only its first access misses."
+          },
+          {
+            "option": 3,
+            "text": "Thinking S stays cached after its first load. P maps to the same line with a different tag and evicts S every round, so S misses all 10 times."
+          },
+          {
+            "text": "Treating R as a separate block from P because the addresses differ (B32 against B36). They differ only in the offset, so they share block 845B3 and R hits right after P loads it."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.miss-counting",
+          "clues": "Four named words are accessed in a repeating cycle with full physical addresses, and the statements ask which words always hit or always miss. That calls for replaying the cycle against the cache lines.",
+          "contrast": "A plain address-split question stops at the field widths. Here the widths are only the first step; the work is tracking what each line holds from one access to the next."
+        },
+        "check": {
+          "body": "Count the misses over the whole run instead of per word. P and S alternate on one line and miss every time (10 each), Q misses once and R never, so the total is 21 misses in 40 references. A step-by-step replay of all 40 accesses gives the same count, which agrees with the per-word verdicts."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, paper Q.52",
+          "url": "https://gateoverflow.in/523104/gate-cse-2026-set-2-question-42"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-2 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before reading any address, ask what decides a hit in this cache: which line a block lands in, and whether that line still holds that block when the word is used again."
+        },
+        {
+          "kind": "concept",
+          "text": "A direct mapped cache sends each memory block to exactly one line, so two blocks that share a line throw each other out whenever they are used in turn."
+        },
+        {
+          "kind": "principle",
+          "text": "Split the address into tag, index and offset. Words with the same index compete for one line. Words with the same tag and index sit in one block and share a single load."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the number of lines from the cache size and block size, hence the index and offset widths. Write each address in hex, read off its index digits and its block, then replay the repeating sequence line by line."
+        },
+        {
+          "kind": "partial",
+          "text": "The cache has 256 lines, so the index is 8 bits, which is exactly the two hex digits just left of the offset digit. One of the four words has a different pair of those digits from the other three."
+        }
+      ],
+      "variation": {
+        "stem": "A 2 KB direct mapped cache has 32-byte blocks. The words W, X, Y, Z are read in the order W, X, Y, Z, W, X, Y, Z, ... for 8 rounds from an initially empty cache. Their byte addresses are W: 0x1A44, X: 0x1A6C, Y: 0x1A50, Z: 0x2A4F. Which of the following statements is/are true?",
+        "options": [
+          "Every access to X results in a miss",
+          "Every access to Y results in a hit",
+          "Except the first access to W, all later accesses to W result in hits",
+          "Every access to Z results in a miss"
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "With 32-byte blocks and 64 lines, W, Y and Z all map to line 18, while X maps to line 19 and conflicts with nobody. W and Y lie in the same block, Z is a different block on line 18. Each round W reloads its block after Z evicted it, so W and Z always miss, Y always hits after W, and X misses only once."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q38",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "medium",
+      "stem": "The size of the physical address space of a processor is $2^{32}$ bytes. The capacity of a cache memory unit is $2^{23}$ bytes. The cache block size is 128 bytes. The cache memory unit can be built as a direct mapped cache or as a $K$-way set-associative cache, where $K = 2^L$ and $L \\in \\{1, 2, 3\\}$. Let the length of the TAG field be $M$ bits for the direct mapped cache, and $N$ bits for the set-associative cache.\n\nWhich one of the following options is true?",
+      "options": [
+        "$N = M + L$",
+        "$N = M - L$",
+        "$N = M + K$",
+        "$N = M - K$"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "The three fields of an address",
+            "body": "To find a byte, the cache cuts the address into three parts. The offset picks the byte inside a block. The index picks the set (a group of lines where the block is allowed to live). The tag is the rest; it is stored with the line so the cache can tell which block is there. Rule: tag bits = address bits - index bits - offset bits.",
+            "tex": "\\text{tag}=A-\\log_2(\\text{sets})-\\log_2(B)"
+          },
+          {
+            "title": "Direct mapped",
+            "body": "Block 128 B gives 7 offset bits. Number of lines $=2^{23}/2^7=2^{16}$. A direct mapped cache has one line per set, so 16 index bits. Tag $M=32-16-7=9$.",
+            "tex": "M=32-16-7=9"
+          },
+          {
+            "title": "K-way set associative",
+            "body": "The same $2^{16}$ lines are grouped $K=2^L$ per set, so there are $2^{16}/2^L=2^{16-L}$ sets and the index has $16-L$ bits. The offset is still 7. Tag $N=32-(16-L)-7=9+L$.",
+            "tex": "N=32-(16-L)-7=9+L=M+L"
+          },
+          {
+            "title": "Match the option",
+            "body": "Each doubling of associativity removes one index bit and adds it to the tag, so $N=M+L$. This is option A. The value $K$ itself is a count of lines per set, not a bit count, so options C and D cannot hold."
+          }
+        ],
+        "shortcut": {
+          "body": "More ways means fewer sets, so fewer index bits and a longer tag, by exactly $\\log_2 K = L$ bits. Only A says \"bigger by $L$\". Check with $L=1$: $M=9$, $N=10$. Under 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Reversing the direction: believing associativity shortens the tag. It shortens the index; the freed bits go to the tag."
+          },
+          {
+            "option": 2,
+            "text": "Using $K$ instead of $L$. $K=2^L$ is the number of ways, while the tag grows by the number of bits, $\\log_2 K=L$."
+          },
+          {
+            "option": 3,
+            "text": "Both reversed and using $K$. $K$ can reach 8 while the tag changes by at most 3 bits, and the tag grows with associativity, not shrinks."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.address-split",
+          "clues": "Both tag lengths are asked for the same address space, capacity and block size, one for direct mapped and one for K-way with K a power of two. That points to recomputing the index width for each organisation.",
+          "contrast": "The set-associative topic explains why sets shrink as ways grow. This question only needs the bit bookkeeping: tag changes by exactly the index bits that disappear. Do not treat K as a bit count."
+        },
+        "check": {
+          "body": "Substitute a value. With L = 3 (8-way), the number of sets is $2^{16}/2^3=2^{13}$, so the index has 13 bits and the tag is $32-13-7=12$ bits. The direct mapped tag is 9 bits, and 12 is 9 plus 3."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, paper Q.38",
+          "url": "https://gateoverflow.in/523052/gate-cse-2026-set-1-question-28"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How do the tag, index and offset widths add up to the address width, and which of them changes when lines are grouped into sets?"
+        },
+        {
+          "kind": "concept",
+          "text": "Grouping lines into sets of K means the index picks a set instead of a single line, so there are fewer sets than lines."
+        },
+        {
+          "kind": "principle",
+          "text": "Tag length is the address width minus the index bits minus the offset bits. The offset depends only on the block size, while the index depends on the number of sets."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the number of lines from the capacity and the block size. Write the number of sets for the direct mapped cache and for the K-way cache in terms of L, then subtract each index and the offset from 32."
+        },
+        {
+          "kind": "partial",
+          "text": "The direct mapped cache has as many sets as lines, which is $2^{16}$. In the K-way cache each set holds $2^L$ of those lines, so work out how many sets remain."
+        }
+      ],
+      "variation": {
+        "stem": "A processor has a physical address space of $2^{36}$ bytes and a cache of $2^{20}$ bytes with 64-byte blocks. How many tag bits does the cache need if it is 4-way set associative?",
+        "options": [
+          "16",
+          "14",
+          "20",
+          "18"
+        ],
+        "answer": 3,
+        "explanation": "The cache has $2^{20}/2^6=2^{14}$ lines. With 4 lines per set there are $2^{12}$ sets, so the index has 12 bits and the offset has 6. The tag is $36-12-6=18$ bits, which is the direct mapped tag of 16 bits plus $\\log_2 4=2$."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q54",
+      "type": "msq",
+      "marks": 2,
+      "key": "B;C",
+      "topic": "coa-memory-hierarchy.virtual-memory-tlb",
+      "difficulty": "hard",
+      "stem": "Consider a system that has a cache memory unit and a memory management unit (MMU). The address input to the cache memory is a physical address. The MMU has a translation lookaside buffer (TLB). Assume that when a page is evicted from the main memory, the corresponding blocks in the cache are marked as invalid.\n\nFor a given memory reference, which of the following sequences of events can NEVER happen?",
+      "options": [
+        "TLB miss, Page table hit, Cache hit",
+        "TLB hit, Page table miss, Cache hit",
+        "TLB miss, Page table miss, Cache hit",
+        "TLB miss, Page table miss, Cache miss"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The pieces and the order they are used",
+            "body": "The CPU gives a virtual address. The TLB is a small cache of recent page translations; a TLB hit gives the frame immediately. On a TLB miss the MMU walks the page table; a page table \"hit\" means the page is in main memory (the translation is found), a \"miss\" means the page is not in memory (a page fault, the OS must load it). Only after the physical address is known does the cache look it up. The cache holds blocks of pages that are in memory."
+          },
+          {
+            "title": "The two facts that decide it",
+            "body": "Fact 1: a TLB entry exists only for a page that is in memory, so a TLB hit implies the page is resident and the page table cannot miss. Fact 2: the problem says blocks of an evicted page are invalidated, so the cache never holds a block of a page that is not in memory. A page-table miss means the page is absent, so the cache cannot hit."
+          },
+          {
+            "title": "Test each sequence",
+            "body": "A: TLB miss, page in memory, block already cached (loaded earlier, translation dropped from the TLB): possible. B: a TLB hit means the page is present, so a page table miss contradicts it: never. C: page table miss means the page is absent, so its blocks were invalidated and a cache hit is impossible: never. D: page fault, the page is loaded, then the first access to its blocks misses in the cache: possible."
+          },
+          {
+            "title": "Answer",
+            "body": "The sequences that can never happen are B and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Two implications finish it: TLB hit forces page table hit, and page table miss forces cache miss (invalidated blocks). Any sequence containing \"page table miss, cache hit\" or \"TLB hit, page table miss\" is out. That leaves B and C. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Thinking a TLB miss forces a cache miss. The TLB and the cache are separate; a block can stay cached after its translation has been dropped from the TLB."
+          },
+          {
+            "option": 3,
+            "text": "Thinking a page fault cannot be followed by anything. After the page is loaded the block is not yet cached, so a cache miss follows normally."
+          },
+          {
+            "text": "Choosing only B: a candidate sees the TLB contradiction but forgets that the invalidation rule in the stem rules out C as well. The stem states that rule for exactly this reason."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.virtual-memory-tlb",
+          "clues": "The stem chains TLB, page table and cache outcomes for one reference and asks which chains can never happen, with the condition that the cache is physically addressed and invalidated on eviction.",
+          "contrast": "A pure cache question only asks about hits and misses of blocks. Here the page being resident or not links the three events, so residency has to be tracked first."
+        },
+        "check": {
+          "body": "Build a concrete timeline for the sequence you accept as possible: the page is loaded, one of its blocks is cached, other translations push its entry out of the TLB, then the reference arrives. For the sequences you reject, try the same exercise; every timeline needs the page both present and absent, which cannot be arranged."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, paper Q.54",
+          "url": "https://gateoverflow.in/523036/gate-cse-2026-set-1-question-44"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each sequence, ask what its first two events tell you about whether the page is in main memory, and what that means for a block of that page in the cache."
+        },
+        {
+          "kind": "concept",
+          "text": "The TLB holds recent translations. Think about what it means for a page when the page table has no valid entry for it."
+        },
+        {
+          "kind": "principle",
+          "text": "What must be true of a page if its translation is sitting in the TLB? And what must be true of a cache block whose page was evicted, given the stem? Test each sequence against both answers."
+        },
+        {
+          "kind": "setup",
+          "text": "Mark the page as resident or absent from the TLB and page table events of each line. Then ask whether a block of that page could possibly still be in the cache."
+        }
+      ],
+      "variation": {
+        "stem": "A system has a physically addressed cache and a two-level TLB: the MMU probes the L1 TLB, then the L2 TLB on an L1 miss, then the page table on an L2 miss. Entries exist in the TLBs only for pages in main memory, and when a page is evicted its cache blocks are invalidated. For a single memory reference, which of the following sequences of events can NEVER happen?",
+        "options": [
+          "L2 TLB hit, Page table miss, Cache miss",
+          "L1 TLB miss, L2 TLB hit, Cache miss",
+          "L1 TLB miss, L2 TLB miss, Page table miss, Cache hit",
+          "L1 TLB miss, L2 TLB miss, Page table hit, Cache hit"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "A TLB entry, at either level, exists only for a resident page, and a cached block exists only for a resident page. Sequence 1 needs a translation in the L2 TLB and also an absent page, so it never happens. Sequence 3 needs a cache hit on a page that is absent, so it never happens. Sequences 2 and 4 involve a resident page whose block is or is not cached, which is ordinary."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "easy",
+      "stem": "For a direct-mapped cache, 4 bits are used for the tag field and 12 bits are used to index into a cache block. The size of each cache block is one byte. Assume that there is no other information stored for each cache block.\n\nWhich ONE of the following is the CORRECT option for the sizes of the main memory and the cache memory in this system (byte addressable), respectively?",
+      "options": [
+        "64 KB and 4 KB",
+        "128 KB and 16 KB",
+        "64 KB and 8 KB",
+        "128 KB and 6 KB"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What the fields mean",
+            "body": "An address is split into tag, index and offset. The index chooses a cache line (a direct mapped cache has one line per index value). The offset chooses a byte inside the block. The tag is stored beside the line to say which memory block it holds. Data size of the cache = lines times block size. The memory has $2^{\\text{address bits}}$ bytes.",
+            "tex": "\\text{memory}=2^{t+i+o}\\ \\text{B},\\qquad \\text{cache}=2^{i}\\times 2^{o}\\ \\text{B}"
+          },
+          {
+            "title": "Fill in the numbers",
+            "body": "A block is one byte, so the offset has $0$ bits. Address width $=4+12+0=16$ bits, so the main memory is $2^{16}=64$ KB. The cache has $2^{12}=4096$ lines of one byte, which is 4 KB of data.",
+            "tex": "2^{16}=64\\ \\text{KB},\\qquad 2^{12}\\times 1\\ \\text{B}=4\\ \\text{KB}"
+          },
+          {
+            "title": "Why the tag does not count",
+            "body": "The statement says no other information is stored. The 4 tag bits per line are overhead for lookup, not capacity, so the cache size is the data only: 4 KB. The answer is A."
+          }
+        ],
+        "shortcut": {
+          "body": "Memory = $2^{4+12}$ = 64 KB removes B and D (128 KB). Cache = $2^{12}$ bytes = 4 KB, not 8 KB, so A. Ten seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Adding one bit to the address (17 bits) for no reason, and taking 4 bytes per line: $4096\\times4$ B = 16 KB. The offset is 0 bits because the block is one byte."
+          },
+          {
+            "option": 2,
+            "text": "Memory right but cache 8 KB: counting each line as two bytes ($4096\\times2$ B). The stem says nothing else is stored, so lines are one byte."
+          },
+          {
+            "option": 3,
+            "text": "Adds the 4 tag bits to each line, $4096\\times12$ bits = 6 KB, and also takes 17 address bits (128 KB). The stem says no other information is stored, so tags are not counted as capacity."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.address-split",
+          "clues": "The stem gives tag and index widths and a one-byte block, and asks for the memory and cache sizes, so the field widths must be turned back into sizes.",
+          "contrast": "The tag-directory topic counts the bits spent on tags. Here the tag bits are overhead that the stem excludes from capacity, so they only enter the memory size."
+        },
+        "check": {
+          "body": "Run it forward. A 64 KB memory needs 16 address bits, and a 4 KB cache of one-byte lines has 4096 lines, hence 12 index bits. That leaves 16 - 12 = 4 tag bits, the value in the stem."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2, paper Q.39",
+          "url": "https://gateoverflow.in/460806/gate-cse-2025-set-2-question-29"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-2 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does each field of the address control, and which fields tell you the size of memory and the size of the cache?"
+        },
+        {
+          "kind": "concept",
+          "text": "The address width is the sum of the tag, index and offset bits. The data capacity of the cache is the number of lines times the block size."
+        },
+        {
+          "kind": "principle",
+          "text": "A direct mapped cache has one line for each index value. Tag bits sit beside each line only so the cache can recognise a block, and the stem says nothing else is stored."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the offset bits from the block size, add all three field widths for the memory size, and get the number of lines from the index width."
+        },
+        {
+          "kind": "partial",
+          "text": "A one-byte block needs no offset bits, so the address width is just the tag bits plus the index bits."
+        }
+      ],
+      "variation": {
+        "stem": "For a direct mapped cache, 6 bits are used for the tag field and 10 bits for the index. Each cache block is 4 bytes, and no other information is counted in the cache size. What are the sizes of the byte addressable main memory and the cache, respectively?",
+        "options": [
+          "64 KB and 1 KB",
+          "64 KB and 4 KB",
+          "256 KB and 4 KB",
+          "256 KB and 1 KB"
+        ],
+        "answer": 2,
+        "explanation": "A 4-byte block gives 2 offset bits, so the address has 6+10+2=18 bits and the memory is $2^{18}$ B = 256 KB. The cache has $2^{10}$ lines of 4 bytes, which is 4 KB. Leaving out the offset gives the 64 KB and 1 KB lures."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q55",
+      "type": "nat",
+      "marks": 2,
+      "key": "4.0",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "difficulty": "medium",
+      "stem": "Given a computing system with two levels of cache (L1 and L2) and a main memory. The first level (L1) cache access time is 1 nanosecond (ns) and the \"hit rate\" for L1 cache is 90% while the processor is accessing the data from L1 cache. Whereas, for the second level (L2) cache, the \"hit rate\" is 80% and the \"miss penalty\" for transferring data from L2 cache to L1 cache is 10 ns. The \"miss penalty\" for the data to be transferred from main memory to L2 cache is 100 ns.\n\nThen the average memory access time in this system in nanoseconds is ___________ . (rounded off to one decimal place)",
+      "answer": 4,
+      "solution": {
+        "steps": [
+          {
+            "title": "Average memory access time",
+            "body": "Average memory access time (AMAT) is the expected time of one access. The processor always checks L1 first, so every access pays the L1 time. Only the fraction that misses L1 pays the miss penalty, which is the average cost of getting the block from the next level. The rule is repeated one level at a time.",
+            "tex": "\\text{AMAT}=t_{L1}+m_{L1}\\times \\text{penalty}_{L1}"
+          },
+          {
+            "title": "Penalty of an L1 miss",
+            "body": "An L1 miss goes to L2. Moving a block from L2 to L1 costs 10 ns. In $20\\%$ of those cases L2 also misses and the block must come from main memory for 100 ns more. So the L1 miss penalty is $10+0.2\\times100=30$ ns.",
+            "tex": "\\text{penalty}_{L1}=10+0.2\\times 100=30\\ \\text{ns}"
+          },
+          {
+            "title": "Combine",
+            "body": "L1 misses $10\\%$ of accesses: $\\text{AMAT}=1+0.1\\times30=4.0$ ns.",
+            "tex": "\\text{AMAT}=1+0.1\\times 30=4.0\\ \\text{ns}"
+          }
+        ],
+        "shortcut": {
+          "body": "Write nested: $1+0.1\\,(10+0.2\\times100)$, evaluate from inside out: $20+10=30$, then $1+3=4.0$. The miss penalties are additive \"extra\" costs, so no hit-weighted sums are needed."
+        },
+        "traps": [
+          {
+            "text": "Giving the L2 stage a full time of 10 ns and then also weighting by 0.8, as in $0.9\\times1+0.1(0.8\\times10+0.2\\times100)=3.7$. Here 10 ns is the transfer penalty paid on every L1 miss, hit or not in L2."
+          },
+          {
+            "text": "Forgetting that the L1 time is paid by every access, giving $0.1\\times30=3.0$ ns."
+          },
+          {
+            "text": "Using the L2 miss rate as 0.1 times 0.2 on the 100 ns only and dropping the 10 ns, giving $1+0.1\\times20=3.0$ ns."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.multilevel-cache",
+          "clues": "Two cache levels are given with hit rates, an L1 access time, and separate miss penalties for L2 to L1 and for memory to L2. Penalties, not total times, mean the nested form applies.",
+          "contrast": "When each level gives a total access time that already includes earlier misses, the answer is a probability-weighted sum of those totals instead. The wording \"miss penalty\" is the signal for the nested form."
+        },
+        "check": {
+          "body": "Recompute by outcomes. L1 hit: probability 0.9 at 1 ns. L1 miss and L2 hit: 0.1 x 0.8 = 0.08 at 1+10 = 11 ns. Both miss: 0.1 x 0.2 = 0.02 at 1+10+100 = 111 ns. The weighted sum is 0.9 + 0.88 + 2.22, a second route to the same value."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2, paper Q.55",
+          "url": "https://gateoverflow.in/460848/gate-cse-2025-set-2-question-45"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-2 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which accesses pay the L1 time, and which pay a penalty on top of it?"
+        },
+        {
+          "kind": "concept",
+          "text": "Average memory access time is the hit time plus the miss rate times the miss penalty, applied one level at a time."
+        },
+        {
+          "kind": "principle",
+          "text": "The penalty seen by L1 is itself an average. The L2 to L1 transfer is paid on every L1 miss, while the main memory penalty is paid only when L2 also misses."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the L1 miss penalty in terms of the transfer time, the L2 miss rate and the memory penalty. Then put it into the L1 formula together with the L1 miss rate."
+        },
+        {
+          "kind": "partial",
+          "text": "Inside the L1 miss penalty, the memory penalty is weighted by the L2 miss rate, which is one minus its hit rate."
+        }
+      ],
+      "variation": {
+        "stem": "A system has an L1 cache with access time 2 ns and hit rate 95%, and an L2 cache with hit rate 75%. The miss penalty for moving data from L2 to L1 is 8 ns, and from main memory to L2 it is 80 ns. What is the average memory access time in ns? (one decimal place)",
+        "answer": 3.4,
+        "explanation": "The L1 miss penalty is $8+0.25\\times80=28$ ns. Every access pays 2 ns and 5% of them pay that penalty, so the average is $2+0.05\\times28=3.4$ ns."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q36",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.tag-directory",
+      "difficulty": "medium",
+      "stem": "Consider a memory system with 1M bytes of main memory and 16K bytes of cache memory. Assume that the processor generates 20-bit memory address, and the cache block size is 16 bytes. If the cache uses direct mapping, how many bits will be required to store all the tag values? [Assume memory is byte addressable, $1\\text{K}=2^{10}$, $1\\text{M}=2^{20}$.]",
+      "options": [
+        "$6 \\times 2^{10}$",
+        "$8 \\times 2^{10}$",
+        "$2^{12}$",
+        "$2^{14}$"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What is a tag",
+            "body": "Every cache line carries a tag: the leftover high bits of the address of the block it holds. Without it the cache could not tell which of the many blocks that map to the same line is present. The question asks for the total tag storage, so we need bits per tag times number of lines. The address splits as tag + index + offset, with index selecting the line and offset the byte in the block.",
+            "tex": "\\text{tag storage}=\\#\\text{lines}\\times t"
+          },
+          {
+            "title": "Fields",
+            "body": "Block 16 B gives 4 offset bits. Lines $=2^{14}/2^4=2^{10}=1024$, so 10 index bits. Tag $t=20-10-4=6$ bits.",
+            "tex": "t=20-10-4=6"
+          },
+          {
+            "title": "Total",
+            "body": "Total tag bits $=1024\\times6=6\\times2^{10}$, option A.",
+            "tex": "2^{10}\\times 6=6\\times 2^{10}\\ \\text{bits}"
+          }
+        ],
+        "shortcut": {
+          "body": "Lines $=2^{14-4}=2^{10}$, tag $=20-14=6$ bits (tag = address bits minus log of cache size in a direct mapped cache). Answer $6\\times2^{10}$. Thirty seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Using 8 tag bits by subtracting only 12 from 20, as if index and offset took 12 bits. They take $10+4=14$ bits, so the tag is 6 bits, not 8."
+          },
+          {
+            "option": 2,
+            "text": "Reporting the number of lines times 4 bits: $2^{12}$ is what you get from 4 offset bits times 1024 lines, a different quantity."
+          },
+          {
+            "option": 3,
+            "text": "Confusing tag bits with the cache size in bytes: $2^{14}$ is the 16 KB capacity, while the tags occupy 6 bits per 16-byte block."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.tag-directory",
+          "clues": "The stem asks how many bits are needed to store all the tag values, so the answer is a count of tag bits over the whole cache, not a single tag width.",
+          "contrast": "The address-split topic ends at the width of one tag. Here that width is only the first factor; it must be multiplied by the number of lines."
+        },
+        "check": {
+          "body": "A second route to the tag width: in a direct mapped cache the tag is the address width minus the log of the cache size in bytes, 20 - 14 = 6 bits, which matches the field split. Then the total is 6 x 1024 = 6144 bits, which equals $6\\times2^{10}$, and the three fields add back up: 6 + 10 + 4 = 20 address bits."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1, paper Q.36",
+          "url": "https://gateoverflow.in/460054/gate-cse-2025-set-1-question-26"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-1 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question wants the total storage for tags. How many tags are there, and how wide is each one?"
+        },
+        {
+          "kind": "concept",
+          "text": "Every cache line stores one tag, made of the high address bits that the index and offset do not cover."
+        },
+        {
+          "kind": "principle",
+          "text": "Tag width is the address width minus the index bits minus the offset bits. In a direct mapped cache the index selects among all lines."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the offset bits from the block size, the number of lines from cache size over block size, then the index bits and the tag width. The total is the number of lines times the tag width."
+        },
+        {
+          "kind": "partial",
+          "text": "Counting lines first: the cache size divided by the block size gives the number of lines, which is also the number of tags to store."
+        }
+      ],
+      "variation": {
+        "stem": "A system has 4 M bytes of byte addressable main memory and a 32 K byte direct mapped cache with 32-byte blocks. How many bits are needed to store all the tag values of the cache? (1 K = $2^{10}$, 1 M = $2^{20}$)",
+        "options": [
+          "$12 \\times 2^{10}$",
+          "$2^{15}$",
+          "$22 \\times 2^{10}$",
+          "$7 \\times 2^{10}$"
+        ],
+        "answer": 3,
+        "explanation": "The memory needs 22 address bits. The cache has $2^{15}/2^5=2^{10}$ lines, so the index is 10 bits and the offset 5, leaving a tag of 7 bits. The total is $7\\times2^{10}$ bits; $12\\times2^{10}$ forgets the offset, $22\\times2^{10}$ stores the whole address in every line, and $2^{15}$ is the cache size in bytes."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q53",
+      "type": "nat",
+      "marks": 2,
+      "key": "11.83:11.87",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "difficulty": "medium",
+      "stem": "A computer has a memory hierarchy consisting of two-level cache (L1 and L2) and a main memory. If the processor needs to access data from memory, it first looks into L1 cache. If the data is not found in L1 cache, it goes to L2 cache. If it fails to get the data from L2 cache, it goes to main memory, where the data is definitely available. Hit rates and access times of various memory units are shown in the figure. The average memory access time in nanoseconds (ns) is ________. (rounded off to two decimal places)",
+      "figure": "A chain Processor to L1 cache to L2 cache to Main memory. L1 cache: hit rate 95%, access time 10 ns. L2 cache: hit rate 85%, access time (including L1 cache miss penalty) 20 ns. Main memory: access time (including L1 and L2 cache miss penalty) 200 ns.",
+      "diagram": {
+        "alt": "Processor connected to L1 cache (95% hit, 10 ns), L2 cache (85% hit, 20 ns including L1 miss penalty) and main memory (200 ns including both miss penalties)."
+      },
+      "answer": 11.85,
+      "solution": {
+        "steps": [
+          {
+            "title": "Read the figure: total times, not extras",
+            "body": "The 20 ns of L2 already includes the time wasted in L1, and the 200 ns of main memory already includes both misses. So each number is the complete time of an access that ends at that level, and we must not add penalties again. Average memory access time is the sum over outcomes of probability times total time.",
+            "tex": "\\text{AMAT}=\\sum_{\\text{outcome}} P(\\text{outcome})\\times T(\\text{outcome})"
+          },
+          {
+            "title": "The three outcomes",
+            "body": "Found in L1: probability $0.95$, time 10 ns. Missed in L1, found in L2: $0.05\\times0.85=0.0425$, time 20 ns. Missed in both, main memory: $0.05\\times0.15=0.0075$, time 200 ns. The probabilities sum to 1.",
+            "tex": "0.95+0.0425+0.0075=1"
+          },
+          {
+            "title": "Add up",
+            "body": "$0.95\\times10=9.5$; $0.0425\\times20=0.85$; $0.0075\\times200=1.5$. Total $11.85$ ns.",
+            "tex": "9.5+0.85+1.5=11.85\\ \\text{ns}"
+          }
+        ],
+        "shortcut": {
+          "body": "Compute $0.95\\times10+0.05\\,(0.85\\times20+0.15\\times200)=9.5+0.05\\times47=11.85$. The inner bracket is 17 + 30 = 47. Note the wording \"including miss penalty\": it tells you to skip adding penalties."
+        },
+        "traps": [
+          {
+            "text": "Adding the times as penalties: $10+0.05(20+0.15\\times200)=12.5$. That double counts L1 time, which the 20 ns and 200 ns already include."
+          },
+          {
+            "text": "Weighting L2 by its own hit rate only, $0.95\\times10+0.85\\times20+0.15\\times200=56.5$, without multiplying by the L1 miss rate of $0.05$."
+          },
+          {
+            "text": "Adding the L2 time on top of the main-memory time: $0.95\\times10+0.05\\,(0.85\\times20+0.15\\times(20+200))=12.00$. The 200 ns already includes the L1 and L2 miss time."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.multilevel-cache",
+          "clues": "The figure says the L2 and main memory times include the miss penalty of the earlier levels, so each given time is a complete time for one outcome.",
+          "contrast": "If the figure gave only the extra penalty per level, the nested hit time plus miss rate times penalty form would apply instead. The phrase \"including miss penalty\" separates the two forms."
+        },
+        "check": {
+          "body": "Convert to the penalty form. An L2 hit costs the 10 ns of L1 plus 10 ns more, and main memory costs the 20 ns of L2 plus 180 ns more. Then $10+0.05\\,(10+0.15\\times180)=10+0.05\\times37=11.85$ ns, agreeing with the outcome sum."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1, paper Q.53",
+          "url": "https://gateoverflow.in/460037/gate-cse-2025-set-1-question-43"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-1 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Read the labels on the figure closely. Does each access time cover only that level, or the whole journey that ended there?"
+        },
+        {
+          "kind": "concept",
+          "text": "Average access time is a weighted sum of the total times of the possible outcomes, each weighted by its probability."
+        },
+        {
+          "kind": "principle",
+          "text": "When a stated time already includes the miss penalties of earlier levels, use it as the full time of that outcome and do not add the earlier levels again."
+        },
+        {
+          "kind": "setup",
+          "text": "List the three outcomes: hit in L1, miss in L1 and hit in L2, miss in both. Find each probability from the miss rates of the earlier levels and the hit rate of this one, and check that the three add to 1."
+        },
+        {
+          "kind": "partial",
+          "text": "The chance that an access has to go to main memory is the L1 miss rate times the L2 miss rate."
+        }
+      ],
+      "variation": {
+        "stem": "A processor has an L1 cache with hit rate 90% and access time 5 ns, an L2 cache with hit rate 80% and access time 15 ns (including the L1 miss penalty), and a main memory with access time 150 ns (including the L1 and L2 miss penalties). What is the average memory access time in ns? (one decimal place)",
+        "answer": 8.7,
+        "explanation": "The outcomes are L1 hit with probability 0.9 at 5 ns, L2 hit with 0.1 x 0.8 = 0.08 at 15 ns, and main memory with 0.1 x 0.2 = 0.02 at 150 ns. The sum is $4.5+1.2+3.0=8.7$ ns."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q53",
+      "type": "msq",
+      "marks": 2,
+      "key": "B;C",
+      "topic": "coa-memory-hierarchy.write-policies",
+      "difficulty": "medium",
+      "stem": "Consider two set-associative cache memory architectures: WBC, which uses the write back policy, and WTC, which uses the write through policy. Both of them use the LRU (Least Recently Used) block replacement policy. The cache memory is connected to the main memory. Which of the following statements is/are TRUE?",
+      "options": [
+        "A read miss in WBC never evicts a dirty block",
+        "A read miss in WTC never triggers a write back operation of a cache block to main memory",
+        "A write hit in WBC can modify the value of the dirty bit of a cache block",
+        "A write miss in WTC always writes the victim cache block to main memory before loading the missed block to the cache"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The two write policies",
+            "body": "On a write, the cache can update memory in one of two ways. Write through: every write goes to the cache and straight to main memory, so memory is always up to date and no line is ever \"newer\" than memory. Write back: a write changes only the cache line and sets its dirty bit to 1; memory is updated later, when a dirty line is evicted. A dirty line is therefore the only copy of the newest data."
+          },
+          {
+            "title": "A: read miss in WBC never evicts a dirty block",
+            "body": "A read miss brings a new block in and may choose any block (by LRU) as the victim. That victim can be dirty, and then it must be written back. False."
+          },
+          {
+            "title": "B: read miss in WTC never triggers a write back",
+            "body": "Write through keeps memory up to date, so no line is dirty and a victim can simply be dropped. A read miss never needs to write a block back. True."
+          },
+          {
+            "title": "C: write hit in WBC can modify the dirty bit",
+            "body": "A write hit in write back changes the line and sets the dirty bit (0 to 1 if the line was clean). True."
+          },
+          {
+            "title": "D: write miss in WTC always writes the victim",
+            "body": "The victim in write through is clean (memory already has its data), so it is not written to memory at all, whatever the allocation policy. False. The answer is B and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Only write back has dirty blocks and write-back traffic on eviction. Statements saying a WT cache writes an evicted block (D) are false; statements that WT read misses write back (B) are true by \"nothing is dirty\". For WB, \"never\" in A is false because LRU can pick a dirty victim; C is the whole point of the dirty bit. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing replacement avoids dirty blocks. LRU looks at recency only, so it can pick a dirty block, which then costs a write back."
+          },
+          {
+            "option": 3,
+            "text": "Mixing up write through with write back: only a write back cache writes a victim to memory (when dirty). A write through victim is always clean."
+          },
+          {
+            "text": "Missing C: students think the dirty bit is changed only by a miss. A write hit is exactly where a clean line becomes dirty."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.write-policies",
+          "clues": "Two caches are named by their write policy, WBC and WTC, and each statement is about dirty bits or write back traffic on a read miss, write miss or write hit.",
+          "contrast": "The replacement topic decides which block is the victim; the write policy decides whether that victim has to be written to memory. LRU does not look at dirtiness."
+        },
+        "check": {
+          "body": "Trace one line in each cache. Write back: a write hit to a clean line sets its dirty bit while memory keeps the old value, so a later eviction has to write it. Write through: the same write also updates memory, so the line stays clean and an eviction writes nothing."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, paper Q.53",
+          "url": "https://gateoverflow.in/422799/gate-cse-2024-set-1-question-43"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each statement, ask what the evicted or written line looks like under that policy. Is main memory already up to date?"
+        },
+        {
+          "kind": "concept",
+          "text": "Write through sends every write to memory at once. Write back keeps the new data only in the cache and marks the line dirty."
+        },
+        {
+          "kind": "principle",
+          "text": "A block must go back to memory only if its newest data exists nowhere else. Decide for each policy whether such a block can exist, and which events set the dirty bit."
+        },
+        {
+          "kind": "setup",
+          "text": "Test each statement with a concrete case for the event it names (read miss, write miss or write hit): can the victim or the written line be dirty in that policy, and could LRU choose it?"
+        }
+      ],
+      "variation": {
+        "stem": "Two set-associative caches use LRU replacement and are connected to main memory. WBC uses write back and WTC uses write through. Which of the following statements is/are TRUE?",
+        "options": [
+          "Every write hit in WTC also updates main memory",
+          "Evicting a clean block in WBC requires writing it to main memory",
+          "A read hit in WBC can change the dirty bit of a block",
+          "Evicting a dirty block in WBC requires writing it to main memory"
+        ],
+        "answer": [
+          0,
+          3
+        ],
+        "explanation": "Write through updates memory on every write, so statement 1 holds. Write back writes a block out only when it is dirty, so statement 4 holds and statement 2 does not. A read hit changes no data, so it cannot set the dirty bit, which rules out statement 3."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q56",
+      "type": "nat",
+      "marks": 2,
+      "key": "3.00",
+      "topic": "coa-memory-hierarchy.cache-performance",
+      "difficulty": "medium",
+      "stem": "A given program has 25% load/store instructions. Suppose the ideal CPI (cycles per instruction) without any memory stalls is 2. The program exhibits 2% miss rate on instruction cache and 8% miss rate on data cache. The miss penalty is 100 cycles. The speedup (rounded off to two decimal places) achieved with a perfect cache (i.e., with NO data or instruction cache misses) is _________",
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "CPI with memory stalls",
+            "body": "CPI (cycles per instruction) is the average cycles an instruction takes. With a perfect cache it is the ideal CPI. With real caches, each miss adds a penalty. So the real CPI is the ideal CPI plus the average stall cycles per instruction. Speedup from a perfect cache is real CPI over ideal CPI, since the instruction count and clock are unchanged.",
+            "tex": "\\text{CPI}=\\text{CPI}_{\\text{ideal}}+\\text{stall cycles per instruction}"
+          },
+          {
+            "title": "Stall cycles per instruction",
+            "body": "Every instruction is fetched, so the instruction cache is accessed once per instruction: $1\\times0.02\\times100=2$ cycles. Only loads and stores (25%) touch the data cache: $0.25\\times0.08\\times100=2$ cycles.",
+            "tex": "1\\times 0.02\\times 100+0.25\\times 0.08\\times 100=2+2=4"
+          },
+          {
+            "title": "Speedup",
+            "body": "Real CPI $=2+4=6$. Perfect-cache CPI $=2$. Speedup $=6/2=3.00$.",
+            "tex": "\\text{speedup}=\\frac{6}{2}=3.00"
+          }
+        ],
+        "shortcut": {
+          "body": "Stalls = $100\\,(0.02+0.25\\times0.08)=100\\times0.04=4$. CPI = 6, speedup = 6/2 = 3.00."
+        },
+        "traps": [
+          {
+            "text": "Applying the 8% data miss rate to every instruction gives 8 data stall cycles on top of the 2 instruction stalls, so CPI = 2+2+8 = 12 and speedup 6.00. Only the 25% loads and stores access data."
+          },
+          {
+            "text": "Forgetting the instruction fetch of every instruction and counting only data stalls: CPI 4, speedup 2.00."
+          },
+          {
+            "text": "Reporting the stall cycles (4) or the real CPI (6) instead of the ratio of CPIs."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.cache-performance",
+          "clues": "The question gives an ideal CPI, separate miss rates for the instruction and data caches, a share of load/store instructions and a miss penalty, and asks for a speedup against a perfect cache.",
+          "contrast": "Average memory access time averages one access. Here the cost is spread per instruction, and only 25% of instructions make a data access while all of them make an instruction fetch."
+        },
+        "check": {
+          "body": "Count in events over 100 instructions. There are 100 fetches with 2 misses and 25 data accesses with 2 misses, so 4 misses cost 400 cycles. The ideal time is 200 cycles, so the real time is 600 cycles and the ratio of the two totals matches the per-instruction route."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, paper Q.56",
+          "url": "https://gateoverflow.in/422796/gate-cse-2024-set-1-question-46"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Think about what one instruction costs on top of its ideal cycles, and which instructions can stall at all."
+        },
+        {
+          "kind": "concept",
+          "text": "With a real cache, cycles per instruction is the ideal value plus the average stall cycles per instruction. Stalls come only from misses."
+        },
+        {
+          "kind": "principle",
+          "text": "A perfect cache changes neither the instruction count nor the clock, so the speedup is a ratio of the two cycles-per-instruction figures."
+        },
+        {
+          "kind": "setup",
+          "text": "Count the cache accesses per instruction separately for the instruction side and the data side, multiply each by its miss rate and the penalty, and add the total to the ideal value."
+        },
+        {
+          "kind": "partial",
+          "text": "Every instruction is fetched once, so the instruction side costs $1\\times0.02\\times100$ stall cycles per instruction. Work out the data side from the 25% share."
+        }
+      ],
+      "variation": {
+        "stem": "A program has 30% load/store instructions. With no memory stalls its CPI is 1.5. The instruction cache has a 3% miss rate, the data cache a 10% miss rate, and the miss penalty is 80 cycles. The speedup (rounded off to two decimal places) obtained with a perfect cache is _________",
+        "answer": 4.2,
+        "explanation": "Every instruction is fetched, so the instruction side adds $0.03\\times80=2.4$ stall cycles. Only 30% touch the data cache, adding $0.3\\times0.10\\times80=2.4$. Real CPI is $1.5+4.8=6.3$, and the speedup is $6.3/1.5=4.20$."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q42",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "difficulty": "medium",
+      "stem": "A 4 kilobyte (KB) byte-addressable memory is realized using four 1 KB memory blocks. Two input address lines (IA4 and IA3) are connected to the chip select (CS) port of these memory blocks through a decoder as shown in the figure. The remaining ten input address lines from IA11–IA0 are connected to the address port of these blocks. The chip select (CS) is active high.\n\nThe input memory addresses (IA11–IA0), in decimal, for the starting locations (Addr=0) of each block (indicated as X1, X2, X3, X4 in the figure) are among the options given below. Which one of the following options is CORRECT?",
+      "figure": "Address lines IA11 (MSB) down to IA0 (LSB), ten of them (all except IA4 and IA3) go on a 10-bit bus to the Addr port of four 1 KB memory blocks X1, X2, X3, X4. IA4 and IA3 go to inputs A1 and A0 of a decoder. Decoder outputs Q0, Q1, Q2, Q3 drive the CS ports of X1, X2, X3, X4 respectively. CS is active high.",
+      "diagram": {
+        "alt": "Four 1 KB memory blocks X1 to X4 sharing a 10-bit address bus; a decoder on IA4 and IA3 drives outputs Q0 to Q3 to their chip select inputs."
+      },
+      "options": [
+        "(0, 1, 2, 3)",
+        "(0, 1024, 2048, 3072)",
+        "(0, 8, 16, 24)",
+        "(0, 0, 0, 0)"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "How chip select and decoding work",
+            "body": "A memory block answers only when its chip select (CS) is 1. A decoder with inputs A1 A0 raises exactly one output: Q0 for 00, Q1 for 01, Q2 for 10, Q3 for 11. So the decoder bits (here IA4 IA3) choose the block, while the other address bits are shared and choose the byte inside it. The address of a byte is simply the 12 bits IA11..IA0 read as one number."
+          },
+          {
+            "title": "Which input selects which block",
+            "body": "A1 = IA4 and A0 = IA3. Q0 (block X1) is on when IA4 IA3 = 00, Q1 (X2) when 01, Q2 (X3) when 10, Q3 (X4) when 11."
+          },
+          {
+            "title": "Starting location of each block",
+            "body": "The block starts at Addr=0, which means all of IA11..IA5 and IA2..IA0 are 0 and only IA4 IA3 are set by the block. Bit IA3 has weight $2^3=8$ and IA4 has weight $2^4=16$. X1: 00 gives $0$. X2: 01 gives $8$. X3: 10 gives $16$. X4: 11 gives $24$.",
+            "tex": "(0,\\ 8,\\ 16,\\ 24)"
+          },
+          {
+            "title": "Match",
+            "body": "The tuple is (0, 8, 16, 24), option C. (The blocks are interleaved: consecutive bytes in a block are 1 apart in low bits but the 8-byte groups rotate between blocks, so the 4 KB space is not contiguous per block.)"
+          }
+        ],
+        "shortcut": {
+          "body": "Starting address = value of the two decoder bits placed at their own weights (IA3 = 8, IA4 = 16). Blocks X1..X4 have decoder values 0..3, so 0, 8, 16, 24. Options B would need the decoder on IA11 and IA10."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Reading the decoder value as the address, 0 to 3. The decoder bits sit at positions IA3 and IA4, not IA1 and IA0, so each unit is worth 8."
+          },
+          {
+            "option": 1,
+            "text": "Assuming block $k$ starts at $k\\times$ 1 KB, as if the select lines were the top bits IA11 and IA10. Here the select lines are low-order bits."
+          },
+          {
+            "option": 3,
+            "text": "Taking \"Addr=0\" literally as the whole 12-bit input being 0 for every block. The decoder bits are part of IA11..IA0, so they differ between blocks."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.memory-interfacing",
+          "clues": "Four equal chips with chip selects driven by a decoder, the decoder inputs taken from two address lines, and a question about the starting address of each chip.",
+          "contrast": "If the decoder sat on the top two address lines, each chip would own a contiguous 1 KB region. Check which bit positions drive the decoder before assuming that layout."
+        },
+        "check": {
+          "body": "Decode the result back. Address 16 has only IA4 set, so the decoder input is 10, output Q2 is active and the other ten lines are all 0, which is location 0 of X3. The same decode of 8 gives location 0 of X2, of 24 gives X4, and of 0 gives X1."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, paper Q.42",
+          "url": "https://gateoverflow.in/399279/gate-cse-2023-question-32"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which address lines choose the block, and which lines are shared by every block? At the starting location of a block, every shared line is 0."
+        },
+        {
+          "kind": "concept",
+          "text": "A decoder turns its input bits into one active output, and that output enables exactly one chip through its chip select."
+        },
+        {
+          "kind": "principle",
+          "text": "The memory address is the twelve lines read as one binary number, so a line in bit position $k$ adds $2^k$ when it is 1, wherever it is wired."
+        },
+        {
+          "kind": "setup",
+          "text": "For each decoder output find the input pair that activates it. Write that pair as the values of IA4 and IA3 with every other line at 0, then convert the twelve-bit pattern to decimal."
+        },
+        {
+          "kind": "partial",
+          "text": "The first block, on decoder output Q0, is active when both decoder lines are 0, so it starts at address 0. The other blocks differ only in which of IA4 and IA3 are 1."
+        }
+      ],
+      "variation": {
+        "stem": "An 8 KB byte-addressable memory is built from four 2 KB blocks X1 to X4. The address lines are IA12 (MSB) to IA0. Lines IA6 and IA5 feed inputs A1 and A0 of a decoder whose outputs Q0 to Q3 drive the active-high chip selects of X1 to X4. The other eleven lines go to the address port of every block. The input addresses, in decimal, of the starting locations (Addr=0) of X1, X2, X3, X4 are",
+        "options": [
+          "(0, 32, 64, 96)",
+          "(0, 2048, 4096, 6144)",
+          "(0, 64, 32, 96)",
+          "(0, 1, 2, 3)"
+        ],
+        "answer": 0,
+        "explanation": "The decoder value is $2\\,\\mathrm{IA6}+\\mathrm{IA5}$, and IA5 has weight $2^5=32$ while IA6 has weight $2^6=64$. For X1 to X4 the decoder values are 00, 01, 10, 11, giving 0, 32, 64, 96. Swapping the two input roles gives the second option, and placing the decoder on the top lines gives the 2048 steps."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q64",
+      "type": "nat",
+      "marks": 2,
+      "key": "19",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "difficulty": "medium",
+      "stem": "An 8-way set associative cache of size 64 KB (1 KB = 1024 bytes) is used in a system with 32-bit address. The address is sub-divided into TAG, INDEX, and BLOCK OFFSET.\n\nThe number of bits in the TAG is ____________.",
+      "answer": 19,
+      "solution": {
+        "steps": [
+          {
+            "title": "What the three fields mean",
+            "body": "A cache holds blocks. In a set associative cache, the block is placed in one set chosen by the INDEX, and may sit in any of the $K$ lines of that set. BLOCK OFFSET picks the byte inside the block. TAG is stored so the cache can tell which block is in a line. The three fields add up to the address width.",
+            "tex": "\\text{tag}=32-\\text{index}-\\text{offset}"
+          },
+          {
+            "title": "The block size is missing, and it does not matter",
+            "body": "One set holds $K$ blocks, so (cache size) = (sets) x (ways) x (block size). Hence sets x block size $=64\\text{ KB}/8=2^{16}/2^3=2^{13}$ bytes. Index bits plus offset bits equal $\\log_2(\\text{sets}\\times\\text{block size})=13$, whatever the split.",
+            "tex": "\\text{index}+\\text{offset}=\\log_2\\frac{2^{16}}{8}=13"
+          },
+          {
+            "title": "Tag",
+            "body": "$\\text{tag}=32-13=19$ bits.",
+            "tex": "32-13=19"
+          }
+        ],
+        "shortcut": {
+          "body": "Tag $=32-\\log_2(\\text{cache size}/\\text{ways})=32-\\log_2(2^{16}/2^3)=32-13=19$. No block size needed. Fifteen seconds."
+        },
+        "traps": [
+          {
+            "text": "Subtracting the whole cache size, $32-16=16$. That is the tag of a direct mapped cache; with 8 ways the sets are 8 times fewer, so index loses 3 bits and the tag gains 3."
+          },
+          {
+            "text": "Subtracting 16 plus 3, getting 13, which is the index plus offset, not the tag."
+          },
+          {
+            "text": "Searching for a block size to proceed and guessing, say, 64 B, which changes nothing here but wastes time."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.set-associative",
+          "clues": "The cache size, the number of ways and the address width are given, the block size is not, and only the tag width is asked.",
+          "contrast": "In a direct mapped cache the whole cache is one way. Each doubling of the ways moves one bit from the index to the tag, which is why the way count matters here."
+        },
+        "check": {
+          "body": "Start from the direct mapped case with the same size: 64 KB gives 16 bits for index plus offset and a 16-bit tag. Each doubling of ways moves one bit into the tag, and 8 ways is three doublings, so the tag grows by 3 bits."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, paper Q.64",
+          "url": "https://gateoverflow.in/399257/gate-cse-2023-question-54"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What must the tag, index and offset add up to, and what do index and offset together say about the size of the cache?"
+        },
+        {
+          "kind": "concept",
+          "text": "A $K$-way set associative cache keeps $K$ blocks per set, so cache size equals the number of sets times $K$ times the block size."
+        },
+        {
+          "kind": "principle",
+          "text": "Index and offset bits together pick one byte inside a single way, so their count is the base-2 logarithm of the cache size divided by the ways, whatever the block size is."
+        },
+        {
+          "kind": "setup",
+          "text": "Divide the cache size by the number of ways, take the base-2 logarithm using powers of two, and subtract that from the address width."
+        },
+        {
+          "kind": "partial",
+          "text": "One way of this cache holds $64\\text{ KB}/8$ bytes, which is a power of two. Find its exponent."
+        }
+      ],
+      "variation": {
+        "stem": "A 4-way set associative cache of size 128 KB (1 KB = 1024 bytes) is used in a system with a 40-bit address. The address is divided into TAG, INDEX and BLOCK OFFSET. The number of bits in the TAG is ____________.",
+        "answer": 25,
+        "explanation": "Index plus offset bits equal $\\log_2(128\\text{ KB}/4)=\\log_2 2^{15}=15$, whatever the block size is. The tag is the rest of the address: $40-15=25$ bits."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q24",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;B;D",
+      "topic": "coa-memory-hierarchy.write-policies",
+      "difficulty": "medium",
+      "stem": "Let WB and WT be two set associative cache organizations that use LRU algorithm for cache block replacement. WB is a write back cache and WT is a write through cache. Which of the following statements is/are FALSE?",
+      "options": [
+        "Each cache block in WB and WT has a dirty bit.",
+        "Every write hit in WB leads to a data transfer from cache to main memory.",
+        "Eviction of a block from WT will not lead to data transfer from cache to main memory.",
+        "A read miss in WB will never lead to eviction of a dirty block from WB."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The two write policies",
+            "body": "Write through: every write updates the cache and main memory at once, so memory always has the newest data and a cache line is never newer than memory. Write back: a write updates only the cache and sets the line dirty bit; main memory is written only when a dirty line is evicted. The dirty bit exists to remember that."
+          },
+          {
+            "title": "A",
+            "body": "Write through needs no dirty bit, since no line is ever ahead of memory. So not every block in WT has one. The statement is false."
+          },
+          {
+            "title": "B",
+            "body": "A write hit in write back changes only the cache and sets the dirty bit; there is no transfer to memory. False."
+          },
+          {
+            "title": "C",
+            "body": "A line in a write through cache is always identical to memory, so evicting it needs no write. The statement is true, hence not part of the answer."
+          },
+          {
+            "title": "D",
+            "body": "LRU can choose a dirty line as the victim on a read miss, and then the line is written back. So the claim \"never\" is false. The FALSE statements are A, B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "The question asks for FALSE statements. Three flags: \"dirty bit in WT\" (no, WT has none), \"every write hit in WB goes to memory\" (no, that is write through), and \"never evicts dirty\" (no, \"never\" fails for write back). Only C is true, so the answer is A, B and D. One minute."
+        },
+        "traps": [
+          {
+            "text": "Answering with the true statement. The stem asks which are FALSE, so C is excluded and the other three are selected."
+          },
+          {
+            "text": "Treating write back as \"write to memory on every hit\". That is write through; write back defers the transfer to eviction."
+          },
+          {
+            "text": "Dropping D because LRU sounds like it prefers clean blocks. LRU ignores the dirty bit entirely."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.write-policies",
+          "clues": "Statements compare a write back and a write through cache and mention the dirty bit, a write hit, eviction and a read miss, so each claim is tested against how the two policies treat writes.",
+          "contrast": "Write allocate against no-write allocate decides what happens on a write miss. It is a separate choice from write through against write back and is not what is tested here."
+        },
+        "check": {
+          "body": "Trace one line in each cache: write to a cached line twice, then evict it. Write through sends two updates to memory and the eviction copies nothing. Write back sends nothing until the eviction and then one copy. Compare each statement with this trace."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, paper Q.24",
+          "url": "https://gateoverflow.in/371922/gate-cse-2022-question-14"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "GATE 2022 CS question paper, IIT Kharagpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks for the false statements. For each one, ask which cache it is about and what that cache must do on a write."
+        },
+        {
+          "kind": "concept",
+          "text": "Write through updates main memory on every write. Write back updates only the cache and postpones the memory update."
+        },
+        {
+          "kind": "principle",
+          "text": "A dirty bit marks a line that is newer than memory. Only a cache that can hold such lines needs the bit, and only such lines must be copied out on eviction."
+        },
+        {
+          "kind": "setup",
+          "text": "Judge the four statements one at a time. A word like \"every\" or \"never\" fails on a single counterexample, so look for one. Then list the false ones."
+        }
+      ],
+      "variation": {
+        "stem": "A write back cache WB and a write through cache WT, both set associative with LRU replacement, are compared. Which of the following statements is/are TRUE?",
+        "options": [
+          "Every write hit in WT sends the written data to the next memory level.",
+          "A WB cache needs a dirty bit for each block.",
+          "Evicting a block from WB never causes a transfer to main memory.",
+          "A read hit in WT causes a write to main memory."
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Write through forwards every write, so the first statement holds. Write back must remember which lines are newer than memory, which takes a dirty bit per block, so the second holds. A dirty block in WB is copied out on eviction, so the third is false. A read changes nothing, so a read hit in WT writes nothing, and the fourth is false."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q33",
+      "type": "nat",
+      "marks": 1,
+      "key": "0.85",
+      "topic": "coa-memory-hierarchy.emat",
+      "difficulty": "medium",
+      "stem": "A cache memory that has a hit rate of 0.8 has an access latency 10 ns and miss penalty 100 ns. An optimization is done on the cache to reduce the miss rate. However, the optimization results in an increase of cache access latency to 15 ns, whereas the miss penalty is not affected. The minimum hit rate (rounded off to two decimal places) needed after the optimization such that it should not increase the average memory access time is _____________.",
+      "answer": 0.85,
+      "solution": {
+        "steps": [
+          {
+            "title": "Average memory access time",
+            "body": "Average memory access time (AMAT) is the expected time of one access. Every access looks in the cache first and pays the access latency; the misses pay an extra miss penalty to go to memory. With hit rate $h$, the miss rate is $1-h$.",
+            "tex": "\\text{AMAT}=t_{\\text{hit}}+(1-h)\\times \\text{penalty}"
+          },
+          {
+            "title": "Before the change",
+            "body": "$\\text{AMAT}=10+0.2\\times100=30$ ns.",
+            "tex": "10+(1-0.8)\\times 100=30\\ \\text{ns}"
+          },
+          {
+            "title": "After the change: not worse than 30 ns",
+            "body": "We need $15+(1-h)\\times100\\le30$, so $(1-h)\\le0.15$ and $h\\ge0.85$. The minimum hit rate is 0.85.",
+            "tex": "15+(1-h)\\,100\\le 30\\ \\Rightarrow\\ h\\ge 0.85"
+          }
+        ],
+        "shortcut": {
+          "body": "The latency rose by 5 ns, which must be paid back by 5 ns fewer miss cost: $5/100=0.05$ less miss rate. Miss rate $0.2\\to0.15$, hit rate $0.85$."
+        },
+        "traps": [
+          {
+            "text": "Keeping the old hit time of 10 ns in the new equation: $10+(1-h)\\,100\\le30$ gives $h\\ge0.80$, which is just the original cache. The new hit time is 15 ns."
+          },
+          {
+            "text": "Answering 0.05, the allowed change in miss rate, instead of the new hit rate."
+          },
+          {
+            "text": "Reporting the miss rate $0.15$ instead of the hit rate $0.85$."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.emat",
+          "clues": "A hit rate, a cache access latency and a miss penalty are given, and the question asks for the hit rate at which the average memory access time stays the same after the latency changes.",
+          "contrast": "Some questions give the full time of a miss instead of the extra penalty. Here the 100 ns is added on top of the lookup, so every access pays the latency and only misses pay the penalty."
+        },
+        "check": {
+          "body": "Test values around the result. At a hit rate of 0.85 the new time is $15+0.15\\times100=30$ ns, equal to the old time. At 0.84 it is $15+0.16\\times100=31$ ns, which is slower, so any smaller hit rate fails and the boundary is the minimum."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, paper Q.33",
+          "url": "https://gateoverflow.in/371913/gate-cse-2022-question-23"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "GATE 2022 CS question paper, IIT Kharagpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does every access pay, hit or miss, and what is paid only on a miss?"
+        },
+        {
+          "kind": "concept",
+          "text": "Average memory access time is the cache latency plus the miss rate times the miss penalty."
+        },
+        {
+          "kind": "principle",
+          "text": "The optimised cache must not be slower on average than the old one, so its average time must be at most the old average time. The smallest allowed hit rate is where the two are equal."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the old average time from the hit rate 0.8, latency 10 and penalty 100. Then write the new time with latency 15 and an unknown hit rate, and require it to be at most the old time."
+        },
+        {
+          "kind": "partial",
+          "text": "The old average time is a fixed target. The only unknown on the new side is the miss rate $m$ in $15+m\\times100$."
+        }
+      ],
+      "variation": {
+        "stem": "A cache with a hit rate of 0.9 has an access latency of 6 ns and a miss penalty of 80 ns. A redesign raises the access latency to 10 ns and leaves the miss penalty unchanged. The minimum hit rate (rounded off to two decimal places) needed after the redesign so that the average memory access time does not increase is _____________.",
+        "answer": 0.95,
+        "explanation": "The old average is $6+0.1\\times80=14$ ns. The new design needs $10+(1-h)\\times80\\le14$, so $1-h\\le0.05$ and $h\\ge0.95$."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q54",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;D",
+      "topic": "coa-memory-hierarchy.miss-counting",
+      "difficulty": "hard",
+      "stem": "Consider a system with 2 KB direct mapped data cache with a block size of 64 bytes. The system has a physical address space of 64 KB and a word length of 16 bits. During the execution of a program, four data words P, Q, R, and S are accessed in that order 10 times (i.e., PQRSPQRS…). Hence, there are 40 accesses to data cache altogether. Assume that the data cache is initially empty and no other data words are accessed by the program. The addresses of the first bytes of P, Q, R, and S are 0xA248, 0xC28A, 0xCA8A, and 0xA262, respectively. For the execution of the above program, which of the following statements is/are TRUE with respect to the data cache?",
+      "options": [
+        "Every access to S is a hit.",
+        "Once P is brought to the cache it is never evicted.",
+        "At the end of the execution only R and S reside in the cache.",
+        "Every access to R evicts Q from the cache."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Cache lines 9 and 10 over the first two rounds of P, Q, R, S: P and S share block 649 on line 9, while Q and R keep evicting each other on line 10."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a direct mapped cache does",
+            "body": "Memory is cut into blocks of the block size. Block number = address divided by block size. A block may go into only one cache line: line = block number mod number of lines. An access hits only if that line currently holds the same block; otherwise it misses and the new block replaces whatever was there. So the questions are: which block does each word belong to, and which line does that block use?",
+            "tex": "\\text{block}=\\lfloor a/64\\rfloor,\\qquad \\text{line}=\\text{block}\\bmod 32"
+          },
+          {
+            "title": "Cache geometry",
+            "body": "Lines $=2\\text{ KB}/64\\text{ B}=2^{11}/2^6=32$. The word length (16 bits) does not change the byte addresses given."
+          },
+          {
+            "title": "Block and line of P, Q, R, S",
+            "body": "P = 0xA248 = 41544, block $\\lfloor41544/64\\rfloor=649$, line $649\\bmod32=9$. S = 0xA262 = 41570, block 649 as well (same block as P), line 9. Q = 0xC28A = 49802, block 778, line 10. R = 0xCA8A = 51850, block 810, line 10.",
+            "tex": "P,S\\to 649\\to 9;\\quad Q\\to778\\to10;\\quad R\\to810\\to10"
+          },
+          {
+            "title": "Run the accesses",
+            "body": "Round 1: P miss (loads block 649 in line 9). Q miss (line 10 holds Q). R miss (replaces Q). S hit (block 649 is there). Round 2: P hit, Q miss (replaces R), R miss (replaces Q), S hit. Rounds repeat: P and S always hit after the first; Q and R miss every time, evicting each other."
+          },
+          {
+            "title": "Judge the statements",
+            "body": "A: S hits every time (even the first, because P loaded its block). True. B: block 649 on line 9 is never touched by Q or R, so P is never evicted. True. C: at the end the cache holds the block with P and S plus R. P is also present, so \"only R and S\" is false. D: each R access finds Q on line 10 and replaces it. True. The answer is A, B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Compare blocks: P and S differ only by 0x1A in the low byte, below 64 apart inside the same 64-byte block, so S rides on P. Q and R differ by 0x800 = 2048 = the cache size, so they collide on the same line. Then A, B, D follow at once. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Thinking the last two accesses (R, S) are the only things in the cache. The cache also still holds P, because P and S share a block and Q and R never use line 9."
+          },
+          {
+            "text": "Treating S as a separate block from P because the addresses differ, which would make S miss the first time."
+          },
+          {
+            "text": "Assuming Q and R do not interfere. Their addresses differ by exactly the cache size 2 KB, so they map to the same line, which is the point of the question."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.miss-counting",
+          "clues": "Four named words are accessed in a repeating cycle from an empty direct mapped cache, with given byte addresses, and the statements ask about hits, evictions and the final contents.",
+          "contrast": "A plain address-split question stops at the field widths. Here the widths are only a start, and the work is tracking what each line holds from one access to the next."
+        },
+        "check": {
+          "body": "Count the total misses instead of judging word by word. P misses once, Q and R miss in all 10 rounds, S never misses, so there are 21 misses and 19 hits in the 40 accesses. A replay of the first three rounds gives the same pattern."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, paper Q.54",
+          "url": "https://gateoverflow.in/371892/gate-cse-2022-question-44"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "GATE 2022 CS question paper, IIT Kharagpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which cache line does each word land in, and which words share a block?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a direct mapped cache a block goes to the line given by its block number modulo the number of lines, and an access hits only if that line already holds the same block."
+        },
+        {
+          "kind": "principle",
+          "text": "Words in one block share a single load. Words in different blocks on the same line evict each other whenever they are used in turn."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the number of lines from the cache size and block size, then the block number and line of each address. Group the words by line and by block, and replay the repeating sequence."
+        },
+        {
+          "kind": "partial",
+          "text": "The cache has 32 lines, so the line is the block number modulo 32. Two of the four addresses differ by exactly the cache size in bytes. Look at that pair."
+        }
+      ],
+      "variation": {
+        "stem": "A 1 KB direct mapped data cache has a block size of 32 bytes. The physical address space is 64 KB. Four data words A, B, C and D are accessed in that order 10 times (ABCDABCD...), starting from an empty cache and with no other accesses. The addresses of the first bytes of A, B, C and D are 0x1344, 0x2A8A, 0x2E8A and 0x135A. Which of the following statements is/are TRUE?",
+        "options": [
+          "Every access to D is a hit.",
+          "Once A is brought into the cache it is evicted at some later point.",
+          "Every access to C evicts B from the cache.",
+          "Every access to B is a hit."
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "There are 32 lines. A and D are in the same block (line 26), so D always hits. B and C are in different blocks that share line 20 and evict each other, so every B access misses and every C access evicts B. A is never touched by the others, so it stays."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q19",
+      "type": "nat",
+      "marks": 1,
+      "key": "2",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "difficulty": "medium",
+      "stem": "Consider a set-associative cache of size 2KB (1KB = $2^{10}$ bytes) with cache block size of 64 bytes. Assume that the cache is byte-addressable and a 32-bit address is used for accessing the cache. If the width of the tag field is 22 bits, the associativity of the cache is ____________.",
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "The 32-bit address split into a 22-bit tag, a 4-bit set index and a 6-bit offset; 16 sets for 32 lines make the cache 2-way."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The three fields and what associativity means",
+            "body": "A cache keeps copies of memory in blocks (also called lines) of fixed size, here 64 bytes. The cache cuts every address into three fields, from the right. The offset says which byte inside the block. The index says which set of lines to look in. The tag is the remaining high bits; it is stored with each line so the cache can tell which block currently sits there. Lines are grouped into sets, and the associativity $k$ is the number of lines in one set ($k$-way). The rule that decides this question: address bits $=$ tag $+$ index $+$ offset, with offset $=\\log_2(\\text{block size})$ and index $=\\log_2(\\text{number of sets})$, where sets $=$ lines $/\\,k$.",
+            "tex": "\\text{address}=\\text{tag}+\\log_2(\\text{sets})+\\log_2(\\text{block}),\\qquad k=\\frac{\\text{lines}}{\\text{sets}}"
+          },
+          {
+            "title": "Offset and number of lines",
+            "body": "A 64-byte block is $2^6$ bytes, so the offset is 6 bits. The cache holds 2 KB $=2^{11}$ bytes, so it has $2^{11}/2^{6}=2^5=32$ lines."
+          },
+          {
+            "title": "Index bits from the given tag",
+            "body": "The address has 32 bits and the tag has 22, so the index has $32-22-6=4$ bits. Four index bits select among $2^4=16$ sets."
+          },
+          {
+            "title": "Associativity",
+            "body": "32 lines spread over 16 sets means $32/16=2$ lines per set. The cache is 2-way set associative. This is the key value 2.",
+            "tex": "k=\\frac{32}{16}=2"
+          }
+        ],
+        "shortcut": {
+          "body": "Each doubling of associativity at a fixed cache size moves one bit from index to tag. Direct mapped here would have 32 lines, 5 index bits and a tag of $32-5-6=21$. The given tag is 22, one bit more, so the cache is $2^1=2$-way. About 30 seconds. It works whenever every size is a power of 2."
+        },
+        "traps": [
+          {
+            "text": "Answering 16: that is the number of sets, not the lines per set. Associativity is lines divided by sets."
+          },
+          {
+            "text": "Answering 4: that is the number of index bits, one step before taking $2^4$ and dividing the 32 lines by it."
+          },
+          {
+            "text": "Answering 32 (fully associative) by forgetting to subtract the index: a fully associative cache would have a tag of $32-6=26$ bits, not 22."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.set-associative",
+          "clues": "The cache size, block size, address width and tag width are given and the associativity is the unknown, so the fields are worked backwards to the number of sets.",
+          "contrast": "A fully associative cache has no index and a direct mapped one has the widest index. A tag between those two widths means a set associative cache, and its width tells how many lines share a set."
+        },
+        "check": {
+          "body": "Try the neighbouring associativities against the given tag. With 1 way the index is 5 bits and the tag 21. With 4 ways the index is 3 bits and the tag 23. With 2 ways the index is 4 bits and the tag 22, which is the only match."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 19",
+          "url": "https://gateoverflow.in/357521/gate-cse-2021-set-2-question-19"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which fields add up to the address width, and which of them can you find from the sizes you are given?"
+        },
+        {
+          "kind": "concept",
+          "text": "Offset bits come from the block size, index bits from the number of sets, and the tag is whatever remains of the address."
+        },
+        {
+          "kind": "principle",
+          "text": "The number of sets is the number of lines divided by the associativity, so once the index width is known the associativity follows from the lines and the sets."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the offset bits and the number of lines in the cache. Get the index width as address bits minus tag minus offset, turn it into a number of sets, and divide the lines by the sets."
+        },
+        {
+          "kind": "partial",
+          "text": "A 64-byte block means the offset is 6 bits wide."
+        }
+      ],
+      "variation": {
+        "stem": "A set associative cache of size 4 KB (1 KB = $2^{10}$ bytes) has a block size of 32 bytes. The cache is byte addressable and uses a 32-bit address. If the tag field is 22 bits wide, the associativity of the cache is ____________.",
+        "answer": 4,
+        "explanation": "The offset is 5 bits and the cache has $4096/32=128$ lines. The index is $32-22-5=5$ bits, so there are 32 sets, and $128/32=4$ lines per set."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q27",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.write-policies",
+      "difficulty": "medium",
+      "stem": "Assume a two-level inclusive cache hierarchy, L1 and L2, where L2 is the larger of the two. Consider the following statements.\n\n$S_1$: Read misses in a write through L1 cache do not result in writebacks of dirty lines to the L2.\n\n$S_2$: Write allocate policy must be used in conjunction with write through caches and no-write allocate policy is used with writeback caches.\n\nWhich of the following statements is correct?",
+      "options": [
+        "$S_1$ is true and $S_2$ is false",
+        "$S_1$ is false and $S_2$ is true",
+        "$S_1$ is true and $S_2$ is true",
+        "$S_1$ is false and $S_2$ is false"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "The vocabulary",
+            "body": "Write through: every store updates the cache line and is also sent at once to the next level, so the next level is always current. Write back: a store only updates the cache line and sets that line's dirty bit; the line goes to the next level only when it is evicted, and only if the dirty bit is set. Write allocate: on a write miss the block is first loaded into the cache and then written. No-write allocate: on a write miss the store goes straight to the next level and the cache is not changed. Inclusive hierarchy: every block in L1 is also in L2. Two facts decide the question: only a write-back cache can hold a dirty line, and the update policy (through or back) and the miss policy (allocate or not) are separate choices."
+          },
+          {
+            "title": "Judge S1",
+            "body": "A read miss in L1 needs a free line, so L1 evicts a victim. A victim needs a write-back only if it is dirty. A write-through cache never holds a dirty line, because every store was already forwarded to L2. So a read miss in a write-through L1 evicts a clean line and writes nothing back to L2. $S_1$ is true."
+          },
+          {
+            "title": "Judge S2",
+            "body": "$S_2$ is wrong twice. First, it states the usual pairings backwards. The common pairs are write through with no-write allocate and write back with write allocate, because they fit well: a write-through cache gains little from loading a block it only writes once, while a write-back cache profits from keeping a block it will write again. $S_2$ puts write allocate with write through and no-write allocate with write back, the reverse. Second, it says \"must\", and no pairing is forced: the other pairs also work correctly. Write through with write allocate loads the block, then writes through; write back with no-write allocate sends the missing store to the next level and leaves the cache alone. So $S_2$ is false."
+          },
+          {
+            "title": "Answer",
+            "body": "$S_1$ is true and $S_2$ is false, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "For $S_1$ ask one question: can a write-through cache ever hold a dirty line? No, so a read miss has nothing to write back and $S_1$ is true. For $S_2$, the word \"must\" about a design choice is nearly always false, since every policy pair is a valid design, and $S_2$ even reverses the textbook pairings. That leaves option A. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Taking $S_2$ as a design rule and also believing a read miss in a write-through cache flushes dirty lines. A write-through cache has no dirty lines, and no pairing of update and allocation policy is mandatory."
+          },
+          {
+            "option": 2,
+            "text": "Accepting $S_2$ because it sounds like the textbook rule. It is not: the textbook pairs are write through with no-write allocate and write back with write allocate, and $S_2$ swaps them. Besides, \"is usually used with\" and \"must be used with\" are different claims, and every combination is legal."
+          },
+          {
+            "option": 3,
+            "text": "Rejecting $S_1$ by remembering that read misses can cause write-backs. That is true for a write-back cache, but the statement is about write through, where lines are never dirty."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.write-policies",
+          "clues": "Two statements about read misses in a write through L1 and about which allocate policy goes with which update policy, with the strong word \"must\" in the second.",
+          "contrast": "The inclusive L1 and L2 setting is background. It does not change the write policy reasoning, which depends only on whether a line can be newer than the next level."
+        },
+        "check": {
+          "body": "For the first statement, take a write through L1 and follow a read miss. L2 already received every earlier store to the victim line, so dropping it loses nothing. For the second, think of a design that breaks the claimed rule and still works correctly."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 27",
+          "url": "https://gateoverflow.in/357513/gate-cse-2021-set-2-question-27"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Take each statement alone. What exactly does it claim, and about which kind of cache?"
+        },
+        {
+          "kind": "concept",
+          "text": "Write through forwards every store to the next level. Write back keeps the store in the cache and marks the line dirty."
+        },
+        {
+          "kind": "principle",
+          "text": "Write allocate against no-write allocate decides what happens on a write miss, while through against back decides how writes travel. These are two independent choices."
+        },
+        {
+          "kind": "setup",
+          "text": "For the first statement ask when a victim line has to be written back and which kinds of cache can hold such a line. For the second, list which update policy it pairs with which miss policy, then test that claim against your concept and principle hints."
+        }
+      ],
+      "variation": {
+        "stem": "Consider two statements about caches. $T_1$: A write back cache with a no-write allocate policy sends a write miss straight to the next level without loading the block into the cache. $T_2$: A write through cache can hold a line that is newer than the copy in the next level. Which of the following is correct?",
+        "options": [
+          "$T_1$ is false and $T_2$ is true",
+          "$T_1$ is false and $T_2$ is false",
+          "$T_1$ is true and $T_2$ is false",
+          "$T_1$ is true and $T_2$ is true"
+        ],
+        "answer": 2,
+        "explanation": "No-write allocate means a write miss is sent on without loading the block, and it may be combined with write back, so $T_1$ is true. A write through cache forwards each store at once, so no line is ever newer than the next level, and $T_2$ is false."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q22",
+      "type": "nat",
+      "marks": 1,
+      "key": "17",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "easy",
+      "stem": "Consider a computer system with a byte-addressable primary memory of size $2^{32}$ bytes. Assume the computer system has a direct-mapped cache of size 32 KB (1 KB = $2^{10}$ bytes), and each cache block is of size 64 bytes.\n\nThe size of the tag field is ____________ bits.",
+      "answer": 17,
+      "solutionDiagram": {
+        "alt": "The 32-bit byte address split into a 17-bit tag, a 9-bit index for 512 lines and a 6-bit offset."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the tag is",
+            "body": "A direct-mapped cache stores each memory block in exactly one line, chosen by the block number. The address is cut into three fields: the offset (which byte inside a block), the index (which line), and the tag (all the higher bits). Many blocks share one line, so each line stores its tag to say which of them is present. The rule: tag $=$ address bits $-$ index bits $-$ offset bits.",
+            "tex": "\\text{tag}=A-\\log_2(\\text{lines})-\\log_2(\\text{block size})"
+          },
+          {
+            "title": "Address, offset and index sizes",
+            "body": "The memory has $2^{32}$ bytes, so an address has 32 bits. A 64-byte block gives $\\log_2 64=6$ offset bits. The number of lines is $32\\text{ KB}/64\\text{ B}=2^{15}/2^{6}=2^{9}=512$, so the index has 9 bits."
+          },
+          {
+            "title": "Tag",
+            "body": "$32-9-6=17$ bits. The key is 17.",
+            "tex": "32-9-6=17"
+          }
+        ],
+        "shortcut": {
+          "body": "For a direct-mapped cache, tag $=\\log_2(\\text{memory size}/\\text{cache size})=\\log_2(2^{32}/2^{15})=17$. Twenty seconds, and no block-size arithmetic is needed. For a $k$-way cache add $\\log_2 k$."
+        },
+        "traps": [
+          {
+            "text": "Answering 26 by subtracting only the offset ($32-6$) and forgetting the 9 index bits."
+          },
+          {
+            "text": "Answering 23 by subtracting only the index ($32-9$) and forgetting the 6 offset bits."
+          },
+          {
+            "text": "Answering 15 by using the cache size exponent. The cache size is the data capacity; the tag is what is left of the address after the cache has taken its share."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.address-split",
+          "clues": "A byte-addressable memory size, a direct-mapped cache size and a block size are given, and the question asks for the width of one address field, the tag.",
+          "contrast": "A tag directory size question also uses the tag width but then multiplies by the number of lines. Here only the width of a single tag is wanted, so stop after the field split."
+        },
+        "check": {
+          "body": "The three fields must add back to the full address. Tag plus index plus offset should equal 32, and index plus offset should equal $\\log_2$ of the cache size, 15, so the tag is 32 minus 15.",
+          "tex": "\\text{tag}+(\\text{index}+\\text{offset})=32,\\quad \\text{index}+\\text{offset}=\\log_2(32\\text{ KB})"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, question 22",
+          "url": "https://gateoverflow.in/357429/gate-cse-2021-set-1-question-22"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which bits of the address are left over once you have said which line to look in and which byte inside the block you want?"
+        },
+        {
+          "kind": "concept",
+          "text": "A direct-mapped cache sends every memory block to one fixed line, so the line cannot tell you which of the many blocks that share it is stored. The tag is the stored label that tells them apart."
+        },
+        {
+          "kind": "principle",
+          "text": "An address is cut into tag, index and offset. The offset counts the bytes in a block, the index counts the lines, and the tag takes every bit that remains."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the address width from the memory size. Get the offset width from the block size and the number of lines from cache size divided by block size, then take logs of both."
+        },
+        {
+          "kind": "partial",
+          "text": "Both the cache size and the block size are powers of two, so the number of lines is also a power of two. Write it as $2^k$ and that $k$ is the index width."
+        }
+      ],
+      "variation": {
+        "stem": "A byte-addressable main memory has $2^{30}$ bytes. A direct-mapped cache of 16 KB uses blocks of 32 bytes. The size of the tag field is ____________ bits.",
+        "answer": 16,
+        "explanation": "The cache has $2^{14}/2^{5}=2^{9}$ lines, so the index has 9 bits and the offset has 5. The tag is $30-9-5=16$ bits. As a shortcut, $\\log_2(2^{30}/2^{14})=16$."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q21",
+      "type": "nat",
+      "marks": 1,
+      "key": "13.3|13.5",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "difficulty": "medium",
+      "stem": "A direct mapped cache memory of 1 MB has a block size of 256 bytes. The cache has an access time of 3 ns and a hit rate of 94%. During a cache miss, it takes 20 ns to bring the first word of a block from the main memory, while each subsequent word takes 5 ns. The word size is 64 bits. The average memory access time in ns (round off to 1 decimal place) is ____________.",
+      "answer": 13.5,
+      "solutionDiagram": {
+        "alt": "Hit path of 3 ns against the miss path of 3 ns lookup, 20 ns for the first word and 31 more words at 5 ns each; the average is 13.5 ns."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Average memory access time and the miss penalty",
+            "body": "The hit rate is the fraction of accesses found in the cache; the other fraction, the miss rate, goes to main memory. The miss penalty is the extra time a miss costs on top of the cache lookup. A miss brings in a whole block, not one word, so the penalty is the time to transfer the whole block. The average memory access time is the expected time of one access: the cache access time paid by everyone, plus the miss rate times the penalty. The size of the cache (1 MB) and its direct mapping do not enter the arithmetic.",
+            "tex": "\\text{AMAT}=t_{\\text{cache}}+(1-h)\\times t_{\\text{miss penalty}}"
+          },
+          {
+            "title": "Words in a block",
+            "body": "The word is 64 bits $=8$ bytes, so a 256-byte block holds $256/8=32$ words."
+          },
+          {
+            "title": "Miss penalty",
+            "body": "The first word takes 20 ns and each of the other $32-1=31$ words takes 5 ns: $20+31\\times 5=20+155=175$ ns."
+          },
+          {
+            "title": "Average",
+            "body": "$\\text{AMAT}=3+0.06\\times175=3+10.5=13.5$ ns. If instead the lookup is taken to overlap with the memory start-up, so that a miss costs only 175 ns, the average is $0.94\\times3+0.06\\times175=13.32\\approx13.3$. The official key accepts both 13.3 and 13.5; the first reading, a miss that pays the lookup and then the penalty, is the one used throughout this chapter.",
+            "tex": "3+0.06\\times 175=13.5"
+          }
+        ],
+        "shortcut": {
+          "body": "$6\\%$ of 175 is 10.5, and adding the 3 ns hit time gives 13.5. If you are unsure which form the question wants, compute the other too ($0.94\\times3+10.5=13.32$): the key accepts 13.3 and 13.5, so either result scores. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Charging 32 words at 5 ns after the first one: penalty $20+32\\times5=180$ and AMAT $13.8$. The block has 32 words in all, so only 31 come after the first."
+          },
+          {
+            "text": "Counting the word as 1 byte, so 256 words per block and a penalty of $20+255\\times5=1295$ ns, giving about 80.7 ns. The word is 64 bits, which is 8 bytes."
+          },
+          {
+            "text": "Reporting $0.06\\times175=10.5$ without adding the cache access time of 3 ns."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.emat",
+          "clues": "A hit rate and a cache access time are given, and the miss cost is described word by word: a slow first word and faster later words for a whole block.",
+          "contrast": "A multilevel cache question gives a second cache with its own hit ratio. Here the next level is main memory with a fixed block transfer time, so a single miss penalty term is enough."
+        },
+        "check": {
+          "body": "Test the boundaries. With a hit rate of 100% the average must equal the cache time of 3 ns, and with 0% it must equal 3 plus the full penalty. The formula gives both, and 94% sits 6% of the way between them, so the average lies between 3 and 178 ns and close to 3.",
+          "tex": "\\text{AMAT}(h=1)=3,\\quad \\text{AMAT}(h=0)=3+175=178"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020, question 21",
+          "url": "https://gateoverflow.in/333210/gate-cse-2020-question-21"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "GATE 2020 CS question paper with its answer key, IIT Delhi page print, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each access pays something every time and something extra only some of the time. Which part is which?"
+        },
+        {
+          "kind": "concept",
+          "text": "Average memory access time is the cache time plus the miss rate times the miss penalty, when a miss first checks the cache and then goes to memory."
+        },
+        {
+          "kind": "principle",
+          "text": "A miss brings a whole block, not a single word. So the penalty is the time to move every word of the block, with the first word slower than the rest."
+        },
+        {
+          "kind": "setup",
+          "text": "Turn the block size in bytes and the word size in bits into a count of words per block. Then price the transfer as one first word plus the remaining words at the faster rate."
+        },
+        {
+          "kind": "partial",
+          "text": "Compute the miss rate from the hit rate, then the block transfer time, and only after that combine them with the cache time. The cache capacity does not enter."
+        }
+      ],
+      "variation": {
+        "stem": "A direct-mapped cache of 512 KB has a block size of 128 bytes, an access time of 2 ns and a hit rate of 90%. On a miss, the first word of a block takes 30 ns from main memory and each later word takes 4 ns. The word size is 32 bits. Taking a miss to cost the cache lookup plus the block transfer, the average memory access time in ns is ____________.",
+        "answer": 17.4,
+        "explanation": "A 128-byte block holds $128/4=32$ words. The miss penalty is $30+31\\times4=154$ ns. The average is $2+0.1\\times154=17.4$ ns, and the cache capacity plays no part."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q30",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "difficulty": "medium",
+      "stem": "A computer system with a word length of 32 bits has a 16 MB byte-addressable main memory and a 64 KB, 4-way set associative cache memory with a block size of 256 bytes. Consider the following four physical addresses represented in hexadecimal notation.\n\nA1 = 0x42C8A4, A2 = 0x546888, A3 = 0x6A289C, A4 = 0x5E4880\n\nWhich one of the following is TRUE?",
+      "options": [
+        "A1 and A4 are mapped to different cache sets.",
+        "A2 and A3 are mapped to the same cache set.",
+        "A3 and A4 are mapped to the same cache set.",
+        "A1 and A3 are mapped to the same cache set."
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "The 24-bit address split into a 10-bit tag, a 6-bit set index and an 8-bit offset, with the four addresses broken into their fields; A2 and A3 share set 40 and A1 and A4 share set 8."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Which cache set an address belongs to",
+            "body": "In a set-associative cache the lines are grouped into sets, and a block may sit in any line of exactly one set, the set chosen by the middle bits of the address (the index). A $k$-way cache has $k$ lines per set. The address splits into tag, index, offset from the high end to the low end. The rule: two addresses are in the same set exactly when their index fields are equal. The tag and offset play no part in that decision.",
+            "tex": "\\text{set}=\\left\\lfloor \\frac{\\text{address}}{\\text{block size}}\\right\\rfloor \\bmod(\\text{number of sets})"
+          },
+          {
+            "title": "Field widths",
+            "body": "16 MB is $2^{24}$ bytes, so an address has 24 bits. A 256-byte block gives 8 offset bits. The cache has $64\\text{ KB}/256\\text{ B}=256$ lines; with 4 lines per set there are $256/4=64$ sets, so the index has 6 bits. The tag has $24-6-8=10$ bits. The 32-bit word length does not matter. The set index is address bits 13 to 8."
+          },
+          {
+            "title": "Set of each address",
+            "body": "Bits 15 to 8 are the second pair of hex digits from the right, and the index is the low 6 bits of that pair. A1 = 0x42C8A4: pair C8 = 1100 1000, low six bits 001000 = 8. A2 = 0x546888: pair 68 = 0110 1000, low six bits 101000 = 40. A3 = 0x6A289C: pair 28 = 0010 1000, low six bits 101000 = 40. A4 = 0x5E4880: pair 48 = 0100 1000, low six bits 001000 = 8."
+          },
+          {
+            "title": "Check each option",
+            "body": "A: A1 and A4 are both in set 8, so \"different sets\" is false. B: A2 and A3 are both in set 40, true. C: A3 is in set 40 and A4 in set 8, false. D: A1 is in set 8 and A3 in set 40, false. The answer is B."
+          }
+        ],
+        "shortcut": {
+          "body": "Only the second hex pair from the right matters, reduced mod 64 (drop its two top bits). C8, 68, 28, 48 become 08, 28, 28, 08, so A1 and A4 match and A2 and A3 match. Only option B is a true statement. About 1.5 minutes. The shortcut depends on the 6-bit index sitting at bits 13 to 8; recompute the fields first when the cache or block size changes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Taking 256 lines as 256 sets, so the index is 8 bits and A1 (index 200) and A4 (index 72) differ. That treats the cache as direct mapped and ignores the 4-way grouping that cuts the sets to 64."
+          },
+          {
+            "option": 2,
+            "text": "A3 is in set 40 and A4 in set 8; they differ in index bit 13 (pairs 28 and 48 give 101000 and 001000). A candidate who divides the 256 lines by 8 instead of 4 gets 32 sets and a 5-bit index, which drops bit 13, and then A3 and A4 both land in set 8. With that index all four addresses share set 8 and B, C and D all look true, which a single-answer question cannot allow."
+          },
+          {
+            "option": 3,
+            "text": "A1 is in set 8 and A3 in set 40. Their pairs C8 and 28 give 001000 and 101000, which differ only in index bit 13. The same 5-bit index from the wrong set count (option C) loses that bit and makes them look equal."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.set-associative",
+          "clues": "Four full physical addresses are given in hex and the options only compare which cache sets they map to, in a 4-way cache.",
+          "contrast": "A direct-mapped cache would compare the line index, which is wider because there is no grouping into sets. Dividing the number of lines by the 4 ways is what narrows the index here."
+        },
+        "check": {
+          "body": "Cross-check with block numbers. Divide each address by the block size of 256, then take the remainder modulo the number of sets. Two addresses are in one set exactly when those remainders agree, and this second route must give the same pairs as the bit reading.",
+          "tex": "\\text{set}=\\left\\lfloor \\tfrac{\\text{address}}{256}\\right\\rfloor \\bmod 64"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020, question 30",
+          "url": "https://gateoverflow.in/333201/gate-cse-2020-question-30"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "GATE 2020 CS question paper with its answer key, IIT Delhi page print, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Two addresses compete for the same group of lines only when one particular part of the address matches. Which part?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a set-associative cache the lines are grouped into sets, and a block can sit in any line of the one set that its address selects."
+        },
+        {
+          "kind": "principle",
+          "text": "The set is chosen by the index field alone. Addresses with equal index fields share a set, whatever their tags are."
+        },
+        {
+          "kind": "setup",
+          "text": "Find how many sets there are from cache size, block size and associativity, then the index width, and mark which bit positions of a 24-bit address are offset and index."
+        },
+        {
+          "kind": "partial",
+          "text": "The offset takes the low two hex digits worth of bits, so the index bits start at the third hex digit from the right. Read that digit and the one next to it for each address."
+        }
+      ],
+      "variation": {
+        "stem": "A system has a 1 MB byte-addressable main memory and a 16 KB, 2-way set-associative cache with 64-byte blocks. Consider the physical addresses A1 = 0x3A1C0, A2 = 0x7B3C4, A3 = 0x2E1F8 and A4 = 0x6D3D0. Which one of the following is TRUE?",
+        "options": [
+          "A1 and A2 are mapped to the same cache set.",
+          "A2 and A3 are mapped to the same cache set.",
+          "A1 and A3 are mapped to the same cache set.",
+          "A2 and A4 are mapped to different cache sets."
+        ],
+        "answer": 2,
+        "explanation": "There are $16384/64/2=128$ sets, so the index is 7 bits, just above 6 offset bits. A1 and A3 both give set 7, and A2 and A4 both give set 79. Different tags do not matter, so only the third statement is true."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q1",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "easy",
+      "stem": "A certain processor uses a fully associative cache of size 16 kB. The cache block size is 16 bytes. Assume that the main memory is byte addressable and uses a 32-bit address. How many bits are required for the Tag and the Index fields respectively in the addresses generated by the processor?",
+      "options": [
+        "24 bits and 0 bits",
+        "28 bits and 4 bits",
+        "24 bits and 4 bits",
+        "28 bits and 0 bits"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "The 32-bit address of a fully associative cache: a 28-bit tag, no index bits and a 4-bit offset."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Tag, index and offset in a fully associative cache",
+            "body": "An address is cut into the tag (the high bits identifying the block), the index (which set to look in) and the offset (which byte inside the block). The index picks a set; in a fully associative cache a block may go in any line, so all lines form one single set and there is nothing to pick. The number of sets is $2^0=1$, so the index has $\\log_2 1=0$ bits. The rule: tag $=$ address bits $-$ index bits $-$ offset bits.",
+            "tex": "\\text{tag}=A-\\log_2(\\text{sets})-\\log_2(\\text{block})"
+          },
+          {
+            "title": "Offset and index",
+            "body": "A 16-byte block gives $\\log_2 16=4$ offset bits. The index has 0 bits. The cache size, 16 kB, only fixes the number of lines (1024) and does not change the fields here."
+          },
+          {
+            "title": "Tag",
+            "body": "$32-0-4=28$ bits. So the tag is 28 bits and the index is 0 bits: option D.",
+            "tex": "32-0-4=28"
+          }
+        ],
+        "shortcut": {
+          "body": "Fully associative means the index is 0 bits, which already leaves only options A and D. The tag is the address minus the 4 offset bits, $32-4=28$, so D. Twenty seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Index 0 is right but 24 is wrong: it comes from working out a 4-bit index first ($32-4-4=24$), then resetting the index to 0 without recomputing the tag."
+          },
+          {
+            "option": 1,
+            "text": "The tag is right but the 4 bits are the offset, not an index. A fully associative cache has no index field."
+          },
+          {
+            "option": 2,
+            "text": "Subtracting 4 twice, once as an \"index\" taken from the block size and once as the offset, which gives a tag of 24 and an index of 4."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.set-associative",
+          "clues": "The cache is stated to be fully associative, and the question asks for both the tag and the index widths for a given block size and address width.",
+          "contrast": "In a direct-mapped cache the index would use all of the line count. Fully associative is the opposite extreme, one set and no index, so the tag grows to fill the space."
+        },
+        "check": {
+          "body": "Treat it as the limit of a K-way cache. With 1024 lines and K equal to 1024 ways there is one set, and the tag formula for K ways is the address bits minus offset minus $\\log_2$ of lines plus $\\log_2 K$. The two log terms cancel, which leaves address minus offset.",
+          "tex": "\\text{tag}=A-\\log_2 L+\\log_2 K-\\text{offset},\\quad K=L"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 1",
+          "url": "https://gateoverflow.in/302847/gate-cse-2019-question-1"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "If a block can be placed in any line, how many choices does the address need to make about where to look?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a fully associative cache every line is a candidate for every block, so the whole cache behaves as one single set."
+        },
+        {
+          "kind": "principle",
+          "text": "The index is the log of the number of sets. The offset is the log of the block size, and the tag is whatever the address has left after the index and the offset."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the address as tag, index and offset. Fix the offset from the block size, decide the index width from the number of sets, and give what remains to the tag."
+        },
+        {
+          "kind": "partial",
+          "text": "The cache size only tells you how many lines there are. Check whether that number changes either the offset or the index here."
+        }
+      ],
+      "variation": {
+        "stem": "A processor uses a fully associative cache of 8 KB with 32-byte blocks. Main memory is byte addressable and uses a 36-bit address. How many bits are required for the Tag and the Index fields respectively?",
+        "options": [
+          "23 bits and 8 bits",
+          "26 bits and 5 bits",
+          "31 bits and 0 bits",
+          "31 bits and 5 bits"
+        ],
+        "answer": 2,
+        "explanation": "The offset is 5 bits for 32-byte blocks. A fully associative cache has one set, so the index has 0 bits and the tag is $36-5=31$ bits. The first option treats the cache as direct mapped with 256 lines, and the 5-bit index options mistake the offset for an index."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q2",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "difficulty": "medium",
+      "stem": "The chip select logic for a certain DRAM chip in a memory system design is shown below. Assume that the memory system has 16 address lines denoted by $A_{15}$ to $A_0$. What is the range of addresses (in hexadecimal) of the memory system that can get enabled by the chip select (CS) signal?",
+      "figure": "A single AND gate with five inputs, listed from top to bottom: A15, A14, A13, A12, A11. The inputs A13 and A12 each carry an inversion bubble (the gate sees their complement); A15, A14 and A11 enter directly. The gate output is the signal CS, so CS = A15 . A14 . (not A13) . (not A12) . A11.",
+      "options": [
+        "C800 to CFFF",
+        "CA00 to CAFF",
+        "C800 to C8FF",
+        "DA00 to DFFF"
+      ],
+      "answer": 0,
+      "diagram": {
+        "alt": "Five-input AND gate with inputs A15, A14, A13, A12 and A11; the A13 and A12 inputs carry inversion bubbles; the output is CS."
+      },
+      "solutionDiagram": {
+        "alt": "The 16 address bits with A15 to A11 fixed at 1 1 0 0 1 and A10 to A0 free, giving the range C800 to CFFF of 2048 addresses."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Chip select and the gate that drives it",
+            "body": "A memory chip answers a read or write only while its chip-select input (CS) is 1. The address-decoding logic raises CS for the addresses the chip should hold. An AND gate gives 1 only when every input is 1. A bubble on an input inverts that line first, so that input needs 0 on the address line. Address lines that do not reach the gate do not affect CS. The rule: write the value each connected line must have, leave the others free, and the enabled addresses run from all free bits 0 to all free bits 1.",
+            "tex": "\\mathrm{CS}=1\\iff A_{15}A_{14}\\,\\overline{A_{13}}\\,\\overline{A_{12}}\\,A_{11}=1"
+          },
+          {
+            "title": "Required values",
+            "body": "A15 $=1$, A14 $=1$, A13 $=0$ (bubble), A12 $=0$ (bubble), A11 $=1$. The lines A10 to A0, 11 of them, are free."
+          },
+          {
+            "title": "Lowest and highest address",
+            "body": "All free bits 0: 1100 1000 0000 0000 $=$ C800. All free bits 1: 1100 1111 1111 1111 $=$ CFFF. The count is $2^{11}=2048$ addresses, matching CFFF $-$ C800 $+1=$ 0x800 $=2048$."
+          },
+          {
+            "title": "Match the options",
+            "body": "C800 to CFFF is option A. Options B (CA00 to CAFF) and C (C800 to C8FF) are only parts of that range, so they leave enabled addresses out. Option D starts DA00, where A12 $=1$; the bubble turns that into 0 and CS stays 0."
+          }
+        ],
+        "shortcut": {
+          "body": "Write the five fixed bits 11001, then fill the other 11 bits with all 0s and all 1s: 1100 1000... is C800, and 1100 1111... is CFFF. A quick elimination: D has A12 $=1$ and fails the bubble; B and C each pin extra bits that the gate does not look at. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Fixing A10, A9 and A8 as well as the five gate inputs (CA00 to CAFF pins A15 to A8 at 1100 1010). The gate ignores A10 to A0, so every combination of them enables CS, not just the 256 addresses starting at CA00."
+          },
+          {
+            "option": 2,
+            "text": "Fixing A10 to A8 at 0 and stopping at C8FF. Only the five inputs of the gate matter; the other bits are free and the range runs to CFFF."
+          },
+          {
+            "option": 3,
+            "text": "Reading a bubble on A13 alone, as if A12 were not inverted. That requires A12 $=1$ and gives DA00 to DFFF, but the figure inverts both A13 and A12."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.memory-interfacing",
+          "clues": "A gate diagram drives a chip-select line from some address bits, with bubbles on some inputs, and the question asks for the range of addresses that enable the chip.",
+          "contrast": "A chip-count question asks how many chips build a memory. Here the chip already exists and the work is decoding, which address values make its select line high."
+        },
+        "check": {
+          "body": "The size of the range must match the number of free lines. Five bits are fixed, so $2^{11}$ addresses are enabled, and the difference between the top and bottom of the range plus one should be 2048. Also test one address inside the range and one just outside it against the gate.",
+          "tex": "\\text{high}-\\text{low}+1=2^{16-5}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 2",
+          "url": "https://gateoverflow.in/302846/gate-cse-2019-question-2"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For the chip to be selected, what must every input of the gate be at the same moment?"
+        },
+        {
+          "kind": "concept",
+          "text": "An AND gate outputs 1 only when all its inputs are 1, and a bubble on an input means the gate sees the opposite of that address line."
+        },
+        {
+          "kind": "principle",
+          "text": "Each connected address line is forced to one value. Lines that never reach the gate can be anything, so they do not restrict which addresses enable the chip."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the 16 bits of the address, fix the five connected ones to the value they need, and mark the rest as free."
+        },
+        {
+          "kind": "partial",
+          "text": "Get the smallest enabled address by setting every free bit to 0 and the largest by setting every free bit to 1, then convert each 16-bit pattern to hex, four bits at a time."
+        }
+      ],
+      "variation": {
+        "stem": "The chip select logic of a memory chip is a single five-input AND gate with inputs A15, A14, A13, A12 and A11 from top to bottom. The inputs A14 and A11 carry inversion bubbles. The system has 16 address lines A15 to A0. What range of addresses (in hexadecimal) enables the chip?",
+        "options": [
+          "B000 to B7FF",
+          "B800 to BFFF",
+          "B000 to B0FF",
+          "F800 to FFFF"
+        ],
+        "answer": 0,
+        "explanation": "The gate needs A15=1, A14=0, A13=1, A12=1 and A11=0, with A10 to A0 free. The lowest address is 1011 0000 0000 0000 = B000 and the highest is 1011 0111 1111 1111 = B7FF. B800 reads A11 as 1, F800 ignores the bubbles, and B000 to B0FF fixes too many bits."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q45",
+      "type": "nat",
+      "marks": 2,
+      "key": "160",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "difficulty": "medium",
+      "stem": "A certain processor deploys a single-level cache. The cache block size is 8 words and the word size is 4 bytes. The memory system uses a 60-MHz clock. To service a cache miss, the memory controller first takes 1 cycle to accept the starting address of the block, it then takes 3 cycles to fetch all the eight words of the block, and finally transmits the words of the requested block at the rate of 1 word per cycle. The maximum bandwidth for the memory system when the program running on the processor issues a series of read operations is ____________ $\\times 10^6$ bytes/sec.",
+      "answer": 160,
+      "solutionDiagram": {
+        "alt": "Timeline of one block read at 60 MHz: 1 address cycle, 3 fetch cycles and 8 transfer cycles, 12 cycles that move 32 bytes."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Bandwidth of a block transfer",
+            "body": "Bandwidth is the number of bytes delivered per second: bytes moved divided by the time taken. A clock cycle lasts $1/f$ seconds for a clock of frequency $f$. A cache miss moves a whole block, so one miss delivers one block's worth of bytes. When the processor issues a series of reads that miss, the memory system serves blocks one after another, and that is its maximum bandwidth: one block per service time.",
+            "tex": "\\text{bandwidth}=\\frac{\\text{bytes per block}}{\\text{cycles per block}\\times\\text{cycle time}}"
+          },
+          {
+            "title": "Bytes and cycles per block",
+            "body": "A block is $8\\times4=32$ bytes. Service of one miss takes $1$ cycle (address) $+\\,3$ cycles (fetch all eight words) $+\\,8$ cycles (one word per cycle) $=12$ cycles."
+          },
+          {
+            "title": "Time and bandwidth",
+            "body": "The cycle time is $1/60$ MHz $=16.67$ ns, so 12 cycles take 200 ns. Bandwidth $=32\\text{ B}/200\\text{ ns}=0.16$ bytes per ns, which is $160\\times10^{6}$ bytes per second.",
+            "tex": "\\frac{32\\times 60\\times10^{6}}{12}=160\\times10^{6}\\ \\text{bytes/s}"
+          }
+        ],
+        "shortcut": {
+          "body": "Bytes per cycle times cycles per second: $32/12$ bytes per cycle times 60 million cycles is $32\\times5=160$ million. About 40 seconds."
+        },
+        "traps": [
+          {
+            "text": "Forgetting the address cycle: $11$ cycles instead of 12 gives $32\\times60/11\\approx174.5$."
+          },
+          {
+            "text": "Counting the eight words as a single transfer cycle ($1+3+1=5$ cycles): $32\\times60/5=384$. The words come out at one per cycle, so they take 8 cycles."
+          },
+          {
+            "text": "Counting the block as 8 bytes (one per word) instead of 8 words of 4 bytes: $8\\times60/12=40$."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.performance-extensions",
+          "clues": "The question describes a miss as separate phases measured in clock cycles and asks for a bandwidth in bytes per second, not an access time.",
+          "contrast": "An average access time question weights the miss time by a miss rate. Maximum bandwidth assumes every access is a miss served back to back, so there is no rate to weight."
+        },
+        "check": {
+          "body": "Work in cycles first. The block of 32 bytes is served in 12 cycles, so the rate is 32 over 12 bytes per cycle, and multiplying by the 60 million cycles per second gives the same figure as the nanosecond route.",
+          "tex": "\\tfrac{32}{12}\\times 60\\times10^{6}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 45",
+          "url": "https://gateoverflow.in/302803/gate-cse-2019-question-45"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Bandwidth is bytes per unit time. What are the bytes, and what is the time, for the repeated action here?"
+        },
+        {
+          "kind": "concept",
+          "text": "A cache miss moves one whole block, so each miss delivers a block of bytes and takes a fixed number of clock cycles to serve."
+        },
+        {
+          "kind": "principle",
+          "text": "The maximum bandwidth is reached when misses are served back to back: bytes in one block divided by the time to serve one miss."
+        },
+        {
+          "kind": "setup",
+          "text": "Add the cycles for the three phases of a miss, convert cycles to time with the clock frequency, and find the block size in bytes from words and word size."
+        },
+        {
+          "kind": "partial",
+          "text": "The transfer phase sends the words one per cycle, so it takes as many cycles as there are words in the block. Add it to the other two phases before you convert to time."
+        }
+      ],
+      "variation": {
+        "stem": "A processor uses a single-level cache with a block size of 16 words and a word size of 4 bytes. The memory system uses a 100-MHz clock. To serve a miss, the controller takes 1 cycle to accept the block address, 3 cycles to fetch all sixteen words, and then sends the words at 1 word per cycle. The maximum bandwidth of the memory system for a series of reads is ____________ $\\times10^6$ bytes/sec.",
+        "answer": 320,
+        "explanation": "A block is $16\\times4=64$ bytes. A miss takes $1+3+16=20$ cycles, which is 200 ns at 10 ns per cycle. The bandwidth is $64/200\\text{ ns}=0.32$ bytes per ns, which is $320\\times10^6$ bytes per second."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q23",
+      "type": "nat",
+      "marks": 1,
+      "key": "59.0:60.0",
+      "topic": "coa-memory-hierarchy.dram-sram",
+      "difficulty": "medium",
+      "stem": "A 32-bit wide main memory unit with a capacity of 1 GB is built using 256M $\\times$ 4-bit DRAM chips. The number of rows of memory cells in the DRAM chip is $2^{14}$. The time taken to perform one refresh operation is 50 nanoseconds. The refresh period is 2 milliseconds. The percentage (rounded to the closest integer) of the time available for performing the memory read/write operations in the main memory unit is ____________.",
+      "answer": 59,
+      "solutionDiagram": {
+        "alt": "A 2 ms refresh period split into 819.2 microseconds of refresh (40.96 percent) and 1180.8 microseconds free for reads and writes (59.04 percent)."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Why DRAM must be refreshed",
+            "body": "A DRAM cell stores a bit as charge on a tiny capacitor, and the charge leaks away. To keep the data, every row of cells must be read and rewritten (refreshed) within the refresh period. One refresh operation refreshes one row. While a chip is refreshing it cannot serve a read or a write. So in each refresh period the memory loses (number of rows) $\\times$ (time per row) and the rest is free for the processor.",
+            "tex": "\\text{free fraction}=1-\\frac{\\text{rows}\\times t_{\\text{refresh}}}{\\text{refresh period}}"
+          },
+          {
+            "title": "How the chips are arranged",
+            "body": "1 GB is $2^{30}$ bytes $=2^{28}$ words of 32 bits. One chip is $256\\text{M}\\times4=2^{28}\\times4$ bits, so a 32-bit word needs $32/4=8$ chips side by side, and that single row of 8 chips holds the whole memory. All 8 chips get the same row address, so they refresh the same row at the same time. The refresh time is therefore that of one chip, not 8 times it."
+          },
+          {
+            "title": "Time lost to refresh",
+            "body": "Each chip has $2^{14}=16384$ rows and one row takes 50 ns, so a full sweep takes $16384\\times50\\text{ ns}=819\\,200\\text{ ns}=0.8192$ ms of every 2 ms."
+          },
+          {
+            "title": "Free time",
+            "body": "The refresh share is $0.8192/2=0.4096=40.96\\%$, so the free share is $100\\%-40.96\\%=59.04\\%$. Rounded, it is 59, inside the key range 59.0 to 60.0.",
+            "tex": "100\\%-\\frac{0.8192}{2}\\times100\\%=59.04\\%\\approx59\\%"
+          }
+        ],
+        "shortcut": {
+          "body": "$2^{14}\\approx16.4$ thousand rows times 50 ns is about 0.82 ms, which is 41% of 2 ms, so 59% is free. The 1 GB capacity, the chip size and the number of chips are there to distract. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Answering 41: that is the share spent on refresh. The question asks for the time available for reads and writes."
+          },
+          {
+            "text": "Charging a single 50 ns refresh per period, which gives about 99.9975, so 100%. All $2^{14}$ rows must be refreshed within the period."
+          },
+          {
+            "text": "Multiplying the refresh time by the 8 chips. The chips refresh the same row together, so the loss is not 8 times larger (that would even exceed 100%)."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.dram-sram",
+          "clues": "The question gives a row count, a time per refresh operation and a refresh period, and asks what percentage of time is left for reads and writes.",
+          "contrast": "A memory interfacing question uses the same chip list to count chips. Here the chip count matters only to see that all chips refresh at the same moment, so the refresh cost is that of one chip."
+        },
+        "check": {
+          "body": "Take another route: the 2 ms period is shared among 16384 rows, so a row is due for refresh every $2\\text{ ms}/16384\\approx122$ ns. Each refresh keeps the chip busy for 50 ns, so the busy fraction is $50/122\\approx0.41$ and the free share is about 59%, the same answer.",
+          "tex": "\\frac{2\\text{ ms}}{16384}\\approx122\\text{ ns},\\quad 1-\\frac{50}{122}\\approx0.59"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 23",
+          "url": "https://gateoverflow.in/204097/gate-cse-2018-question-23"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Part of every refresh period is spent refreshing. What fraction of the period is that, and what is left over?"
+        },
+        {
+          "kind": "concept",
+          "text": "DRAM cells leak charge, so each row must be read and rewritten within the refresh period. While a row is being refreshed the chip cannot serve a read or write."
+        },
+        {
+          "kind": "principle",
+          "text": "The time lost per period is the number of rows times the time per row. Chips that share the same row address refresh in parallel, so they do not add to that time."
+        },
+        {
+          "kind": "setup",
+          "text": "Work out how many chips sit side by side to give the word width, and whether they refresh together. Then compute the total refresh time in one period and compare it with the period."
+        },
+        {
+          "kind": "partial",
+          "text": "Compute the refresh time for one sweep of all rows in the same unit as the period, milliseconds, before dividing by the period."
+        }
+      ],
+      "variation": {
+        "stem": "A 32-bit wide main memory of 1 GB is built from 256M $\\times$ 8-bit DRAM chips. Each chip has $2^{13}$ rows of cells. One refresh operation takes 40 nanoseconds and the refresh period is 4 milliseconds. The percentage (rounded to the closest integer) of time available for reads and writes is ____________.",
+        "answer": 92,
+        "explanation": "1 GB is $2^{28}$ words of 32 bits and each chip holds $2^{28}$ words of 8 bits, so 4 chips side by side form the one and only row. They share row addresses and refresh together, so the cost is that of one chip. A sweep takes $8192\\times40\\text{ ns}=0.32768$ ms of every 4 ms, which is 8.192%. The free time is $100-8.192=91.808\\approx92\\%$."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q34",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "medium",
+      "stem": "The size of the physical address space of a processor is $2^P$ bytes. The word length is $2^W$ bytes. The capacity of cache memory is $2^N$ bytes. The size of each cache block is $2^M$ words. For a $K$-way set-associative cache memory, the length (in number of bits) of the tag field is",
+      "options": [
+        "$P - N - \\log_2 K$",
+        "$P - N + \\log_2 K$",
+        "$P - N - M - W - \\log_2 K$",
+        "$P - N - M - W + \\log_2 K$"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "The address of a K-way cache split into a tag of P minus N plus log2 K bits, a set index of N minus M minus W minus log2 K bits and an offset of M plus W bits."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The split of an address, in symbols",
+            "body": "An address is cut into the offset (which byte inside the block), the set index (which set) and the tag (everything above). The offset is $\\log_2$ of the block size in bytes. The index is $\\log_2$ of the number of sets, and the sets are the lines divided by $K$, the number of lines per set. The tag is what is left of the $P$ address bits. Note that the block size is given in words, so it must be turned into bytes using the word length.",
+            "tex": "\\text{tag}=P-\\log_2(\\text{sets})-\\log_2(\\text{block bytes})"
+          },
+          {
+            "title": "Offset",
+            "body": "A block is $2^M$ words of $2^W$ bytes, which is $2^{M+W}$ bytes, so the offset has $M+W$ bits."
+          },
+          {
+            "title": "Lines, sets and index",
+            "body": "The number of lines is $2^N/2^{M+W}=2^{N-M-W}$. With $K$ lines per set, the sets number $2^{N-M-W}/K$, so the index has $N-M-W-\\log_2K$ bits."
+          },
+          {
+            "title": "Tag",
+            "body": "Tag $=P-(N-M-W-\\log_2K)-(M+W)=P-N+\\log_2K$: the block size cancels. This is option B. Numeric check: $P=32$, $N=15$, $W=2$, $M=2$, $K=4$ gives 16-byte blocks, 2048 lines, 512 sets, 9 index bits, 4 offset bits and a tag of $32-9-4=19=32-15+2$.",
+            "tex": "\\text{tag}=P-N+\\log_2 K"
+          }
+        ],
+        "shortcut": {
+          "body": "The tag is $\\log_2(\\text{memory size}/\\text{cache size})$ plus $\\log_2K$: $(P-N)+\\log_2K$, because every doubling of the ways halves the sets and moves one index bit into the tag. The block size drops out, which removes C and D at once, and the plus sign picks B over A. About 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Subtracting $\\log_2K$. More ways per set means fewer sets, so fewer index bits and a longer tag, so the term is added."
+          },
+          {
+            "option": 2,
+            "text": "Subtracting the offset $M+W$ a second time. The block size already cancelled out inside the index and the offset, and the sign of $\\log_2K$ is also wrong."
+          },
+          {
+            "option": 3,
+            "text": "Subtracting $M+W$ from the tag as well. That removes the offset bits twice, once in the index (through the number of lines) and once more here."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.address-split",
+          "clues": "All sizes are symbolic powers of two, the block size is given in words, and the question asks for a tag length formula for a $K$-way cache.",
+          "contrast": "A direct-mapped version is the special case of one line per set, where the $\\log_2 K$ term vanishes. The associativity term is what separates this from a plain direct-mapped tag."
+        },
+        "check": {
+          "body": "Substitute numbers that are easy to count. With one line per set the formula should drop to the direct-mapped tag, which is the address bits minus the cache size bits. Setting $K=1$ gives $P-N$, which agrees, and more ways must lengthen the tag, since fewer sets means fewer index bits.",
+          "tex": "K=1\\Rightarrow \\text{tag}=P-N"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 34",
+          "url": "https://gateoverflow.in/204108/gate-cse-2018-question-34"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The tag is whatever is left of the address after two other fields are taken out. Which two, and in what units is each given?"
+        },
+        {
+          "kind": "concept",
+          "text": "An address splits into tag, set index and byte offset, and the offset and index widths come from the block size and the number of sets."
+        },
+        {
+          "kind": "principle",
+          "text": "The number of sets is the number of lines divided by the associativity, and the block size must be in bytes before you take the log for the offset."
+        },
+        {
+          "kind": "setup",
+          "text": "Convert the block size from words to bytes using the word length. Then write the line count and the set count as powers of two and subtract the field widths from $P$."
+        },
+        {
+          "kind": "partial",
+          "text": "Write the offset width and the index width with the letters $M$, $W$, $N$ and $K$, and watch which terms appear in both so that they cancel when you subtract."
+        }
+      ],
+      "variation": {
+        "stem": "A processor has a 40-bit physical address and a byte-addressable memory. It has a 256 KB, 8-way set-associative cache with 64-byte blocks. The number of bits in the tag field is",
+        "options": [
+          "22",
+          "25",
+          "31",
+          "34"
+        ],
+        "answer": 1,
+        "explanation": "There are $2^{18}/2^{6}=4096$ lines and $4096/8=512$ sets, so the index has 9 bits and the offset has 6. The tag is $40-9-6=25$ bits. The 22 comes from forgetting to divide by 8, 31 from taking away only the index, and 34 from taking away only the offset."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q29",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "difficulty": "medium",
+      "stem": "In a two-level cache system, the access times of $L_1$ and $L_2$ caches are 1 and 8 clock cycles, respectively. The miss penalty from the $L_2$ cache to main memory is 18 clock cycles. The miss rate of $L_1$ cache is twice that of $L_2$. The average memory access time (AMAT) of this cache system is 2 cycles. The miss rates of $L_1$ and $L_2$ respectively are:",
+      "options": [
+        "0.111 and 0.056",
+        "0.056 and 0.111",
+        "0.0892 and 0.1784",
+        "0.1784 and 0.0892"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "A chain CPU, L1 at 1 cycle with miss rate 2x, L2 at 8 cycles with miss rate x, memory at 18 cycles; solving the AMAT equation gives x = 1/18."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Miss rate, miss penalty and AMAT for two levels",
+            "body": "The miss rate of a cache is the fraction of the accesses that reach that cache which miss it. The miss penalty of a level is the extra time its misses cost. The average memory access time (AMAT) is the expected time of one CPU access. Every access pays the L1 time. Only L1 misses go on to L2 and pay its time, and only L2 misses pay the main-memory penalty. Each level's miss rate is measured on the accesses that reach it, so the terms nest.",
+            "tex": "\\text{AMAT}=t_1+m_1\\bigl(t_2+m_2\\,P_{\\text{mem}}\\bigr)"
+          },
+          {
+            "title": "Set up the equation",
+            "body": "Let $m_2=x$. Then $m_1=2x$, and with $t_1=1$, $t_2=8$, $P_{\\text{mem}}=18$ and AMAT $=2$: $2=1+2x(8+18x)$.",
+            "tex": "2=1+2x\\,(8+18x)"
+          },
+          {
+            "title": "Solve",
+            "body": "Subtract 1: $1=16x+36x^{2}$, so $36x^{2}+16x-1=0$. The discriminant is $16^2+4\\cdot36=256+144=400$, with square root 20. The positive root is $x=(-16+20)/72=1/18\\approx0.0556$. The negative root is not a rate.",
+            "tex": "x=\\frac{-16+\\sqrt{400}}{72}=\\frac1{18}"
+          },
+          {
+            "title": "Read off the answer",
+            "body": "$m_2=1/18\\approx0.056$ and $m_1=2/18=1/9\\approx0.111$. Check: $1+\\tfrac19\\bigl(8+18\\cdot\\tfrac1{18}\\bigr)=1+\\tfrac19\\cdot9=2$. That is option A, L1 first."
+          }
+        ],
+        "shortcut": {
+          "body": "Use the options. The AMAT equation says $m_1(8+18m_2)=1$. Option A: $0.111\\times(8+1.0)=1.0$, which works at once. Keep in mind that L1 must be the larger rate, so B and C are out before any arithmetic; D has the right ratio but gives AMAT $=1+0.1784\\times(8+1.61)=2.71$. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Reading \"the miss rate of $L_1$ is twice that of $L_2$\" backwards. Here L1 gets 0.056 and L2 0.111, so the rates are in the wrong order, and the AMAT comes to 1.56."
+          },
+          {
+            "option": 2,
+            "text": "The pair puts the larger rate on L2 (0.1784) and the smaller on L1 (0.0892), breaking the stated 2:1 ratio. It is the exact solution of the equation for the swapped ratio, $1+x(8+36x)=2$ with $x=m_1$, so the AMAT checks out to 2 and it looks right if you read the ratio backwards."
+          },
+          {
+            "option": 3,
+            "text": "The ratio of two to one is right, but the values do not satisfy the AMAT equation: $1+0.1784\\,(8+18\\times0.0892)=2.71$, not 2. Matching the ratio alone is not enough."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.multilevel-cache",
+          "clues": "Two cache levels with their own access times, a memory penalty, a given average access time and a ratio between the two miss rates. The unknowns are the rates, so the nested time formula is solved backwards.",
+          "contrast": "A forward AMAT question gives both rates and asks for the time. Here the time is given and the rates are unknown, so you must form and solve an equation, and the order of the 2:1 ratio matters."
+        },
+        "check": {
+          "body": "Test the swapped pair, $m_1=1/18$ and $m_2=1/9$: $1+\\tfrac1{18}(8+18\\cdot\\tfrac19)=1+\\tfrac{10}{18}\\approx1.56$, not 2. So the equation, and not only the 2:1 ratio, fixes which rate is larger."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 29",
+          "url": "https://gateoverflow.in/118371/gate-cse-2017-set-2-question-29"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which accesses pay the L2 time, and which accesses pay the main-memory penalty? Say it in words before you write any formula."
+        },
+        {
+          "kind": "concept",
+          "text": "In a two-level cache each miss rate is measured on the accesses that reach that level, so the time terms nest inside one another."
+        },
+        {
+          "kind": "principle",
+          "text": "Every access pays the L1 time. Only L1 misses add the L2 time, and only the L2 misses among those add the memory penalty."
+        },
+        {
+          "kind": "setup",
+          "text": "Call the smaller miss rate $x$ and write the other rate in terms of $x$ using the stated ratio. Put the three times and the given average into the nested expression to get an equation in $x$."
+        },
+        {
+          "kind": "partial",
+          "text": "Subtract the L1 time from both sides and expand the bracket. You get a quadratic in $x$."
+        }
+      ],
+      "variation": {
+        "stem": "In a two-level cache system the access times of $L_1$ and $L_2$ are 1 and 5 clock cycles. The miss penalty from $L_2$ to main memory is 20 cycles. The miss rate of $L_1$ is twice that of $L_2$, and the average memory access time is 1.6 cycles. The miss rates of $L_1$ and $L_2$ respectively are:",
+        "options": [
+          "0.1 and 0.05",
+          "0.05 and 0.1",
+          "0.075 and 0.15",
+          "0.12 and 0.06"
+        ],
+        "answer": 0,
+        "explanation": "Let $m_2=x$ and $m_1=2x$. Then $1.6=1+2x(5+20x)$, so $40x^2+10x-0.6=0$ and $x=0.05$, giving $m_1=0.1$. Option B swaps the rates, C solves the equation with the ratio reversed, and D drops the memory term and solves $2x\\cdot5=0.6$."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q45",
+      "type": "nat",
+      "marks": 2,
+      "key": "4.72",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "difficulty": "medium",
+      "stem": "The read access times and the hit ratios for different caches in a memory hierarchy are as given below.\n\nThe read access time of main memory is 90 nanoseconds. Assume that the caches use the referred-word-first read policy and the write back policy. Assume that all the caches are direct mapped caches. Assume that the dirty bit is always 0 for all the blocks in the caches. In execution of a program, 60% of memory reads are for instruction fetch and 40% are for memory operand fetch. The average read access time in nanoseconds (up to 2 decimal places) is ____________.",
+      "table": {
+        "headers": [
+          "Cache",
+          "Read access time (in nanoseconds)",
+          "Hit ratio"
+        ],
+        "rows": [
+          [
+            "I-cache",
+            "2",
+            "0.8"
+          ],
+          [
+            "D-cache",
+            "2",
+            "0.9"
+          ],
+          [
+            "L2-cache",
+            "8",
+            "0.9"
+          ]
+        ]
+      },
+      "answer": 4.72,
+      "solutionDiagram": {
+        "alt": "Instruction fetches go to the I-cache and operand fetches to the D-cache; both L1 caches miss into one shared L2 and then memory. Path costs 5.4 ns and 3.7 ns give 4.72 ns."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms in the question and the one rule",
+            "body": "The hit ratio of a cache is the fraction of reads it satisfies; the others miss and go to the next level. The read access time is the time to read when the level hits. Referred-word-first means the requested word is passed to the processor as soon as it arrives, without waiting for the rest of the block, so no extra block-fill time is added. Write back with the dirty bit always 0 means no victim ever has to be written out on a miss, so there is no write-back cost. What remains is the nesting rule: the average read time of a level is its own access time plus its miss ratio times the average read time of the level below.",
+            "tex": "T_{\\text{level}}=t_{\\text{level}}+(1-h)\\,T_{\\text{next}}"
+          },
+          {
+            "title": "Cost of an L1 miss",
+            "body": "The I-cache and the D-cache both miss into the same L2, which has access time 8 ns and hit ratio 0.9; its own misses go to memory at 90 ns. So the cost seen by any L1 miss is $T_{L2}=8+0.1\\times90=17$ ns."
+          },
+          {
+            "title": "Instruction path and data path",
+            "body": "Instruction fetch: $2+(1-0.8)\\times17=2+3.4=5.4$ ns. Operand fetch: $2+(1-0.9)\\times17=2+1.7=3.7$ ns."
+          },
+          {
+            "title": "Mix the two paths",
+            "body": "$60\\%$ of reads are instructions and $40\\%$ are operands: $0.6\\times5.4+0.4\\times3.7=3.24+1.48=4.72$ ns.",
+            "tex": "0.6\\times5.4+0.4\\times3.7=4.72\\ \\text{ns}"
+          }
+        ],
+        "shortcut": {
+          "body": "Mix the L1 miss ratios first: $0.6\\times0.2+0.4\\times0.1=0.16$ of all reads miss L1. Each miss costs 17 ns more than the 2 ns L1 time, so $2+0.16\\times17=2+2.72=4.72$. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Using 8 ns alone for L2 and leaving out its own misses to memory ($0.1\\times90$) gives $0.6(2+0.2\\times8)+0.4(2+0.1\\times8)=3.28$. L2 misses must be charged the 90 ns."
+          },
+          {
+            "text": "Swapping the weights, 40% instructions and 60% operands, gives 4.38. The 60% belongs to instruction fetch."
+          },
+          {
+            "text": "Leaving L2 out and sending L1 misses straight to memory: $0.6(2+0.2\\times90)+0.4(2+0.1\\times90)=16.4$."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.multilevel-cache",
+          "clues": "Separate instruction and data caches with their own hit ratios, a shared second-level cache, memory below, and a 60/40 split of the reads. The words average read access time ask for the nested expected time.",
+          "contrast": "A single-level EMAT question has one hit ratio. Here the miss branch of each first-level cache leads into another cache, so the second level must be resolved first and the 60/40 weights applied last."
+        },
+        "check": {
+          "body": "Count per 1000 reads. 600 are instruction fetches and 400 are operand fetches, so $0.2\\times600+0.1\\times400=160$ miss the first level. Of those, $0.9\\times160=144$ hit the second level and 16 go to memory. Total time: $1000\\times2+160\\times8+16\\times90=2000+1280+1440=4720$ ns, and $4720/1000=4.72$ ns."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 45",
+          "url": "https://gateoverflow.in/118597/gate-cse-2017-set-2-question-45"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Where does a read that misses in the instruction cache go next, and where does a read that misses in the data cache go?"
+        },
+        {
+          "kind": "concept",
+          "text": "The average read time of a level is its own access time plus its miss ratio times the average read time of the level below it."
+        },
+        {
+          "kind": "principle",
+          "text": "The two first-level caches share one second-level cache, so a miss in either one costs the same extra time. The instruction and operand reads differ only in their first-level hit ratio and in their share of the reads."
+        },
+        {
+          "kind": "setup",
+          "text": "Work bottom up. First find the average time of an access that arrives at the second-level cache, using the memory time. Then build the instruction path and the operand path, and weight them by their shares."
+        },
+        {
+          "kind": "partial",
+          "text": "The second-level hit ratio is 0.9. What fraction of the accesses that reach it go on to main memory? Use that fraction when you price a first-level miss."
+        }
+      ],
+      "variation": {
+        "stem": "In a memory hierarchy the I-cache has read access time 1 ns and hit ratio 0.9, the D-cache has 1 ns and 0.95, and the shared L2 cache has 6 ns and 0.8. Main memory reads take 70 ns. Dirty bits are always 0 and the referred-word-first policy is used. 70% of the reads are instruction fetches and 30% are operand fetches. The average read access time in nanoseconds is ____________.",
+        "answer": 2.7,
+        "explanation": "An L1 miss costs $6+0.2\\times70=20$ ns at L2. Instruction path: $1+0.1\\times20=3$ ns. Operand path: $1+0.05\\times20=2$ ns. The mix is $0.7\\times3+0.3\\times2=2.7$ ns."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q53",
+      "type": "nat",
+      "marks": 2,
+      "key": "18.0",
+      "topic": "coa-memory-hierarchy.address-split",
+      "difficulty": "easy",
+      "stem": "Consider a machine with a byte addressable main memory of $2^{32}$ bytes divided into blocks of size 32 bytes. Assume that a direct mapped cache having 512 cache lines is used with this machine. The size of the tag field in bits is ____________.",
+      "answer": 18,
+      "solutionDiagram": {
+        "alt": "The 32-bit address of a direct-mapped cache with 512 lines of 32 bytes: an 18-bit tag, a 9-bit index and a 5-bit offset."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Tag, index and offset",
+            "body": "A direct-mapped cache puts each memory block in exactly one line. The address is cut from the right into the offset (the byte within a block), the index (which line) and the tag (the remaining high bits, stored with each line to say which block is there). The rule: tag $=$ address bits $-$ index bits $-$ offset bits.",
+            "tex": "\\text{tag}=A-\\log_2(\\text{lines})-\\log_2(\\text{block size})"
+          },
+          {
+            "title": "Sizes",
+            "body": "The memory has $2^{32}$ bytes, so addresses are 32 bits. A block of $32=2^5$ bytes gives 5 offset bits. $512=2^9$ lines give 9 index bits."
+          },
+          {
+            "title": "Tag",
+            "body": "The tag is the 18 bits that remain: $32-9-5=18$.",
+            "tex": "32-9-5=18"
+          }
+        ],
+        "shortcut": {
+          "body": "Index plus offset address $512\\times32=2^{14}$ bytes, so they use 14 bits and the tag is $32-14=18$. Fifteen seconds."
+        },
+        "traps": [
+          {
+            "text": "Answering 23: subtracting only the 9 index bits and forgetting the 5 offset bits."
+          },
+          {
+            "text": "Answering 27: subtracting only the offset and forgetting the index."
+          },
+          {
+            "text": "Answering 14, the number of index and offset bits together, instead of what is left over for the tag."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.address-split",
+          "clues": "Memory size, block size and line count are given and the question asks for the tag width. That is a pure field-width calculation with no access sequence.",
+          "contrast": "A miss-counting question uses the same split but then tracks what each line holds. Here you stop after the widths."
+        },
+        "check": {
+          "body": "Add the fields back: $18+9+5=32$ bits, the whole address. Another view: there are $2^{32}/2^{5}=2^{27}$ memory blocks sharing $2^{9}$ lines, so $2^{18}$ blocks compete for each line, and telling $2^{18}$ blocks apart takes 18 bits. A 17-bit or 19-bit tag would leave the three fields summing to 31 or 33 bits, which is not the address length."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 53",
+          "url": "https://gateoverflow.in/118613/gate-cse-2017-set-2-question-53"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Into which three fields is a memory address cut in a direct mapped cache, and which of them is the tag?"
+        },
+        {
+          "kind": "concept",
+          "text": "The offset picks a byte inside a block, the index picks the cache line, and the tag is stored with the line to tell which block currently sits there."
+        },
+        {
+          "kind": "principle",
+          "text": "The three field widths add up to the address length, so the tag is whatever the address leaves after the index and offset bits are taken."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the address length from the memory size, the offset bits from the block size and the index bits from the number of lines. All three sizes are powers of two, so each width is a logarithm base 2."
+        },
+        {
+          "kind": "partial",
+          "text": "The block size is $2^5$ bytes and the line count is $2^9$. Those two widths together tell you how many low bits are not part of the tag."
+        }
+      ],
+      "variation": {
+        "stem": "A machine has a byte addressable main memory of $2^{40}$ bytes divided into blocks of 64 bytes. A direct mapped cache with 1024 lines is used. The size of the tag field in bits is ____________.",
+        "answer": 24,
+        "explanation": "The address has 40 bits. A 64-byte block gives 6 offset bits and 1024 lines give 10 index bits. The tag is $40-10-6=24$ bits."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q25",
+      "type": "nat",
+      "marks": 1,
+      "key": "0.05",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "difficulty": "medium",
+      "stem": "Consider a two-level cache hierarchy with L1 and L2 caches. An application incurs 1.4 memory accesses per instruction on average. For this application, the miss rate of L1 cache is 0.1; the L2 cache experiences, on average, 7 misses per 1000 instructions. The miss rate of L2 expressed correct to two decimal places is ____________.",
+      "answer": 0.05,
+      "solutionDiagram": {
+        "alt": "Per 1000 instructions: 1400 memory accesses, 140 L1 misses that reach L2, and 7 L2 misses, giving a local L2 miss rate of 0.05."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Miss rate of a cache that sits behind another",
+            "body": "The miss rate of a cache is the number of its misses divided by the number of accesses that reach it. L2 is looked at only when L1 misses, so the accesses that reach L2 are exactly the L1 misses. This local rate is what \"the miss rate of L2\" means. The global rate, L2 misses per CPU access, is a different and smaller number.",
+            "tex": "m_2=\\frac{\\text{L2 misses}}{\\text{L1 misses}}"
+          },
+          {
+            "title": "Count per 1000 instructions",
+            "body": "With 1.4 accesses per instruction, 1000 instructions make $1400$ accesses. L1 misses 10% of them: $1400\\times0.1=140$ misses, and these 140 are the accesses that reach L2."
+          },
+          {
+            "title": "L2 miss rate",
+            "body": "L2 misses 7 of those 140: $7/140=0.05$.",
+            "tex": "m_2=\\frac{7}{140}=0.05"
+          }
+        ],
+        "shortcut": {
+          "body": "$7\\div(1000\\times1.4\\times0.1)=7\\div140=0.05$. Fifteen seconds."
+        },
+        "traps": [
+          {
+            "text": "Dividing by all 1400 accesses, $7/1400=0.005$. That is the global miss rate; the question asks for the rate of L2 on the accesses it receives."
+          },
+          {
+            "text": "Dividing by $1000\\times0.1$ and forgetting the 1.4 accesses per instruction, which gives $7/100=0.07$."
+          },
+          {
+            "text": "Answering 0.007, the L2 misses per instruction. A rate is per access, not per instruction."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.multilevel-cache",
+          "clues": "The L2 behaviour is given as misses per 1000 instructions, while the L1 miss rate and the accesses per instruction are given separately. This mix of units asks for a conversion to a per-access rate.",
+          "contrast": "The global L2 miss rate divides by all CPU accesses and the local rate divides by the L1 misses. The wording the miss rate of L2 points to the local rate."
+        },
+        "check": {
+          "body": "Use the global rate as a consistency test. L2 misses are 7 per 1000 instructions, which is 1400 accesses, so the global L2 rate is $7/1400=0.005$. It must equal the L1 miss rate times the local L2 rate: $0.1\\times0.05=0.005$."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 25",
+          "url": "https://gateoverflow.in/118305/gate-cse-2017-set-1-question-25"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Out of how many accesses is the second-level miss rate counted: all CPU accesses, or only some of them?"
+        },
+        {
+          "kind": "concept",
+          "text": "A miss rate is misses divided by the accesses that reach that cache. A cache behind another one sees only the misses of the first."
+        },
+        {
+          "kind": "principle",
+          "text": "The rate asked for here is the local rate of the second level. Its denominator is the number of first-level misses, not the number of CPU accesses."
+        },
+        {
+          "kind": "setup",
+          "text": "Pick a convenient block of 1000 instructions. Convert it to memory accesses with the accesses-per-instruction figure, then apply the first-level miss rate to get the accesses that reach the second level."
+        },
+        {
+          "kind": "partial",
+          "text": "Per 1000 instructions there are 1400 accesses, and a tenth of them miss in the first level. That count is the denominator, and the given 7 misses are the numerator."
+        }
+      ],
+      "variation": {
+        "stem": "A two-level cache hierarchy has L1 and L2 caches. An application makes 1.5 memory accesses per instruction on average. The miss rate of L1 is 0.08, and L2 experiences 9 misses per 1000 instructions. The miss rate of L2, expressed correct to three decimal places, is ____________.",
+        "answer": 0.075,
+        "explanation": "Per 1000 instructions there are $1500$ accesses, and $1500\\times0.08=120$ of them miss in L1 and reach L2. The local L2 miss rate is $9/120=0.075$."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q51",
+      "type": "nat",
+      "marks": 2,
+      "key": "76.0",
+      "topic": "coa-memory-hierarchy.three-cs",
+      "difficulty": "hard",
+      "stem": "Consider a 2-way set associative cache with 256 blocks and uses LRU replacement. Initially the cache is empty. Conflict misses are those misses which occur due to contention of multiple blocks for the same cache set. Compulsory misses occur due to first time access to the block. The following sequence of accesses to memory blocks\n\n(0, 128, 256, 128, 0, 128, 256, 128, 1, 129, 257, 129, 1, 129, 257, 129)\n\nis repeated 10 times. The number of conflict misses experienced by the cache is ____________.",
+      "answer": 76,
+      "solutionDiagram": {
+        "alt": "The two ways of set 0 after each access of two rounds: round 1 has 3 compulsory and 2 conflict misses, round 2 has 4 conflict misses; with the second set the conflict misses total 76."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Sets, LRU and the two kinds of miss",
+            "body": "A cache with $S$ sets puts memory block $b$ in set $b\\bmod S$, and the lines of a set hold any of the blocks that map to it. 2-way means 2 lines per set. LRU (least recently used) means that when a set is full, the line unused for the longest time is evicted. A compulsory miss is the first ever access to a block: it must miss. In this question every other miss is a conflict miss, because the block was cached before and was pushed out by other blocks of the same set. Different sets never affect each other, so each set can be simulated alone."
+          },
+          {
+            "title": "Which blocks share a set",
+            "body": "$256$ blocks in 2-way sets make $256/2=128$ sets. Blocks 0, 128 and 256 all have remainder 0 mod 128, so they compete for set 0. Blocks 1, 129 and 257 have remainder 1 and compete for set 1. The 16 accesses are 8 for set 0 followed by the same pattern for set 1, so the two sets behave identically."
+          },
+          {
+            "title": "Round 1 in set 0",
+            "body": "Show the set as [older, newer]. 0: miss, [0]. 128: miss, [0,128]. 256: miss, evicts 0, [128,256]. 128: hit, [256,128]. 0: miss, evicts 256, [128,0]. 128: hit, [0,128]. 256: miss, evicts 0, [128,256]. 128: hit, [256,128]. Round 1 has 5 misses: the first three (0, 128, 256) are compulsory and the 2 later ones (0, 256) are conflict misses."
+          },
+          {
+            "title": "Rounds 2 to 10 in set 0",
+            "body": "Each round starts with the set [256,128]. 0 misses and evicts 256; 128 hits; 256 misses and evicts 0; 128 hits; 0 misses; 128 hits; 256 misses; 128 hits. That is 4 misses, all conflict, and the set ends again as [256,128], so every later round repeats it. Block 128 is touched between every two misses, so it is never the oldest line and never evicted; blocks 0 and 256 evict each other."
+          },
+          {
+            "title": "Total",
+            "body": "Conflict misses in set 0: $2+9\\times4=38$. Set 1 is identical, so $2\\times38=76$. Check: all misses are $2\\times(5+9\\times4)=82$, of which 6 are compulsory (one per distinct block), leaving $82-6=76$.",
+            "tex": "2\\times(2+9\\times4)=76"
+          }
+        ],
+        "shortcut": {
+          "body": "In each set block 128 stays in the cache, so only references to the other two blocks can miss: they miss every time, 4 per round, 40 in 10 rounds, plus the first access to 128. That is 41 misses per set, of which 3 are compulsory: $41-3=38$ conflict misses, and $2\\times38=76$. About 2 minutes. It relies on recognising that 128 is always the most recently used of the old pair, so redo the simulation if the pattern changes."
+        },
+        "traps": [
+          {
+            "text": "Answering 82, the total number of misses. The 6 compulsory misses (the first access to each of 0, 128, 256, 1, 129, 257) must be subtracted."
+          },
+          {
+            "text": "Answering 80, which counts every access to 0, 256, 1 and 257 as a conflict miss. The first access to each of those four blocks is a compulsory miss, so it is not a conflict."
+          },
+          {
+            "text": "Answering 6 or 0 by thinking the 256-block cache is big enough for 6 distinct blocks. A fully associative cache of that size would only have the 6 compulsory misses, but the set mapping forces three blocks into a 2-way set."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.three-cs",
+          "clues": "The question defines conflict and compulsory misses and gives a repeating block sequence for an LRU cache. That means separating first-time misses from avoidable ones by simulation.",
+          "contrast": "A plain hit-count question only needs the total misses. Here you must also subtract the first-time misses, and the set mapping decides which blocks interfere."
+        },
+        "check": {
+          "body": "Use reuse distance in set 0. Between two uses of block 0 (or of 256) the sequence touches two other distinct blocks, for example 128 and 256 between consecutive 0s. Two other blocks fill both lines of a 2-way LRU set, so every reuse of 0 or 256 misses. Between two uses of 128 only one other block appears, so 128 stays and hits. That gives 4 misses per round on 0 and 256, matching the simulation."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 51",
+          "url": "https://gateoverflow.in/118745/gate-cse-2017-set-1-question-51"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which of the memory blocks in the sequence can ever compete with each other for the same place in the cache?"
+        },
+        {
+          "kind": "concept",
+          "text": "A set associative cache maps a block to a set by its block number modulo the number of sets, and the blocks of one set share only that set's lines."
+        },
+        {
+          "kind": "principle",
+          "text": "A first-ever access to a block is a compulsory miss. Any later miss on a block that was already loaded once is, by the definition in the question, a conflict miss."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the number of sets and group the blocks by set. Simulate one set with LRU order written oldest to newest through the first round, then see what state the set is in when the next round begins."
+        },
+        {
+          "kind": "partial",
+          "text": "The cache has $256/2=128$ sets. Take the block numbers modulo 128 to see which blocks meet in one set."
+        }
+      ],
+      "variation": {
+        "stem": "A 2-way set associative cache has 128 blocks and uses LRU replacement. Initially the cache is empty. Conflict misses are misses caused by contention of several blocks for the same set, and compulsory misses are first-time accesses to a block. The sequence of block accesses (0, 64, 128, 0, 64, 128, 1, 65, 129, 1, 65, 129) is repeated 6 times. The number of conflict misses is ____________.",
+        "answer": 66,
+        "explanation": "There are 64 sets, so 0, 64, 128 share set 0 and 1, 65, 129 share set 1. Cycling three blocks through a 2-way LRU set misses on every access, so each set has $6\\times6=36$ misses, 3 of them compulsory. Conflict misses are $2\\times(36-3)=66$."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q54",
+      "type": "nat",
+      "marks": 2,
+      "key": "14.0",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "difficulty": "medium",
+      "stem": "A cache memory unit with capacity of $N$ words and block size of $B$ words is to be designed. If it is designed as a direct mapped cache, the length of the TAG field is 10 bits. If the cache unit is now designed as a 16-way set-associative cache, the length of the TAG field is ____________ bits.",
+      "answer": 14,
+      "solutionDiagram": {
+        "alt": "Two address bars: the direct-mapped split with a 10-bit tag, and the 16-way split in which 4 index bits have moved into the tag, making it 14 bits."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the tag, index and offset are",
+            "body": "The address is cut into the offset (the word inside the block), the index (the set) and the tag (the rest). Direct mapped means 1 line per set, so the sets number $N/B$ (the lines). In a $k$-way cache the same $N/B$ lines are grouped in sets of $k$, so the sets number $N/(kB)$. The address length and the block size, and so the offset, do not change between designs.",
+            "tex": "\\text{tag}=A-\\log_2(\\text{sets})-\\log_2 B"
+          },
+          {
+            "title": "Direct-mapped split",
+            "body": "With $N/B$ sets the index has $\\log_2(N/B)$ bits and the tag is $A-\\log_2(N/B)-\\log_2B=A-\\log_2N=10$ bits."
+          },
+          {
+            "title": "16-way split",
+            "body": "Now there are $N/(16B)$ sets, so the index has $\\log_2(N/B)-4$ bits: four bits fewer. The offset is unchanged, so the freed 4 bits join the tag: $10+4=14$.",
+            "tex": "\\text{tag}_{16}=\\text{tag}_1+\\log_2 16=10+4=14"
+          }
+        ],
+        "shortcut": {
+          "body": "Going from 1-way to $k$-way adds $\\log_2k$ to the tag: $10+\\log_216=14$. Fifteen seconds, and the values of $N$, $B$ and the address length never matter."
+        },
+        "traps": [
+          {
+            "text": "Answering 6 by subtracting 4. Grouping lines into sets removes index bits, and the tag takes them over, so the tag grows."
+          },
+          {
+            "text": "Answering 10, thinking the cache capacity fixed means the tag is fixed. The capacity is fixed, but the tag and index trade bits."
+          },
+          {
+            "text": "Answering 26 by adding 16 rather than $\\log_216=4$."
+          }
+        ],
+        "recognize": {
+          "concept": "coa-memory-hierarchy.set-associative",
+          "clues": "The same cache capacity and block size are built two ways, direct mapped and k-way, and the tag width of one is given to find the other. Only the change in associativity matters.",
+          "contrast": "A direct mapped split has one line per set, so index bits equal line-number bits. In the k-way design the index counts sets, which is why it shrinks."
+        },
+        "check": {
+          "body": "Try concrete sizes with a 10-bit direct mapped tag: a 22-bit address, $N=2^{12}$ words and $B=2^4$ words. Direct mapped has 256 lines, an 8-bit index and a 4-bit offset, so the tag is $22-8-4=10$. In 16-way sets there are 16 sets, a 4-bit index, and the tag is $22-4-4=14$, which matches the shortcut."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 54",
+          "url": "https://gateoverflow.in/118748/gate-cse-2017-set-1-question-54"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "When the cache is regrouped from one line per set to sixteen lines per set, which of the three address fields change width and which stay the same?"
+        },
+        {
+          "kind": "concept",
+          "text": "The number of sets is the number of lines divided by the associativity. The index selects a set, so its width depends on the set count."
+        },
+        {
+          "kind": "principle",
+          "text": "The total address length and the block size are fixed, so the offset does not move. Whatever width the index loses must be taken up by the tag."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the tag width as the address length minus the index width minus the offset width. Compare this expression for the two designs, using the number of sets in each."
+        },
+        {
+          "kind": "partial",
+          "text": "Count the sets in each design. Grouping the same lines sixteen to a set leaves fewer sets, so the index field is shorter than before. The question is by how much."
+        }
+      ],
+      "variation": {
+        "stem": "A cache memory of capacity $N$ words and block size $B$ words is to be designed. If it is a direct mapped cache, the TAG field is 12 bits long. If the same cache is designed as an 8-way set associative cache, the length of the TAG field in bits is ____________.",
+        "answer": 15,
+        "explanation": "Going to 8 lines per set cuts the number of sets by 8, so the index loses $\\log_2 8=3$ bits. The offset and the address length stay put, so the tag gains those 3 bits: $12+3=15$."
+      }
+    }
+  ],
+  "skipped": [
+    {
+      "id": "gate-cse-2026-s2-q56",
+      "reason": "stem is inconsistent: no direct mapped configuration maps 0xA2C28 to block 17610, so the key of 128 KB cannot be derived"
+    }
+  ]
+}

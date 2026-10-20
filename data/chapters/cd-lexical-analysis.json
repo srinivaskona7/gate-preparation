@@ -1,0 +1,1868 @@
+{
+  "id": "cd-lexical-analysis",
+  "summary": "Lexical analysis is the first compiler phase: it reads characters, strips whitespace and comments, and groups the rest into tokens using patterns written as regular expressions. A scanner is a DFA built from those patterns (Thompson NFA, subset construction, minimisation, or directly via followpos) and driven by two tie-breaking rules, longest match first and rule order second. GATE asks you to count tokens, trace a scanner over given patterns, count states of a minimal DFA, and say which errors a lexer can and cannot catch.",
+  "highYield": [
+    "Counting tokens in a C fragment: a string literal is one token, ++ and >= are one token each, comments and whitespace are no tokens.",
+    "Maximal munch plus rule priority: while1 is one identifier, x+++++y splits as x ++ ++ + y, and a keyword beats an identifier only on a tie in length.",
+    "Minimal DFA state counts: strings ending in a length-k word need k+1 states, the k-th symbol from the right being a needs 2ᵏ, and a complete DFA counts the dead state.",
+    "Which errors are lexical: an illegal character or an unterminated string is; a missing semicolon, unbalanced parenthesis or undeclared variable is not.",
+    "Phase order and outputs: tokens, parse tree, annotated tree, intermediate code, optimised code, target code, with the symbol table shared by every phase."
+  ],
+  "topics": [
+    {
+      "id": "cd-lexical-analysis.compiler-phases",
+      "title": "Phases of a compiler",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        433,
+        436
+      ],
+      "points": [
+        "The analysis front end runs lexical analysis (characters to tokens), syntax analysis (tokens to parse tree) and semantic analysis (type checking, producing an annotated tree).",
+        "The synthesis back end runs intermediate code generation (typically three-address code), machine-independent optimisation and target code generation.",
+        "The symbol table and the error handler are shared by all phases rather than being phases of their own.",
+        "The lexer usually runs as a subroutine of the parser: each call to getNextToken returns one token, so the source is not tokenised in a separate pass."
+      ],
+      "keyTerms": [
+        "front end",
+        "back end",
+        "three-address code",
+        "getNextToken"
+      ],
+      "lesson": {
+        "why": "Phase-matching and 'which statement is false' questions about the compiler pipeline appear regularly, and each one is answered by knowing what every phase reads and what it hands on.",
+        "intro": "A compiler does not translate a program in one jump. It passes the program through a chain of phases, and each phase takes one form of the program as input and produces the next form. The first phases study the source text and are called the front end. The later phases build and improve the target program and are called the back end. Knowing the input and output of each phase is enough to answer most questions.",
+        "analogy": {
+          "text": "An assembly line: raw material enters at one end, and each station reshapes what the previous station delivered.",
+          "breaksWhen": "A compiler phase may report an error and stop the line, and the symbol table is consulted by several stations at once, which a simple line does not do."
+        },
+        "definitions": [
+          {
+            "term": "Front end",
+            "meaning": "The phases that depend on the source language: lexical, syntax and semantic analysis."
+          },
+          {
+            "term": "Back end",
+            "meaning": "The phases that depend on the target machine: optimisation and code generation."
+          },
+          {
+            "term": "Intermediate code",
+            "meaning": "A machine-neutral form of the program, often three-address code, passed from front end to back end."
+          }
+        ],
+        "principle": {
+          "text": "Each phase consumes the output of the one before it, so the order is fixed: characters, then tokens, then a parse tree, then an annotated tree, then intermediate code, then target code.",
+          "tex": "\\text{characters}\\to\\text{tokens}\\to\\text{parse tree}\\to\\text{annotated tree}\\to\\text{intermediate code}\\to\\text{target code}"
+        },
+        "limits": "The lexer usually runs as a subroutine that the parser calls for one token at a time, so the source is not tokenised in a separate pass. The symbol table and error handler are shared by all phases and are not phases themselves.",
+        "example": {
+          "problem": "Follow the statement x = y + 2; through the front end and the start of the back end.",
+          "steps": [
+            "The lexical analyzer reads the 10 characters of x = y + 2; and produces 6 tokens: x, =, y, +, 2 and ;.",
+            "The syntax analyzer arranges the tokens into a parse tree in which + joins y and 2 and = joins x to that sum.",
+            "The semantic analyzer checks that x, y and 2 have compatible types and annotates the tree.",
+            "The intermediate code generator turns the tree into three-address code such as t1 = y + 2 followed by x = t1."
+          ],
+          "result": "Characters become 6 tokens, then a tree, then checked types, then two three-address instructions."
+        },
+        "misconceptions": [
+          "Type checking is not done before parsing; it needs the tree to know which operands belong to which operator, so it belongs to semantic analysis after syntax analysis.",
+          "The back end does not depend on the source language; it works from intermediate code, which is why one back end can serve many languages."
+        ],
+        "recall": [
+          {
+            "q": "What does the lexical analyzer take in and give out?",
+            "a": "It takes the character stream and gives out a stream of tokens."
+          },
+          {
+            "q": "Which phases form the front end?",
+            "a": "Lexical, syntax and semantic analysis, which depend on the source language but not on the target machine."
+          },
+          {
+            "q": "Which phase produces three-address code?",
+            "a": "The intermediate code generator, after semantic analysis."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which list gives these artifacts in the order a compiler produces them: (i) token stream, (ii) target code, (iii) parse tree, (iv) intermediate code?",
+          "options": [
+            "(i), (iii), (iv), (ii)",
+            "(iii), (i), (iv), (ii)",
+            "(i), (iii), (ii), (iv)",
+            "(iv), (i), (iii), (ii)"
+          ],
+          "answer": 0,
+          "explanation": "The lexer produces tokens first, the parser builds the parse tree from them, the intermediate code generator works from the tree, and the code generator emits target code last. The second option tempts because a tree sounds like the first structure built, but a parser cannot build it without tokens."
+        },
+        "summary": "A compiler is a fixed chain: characters to tokens, tokens to a parse tree, then semantic checking, intermediate code, optimisation and target code. The front end depends on the source language, the back end on the target machine."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.tokens-lexemes-patterns",
+      "title": "Tokens, patterns and lexemes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        433,
+        434
+      ],
+      "points": [
+        "A token is a category such as IDENTIFIER, NUMBER, a keyword or an operator; the lexer passes it to the parser as a token name plus an optional attribute value.",
+        "A pattern is the rule, usually a regular expression, that describes which strings belong to a token: identifiers follow letter(letter | digit)*.",
+        "A lexeme is one actual string in the source that matches a pattern: in count = 100 the lexemes are count, = and 100.",
+        "For identifiers and numbers the attribute is typically a pointer to the symbol-table entry or the numeric value; keywords and operators need no attribute beyond the token name."
+      ],
+      "keyTerms": [
+        "token",
+        "pattern",
+        "lexeme",
+        "attribute value"
+      ],
+      "lesson": {
+        "why": "Counting tokens, naming the token of a lexeme and reading a pattern are the three skills behind most lexical-analysis questions, and all of them start from keeping these three words apart.",
+        "intro": "Source code is a long string of characters. The lexer cuts it into pieces and gives each piece a label. One piece of text, such as count or 100, is a lexeme. The label that says what kind of piece it is, such as IDENTIFIER or NUMBER, is the token. The rule that says which strings may carry a given label, usually written as a regular expression, is the pattern. Many different lexemes can share one token, and one pattern describes all of them.",
+        "definitions": [
+          {
+            "term": "Token",
+            "meaning": "A category of lexemes, passed to the parser as a token name plus an optional attribute value."
+          },
+          {
+            "term": "Pattern",
+            "meaning": "The rule, usually a regular expression, that describes which strings belong to a token."
+          },
+          {
+            "term": "Lexeme",
+            "meaning": "One actual string in the source that matches a pattern."
+          },
+          {
+            "term": "Attribute value",
+            "meaning": "Extra data sent with a token, such as a symbol-table pointer for an identifier or the value of a number."
+          }
+        ],
+        "principle": {
+          "text": "The lexer assigns each lexeme to exactly one token, after longest match and rule priority resolve any overlap between patterns. The parser sees the token name and the attribute, not the characters. Identifiers and numbers carry an attribute; keywords and operators do not need one."
+        },
+        "limits": "The token name alone does not tell two identifiers apart, so the attribute is what separates rate from count. A pattern describes strings only through regular expressions, so it cannot express nesting such as balanced brackets.",
+        "example": {
+          "problem": "Split the statement rate = rate + 12 ; into lexemes and name the token of each. Use the patterns ID = letter(letter|digit)*, NUM = digit+, and one token for each operator and for the semicolon.",
+          "steps": [
+            "Remove the spaces; they separate lexemes but are not lexemes themselves.",
+            "rate matches ID, = is the assignment operator, the second rate matches ID again, + is the plus operator, 12 matches NUM and ; is the semicolon.",
+            "That gives 6 lexemes: rate, =, rate, +, 12 and ;.",
+            "Only 5 different lexemes appear, because rate occurs twice, but both occurrences are separate tokens and both are counted."
+          ],
+          "result": "There are 6 tokens: ID, ASSIGN, ID, PLUS, NUM, SEMI. The two ID tokens carry different attribute values only if their lexemes differ, and here both point to the same symbol-table entry."
+        },
+        "misconceptions": [
+          "A token is not the same as a lexeme: the token is the category, such as ID, and the lexeme is the specific text, such as count.",
+          "The same lexeme written twice is two tokens in the token stream, even though it has one symbol-table entry."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between a token, a pattern and a lexeme?",
+            "a": "The token is the category, the pattern is the rule that describes its strings, and the lexeme is one actual matching string in the source."
+          },
+          {
+            "q": "Which tokens normally carry an attribute value?",
+            "a": "Identifiers and numbers: an identifier points to its symbol-table entry and a number carries its value. Keywords and operators need only the token name."
+          },
+          {
+            "q": "In count = 100, what are the lexemes?",
+            "a": "The lexemes are count, = and 100."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many tokens does the lexer produce for the statement total2 = x * 25 + y - 3 ; ? Count every occurrence, and treat each operator and the semicolon as one token.",
+          "answer": 10,
+          "explanation": "The lexemes are total2, =, x, *, 25, +, y, -, 3 and ; which makes 10. Counting only identifiers and numbers gives 5, and forgetting the semicolon gives 9; both miss that operators and the semicolon are tokens too."
+        },
+        "summary": "A pattern describes the strings, a lexeme is one matching string, and a token is the category with an optional attribute; count every lexeme occurrence as its own token."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.token-counting",
+      "title": "Counting tokens in a program fragment",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        434,
+        437,
+        438
+      ],
+      "points": [
+        "Whitespace and comments produce no tokens; they are matched and thrown away.",
+        "A whole string literal such as \"sum = %d\\n\" is a single token, however many spaces, commas or format characters it contains.",
+        "Multi-character operators are one token each: ++, --, +=, >=, <=, ==, != and && are never split.",
+        "Every punctuation mark counts: ( ) [ ] { } ; and , are tokens, so int x = 5; has 5 tokens and if(x>0) has 6."
+      ],
+      "keyTerms": [
+        "string literal",
+        "punctuation",
+        "operator"
+      ],
+      "lesson": {
+        "why": "Counting tokens in a code fragment is a recurring one-mark or NAT question, and one miscounted punctuation mark or split operator gives a wrong answer.",
+        "intro": "A token is one meaningful piece of the program: a keyword, a name, a number, an operator, a string or a punctuation mark. The lexer reads the characters and cuts them into these pieces. Spaces and comments only separate pieces and are thrown away, so they never count. To count tokens you walk through the text from left to right and cut it at the longest piece that forms a valid token each time.",
+        "analogy": {
+          "text": "Counting words in a sentence, where punctuation marks also count as words of their own.",
+          "breaksWhen": "A quoted string counts as one word however many spaces it holds, and two characters like >= can form one piece, so cutting at spaces alone gives wrong counts."
+        },
+        "definitions": [
+          {
+            "term": "Token",
+            "meaning": "One unit the lexer returns, such as a keyword, identifier, constant, operator, string or punctuation mark."
+          },
+          {
+            "term": "Lexeme",
+            "meaning": "The actual characters of the source that form one token."
+          }
+        ],
+        "principle": {
+          "text": "Scan left to right and, at every position, take the longest valid token. Discard white space and comments, count a string literal as one token, count a multi-character operator as one token, and count every punctuation mark."
+        },
+        "limits": "The rules above are for C-like languages. When a question gives its own token patterns, the patterns decide: an identifier pattern that forbids a leading digit splits 7z into a number and a name.",
+        "example": {
+          "problem": "How many tokens are in the fragment if (a >= 10) b += \"x y\";",
+          "steps": [
+            "if is a keyword: 1 token. The bracket ( is punctuation: 2 tokens so far.",
+            "a is an identifier and >= is one operator, giving 4 tokens. Then 10 is a number and ) is punctuation, giving 6.",
+            "b is an identifier and += is one operator: 8 tokens.",
+            "The string \"x y\" is a single token even though it holds a space: 9. The final ; makes 10."
+          ],
+          "result": "The fragment has 10 tokens."
+        },
+        "misconceptions": [
+          "A string literal is one token, so counting the words or spaces inside it overcounts.",
+          "Splitting >= or += into two tokens is wrong; the longest match makes each a single token.",
+          "Punctuation such as ( ) and ; is not ignored; each mark is its own token."
+        ],
+        "recall": [
+          {
+            "q": "Do spaces and comments count as tokens?",
+            "a": "No. The lexer matches and discards them without returning a token."
+          },
+          {
+            "q": "How many tokens is the string literal \"a, b\" worth?",
+            "a": "One token, regardless of the spaces and comma inside it."
+          },
+          {
+            "q": "How is ++ counted?",
+            "a": "As one operator token, because the lexer takes the longest match."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many tokens does a C lexer produce for the statement int n = a++ + 12; ?",
+          "answer": 8,
+          "explanation": "The tokens are int, n, =, a, ++, +, 12 and ;, which is 8. The tempting answer is 9, from splitting ++ into two plus signs, but the longest match makes ++ one token and the lone + after it is separate."
+        },
+        "summary": "Cut the text left to right at the longest valid token, drop white space and comments, count each string literal once, treat multi-character operators as one token and count every punctuation mark."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.maximal-munch",
+      "title": "Longest match and rule priority",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        434,
+        435,
+        437
+      ],
+      "points": [
+        "Longest match (maximal munch): at each position the lexer takes the longest prefix of the remaining input that matches any pattern.",
+        "Priority: if two patterns match the same longest prefix, the rule listed first wins, which is why keyword rules are written before the identifier rule.",
+        "Length is decided before priority, so while1 and ifx are identifiers: the identifier pattern matches 6 or 3 characters, the keyword only 5 or 2.",
+        "Maximal munch is greedy and never reconsiders: in C, x+++++y becomes x ++ ++ + y, which then fails in semantic analysis because x++ is not an lvalue, even though x ++ + ++ y would have been legal."
+      ],
+      "keyTerms": [
+        "maximal munch",
+        "rule priority",
+        "greedy"
+      ],
+      "lesson": {
+        "why": "Whenever a question gives several token patterns and an input string, the output sequence is fixed by the longest-match rule, and applying it wrongly changes the whole answer.",
+        "intro": "A lexer may have several patterns that match at the same place in the input. It needs a rule to choose. The rule is to try every pattern and find how many characters each one can match starting here. The pattern that matches the most characters wins, the lexer outputs that token, and scanning restarts right after the matched characters. If two patterns match the same number of characters, the one listed first wins.",
+        "prerequisites": [
+          "cd-lexical-analysis.tokens-lexemes-patterns"
+        ],
+        "definitions": [
+          {
+            "term": "Maximal munch",
+            "meaning": "The rule that the lexer always takes the longest prefix of the remaining input that matches some pattern."
+          },
+          {
+            "term": "Rule priority",
+            "meaning": "The tie-break that gives the match to the pattern listed earlier when two patterns match equally long prefixes."
+          }
+        ],
+        "principle": {
+          "text": "At each position, compute the longest prefix matched by each pattern, pick the pattern with the longest one, and break a tie by the earlier rule. The choice is final; the lexer never goes back to try a shorter match."
+        },
+        "limits": "Length is decided before priority, so a keyword rule listed first still loses to an identifier that matches more characters. The greedy choice is never reconsidered, even if a shorter first token would let the rest of the input parse better.",
+        "example": {
+          "problem": "Patterns: R1 = a+ and R2 = a*b. What tokens come from the input aaabaa?",
+          "steps": [
+            "At position 0, R1 matches at most aaa (3 characters) and R2 matches aaab (4 characters).",
+            "R2 is longer, so the lexer outputs R2 for aaab and resumes at the fifth character.",
+            "The remaining input is aa. R1 matches aa (2 characters) and R2 matches nothing.",
+            "The lexer outputs R1 for aa and the input is used up."
+          ],
+          "result": "The output is R2 then R1."
+        },
+        "misconceptions": [
+          "Listing a rule first does not make it win over a longer match; priority only breaks ties between equal lengths.",
+          "The lexer does not stop at the first pattern that matches; it looks for the longest match over all patterns before it outputs a token."
+        ],
+        "recall": [
+          {
+            "q": "What does maximal munch say?",
+            "a": "At each position the lexer takes the longest prefix of the remaining input that matches any pattern."
+          },
+          {
+            "q": "When does rule order decide the token?",
+            "a": "Only when two patterns match prefixes of exactly the same length; the earlier rule wins."
+          },
+          {
+            "q": "Why is the input ifx an identifier and not the keyword if followed by x?",
+            "a": "The identifier pattern matches all 3 characters and the keyword only 2, and length is decided before priority."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Patterns in order: R1 = b+, R2 = b*c, R3 = c+. The lexer takes the longest match and breaks ties by the earlier rule. What does it output for the input bbcbcc?",
+          "options": [
+            "R2 R2 R3",
+            "R2 R2 R2",
+            "R1 R2 R3",
+            "R2 R3 R3"
+          ],
+          "answer": 1,
+          "explanation": "At the start R2 matches bbc (3) against R1 with bb (2), so R2. Next, bcc gives R2 with bc (2) against R1 with b (1), so R2. The last c is matched by both R2 and R3 with length 1, and the earlier rule R2 wins. R3 tempts because c+ looks like the natural pattern for a lone c, but the tie goes to R2."
+        },
+        "summary": "Take the longest match over all patterns at each position, resolve equal lengths by the earlier rule, and never backtrack once a token is chosen."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.lexer-role",
+      "title": "Role of the lexer and its interface to the parser",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        434,
+        436,
+        437
+      ],
+      "points": [
+        "The lexer strips whitespace and comments, tracks line numbers for error messages, and hands the parser a stream of tokens.",
+        "Keeping scanning separate from parsing keeps the grammar small (no character-level rules), lets the scanner be a fast DFA, and isolates character-set details.",
+        "Token patterns are regular, so a single DFA recognising the union of all patterns, with each accepting state labelled by its winning token, implements the whole scanner.",
+        "Keywords are often entered in the symbol table as reserved words in advance, so the lexer matches the identifier pattern and then looks the lexeme up; the alternative is keyword patterns placed before the identifier rule."
+      ],
+      "keyTerms": [
+        "token stream",
+        "reserved words",
+        "line numbers"
+      ],
+      "lesson": {
+        "why": "Questions on the front end ask what the lexer does and what it leaves to the parser, and knowing the lexer's exact job also explains how keywords are told apart from identifiers.",
+        "intro": "The lexer is the first phase of a compiler. It reads the program as raw characters and turns it into a stream of tokens that the parser consumes. On the way it throws away whitespace and comments, which the parser never needs, and it keeps count of lines so that later error messages can say where the problem is. The parser asks for one token at a time and the lexer scans just far enough to produce it.",
+        "prerequisites": [
+          "cd-lexical-analysis.tokens-lexemes-patterns"
+        ],
+        "definitions": [
+          {
+            "term": "Token stream",
+            "meaning": "The sequence of tokens the lexer hands to the parser, in source order."
+          },
+          {
+            "term": "Reserved word",
+            "meaning": "A keyword such as if or while that is stored in advance so it cannot be used as an ordinary identifier."
+          }
+        ],
+        "principle": {
+          "text": "The lexer recognises the regular part of the language with one DFA for the union of all token patterns, each accepting state labelled with its token. Splitting scanning from parsing keeps the grammar free of character-level rules and keeps the scanner fast."
+        },
+        "limits": "The lexer sees only a short stretch of characters, so it cannot check structure such as matching brackets; that is the parser's work. Keywords share the identifier's shape, so a lexer either looks each identifier-shaped lexeme up in a reserved-word table or lists keyword patterns ahead of the identifier rule, as lex and flex do.",
+        "example": {
+          "problem": "A lexer has the reserved words if and while in its table. What does it output for the text while count < 10 ?",
+          "steps": [
+            "It skips the leading whitespace and reads while, which matches the identifier pattern.",
+            "It looks while up in the reserved-word table, finds it, and returns the keyword token WHILE instead of an identifier.",
+            "It skips the space and reads count, which also matches the identifier pattern. The lookup finds no reserved word, so it returns ID with a symbol-table pointer.",
+            "It reads < as the relational operator and 10 as a number."
+          ],
+          "result": "The token stream is WHILE, ID, LT, NUM. The spaces produce no tokens."
+        },
+        "misconceptions": [
+          "Keywords need not have their own DFA path: a reserved-word table checked after the identifier match is common, and keyword patterns with priority over the identifier rule are the other standard approach.",
+          "Whitespace and comments are not passed to the parser as tokens; the lexer discards them."
+        ],
+        "recall": [
+          {
+            "q": "What does the lexer remove before the parser sees the program?",
+            "a": "Whitespace and comments. It also records line numbers so errors can be located."
+          },
+          {
+            "q": "Why is scanning kept separate from parsing?",
+            "a": "It keeps the grammar small, lets the scanner be a fast DFA, and isolates character-set details from the rest of the compiler."
+          },
+          {
+            "q": "How does the lexer decide that a word is a keyword?",
+            "a": "It matches the identifier pattern, then looks the lexeme up in a table of reserved words."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following is performed by the lexer and not by a later phase of the compiler?",
+          "options": [
+            "Checking that every opening bracket has a closing bracket",
+            "Discarding comments and whitespace between tokens",
+            "Checking that a variable is declared before use",
+            "Checking that the two sides of an assignment have the same type"
+          ],
+          "answer": 1,
+          "explanation": "Removing comments and whitespace is a regular, character-level job done while forming tokens. Bracket matching needs a context-free parser, declaration checks need the symbol table in semantic analysis, and type checking is also semantic. The bracket option tempts because brackets are single tokens, but pairing them is not a regular property."
+        },
+        "summary": "The lexer turns characters into a token stream, drops whitespace and comments, tracks line numbers, and separates keywords from identifiers by a reserved-word lookup."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.symbol-table",
+      "title": "Symbol table",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        38,
+        39,
+        433
+      ],
+      "points": [
+        "The symbol table stores each identifier with its attributes: type, scope, storage location and declaration line.",
+        "It is normally a hash table, giving expected O(1) insert and lookup; block-structured languages keep one table per scope or a chained stack of tables.",
+        "The lexer creates entries for identifiers, the parser and semantic analyser fill in type and scope, and the code generator reads storage addresses."
+      ],
+      "keyTerms": [
+        "hash table",
+        "scope",
+        "attributes"
+      ],
+      "lesson": {
+        "why": "The symbol table appears in true-or-false questions about what it holds, who builds it and when it is needed, and the answers follow from a few simple facts.",
+        "intro": "While compiling, the compiler must remember facts about every name the programmer declares: what type it has, where it is visible, and where it will live in memory. The symbol table is the data structure that stores these facts. It is a dictionary from a name to its attributes. Several phases read and update it as compilation proceeds, so it is shared rather than belonging to one phase.",
+        "prerequisites": [
+          "cd-lexical-analysis.compiler-phases"
+        ],
+        "definitions": [
+          {
+            "term": "Scope",
+            "meaning": "The region of the program in which a declared name is visible."
+          },
+          {
+            "term": "Attribute",
+            "meaning": "A fact stored with a name, such as its type, scope, storage address or declaration line."
+          }
+        ],
+        "principle": {
+          "text": "The symbol table maps each name to its attributes. The lexer enters identifiers, later phases fill in type and scope, and the code generator reads the storage addresses. A name is looked up in the innermost scope first, then outward."
+        },
+        "limits": "A hash table gives expected constant-time insert and lookup, but any dictionary structure such as a search tree also works. The table is not discarded after parsing, because semantic analysis and code generation still need it.",
+        "example": {
+          "problem": "Global scope declares a, b, c. A function declares b, d. A block inside the function declares c, e. How many distinct names are visible inside the block?",
+          "steps": [
+            "Global scope holds a, b, c, which makes 3 entries.",
+            "The function adds b and d. The new b hides the global b, so the visible names are a, b, c, d.",
+            "The block adds c and e. The new c hides the earlier c, so the visible names are a, b, c, d, e.",
+            "In all, 7 entries are stored across the three scopes, but only 5 distinct names are visible."
+          ],
+          "result": "Five distinct names are visible in the block, from 7 stored entries."
+        },
+        "misconceptions": [
+          "The symbol table is not only needed during parsing; semantic analysis uses types and scopes, and code generation uses addresses, both after parsing.",
+          "A hash table is not the only valid structure; a binary search tree or any other dictionary works."
+        ],
+        "recall": [
+          {
+            "q": "What does a symbol table store for each name?",
+            "a": "Its attributes, such as type, scope, storage location and declaration line."
+          },
+          {
+            "q": "Which phase first creates symbol table entries?",
+            "a": "The lexical analyzer, when it meets an identifier, and later phases complete the attributes."
+          },
+          {
+            "q": "Which entry is found when an inner scope redeclares a name?",
+            "a": "The inner one, because lookup starts in the innermost scope and moves outward."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Global scope declares p, q, r, s. A function declares q, t. A block inside it declares r, u, v. How many distinct names are visible inside the block?",
+          "answer": 7,
+          "explanation": "The distinct names across the three scopes are p, q, r, s, t, u and v, which is 7. The tempting answer is 9, the total number of entries, but q and r are declared twice and the inner declarations hide the outer ones, so each name counts once."
+        },
+        "summary": "The symbol table is a shared dictionary from names to attributes, used from lexical analysis through code generation. Lookup goes from the innermost scope outward, so inner declarations hide outer ones."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.thompson-construction",
+      "title": "Regular expression to NFA: Thompson's construction",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        38,
+        434,
+        435
+      ],
+      "points": [
+        "A symbol a becomes two states joined by an a-edge; ε becomes two states joined by an ε-edge.",
+        "Union s|t adds a new start with ε-edges to both sub-NFAs and a new accept fed by ε-edges from both accepts: 2 new states.",
+        "Concatenation st merges the accept of N(s) with the start of N(t), so the state count is |N(s)| + |N(t)| − 1.",
+        "Star s* adds a new start and accept, with ε-edges start→N(s), N(s)→accept, start→accept (skip) and accept of N(s)→start of N(s) (repeat): 2 new states.",
+        "The result has one start, one accept with no outgoing edges, at most 2r states for r symbols and operators, and at most two edges leaving any state."
+      ],
+      "keyTerms": [
+        "ε-NFA",
+        "Thompson's construction",
+        "ε-edge"
+      ],
+      "lesson": {
+        "why": "A regular expression is often turned into an NFA first, and questions ask for the number of states or the shape of the machine that Thompson's rules produce.",
+        "intro": "Thompson's construction builds an NFA for a regular expression piece by piece. Each small expression gets a tiny machine with exactly one start state and one accepting state. Larger expressions are built by joining these machines with free moves, which are edges labelled with the empty string and cost no input. Because every piece has one entrance and one exit, pieces fit together like blocks, and the rules for symbol, union, concatenation and star are all you need.",
+        "prerequisites": [
+          "cd-lexical-analysis.tokens-lexemes-patterns"
+        ],
+        "definitions": [
+          {
+            "term": "ε-edge",
+            "meaning": "A transition that moves to another state without reading any input character."
+          },
+          {
+            "term": "ε-NFA",
+            "meaning": "An NFA that is allowed to use ε-edges."
+          }
+        ],
+        "principle": {
+          "text": "A symbol or ε needs 2 new states. Union adds 2 new states. Star adds 2 new states. Concatenation adds none and merges the accepting state of the left part with the start state of the right part, so it removes 1 state.",
+          "tex": "|Q| = 2s + 2u + 2k - c"
+        },
+        "limits": "The bound of two states per symbol or operator assumes the plain textbook rules. Variants that merge states or skip ε-edges give fewer states, and the count changes if the question defines concatenation without merging. The NFA is not yet a DFA, so it can still have several moves on one input.",
+        "example": {
+          "problem": "How many states does Thompson's construction give for the expression a|b, and for ab?",
+          "steps": [
+            "Each of the symbols a and b gets a 2-state machine, so 4 states are used before any operator.",
+            "For a|b, union adds a new start with ε-edges to both machines and a new accepting state fed by ε-edges from both: 4 + 2 = 6 states.",
+            "For ab, concatenation merges the accepting state of the machine for a with the start state of the machine for b: 4 - 1 = 3 states."
+          ],
+          "result": "a|b has 6 states and ab has 3 states."
+        },
+        "misconceptions": [
+          "Concatenation does not add states; it merges two, so it lowers the count by one.",
+          "The star rule does not just add a loop on the old machine: it adds a new start and a new accepting state plus a skip edge so that the empty string is accepted."
+        ],
+        "recall": [
+          {
+            "q": "How many new states do union and star each add?",
+            "a": "Each adds 2 new states, a fresh start and a fresh accepting state."
+          },
+          {
+            "q": "What does concatenation do to the two sub-machines?",
+            "a": "It merges the accepting state of the left machine with the start state of the right machine, removing one state."
+          },
+          {
+            "q": "What do the final machines look like in every case?",
+            "a": "One start state and one accepting state with no outgoing edges, and at most two edges leaving any state."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many states are in the NFA that Thompson's construction builds for the regular expression (ab|c)* ? Use the standard rules, with concatenation merging two states.",
+          "answer": 9,
+          "explanation": "Count: ab uses 2 + 2 - 1 = 3 states, c uses 2. The union adds 2 to give 3 + 2 + 2 = 7 states. The star adds 2 more, giving 9. Answering 10 tempts if you forget that concatenation merges one pair of states."
+        },
+        "summary": "Each symbol costs 2 states, union and star add 2 each, and concatenation removes 1 by merging; the result always has one start and one accepting state."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.subset-construction",
+      "title": "NFA to DFA: subset construction",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        38,
+        434,
+        437
+      ],
+      "points": [
+        "Each DFA state is a set of NFA states; the start state is ε-closure of the NFA start.",
+        "The move on symbol a from set S is ε-closure(move(S, a)); a DFA state is accepting if its set contains an NFA accept state.",
+        "Only reachable subsets are built, so the DFA is usually small, but n NFA states can force up to 2ⁿ DFA states.",
+        "Lexers convert to a DFA because a DFA spends constant time per input character, while simulating an NFA tracks a whole set of states per character."
+      ],
+      "keyTerms": [
+        "ε-closure",
+        "move",
+        "powerset"
+      ],
+      "lesson": {
+        "why": "Converting an NFA to a DFA is a standard step in building a scanner, and questions ask for the number of DFA states or for the transitions of a given conversion.",
+        "intro": "An NFA can be in several states at once after reading some input, because one symbol may lead to more than one place. A DFA must always be in exactly one state. The fix is to let one DFA state stand for the whole group of NFA states that the NFA could be in. So each DFA state is a set of NFA states. We start with the set the NFA can reach before reading anything, then for each symbol work out which set comes next, and we keep going until no new sets appear.",
+        "prerequisites": [
+          "cd-lexical-analysis.thompson-construction"
+        ],
+        "definitions": [
+          {
+            "term": "ε-closure",
+            "meaning": "The set of states reachable from a given set by following only ε-edges, including the starting states themselves."
+          },
+          {
+            "term": "move",
+            "meaning": "The set of states reached from a set S by reading one symbol a, before taking any closure."
+          }
+        ],
+        "principle": {
+          "text": "The start state is the ε-closure of the NFA start. The transition on a from a set S is the ε-closure of move(S, a). A set is accepting if it holds an NFA accepting state. Only sets reached from the start are built.",
+          "tex": "D(S,a)=\\varepsilon\\text{-closure}\\big(\\textstyle\\bigcup_{q\\in S}\\delta(q,a)\\big)"
+        },
+        "limits": "The DFA can have up to 2^n states for an n-state NFA, though the reachable ones are often far fewer. The method assumes you work over a fixed alphabet; an empty set that appears is a dead state and counts as a DFA state in a complete DFA.",
+        "example": {
+          "problem": "An NFA over {a, b} has states 0, 1, 2 with start 0 and accepting state 2. State 0 loops on a and b, 0 goes to 1 on a, and 1 goes to 2 on b. Build the DFA.",
+          "steps": [
+            "The start is {0}. There are no ε-edges.",
+            "From {0}: on a the NFA reaches 0 and 1, giving {0,1}; on b it reaches only 0, giving {0}.",
+            "From {0,1}: on a it reaches {0,1}; on b it reaches 0 from state 0 and 2 from state 1, giving {0,2}.",
+            "From {0,2}: on a it reaches {0,1}; on b it reaches {0}. No new sets appear."
+          ],
+          "result": "The DFA has 3 states: {0}, {0,1} and {0,2}, with {0,2} accepting. It accepts the strings that end in ab."
+        },
+        "misconceptions": [
+          "The start state of the DFA is the ε-closure of the NFA start, not just the NFA start, when ε-edges leave it.",
+          "A DFA does not always have 2^n states; only the sets reachable from the start are built, and here 3 of the 8 possible sets appear."
+        ],
+        "recall": [
+          {
+            "q": "What is a state of the DFA in subset construction?",
+            "a": "A set of NFA states, the ones the NFA could be in after reading the same input."
+          },
+          {
+            "q": "When is a DFA state accepting?",
+            "a": "When its set contains at least one accepting state of the NFA."
+          },
+          {
+            "q": "What is the worst-case number of DFA states for an n-state NFA?",
+            "a": "2^n, and some languages reach about that bound."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An NFA over {a, b} has states 0 to 3 with start 0. State 0 loops on a and b, 0 goes to 1 on a, 1 goes to 2 on a and on b, and 2 goes to 3 on a and on b. It accepts strings whose third symbol from the right is a. How many states does the subset construction produce, counting only reachable sets?",
+          "answer": 8,
+          "explanation": "Each DFA state records which of the last three symbols were a, and all 8 combinations occur, giving 8 reachable sets. Answering 4 tempts because the NFA has 4 states, but the DFA states are sets, not single states."
+        },
+        "summary": "Each DFA state is a set of NFA states built from the closure of the start by repeated closure-of-move steps; only reachable sets count, and the total is at most 2^n."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.direct-dfa",
+      "title": "Regular expression directly to DFA: followpos",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        434,
+        435
+      ],
+      "points": [
+        "Append an end marker # to the expression r to get (r)#, and number every symbol occurrence (leaf) as a position.",
+        "For each syntax-tree node compute nullable, firstpos and lastpos bottom-up; at a concatenation c1·c2, every position in lastpos(c1) gets firstpos(c2) added to its followpos.",
+        "At a star node c*, every position in lastpos(c) gets firstpos(c) added to its followpos.",
+        "DFA states are sets of positions starting from firstpos(root); a state is accepting if it contains the position of #. For (a|b)*abb# this gives the 4-state minimal DFA directly."
+      ],
+      "keyTerms": [
+        "nullable",
+        "firstpos",
+        "lastpos",
+        "followpos"
+      ],
+      "lesson": {
+        "why": "This method builds a DFA straight from a regular expression without an NFA, and a question may ask for firstpos, lastpos or followpos sets of a small expression.",
+        "intro": "Think of every letter in the regular expression as having its own position number, left to right. After reading one position, the question is which positions may come next. If we can answer that for every position, we get the DFA directly: a DFA state is simply a set of positions that could be the next one read. To make the end visible we add a special marker # at the right end, and a state that contains the position of # is an accepting state.",
+        "prerequisites": [
+          "cd-lexical-analysis.subset-construction"
+        ],
+        "definitions": [
+          {
+            "term": "nullable",
+            "meaning": "True for a sub-expression that can match the empty string."
+          },
+          {
+            "term": "firstpos",
+            "meaning": "The set of positions that can be the first symbol of a string matched by a sub-expression."
+          },
+          {
+            "term": "lastpos",
+            "meaning": "The set of positions that can be the last symbol of a string matched by a sub-expression."
+          },
+          {
+            "term": "followpos",
+            "meaning": "For a position p, the set of positions that can come right after p in some matched string."
+          }
+        ],
+        "principle": {
+          "text": "Compute nullable, firstpos and lastpos bottom-up on the syntax tree of (r)#. At a concatenation c1 c2, add firstpos(c2) to followpos of every position in lastpos(c1). At a star c*, add firstpos(c) to followpos of every position in lastpos(c). The start state is firstpos of the root."
+        },
+        "limits": "The # marker is only for the construction and never appears in real input. The DFA found this way is not guaranteed to be minimal for every expression. The method needs the expression to be tree-structured, so the work grows with expression size and with the number of positions.",
+        "example": {
+          "problem": "Build the DFA for ab*a using the end marker, so the expression is ab*a#. Positions: a is 1, b is 2, the second a is 3 and # is 4.",
+          "steps": [
+            "For the star on b: firstpos is {2} and lastpos is {2}, so followpos(2) gets {2}.",
+            "For concatenation a with b*: lastpos(a) is {1} and firstpos(b*a) is {2,3}, because b* is nullable. So followpos(1) = {2,3}.",
+            "Concatenating b* with the final a puts firstpos(a) = {3} into followpos(2), and the concatenation with # puts {4} into followpos(3). So followpos(2) = {2,3}.",
+            "Start with {1}. On a it goes to {2,3}. From {2,3}, on b it returns to {2,3} and on a it goes to {4}. {4} contains #, so it accepts."
+          ],
+          "result": "The DFA has 3 states: {1}, {2,3} and {4}, with {4} accepting. It accepts a, then any number of b, then a."
+        },
+        "misconceptions": [
+          "followpos is defined only through concatenation and star nodes; a union node adds nothing to followpos.",
+          "The end marker # is a real position in the construction, but it is not part of the language."
+        ],
+        "recall": [
+          {
+            "q": "What does followpos(p) contain?",
+            "a": "The positions that can immediately follow position p in some string matched by the expression."
+          },
+          {
+            "q": "How is the accepting state recognised?",
+            "a": "A DFA state is accepting if its set of positions contains the position of the end marker #."
+          },
+          {
+            "q": "Which node types create followpos entries?",
+            "a": "Concatenation nodes and star nodes only."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For the expression a(b|c)*# with positions a = 1, b = 2, c = 3 and # = 4, how many positions are in followpos(2)?",
+          "answer": 3,
+          "explanation": "The star lets 2 be followed again by 2 or 3, which are the first positions of (b|c). After the star, the concatenation with # also lets 4 follow, so followpos(2) = {2,3,4} with 3 elements. Answering 2 tempts if you forget that the star can end after b and so the marker can follow it."
+        },
+        "summary": "Number the symbol positions, add #, compute firstpos, lastpos and followpos from concatenation and star nodes, and read off the DFA states as position sets."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.dfa-minimisation",
+      "title": "DFA minimisation and state counting",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        436,
+        437,
+        438
+      ],
+      "points": [
+        "Table filling: mark every pair (accepting, non-accepting), then repeatedly mark (p, q) if some symbol takes them to a marked pair; unmarked pairs are equivalent and merge.",
+        "Partition refinement does the same thing in groups: start from {accepting, non-accepting} and split any group whose members go to different groups on some symbol.",
+        "The minimal DFA is unique up to renaming, so its state count equals the number of Myhill–Nerode classes of the language.",
+        "A complete DFA has a transition on every symbol from every state, so a language that can be killed by a bad symbol needs a dead state: a*b* takes 3 states, not 2.",
+        "Over {a, b}: (a|b)* needs 1 state, strings ending in abb need 4, and strings whose k-th symbol from the right is a need 2ᵏ."
+      ],
+      "keyTerms": [
+        "table filling",
+        "partition refinement",
+        "dead state",
+        "Myhill–Nerode"
+      ],
+      "lesson": {
+        "why": "Counting the states of the minimal DFA is a repeated question type, and it needs a reliable procedure, not a guess from the expression.",
+        "intro": "Two states of a DFA are equivalent when they behave the same on every future input: they accept the same strings from there on. Equivalent states are redundant, so we can merge them without changing the language. Minimisation finds them. We start by splitting the states into accepting and non-accepting, because those clearly behave differently, and we keep splitting any group whose members go to different groups on some symbol. When no group splits any more, each group is one state of the minimal DFA.",
+        "prerequisites": [
+          "cd-lexical-analysis.subset-construction"
+        ],
+        "definitions": [
+          {
+            "term": "Partition refinement",
+            "meaning": "Starting from the accepting and non-accepting groups, split groups until all members of each group agree on which group every symbol leads to."
+          },
+          {
+            "term": "Table filling",
+            "meaning": "Mark every pair of states that differ in acceptance, then mark pairs that lead to a marked pair; unmarked pairs are equivalent."
+          },
+          {
+            "term": "Dead state",
+            "meaning": "A non-accepting state from which every move stays in the state, needed in a complete DFA."
+          }
+        ],
+        "principle": {
+          "text": "States p and q are equivalent exactly when no string leads one to an accepting state and the other to a non-accepting one. The minimal DFA is unique up to renaming, and its number of states equals the number of Myhill-Nerode classes of the language."
+        },
+        "limits": "The procedure assumes a complete DFA with all unreachable states removed first. If the DFA is not complete, a dead state is needed before counting, and the count changes by one.",
+        "example": {
+          "problem": "A DFA over {a, b} has states 0 to 5 with start 0 and accepting states 3 and 4. Transitions: 0 goes to 1 on a and 2 on b; 1 goes to 3 on a and 4 on b; 2 goes to 4 on a and 3 on b; states 3, 4 and 5 go to 5 on both symbols. Minimise it.",
+          "steps": [
+            "Start with the groups {0,1,2,5} and {3,4}.",
+            "In round 1, states 1 and 2 go into {3,4} on both symbols, while 0 and 5 go into the non-accepting group on both symbols. So {0,1,2,5} splits into {0,5} and {1,2}.",
+            "In round 2, state 0 goes into {1,2} on both symbols but state 5 goes to itself, so {0,5} splits. Check {3,4}: both go to 5 on both symbols, so they stay together.",
+            "No group splits further."
+          ],
+          "result": "The minimal DFA has 4 states: {0}, {1,2}, {3,4} and {5}."
+        },
+        "misconceptions": [
+          "A DFA with 6 states is not minimal just because every state is reachable; two reachable states can still be equivalent.",
+          "The dead state counts as a state of a complete minimal DFA, so a missing transition is not a reason to leave it out of the count."
+        ],
+        "recall": [
+          {
+            "q": "What are the starting groups in partition refinement?",
+            "a": "The accepting states and the non-accepting states."
+          },
+          {
+            "q": "When do you stop refining?",
+            "a": "When every group has members that lead to the same groups on each symbol, so no group can split."
+          },
+          {
+            "q": "What does the number of states in the minimal DFA equal?",
+            "a": "The number of Myhill-Nerode equivalence classes of the language."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DFA over {a, b} has states 0 to 5, start 0 and accepting states 2 and 5. Transitions on (a, b): 0: (1, 3); 1: (2, 4); 2: (2, 2); 3: (4, 0); 4: (5, 0); 5: (5, 5). How many states does the minimal DFA have?",
+          "answer": 5,
+          "explanation": "The accepting states 2 and 5 both go to themselves on both symbols, so they are equivalent and merge. States 0, 1, 3 and 4 are all pairwise distinguishable by short strings: they separate in the first rounds of refinement. That leaves 5 states. Answering 6 tempts because all six states are reachable."
+        },
+        "summary": "Split accepting from non-accepting, refine until each group agrees on where every symbol leads, and the groups are the states of the minimal DFA."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.input-buffering",
+      "title": "Input buffering and sentinels",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        434,
+        435
+      ],
+      "points": [
+        "The lexer reads the source into a buffer split into two halves of N characters each, refilling one half while scanning the other, so a lexeme can straddle the boundary.",
+        "Two pointers mark the lexeme: lexemeBegin at its start and forward scanning ahead until a pattern match is decided, after which forward may retract.",
+        "A sentinel character (eof) at the end of each half means the inner loop tests only whether the character is eof, instead of testing end-of-half and then end-of-input every step.",
+        "Only when eof is seen does the lexer check which half ended or whether input is truly exhausted, so the common case costs one comparison."
+      ],
+      "keyTerms": [
+        "buffer pair",
+        "sentinel",
+        "lexemeBegin",
+        "forward pointer"
+      ],
+      "lesson": {
+        "why": "Reading source one character at a time from disk is slow, and scanning is the one compiler phase that touches every character. Buffer pairs and sentinels show how a lexer keeps that per-character cost at a single comparison.",
+        "intro": "The lexer first copies the source into a buffer in memory. The buffer is split into two halves of N characters each. While the lexer scans one half, the other half can be refilled from the file. Two pointers track the work: lexemeBegin marks where the current lexeme starts, and forward moves ahead until the lexer knows which pattern matched. A lexeme may begin at the end of one half and finish in the next, which is why two halves are used rather than one. At the end of each half sits a special character called a sentinel, usually eof, so the scanner can tell where a half ends without counting.",
+        "prerequisites": [
+          "cd-lexical-analysis.lexer-role"
+        ],
+        "definitions": [
+          {
+            "term": "Buffer pair",
+            "meaning": "Two halves of N characters each, refilled alternately so scanning never waits for a full reload."
+          },
+          {
+            "term": "Sentinel",
+            "meaning": "A special eof character placed after each half, so one comparison detects both the end of a half and the end of input."
+          }
+        ],
+        "principle": {
+          "text": "Each step tests only whether the current character is eof. The lexer checks which half ended, or whether the input is exhausted, only when eof is actually seen. The common case therefore costs one comparison per character instead of two. Here $L$ is the number of input characters and $e$ the number of times eof is met.",
+          "tex": "\\text{tests without sentinel} = 2L, \\qquad \\text{tests with sentinel} = L + e"
+        },
+        "limits": "A sentinel saves work only because eof never appears inside real source text. A lexeme longer than a buffer half still needs special handling, and the sentinel does not remove the cost of refilling a half.",
+        "example": {
+          "problem": "A 10-character input is scanned with halves of N = 4. Count the character tests with and without sentinels, where e is the number of times eof is met.",
+          "steps": [
+            "Without sentinels, each step tests for end of half and then for end of input: 2 tests per character, so $2 \\times 10 = 20$.",
+            "With sentinels, each step makes one test, giving 10 tests for the characters.",
+            "The eof is met after characters 4 and 8 (end of a half) and after character 10 (end of input), so $e = 3$ extra checks.",
+            "Total with sentinels is $10 + 3 = 13$."
+          ],
+          "result": "20 tests without sentinels against 13 with them; the saving grows as the input gets longer, since $e$ grows only with $L/N$, where $N$ is the half size."
+        },
+        "misconceptions": [
+          "The sentinel is not a marker that ends a token; it marks the end of a buffer half, and the lexer must then check whether the whole input has ended.",
+          "forward does not only move right: after a match is decided the lexer may retract forward to the end of the longest accepted lexeme."
+        ],
+        "recall": [
+          {
+            "q": "Why is the buffer split into two halves?",
+            "a": "One half can be refilled while the other is scanned, and a lexeme can cross from one half into the next."
+          },
+          {
+            "q": "What do lexemeBegin and forward mark?",
+            "a": "lexemeBegin marks the start of the current lexeme and forward is the scanning pointer that runs ahead of it."
+          },
+          {
+            "q": "What does a sentinel save?",
+            "a": "It lets the inner loop test one condition, eof, instead of testing end of half and end of input at every character."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "With sentinels at the end of each buffer half, how many character tests does the scanner make per ordinary character inside a half?",
+          "options": [
+            "One: whether the character is eof",
+            "Two: end of half, then end of input",
+            "Zero: the pointer moves without testing",
+            "Three: end of half, end of input and pattern match"
+          ],
+          "answer": 0,
+          "explanation": "The sentinel merges both end checks into the single test for eof, and the deeper check runs only when eof is found. Two tests per character is the scheme without sentinels, and it tempts because it is the obvious way to detect both ends."
+        },
+        "summary": "The lexer scans a buffer of two halves with the pointers lexemeBegin and forward. A sentinel eof at each half end reduces the per-character check to one comparison, and the end-of-half versus end-of-input question is asked only when eof appears."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.lex-flex",
+      "title": "Lex and Flex",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        434,
+        435,
+        436
+      ],
+      "points": [
+        "A Lex specification has three parts separated by %%: declarations, translation rules (pattern followed by an action in braces) and auxiliary C functions.",
+        "Lex compiles the patterns into a DFA transition table and emits a C function yylex() that returns the next token; the matched lexeme is in yytext and its length in yyleng.",
+        "The generated scanner applies longest match and then rule order, so an action that returns nothing (such as skipping whitespace) simply continues scanning.",
+        "A catch-all rule . at the end matches any single character not matched otherwise, which is the usual place to report or pass through stray characters."
+      ],
+      "keyTerms": [
+        "yylex",
+        "yytext",
+        "yyleng",
+        "%%"
+      ],
+      "lesson": {
+        "why": "Lex questions ask what a specification does on a given input, which comes down to knowing the file layout and the matching rule the generated scanner follows.",
+        "intro": "Lex is a tool that writes a scanner for you. You give it a specification file, and it produces a C function that returns tokens. The file has three parts separated by a line containing %%. The first part holds declarations. The second holds rules, each a pattern followed by an action in braces, which is C code to run when that pattern matches. The third holds helper C functions. Lex turns the patterns into a DFA transition table and emits the function yylex(), which reads input and returns the next token each time it is called.",
+        "prerequisites": [
+          "cd-lexical-analysis.maximal-munch"
+        ],
+        "definitions": [
+          {
+            "term": "yytext",
+            "meaning": "The text of the lexeme that the last rule matched."
+          },
+          {
+            "term": "yyleng",
+            "meaning": "The length of the lexeme in yytext."
+          },
+          {
+            "term": "yylex()",
+            "meaning": "The generated function that scans input and returns the next token."
+          }
+        ],
+        "principle": {
+          "text": "For the input at the current position, the scanner takes the longest lexeme any pattern matches. If two patterns match the same longest lexeme, the rule listed first wins. An action that returns nothing, such as skipping whitespace, just lets scanning continue."
+        },
+        "limits": "Rule order breaks ties only between equal-length matches. A shorter match listed earlier never beats a longer match listed later. Lex handles regular patterns only, so nesting must be done by the parser.",
+        "example": {
+          "problem": "A specification has rules in this order: if returns IF, [a-z]+ returns ID, and a blank is skipped. What tokens does the scanner produce for the input iff if?",
+          "steps": [
+            "At the first position, the pattern if matches 2 characters, while [a-z]+ matches the longest prefix iff of 3 characters.",
+            "The longest match wins, so iff is returned as ID.",
+            "The blank is matched by the skip rule, which returns nothing, so scanning continues.",
+            "For if, both patterns match 2 characters, a tie, so the earlier rule if decides and IF is returned."
+          ],
+          "result": "The tokens are ID then IF."
+        },
+        "misconceptions": [
+          "Putting the keyword rule first does not make it win against a longer identifier: iff is still an ID because longest match is applied before rule order.",
+          "An action with no return statement does not stop the scanner; it discards that lexeme and continues with the next one."
+        ],
+        "recall": [
+          {
+            "q": "What are the three parts of a Lex specification?",
+            "a": "Declarations, translation rules (pattern and action), and auxiliary C functions, separated by %%."
+          },
+          {
+            "q": "Which rule is used when two patterns match the same length?",
+            "a": "The one listed first in the specification."
+          },
+          {
+            "q": "What do yytext and yyleng hold?",
+            "a": "yytext holds the matched lexeme and yyleng its length."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A Lex file lists the rule [a-z]+ returning ID before the rule while returning WHILE. For the input while, which token is returned?",
+          "options": [
+            "WHILE, because it is a keyword",
+            "ID, because the patterns tie and the earlier rule wins",
+            "Both tokens, one after the other",
+            "A lexical error, because the rules conflict"
+          ],
+          "answer": 1,
+          "explanation": "Both patterns match all 5 characters, so the tie goes to the earlier rule, ID. WHILE tempts because a keyword looks more specific, but Lex only uses length and then order. Placing the keyword rule first is how it is made to win."
+        },
+        "summary": "A Lex specification has declarations, rules and C functions split by %%. The generated yylex() applies longest match, breaks ties by rule order, and exposes the lexeme through yytext and yyleng."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.lexical-errors",
+      "title": "Lexical errors and recovery",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        435,
+        436
+      ],
+      "points": [
+        "Lexical errors arise when no pattern matches a prefix of the remaining input: an illegal character such as @ outside a string in C, an unterminated string or comment, or an over-long identifier where a limit exists.",
+        "Panic-mode recovery deletes characters until a prefix matches some pattern again, often a delimiter such as ; or a newline.",
+        "Finer recovery tries a single edit: delete one character, insert a missing one, replace one, or transpose two adjacent characters."
+      ],
+      "keyTerms": [
+        "panic mode",
+        "unterminated string",
+        "illegal character"
+      ],
+      "lesson": {
+        "why": "Questions ask you to classify an error as lexical, syntax or semantic, and the classification depends only on which phase is first unable to continue.",
+        "intro": "A lexical error happens when the lexer reaches a point in the input where no token pattern matches. Examples are a stray character such as @, a string whose closing quote is missing, or a comment that is never closed. The lexer reports the error and then must recover so that it can keep scanning and find further errors. The simplest recovery is panic mode.",
+        "prerequisites": [
+          "cd-lexical-analysis.compiler-phases"
+        ],
+        "definitions": [
+          {
+            "term": "Panic-mode recovery",
+            "meaning": "After an error, the lexer deletes characters until a prefix matches some token pattern again."
+          },
+          {
+            "term": "Single-edit recovery",
+            "meaning": "The lexer tries one change to the input: delete, insert, replace a character, or swap two adjacent characters."
+          }
+        ],
+        "principle": {
+          "text": "Ask which phase fails first. If no token can be formed from the characters, the error is lexical. If tokens form but the grammar cannot derive them, it is a syntax error. If the statement is well formed but breaks a meaning rule such as a type rule, it is a semantic error."
+        },
+        "limits": "The lexer sees only one token at a time, so it cannot detect a missing parenthesis or a mismatched type. Those are left to the parser and the semantic analyzer.",
+        "example": {
+          "problem": "The fragment int y = 5 # 6; contains the character #, which no C token pattern matches. How does panic mode recover?",
+          "steps": [
+            "The lexer returns int, y, = and 5 as valid tokens.",
+            "At # no pattern matches a prefix, so the lexer reports a lexical error.",
+            "Panic mode deletes # and then looks for a prefix that matches a pattern again.",
+            "The next character after the space is 6, which matches the number pattern, and scanning resumes normally."
+          ],
+          "result": "The # is deleted, the error is reported, and the lexer carries on with 6 and ;."
+        },
+        "misconceptions": [
+          "A missing closing parenthesis is not a lexical error; every character still forms a valid token and the parser finds the problem.",
+          "An unterminated string is lexical, not syntactic, because the lexer cannot form a string token at all and the parser never receives it."
+        ],
+        "recall": [
+          {
+            "q": "When is an error lexical?",
+            "a": "When no token pattern matches a prefix of the remaining input."
+          },
+          {
+            "q": "What does panic-mode recovery do?",
+            "a": "It deletes characters until a prefix matches some token pattern again."
+          },
+          {
+            "q": "Is a type mismatch lexical?",
+            "a": "No. The tokens and grammar are fine, so it is a semantic error found after parsing."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of these errors is detected by the lexical analyzer?",
+          "options": [
+            "A missing closing parenthesis in a condition",
+            "A use of an undeclared variable",
+            "A comment opened with /* that is never closed",
+            "A float assigned to a pointer variable"
+          ],
+          "answer": 2,
+          "explanation": "An unterminated comment leaves characters that cannot form any token, so the lexer reports it. The missing parenthesis is found by the parser, the undeclared variable and the pointer mismatch by the semantic analyzer. The missing parenthesis tempts because it looks like a typing slip, but each character there is still a valid token."
+        },
+        "summary": "A lexical error is input that matches no token pattern, such as an illegal character or an unterminated string or comment. Panic mode deletes characters until a token can form again; grammar and type errors belong to later phases."
+      }
+    },
+    {
+      "id": "cd-lexical-analysis.lexer-limits",
+      "title": "What a lexer can and cannot detect",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A lexer sees only regular patterns over a short window, so it cannot match nested structure: balanced parentheses or begin–end pairs need a context-free parser.",
+        "A missing semicolon, an extra operator or a misplaced keyword still produces valid tokens and is caught by the parser as a syntax error.",
+        "An undeclared variable, a type mismatch or a wrong number of arguments is caught in semantic analysis; the lexer only knows that the lexeme is a well-formed identifier.",
+        "A misspelt keyword such as fi or whlie is an identifier to the lexer; the error appears later as a syntax or semantic error."
+      ],
+      "keyTerms": [
+        "syntax error",
+        "semantic error",
+        "regular vs context-free"
+      ],
+      "lesson": {
+        "why": "Questions ask which phase reports a given error, so you need to know exactly what a lexer can and cannot see.",
+        "intro": "A lexer works on short stretches of text and recognises each token by a regular pattern. It never remembers how many parentheses are open, and it does not know what a name means. Because of this, many mistakes that look wrong to a human produce perfectly valid tokens, and the lexer lets them through. The parser then checks that tokens fit the grammar, and the semantic analyzer checks meaning, such as types and declarations.",
+        "prerequisites": [
+          "cd-lexical-analysis.compiler-phases",
+          "cd-lexical-analysis.lexical-errors"
+        ],
+        "definitions": [
+          {
+            "term": "Syntax error",
+            "meaning": "Tokens are valid but do not fit the grammar, found by the parser."
+          },
+          {
+            "term": "Semantic error",
+            "meaning": "The statement is well formed but breaks a meaning rule such as a type or declaration rule."
+          }
+        ],
+        "principle": {
+          "text": "The lexer can only reject input where no token pattern matches. Anything needing counting or nesting is beyond regular patterns and belongs to the parser. Anything needing declarations or types belongs to semantic analysis."
+        },
+        "limits": "Not every unusual character is passed on: a stray illegal character or an unterminated string still fails in the lexer. The limit is that well-formed tokens in the wrong arrangement or with the wrong meaning cannot be detected there.",
+        "example": {
+          "problem": "Decide which phase first reports each problem in the line whlie (x > 0) { y = x; }, where whlie is a misspelt while and y was never declared.",
+          "steps": [
+            "The lexer reads whlie as an ordinary identifier, since it matches the identifier pattern, so it reports nothing.",
+            "The parser sees identifier, parenthesis, condition, brace, which does not fit any statement in the grammar, so it reports a syntax error.",
+            "If the line were fixed to while, the tokens would parse, and the use of the undeclared y would be a semantic error."
+          ],
+          "result": "The misspelt keyword is first a syntax error, and the undeclared variable is a semantic error; the lexer reports neither."
+        },
+        "misconceptions": [
+          "A misspelt keyword is not a lexical error, because it still matches the identifier pattern and becomes a valid token.",
+          "Unbalanced parentheses cannot be found by the lexer, since matching nesting needs a context-free grammar, not a regular pattern."
+        ],
+        "recall": [
+          {
+            "q": "Why can a lexer not check balanced parentheses?",
+            "a": "Balanced nesting is not a regular language, so it needs a context-free parser."
+          },
+          {
+            "q": "Which phase catches an undeclared variable?",
+            "a": "Semantic analysis; the lexer only sees a well-formed identifier."
+          },
+          {
+            "q": "What does the lexer do with a misspelt keyword?",
+            "a": "It treats it as an identifier, and the error shows up later."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following errors can the lexical analyzer detect on its own?",
+          "options": [
+            "A missing closing brace at the end of a function",
+            "An identifier used with the wrong number of arguments",
+            "A missing operand, as in x = 3 + ;",
+            "A character such as @ that begins no token"
+          ],
+          "answer": 3,
+          "explanation": "Only the illegal character matches no token pattern, so the lexer rejects it. The missing brace and the missing operand are found by the parser, and the argument count by semantic analysis. The missing operand tempts because it is a local mistake, but each token in it is valid."
+        },
+        "summary": "The lexer rejects only input that matches no token pattern. Misplaced or missing tokens are syntax errors found by the parser, and type or declaration mistakes are semantic errors found later."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cd-lexical-analysis.thompson-size",
+      "name": "Size of a Thompson NFA",
+      "tex": "|Q_N| \\le 2r, \\qquad \\text{out-degree}(q) \\le 2",
+      "text": "|Q_N| ≤ 2r, out-degree(q) ≤ 2",
+      "where": [
+        [
+          "r",
+          "number of symbol occurrences and operators in the regular expression"
+        ],
+        [
+          "Q_N",
+          "state set of the NFA"
+        ]
+      ],
+      "note": "Each symbol and each | or * adds two states, and each concatenation removes one, because it merges the left accept with the right start. (a|b)*abb gives 14 − 3 = 11 states.",
+      "topic": "cd-lexical-analysis.thompson-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.subset-bound",
+      "name": "Subset construction bound",
+      "tex": "|Q_D| \\le 2^{|Q_N|}",
+      "text": "|Q_D| ≤ 2^|Q_N|",
+      "where": [
+        [
+          "Q_D",
+          "state set of the DFA, counting the empty set as the dead state"
+        ]
+      ],
+      "note": "The blow-up is unavoidable, tight up to a factor of 2: the language whose k-th symbol from the right is a has a (k+1)-state NFA but needs 2ᵏ DFA states.",
+      "topic": "cd-lexical-analysis.subset-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.closure-move",
+      "name": "Subset construction transition",
+      "tex": "D(S, a) = \\varepsilon\\text{-closure}\\Big(\\bigcup_{q \\in S} \\delta(q, a)\\Big)",
+      "text": "D(S, a) = ε-closure(∪ over q in S of δ(q, a))",
+      "where": [
+        [
+          "S",
+          "a set of NFA states (one DFA state)"
+        ],
+        [
+          "δ",
+          "NFA transition function"
+        ]
+      ],
+      "note": "The start state is ε-closure of the NFA start, not the NFA start alone.",
+      "topic": "cd-lexical-analysis.subset-construction",
+      "origin": "source",
+      "pages": [
+        434,
+        435
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.followpos-rules",
+      "name": "followpos rules",
+      "tex": "c_1 \\cdot c_2:\\ \\forall i \\in \\mathrm{lastpos}(c_1),\\ \\mathrm{firstpos}(c_2) \\subseteq \\mathrm{followpos}(i); \\qquad c^*:\\ \\forall i \\in \\mathrm{lastpos}(c),\\ \\mathrm{firstpos}(c) \\subseteq \\mathrm{followpos}(i)",
+      "text": "c1·c2: for i in lastpos(c1), firstpos(c2) ⊆ followpos(i); c*: for i in lastpos(c), firstpos(c) ⊆ followpos(i)",
+      "note": "Only concatenation and star nodes create followpos entries; union nodes only merge firstpos and lastpos.",
+      "topic": "cd-lexical-analysis.direct-dfa",
+      "origin": "source",
+      "pages": [
+        434,
+        435
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.firstpos-concat",
+      "name": "firstpos of a concatenation",
+      "tex": "\\mathrm{firstpos}(c_1 c_2) = \\begin{cases} \\mathrm{firstpos}(c_1) \\cup \\mathrm{firstpos}(c_2) & \\text{if } \\mathrm{nullable}(c_1) \\\\ \\mathrm{firstpos}(c_1) & \\text{otherwise} \\end{cases}",
+      "text": "firstpos(c1c2) = firstpos(c1) ∪ firstpos(c2) if nullable(c1), else firstpos(c1)",
+      "note": "lastpos is the mirror image: it includes lastpos(c1) only when c2 is nullable. A star node is always nullable.",
+      "topic": "cd-lexical-analysis.direct-dfa",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.suffix-dfa",
+      "name": "Minimal DFA for strings ending in a fixed word",
+      "tex": "|Q_{\\min}(\\Sigma^* w)| = |w| + 1",
+      "text": "|Q_min(Σ* w)| = |w| + 1",
+      "where": [
+        [
+          "w",
+          "the required suffix"
+        ]
+      ],
+      "note": "One state per prefix of w matched so far, and no dead state is needed. Strings ending in abb: 4 states.",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "source",
+      "pages": [
+        436,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.kth-from-right",
+      "name": "Minimal DFA for the k-th symbol from the right",
+      "tex": "|Q_{\\min}\\big((a|b)^* a (a|b)^{k-1}\\big)| = 2^k",
+      "text": "|Q_min((a|b)* a (a|b)^(k−1))| = 2ᵏ",
+      "where": [
+        [
+          "k",
+          "position of the required a, counted from the right end"
+        ]
+      ],
+      "note": "The DFA must remember the last k symbols, and all 2ᵏ windows are distinguishable. Compare: the k-th symbol from the left needs only k + 2 states.",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "cd-lexical-analysis.cx-thompson",
+      "name": "Thompson's construction",
+      "worst": "O(|r|)",
+      "space": "O(|r|) states and edges",
+      "notes": "One constant-size fragment per symbol or operator.",
+      "topic": "cd-lexical-analysis.thompson-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.cx-nfa-simulation",
+      "name": "Simulating an NFA on input x",
+      "worst": "O(|x| · (n + m))",
+      "space": "O(n)",
+      "notes": "n states and m edges; each step computes a set of states and its ε-closure.",
+      "topic": "cd-lexical-analysis.subset-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.cx-subset",
+      "name": "Subset construction",
+      "worst": "O(2ⁿ) DFA states",
+      "notes": "Usually far fewer, because only reachable subsets are built; the exponential case is the k-th symbol from the right.",
+      "topic": "cd-lexical-analysis.subset-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.cx-dfa-simulation",
+      "name": "Simulating a DFA on input x",
+      "worst": "O(|x|)",
+      "space": "O(|Q| · |Σ|) transition table",
+      "notes": "One table lookup per character, which is why scanners are DFAs.",
+      "topic": "cd-lexical-analysis.lexer-role",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.cx-table-filling",
+      "name": "DFA minimisation by table filling",
+      "worst": "O(|Σ| · n²)",
+      "notes": "With a dependency list per pair; repeated naive passes over the table cost more. Hopcroft's partition refinement runs in O(|Σ| · n log n).",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "cd-lexical-analysis.pt-count-tokens",
+      "title": "Count the tokens in a C fragment",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Delete comments and whitespace first: they produce no tokens.",
+        "Scan left to right with maximal munch, taking ++, +=, >=, ==, && and similar as single tokens.",
+        "Count each string or character literal as one token, whatever it contains.",
+        "Count every identifier, keyword, constant, operator and punctuation mark, including the final semicolon."
+      ],
+      "trap": "Splitting a string literal at its spaces or format specifiers, or counting ++ as two + tokens.",
+      "topic": "cd-lexical-analysis.token-counting",
+      "origin": "source",
+      "pages": [
+        437,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.pt-trace-patterns",
+      "title": "Tokenise a string against given token patterns",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "At the current position, find for every pattern the longest prefix it matches.",
+        "Take the overall longest; on a tie in length take the pattern listed first.",
+        "Emit that token, advance past the lexeme and repeat until the input is consumed."
+      ],
+      "trap": "Choosing the first pattern that matches anything instead of the longest match; that greedy-by-rule reading gives a different sequence.",
+      "topic": "cd-lexical-analysis.maximal-munch",
+      "origin": "source",
+      "pages": [
+        434,
+        435
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.pt-min-dfa-states",
+      "title": "Number of states in the minimal DFA for a regular expression",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Describe the language in words: what does the automaton need to remember about the prefix read so far?",
+        "List the distinct memories (Myhill–Nerode classes), including a dead class if some prefix can never be completed.",
+        "Check two candidate classes are distinguishable by a suffix; the count of classes is the answer."
+      ],
+      "trap": "Forgetting the dead state of a complete DFA, as in a*b*, or adding one where every prefix can still be completed, as in strings ending in abb.",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "source",
+      "pages": [
+        436,
+        437,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.pt-error-phase",
+      "title": "Which phase detects this error or does this job",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Ask whether the problem is visible in a single lexeme: an illegal character or unterminated literal is lexical.",
+        "Ask whether it is about the arrangement of tokens: missing semicolons and unbalanced brackets are syntactic.",
+        "Ask whether it needs declarations or types: undeclared names and type mismatches are semantic."
+      ],
+      "trap": "Calling a misspelt keyword a lexical error: fi is a valid identifier lexeme.",
+      "topic": "cd-lexical-analysis.lexer-limits",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.pt-construction-trace",
+      "title": "Trace Thompson, subset construction or followpos",
+      "frequency": "low",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Thompson: add 2 states per symbol, 2 per union, 2 per star, and subtract 1 per concatenation of two fragments.",
+        "Subset construction: start from the ε-closure of the start, compute ε-closure(move(S, a)) for each symbol, and keep only reachable sets.",
+        "followpos: number the positions of (r)#, apply the concatenation and star rules, and build states as sets of positions from firstpos(root)."
+      ],
+      "trap": "Counting the DFA from subset construction as minimal: (a|b)*abb gives 5 subsets, which minimise to 4.",
+      "topic": "cd-lexical-analysis.thompson-construction",
+      "origin": "source",
+      "pages": [
+        38,
+        434
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "cd-lexical-analysis.q-keywords-phase",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a compiler, the keywords of the language are recognised during",
+      "options": [
+        "parsing of the program",
+        "lexical analysis of the program",
+        "semantic analysis of the program",
+        "code generation"
+      ],
+      "answer": 1,
+      "explanation": "Keywords are token classes defined by patterns (or reserved entries checked after matching the identifier pattern), so the lexer labels them before the parser ever sees the input. The parser receives the keyword as a token, not as characters.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.compiler-phases",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Phase order",
+      "pages": [
+        433,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-token-lexeme",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "For the C statement count = 100; which statement is correct?",
+      "options": [
+        "count is a lexeme of the token IDENTIFIER, whose pattern is letter(letter | digit)*",
+        "IDENTIFIER is the lexeme and count is its pattern",
+        "letter(letter | digit)* is the token and count is its pattern",
+        "count and 100 are lexemes of the same token class"
+      ],
+      "answer": 0,
+      "explanation": "The token is the category (IDENTIFIER), the pattern is the regular expression defining it, and the lexeme is the actual source string count. 100 is a lexeme of NUMBER, a different token class.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.tokens-lexemes-patterns",
+      "origin": "source",
+      "pages": [
+        433
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-tokens-declaration",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many tokens does a C lexer produce for the statement int x = 5;",
+      "answer": 5,
+      "explanation": "int (keyword), x (identifier), = (operator), 5 (constant), ; (punctuation). The spaces produce no tokens, so the count is 5.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.token-counting",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Token vs lexeme",
+      "pages": [
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-tokens-printf",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many tokens does a C lexer produce for the statement printf(\"sum = %d\\n\", a+++b);",
+      "answer": 10,
+      "explanation": "printf, (, the whole string literal \"sum = %d\\n\", the comma, a, ++, +, b, ) and ; give 10 tokens. The literal is one token despite its spaces and escape, and maximal munch reads +++ as ++ followed by +.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.token-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-while1",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A lexer has a rule for the keyword while listed before the identifier rule [a-zA-Z_][a-zA-Z0-9_]*. What does it return for the input while1 = 10;?",
+      "options": [
+        "Keyword while, then constant 1, then =, 10 and ;",
+        "Identifier while1, then =, 10 and ;",
+        "Keyword while, then identifier 1, then =, 10 and ;",
+        "A lexical error, because while1 matches two rules"
+      ],
+      "answer": 1,
+      "explanation": "Longest match is applied before rule order. The identifier rule matches all 6 characters of while1 while the keyword rule matches only 5, so while1 is one identifier. Rule order matters only for a tie, as for the input while alone.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.maximal-munch",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Longest match",
+      "pages": [
+        434,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-pattern-trace",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A lexer over {a, b, c} has three rules in this order: T1 = a(b|c)*, T2 = (a|b)*c, T3 = c⁺b. It uses longest match and breaks ties by rule order. Which token sequence does it output for the input aabcbcca?",
+      "options": [
+        "T1 T1 T1",
+        "T2 T2 T2 T1",
+        "T1 T1 T2 T2 T2 T1",
+        "T2 T2 T1 T1"
+      ],
+      "answer": 1,
+      "explanation": "At position 1 the longest match is aabc via T2 (T1 matches only a, and aabcbc is not in T2 because c may appear only at the end). Remaining bcca: T2 matches bc (T1 cannot start with b, T3 needs a final b). Remaining ca: T2 matches c. Remaining a: T1 matches a. Output T2 T2 T2 T1. Choosing the first rule that matches anything gives T1 T1 T1, and taking shortest matches gives the six-token sequence.",
+      "difficulty": "hard",
+      "topic": "cd-lexical-analysis.maximal-munch",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-x-plus",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "How does a C compiler treat the expression x+++++y, where x and y are int variables?",
+      "options": [
+        "Lexed as x ++ ++ + y, then rejected because x++ is not an lvalue and cannot be incremented",
+        "Lexed as x ++ + ++ y and compiled as (x++) + (++y)",
+        "Lexed as x + ++ ++ y and compiled as x + (++(++y))",
+        "Rejected by the lexer, because five consecutive + characters cannot be split into tokens"
+      ],
+      "answer": 0,
+      "explanation": "Maximal munch takes the longest operator at each step: ++, then ++ again, then the lone +. The parse (x++)++ + y applies ++ to the rvalue x++, which semantic analysis rejects. The lexer never backtracks to try the legal split x ++ + ++ y.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.maximal-munch",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-ending-abb",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many states does the minimal DFA have for the language of all strings over {a, b} that end in abb?",
+      "answer": 4,
+      "explanation": "The DFA remembers the longest suffix that is a prefix of abb: ε, a, ab or abb. These four are pairwise distinguishable (for example ab and a differ on suffix b), and every state can still reach acceptance, so no dead state is needed: 4 states, with abb accepting.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Regex",
+      "pages": [
+        436,
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-astar-bstar",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "How many states does the minimal complete DFA (a transition on every symbol from every state) have for a*b* over {a, b}?",
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "answer": 2,
+      "explanation": "State A (only a's so far) and state B (some b seen) are both accepting; an a after a b leads to a non-accepting dead state D that loops on both symbols. A and B differ on suffix a, and D differs from both on ε, so 3 states. Dropping the dead state gives a 2-state partial DFA, which is not complete.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — DFA min",
+      "pages": [
+        438
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-third-from-right",
+      "type": "nat",
+      "marks": 2,
+      "stem": "How many states does the minimal DFA have for (a|b)*a(a|b)(a|b), the strings over {a, b} whose third symbol from the right is a?",
+      "answer": 8,
+      "explanation": "The DFA must remember the last three symbols read (shorter prefixes behave like windows padded with b). Any two different windows differ in some position i, and appending i − 1 more symbols moves that position to third from the right, so they are distinguishable. That gives 2³ = 8 states, against only 4 states for an NFA.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.dfa-minimisation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-thompson-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Thompson's construction is applied to (a|b)*abb, where a symbol gives 2 states, union and star each add 2 new states, and concatenation merges the accept state of the left NFA with the start state of the right one. How many states does the resulting NFA have?",
+      "answer": 11,
+      "explanation": "a|b: 2 + 2 + 2 = 6. Star: 6 + 2 = 8. Concatenating a: 8 + 2 − 1 = 9. Then b: 9 + 2 − 1 = 10. Then b: 10 + 2 − 1 = 11.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.thompson-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-subset-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The subset construction is applied to the 11-state Thompson NFA for (a|b)*abb, building only the subsets reachable from the ε-closure of the start state. How many DFA states result before minimisation?",
+      "answer": 5,
+      "explanation": "Call the start closure A. On a, A goes to B; on b, to C. C behaves like A but is a different subset. B on b goes to D (ab seen), D on b to E (abb seen, accepting), and every other move returns to B or C. The reachable subsets are A, B, C, D and E: 5 states. Minimisation merges A and C, which have identical transitions, leaving the 4-state minimal DFA.",
+      "difficulty": "hard",
+      "topic": "cd-lexical-analysis.subset-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-followpos",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "In the direct regex-to-DFA method, the positions of (a|b)*abb# are numbered 1 to 6 from left to right (a = 1, b = 2, a = 3, b = 4, b = 5, # = 6). What is followpos(1)?",
+      "options": [
+        "{1, 2}",
+        "{3}",
+        "{1, 2, 3}",
+        "{1, 2, 3, 4}"
+      ],
+      "answer": 2,
+      "explanation": "The star rule gives followpos(1) ⊇ firstpos(a|b) = {1, 2}. The concatenation of (a|b)* with a gives followpos(1) ⊇ firstpos(a) = {3}, since 1 is in lastpos((a|b)*). Nothing else applies, so followpos(1) = {1, 2, 3}. Position 4 follows only position 3.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.direct-dfa",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-lexical-analysis.q-lexical-errors",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these errors in a C program are detected by the lexical analyser?",
+      "options": [
+        "A string literal that is opened with \" but never closed",
+        "The character @ appearing outside any string, character constant or comment",
+        "Use of a variable that was never declared",
+        "A missing semicolon at the end of a statement"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "An unterminated string and an illegal character leave a prefix that no pattern matches, so the lexer reports them. An undeclared variable is still a well-formed identifier and is caught by semantic analysis; a missing semicolon leaves valid tokens in the wrong order and is caught by the parser.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.lexer-limits",
+      "origin": "source",
+      "pages": [
+        435,
+        436
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-lex-rules",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about a scanner generated by Lex or Flex are true?",
+      "options": [
+        "When two rules match the same longest prefix, the rule written first in the specification is used",
+        "The rule written first is used even when a later rule matches a longer prefix",
+        "During an action, yytext holds the lexeme just matched",
+        "The generated yylex() simulates an NFA by backtracking over the rules for every input character"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "Lex applies longest match first and rule order only to break ties, so the second statement is false. The patterns are compiled into a DFA transition table, so yylex() does not backtrack over the rules per character. yytext and yyleng hold the matched lexeme and its length.",
+      "difficulty": "medium",
+      "topic": "cd-lexical-analysis.lex-flex",
+      "origin": "source",
+      "pages": [
+        434,
+        435,
+        436
+      ]
+    },
+    {
+      "id": "cd-lexical-analysis.q-sentinel",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In the two-buffer input scheme, a sentinel eof character is placed at the end of each buffer half. What does this achieve?",
+      "options": [
+        "It lets the inner scanning loop make one test per character instead of separate end-of-half and end-of-input tests",
+        "It doubles the maximum lookahead the lexer can use",
+        "It marks where each lexeme begins so the forward pointer can retract",
+        "It removes the need to reload buffer halves from the source file"
+      ],
+      "answer": 0,
+      "explanation": "Without a sentinel the lexer must check, for every character, whether forward has reached the end of a half and then whether input is exhausted. With eof at each end it compares only with eof, and on a hit works out whether a half ended (reload) or the input ended. Lookahead and reloading are unchanged, and lexemeBegin marks the lexeme start.",
+      "difficulty": "easy",
+      "topic": "cd-lexical-analysis.input-buffering",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Buffer",
+      "pages": [
+        434,
+        438
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Token, pattern and lexeme are three different things: the category, the rule, and the actual string. IDENTIFIER, letter(letter | digit)* and count.",
+      "origin": "source",
+      "pages": [
+        438
+      ]
+    },
+    {
+      "text": "Longest match beats rule order: while1 and ifx are identifiers. Rule order only decides between patterns matching the same length.",
+      "origin": "source",
+      "pages": [
+        434,
+        438
+      ]
+    },
+    {
+      "text": "A string literal is one token, however many spaces, commas or % signs sit inside it.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A complete minimal DFA includes the dead state when some prefix can never be accepted: a*b* needs 3 states, a(a|b)*b needs 4.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Subset construction does not guarantee a minimal DFA: (a|b)*abb gives 5 subsets but only 4 minimal states.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Undeclared variables, type errors and missing semicolons are not lexical errors; a misspelt keyword is just an identifier to the lexer.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "In a Lex pattern an unescaped . matches any character except newline; a decimal point must be written \\. or \".\".",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Phases and definitions",
+      "lines": [
+        "Lex → Syntax → Semantic → IR → Optimise → Code gen",
+        "Symbol table and error handler are shared by all phases",
+        "Token = class, pattern = regex, lexeme = actual string"
+      ],
+      "origin": "source",
+      "pages": [
+        433,
+        439
+      ]
+    },
+    {
+      "heading": "Scanning rules",
+      "lines": [
+        "Longest match first, then earliest rule",
+        "Whitespace and comments: no token; string literal: one token",
+        "x+++++y → x ++ ++ + y (greedy, never backtracks)"
+      ],
+      "origin": "source",
+      "pages": [
+        434,
+        437,
+        439
+      ]
+    },
+    {
+      "heading": "Regex to DFA",
+      "lines": [
+        "Thompson: ≤ 2r states; (a|b)*abb → 11",
+        "Subset: ε-closure(move(S, a)); ≤ 2ⁿ states; (a|b)*abb → 5, minimal 4",
+        "followpos: concat and star rules on (r)#",
+        "Ends in w: |w| + 1 states; k-th from right: 2ᵏ; a*b*: 3 with dead state"
+      ],
+      "origin": "source",
+      "pages": [
+        38,
+        434,
+        438
+      ]
+    },
+    {
+      "heading": "Buffering, Lex, errors",
+      "lines": [
+        "Buffer pair + sentinel eof: one test per character",
+        "Lex: decls %% rules %% C code → yylex(), yytext, yyleng",
+        "Lexical error: illegal char, unterminated string; recovery: panic mode or one edit"
+      ],
+      "origin": "source",
+      "pages": [
+        434,
+        435,
+        439
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 438,
+      "claim": "The minimal DFA for a*b* has 2 states, or 3 with an explicit accept state.",
+      "correction": "A partial DFA needs 2 states, both accepting. The complete minimal DFA needs 3, and the third is a non-accepting dead state entered on a after a b, not an extra accept state."
+    },
+    {
+      "page": 436,
+      "claim": "A number pattern is [0-9]+(.[0-9]+)?.",
+      "correction": "In Lex and regex syntax an unescaped . matches any character except newline, so this pattern accepts 3x5. The decimal point must be escaped: [0-9]+(\\.[0-9]+)?."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cd-lexical-analysis",
+      "status": "covered",
+      "topics": [
+        "cd-lexical-analysis.compiler-phases",
+        "cd-lexical-analysis.tokens-lexemes-patterns",
+        "cd-lexical-analysis.token-counting",
+        "cd-lexical-analysis.maximal-munch",
+        "cd-lexical-analysis.lexer-role",
+        "cd-lexical-analysis.symbol-table",
+        "cd-lexical-analysis.thompson-construction",
+        "cd-lexical-analysis.subset-construction",
+        "cd-lexical-analysis.direct-dfa",
+        "cd-lexical-analysis.dfa-minimisation",
+        "cd-lexical-analysis.input-buffering",
+        "cd-lexical-analysis.lex-flex",
+        "cd-lexical-analysis.lexical-errors",
+        "cd-lexical-analysis.lexer-limits"
+      ]
+    }
+  ]
+}

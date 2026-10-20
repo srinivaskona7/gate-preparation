@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>GATE Atlas — CPU &amp; Disk Scheduling (OS 9.3)</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary": "#004941",
+            "primary": "#3cddc7",
+            "surface-dim": "#070e1c",
+            "on-error-container": "#ff9993",
+            "surface-container-highest": "#162542",
+            "surface-bright": "#1d2c49",
+            "outline": "#677597",
+            "on-primary-fixed": "#004840",
+            "tertiary-container": "#a589f8",
+            "surface-variant": "#162542",
+            "on-primary-container": "#003a33",
+            "primary-dim": "#22cfba",
+            "secondary-fixed-dim": "#ffcb8a",
+            "secondary-fixed": "#ffddb5",
+            "on-tertiary-fixed-variant": "#2e007c",
+            "background": "#070e1c",
+            "on-tertiary-fixed": "#000000",
+            "tertiary-fixed-dim": "#987cea",
+            "on-secondary-fixed": "#5a3800",
+            "secondary-container": "#543500",
+            "outline-variant": "#394867",
+            "primary-container": "#11c9b4",
+            "on-surface-variant": "#9cabcf",
+            "on-secondary": "#5b3900",
+            "surface-container-high": "#121f38",
+            "surface-container": "#0e192f",
+            "surface": "#070e1c",
+            "error": "#fa746f",
+            "primary-fixed": "#62fae3",
+            "on-primary-fixed-variant": "#00675c",
+            "on-error": "#490006",
+            "surface-container-low": "#091326",
+            "inverse-on-surface": "#4e5566",
+            "inverse-primary": "#006b60",
+            "on-tertiary": "#31067e",
+            "inverse-surface": "#f9f9ff",
+            "primary-fixed-dim": "#50ebd5",
+            "error-dim": "#c54d4a",
+            "on-secondary-container": "#ffaf34",
+            "secondary": "#ffb957",
+            "on-tertiary-container": "#230062",
+            "tertiary-fixed": "#a589f8",
+            "tertiary": "#b299ff",
+            "secondary-dim": "#f6a525",
+            "on-background": "#dce5ff",
+            "surface-tint": "#3cddc7",
+            "on-surface": "#dce5ff",
+            "surface-container-lowest": "#000000",
+            "error-container": "#871f21",
+            "tertiary-dim": "#a88cfb",
+            "on-secondary-fixed-variant": "#805200"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "fontFamily": {
+            "headline": ["Space Grotesk", "sans-serif"],
+            "display": ["Space Grotesk", "sans-serif"],
+            "body": ["IBM Plex Sans", "sans-serif"],
+            "mono": ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .dot-grid {
+      background-image: radial-gradient(rgba(103, 117, 151, 0.18) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #162542;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #394867;
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body antialiased selection:bg-primary/25 selection:text-primary min-h-screen flex flex-row overflow-x-hidden">
+<!-- Atmospheric Teal Glow -->
+<div class="fixed top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<div class="fixed bottom-0 right-0 w-[500px] h-[500px] bg-tertiary/5 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<!-- ============================================================== -->
+<!-- LEFT SIDEBAR (SideNavBar component from Shared Components JSON) -->
+<!-- ============================================================== -->
+<aside class="fixed top-0 left-0 h-screen w-72 flex flex-col justify-between shrink-0 bg-surface-container-low border-r border-outline-variant/30 z-30 select-none custom-scrollbar overflow-y-auto">
+<!-- Sidebar Header -->
+<div class="p-4 pb-2 border-b border-outline-variant/20">
+<div class="flex items-center justify-between mb-1.5">
+<div class="font-headline text-lg font-bold tracking-tight text-primary flex items-center gap-2">
+<div class="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_12px_rgba(60,221,199,0.35)]">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">lan</span>
+</div>
+<span>GATE Atlas</span>
+</div>
+<span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">2027</span>
+</div>
+<p class="text-xs text-on-surface-variant font-medium pl-9">CS 2027 Aspirant Portal</p>
+</div>
+<!-- Syllabus Navigation List -->
+<div class="px-2 py-3 space-y-0.5 text-xs flex-1">
+<div class="px-3 pb-1.5 pt-1 text-[10px] font-mono tracking-wider text-outline uppercase font-semibold">Core Curriculum</div>
+<!-- Dashboard -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- General Aptitude -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">calculate</span>
+<span>General Aptitude</span>
+</a>
+<!-- Engineering Mathematics -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">functions</span>
+<span>Engineering Mathematics</span>
+</a>
+<!-- Digital Logic -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">memory</span>
+<span>Digital Logic</span>
+</a>
+<!-- Computer Organization & Architecture -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">developer_board</span>
+<span class="truncate">Computer Organization &amp; Architecture</span>
+</a>
+<!-- Programming & Data Structures -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">code</span>
+<span class="truncate">Programming &amp; Data Structures</span>
+</a>
+<!-- Algorithms -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">terminal</span>
+<span>Algorithms</span>
+</a>
+<!-- Theory of Computation -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">account_tree</span>
+<span>Theory of Computation</span>
+</a>
+<!-- Compiler Design -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">schema</span>
+<span>Compiler Design</span>
+</a>
+<!-- Operating Systems (ACCORDION EXPANDED) -->
+<div class="rounded-lg bg-surface-container/60 border border-outline-variant/30 overflow-hidden my-1">
+<button class="w-full flex items-center justify-between px-3 py-2 text-on-surface font-semibold bg-surface-container-high/80">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-base text-primary">dns</span>
+<span class="text-xs">Operating Systems</span>
+</div>
+<span class="material-symbols-outlined text-sm text-on-surface-variant transition-transform rotate-180">expand_more</span>
+</button>
+<!-- Sub-items with Mastery bars -->
+<div class="py-1 px-1.5 space-y-0.5 border-t border-outline-variant/20 bg-surface-container-low/80">
+<!-- Sub-item 1 -->
+<a class="flex items-center justify-between px-3 py-1.5 rounded text-[11px] text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface transition-colors" href="#">
+<span class="truncate pr-1">Processes, Threads &amp; IPC</span>
+<span class="font-mono text-[10px] text-outline">80%</span>
+</a>
+<!-- Sub-item 2 -->
+<a class="flex items-center justify-between px-3 py-1.5 rounded text-[11px] text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface transition-colors" href="#">
+<span class="truncate pr-1">Synchronization &amp; Deadlock</span>
+<span class="font-mono text-[10px] text-outline">45%</span>
+</a>
+<!-- Sub-item 3: ACTIVE CHAPTER -->
+<a class="flex items-center justify-between px-3 py-1.5 rounded bg-surface-container-high text-primary font-semibold border-l-2 border-primary" href="#">
+<span class="truncate pr-1">CPU &amp; Disk Scheduling</span>
+<span class="font-mono text-[10px] bg-primary/20 text-primary px-1.5 py-0.2 rounded font-bold">60%</span>
+</a>
+<!-- Sub-item 4 -->
+<a class="flex items-center justify-between px-3 py-1.5 rounded text-[11px] text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface transition-colors" href="#">
+<span class="truncate pr-1">Memory Management &amp; VM</span>
+<span class="font-mono text-[10px] text-outline">30%</span>
+</a>
+<!-- Sub-item 5 -->
+<a class="flex items-center justify-between px-3 py-1.5 rounded text-[11px] text-on-surface-variant hover:bg-surface-container-high/50 hover:text-on-surface transition-colors" href="#">
+<span class="truncate pr-1">File Systems</span>
+<span class="font-mono text-[10px] text-outline">15%</span>
+</a>
+</div>
+</div>
+<!-- Database Management Systems -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">database</span>
+<span>Database Management Systems</span>
+</a>
+<!-- Computer Networks -->
+<a class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface transition-colors duration-150 font-medium" href="#">
+<span class="material-symbols-outlined text-base">lan</span>
+<span>Computer Networks</span>
+</a>
+</div>
+<!-- Sidebar Footer -->
+<div class="p-3 border-t border-outline-variant/30 space-y-1 bg-surface-container-low">
+<!-- Command Palette CTA -->
+<button class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant text-xs transition-colors mb-2">
+<span class="flex items-center gap-2 font-medium">
+<span class="material-symbols-outlined text-sm text-primary">terminal</span>
+          Command Palette
+        </span>
+<kbd class="font-mono text-[10px] bg-surface-bright/70 text-on-surface px-1.5 py-0.5 rounded border border-outline-variant/40">⌘K</kbd>
+</button>
+<div class="grid grid-cols-3 gap-1 text-[11px] text-center font-medium text-on-surface-variant">
+<a class="py-1.5 rounded hover:bg-surface-container-high/60 hover:text-on-surface flex flex-col items-center gap-0.5" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span>
+<span class="text-[10px]">Formula Cards</span>
+</a>
+<a class="py-1.5 rounded hover:bg-surface-container-high/60 hover:text-on-surface flex flex-col items-center gap-0.5" href="#">
+<span class="material-symbols-outlined text-sm">quiz</span>
+<span class="text-[10px]">Test Series</span>
+</a>
+<a class="py-1.5 rounded hover:bg-surface-container-high/60 hover:text-on-surface flex flex-col items-center gap-0.5" href="#">
+<span class="material-symbols-outlined text-sm">settings</span>
+<span class="text-[10px]">Settings</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- ============================================================== -->
+<!-- MAIN CONTENT CANVAS WRAPPER (Offset for 280px sidebar) -->
+<!-- ============================================================== -->
+<div class="flex-1 ml-72 flex flex-col min-h-screen dot-grid">
+<!-- Sticky Top Navigation Bar (TopNavBar component from Shared Components JSON) -->
+<header class="sticky top-0 z-40 w-full bg-surface/80 backdrop-blur-md border-b border-outline-variant/30">
+<div class="flex justify-between items-center w-full px-6 py-3">
+<!-- Search bar on left with keycap -->
+<div class="flex items-center gap-6">
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-base">search</span>
+<input class="w-full pl-9 pr-14 py-1.5 bg-surface-container-low text-xs text-on-surface placeholder:text-outline-variant border border-outline-variant/40 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body transition-colors" placeholder="Search topics, formulas, questions…" type="text"/>
+<kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-on-surface-variant bg-surface-container-high px-1.5 py-0.5 rounded border border-outline-variant/50">⌘K</kbd>
+</div>
+<!-- Desktop Navigation Links -->
+<nav class="hidden md:flex items-center gap-6 text-xs">
+<a class="text-primary font-semibold border-b-2 border-primary pb-1" href="#">Syllabus Map</a>
+<a class="text-on-surface-variant hover:text-on-surface font-medium transition-colors pb-1" href="#">Daily Revision</a>
+<a class="text-on-surface-variant hover:text-on-surface font-medium transition-colors pb-1" href="#">Question Bank</a>
+</nav>
+</div>
+<!-- Trailing Actions: Countdown Chip + Icon Buttons + User Profile -->
+<div class="flex items-center gap-3">
+<!-- Countdown chip with pulsing emerald/teal dot -->
+<div class="flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container border border-primary/30 text-xs font-mono font-medium text-primary shadow-[0_0_10px_rgba(60,221,199,0.15)]">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<span>125 days to GATE · 6 Feb 2027</span>
+</div>
+<!-- Notifications -->
+<button aria-label="Notifications" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container/60 transition-colors">
+<span class="material-symbols-outlined text-lg">notifications</span>
+</button>
+<!-- Dark mode indicator -->
+<button aria-label="Toggle dark mode" class="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container/60 transition-colors">
+<span class="material-symbols-outlined text-lg">dark_mode</span>
+</button>
+<!-- User Avatar -->
+<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-tertiary p-0.5 cursor-pointer shadow-md">
+<div class="w-full h-full bg-surface-container-low rounded-full flex items-center justify-center text-xs font-mono font-bold text-primary">
+              CS
+            </div>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Main Content Container (max width 1200px, 24px gutters) -->
+<main class="w-full max-w-[1240px] mx-auto px-6 py-6 space-y-6">
+<!-- ============================================================== -->
+<!-- 1. CHAPTER HEADER BANNER -->
+<!-- ============================================================== -->
+<section class="relative rounded-2xl bg-surface-container/70 border border-outline-variant/30 p-6 backdrop-blur-md overflow-hidden">
+<!-- Subtle inner highlight -->
+<div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+<div class="space-y-3 max-w-2xl">
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-xs font-mono text-outline">
+<span>Operating Systems</span>
+<span class="text-outline-variant">/</span>
+<span class="text-primary font-semibold">9.3</span>
+</div>
+<!-- Title -->
+<h1 class="font-headline text-3xl lg:text-4xl font-bold tracking-tight text-on-surface">
+              CPU &amp; Disk Scheduling
+            </h1>
+<!-- Metadata Badges Row -->
+<div class="flex flex-wrap items-center gap-2 pt-1">
+<!-- High frequency pill (coral/crimson) -->
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-error/15 text-error border border-error/30">
+                HIGH FREQUENCY
+              </span>
+<!-- Marks weight pill -->
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-surface-container-high text-on-surface-variant border border-outline-variant/40">
+                3–4 marks
+              </span>
+<!-- Status badge -->
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-primary/15 text-primary border border-primary/30">
+                2027 syllabus: covered
+              </span>
+</div>
+<!-- Short summary paragraph -->
+<p class="text-sm text-on-surface-variant leading-relaxed">
+              Core execution scheduling algorithms, preemptive vs non-preemptive turnaround &amp; waiting metrics, exponential averaging for burst estimation, and disk arm trajectory algorithms (SCAN, C-SCAN, LOOK).
+            </p>
+</div>
+<!-- Mastery Ring Card (60%) -->
+<div class="flex items-center gap-4 bg-surface-container-high/60 border border-outline-variant/40 rounded-xl p-4 shrink-0 lg:self-center">
+<div class="relative w-20 h-20 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<!-- Track -->
+<path class="text-surface-bright" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<!-- Active Progress (60%) -->
+<path class="text-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="60, 100" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="font-mono text-base font-bold text-on-surface">60%</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-mono font-semibold text-primary uppercase tracking-wide">Topic Mastery</div>
+<div class="text-sm font-semibold text-on-surface mt-0.5">7 of 12 topics mastered</div>
+<div class="text-[11px] text-on-surface-variant mt-1 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span>5 topics remaining for revision</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ============================================================== -->
+<!-- 2. SEGMENTED TAB BAR -->
+<!-- ============================================================== -->
+<nav class="flex items-center gap-1.5 p-1 bg-surface-container-low/90 rounded-xl border border-outline-variant/30 overflow-x-auto text-xs font-medium">
+<button class="px-4 py-1.5 rounded-lg bg-primary text-on-primary font-semibold shadow-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">school</span>
+          Learn
+        </button>
+<button class="px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">functions</span>
+          Formulas
+        </button>
+<button class="px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">category</span>
+          Problem types
+        </button>
+<button class="px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">timer</span>
+          Practice quiz
+          <span class="text-[10px] font-mono px-1 rounded bg-surface-bright text-primary">18</span>
+</button>
+<button class="px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">description</span>
+          Cheat sheet
+        </button>
+<button class="px-4 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">account_tree</span>
+          Diagrams
+        </button>
+</nav>
+<!-- ============================================================== -->
+<!-- 3. MAIN CONTENT GRID (Left 7 cols, Right 5 cols) -->
+<!-- ============================================================== -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- ============================================================ -->
+<!-- LEFT COLUMN: TOPIC CARDS, FORMULAS STRIP, ERRATUM (7 COLS) -->
+<!-- ============================================================ -->
+<div class="lg:col-span-7 space-y-6">
+<!-- Section Label -->
+<div class="flex items-center justify-between">
+<h2 class="font-headline text-lg font-bold text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">segment</span>
+              Key Concepts &amp; Algorithms
+            </h2>
+<span class="text-xs font-mono text-outline">4 of 4 visible</span>
+</div>
+<!-- Topic Cards (2x2 Grid) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Card 1: Round Robin -->
+<article class="bg-surface-container/70 border border-outline-variant/30 rounded-xl p-4 flex flex-col justify-between hover:border-primary/40 transition-colors">
+<div class="space-y-2.5">
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-headline text-sm font-bold text-on-surface">Round Robin and Time Quantum</h3>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-error/15 text-error border border-error/30 shrink-0">HIGH</span>
+</div>
+<ul class="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+<li>Preemption strictly governed by time slice <span class="font-mono text-primary">q</span>.</li>
+<li>Context switch overhead increases as <span class="font-mono text-primary">q → 0</span>.</li>
+<li>Degenerates to FCFS if <span class="font-mono text-primary">q</span> exceeds max CPU burst.</li>
+</ul>
+<div class="flex flex-wrap gap-1 pt-1">
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Context Switch</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">q-overhead</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Starvation-free</span>
+</div>
+</div>
+<!-- 4-State Topic Tracker -->
+<div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[10px] font-mono text-outline">
+<span class="text-outline/70">Not started</span>
+<span class="text-outline/70">Learning</span>
+<span class="text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/30">● Revised</span>
+<span class="text-outline/70">Mastered</span>
+</div>
+</article>
+<!-- Card 2: SRTF & SJF -->
+<article class="bg-surface-container/70 border border-outline-variant/30 rounded-xl p-4 flex flex-col justify-between hover:border-primary/40 transition-colors">
+<div class="space-y-2.5">
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-headline text-sm font-bold text-on-surface">SRTF &amp; Shortest Job First</h3>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-error/15 text-error border border-error/30 shrink-0">HIGH</span>
+</div>
+<ul class="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+<li>SRTF is optimal for minimizing average waiting time.</li>
+<li>Suffers from starvation for longer CPU burst jobs.</li>
+<li>Requires burst prediction via exponential smoothing.</li>
+</ul>
+<div class="flex flex-wrap gap-1 pt-1">
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Optimal Waiting</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Starvation</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Preemption</span>
+</div>
+</div>
+<!-- 4-State Topic Tracker -->
+<div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[10px] font-mono text-outline">
+<span class="text-outline/70">Not started</span>
+<span class="text-outline/70">Learning</span>
+<span class="text-outline/70">Revised</span>
+<span class="text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/30">● Mastered</span>
+</div>
+</article>
+<!-- Card 3: HRRN -->
+<article class="bg-surface-container/70 border border-outline-variant/30 rounded-xl p-4 flex flex-col justify-between hover:border-primary/40 transition-colors">
+<div class="space-y-2.5">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-1.5 flex-wrap">
+<h3 class="font-headline text-sm font-bold text-on-surface">Highest Response Ratio Next</h3>
+</div>
+<div class="flex items-center gap-1 shrink-0">
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-tertiary/15 text-tertiary border border-tertiary/30">Curated</span>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-secondary/15 text-secondary border border-secondary/30">MED</span>
+</div>
+</div>
+<ul class="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+<li>Non-preemptive algorithm balancing burst and aging.</li>
+<li>Response Ratio <span class="font-mono text-tertiary">R = (W + S) / S</span>.</li>
+<li>Prevents starvation of long jobs by factoring wait time W.</li>
+</ul>
+<div class="flex flex-wrap gap-1 pt-1">
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Aging</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Non-preemptive</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Response Ratio</span>
+</div>
+</div>
+<!-- 4-State Topic Tracker -->
+<div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[10px] font-mono text-outline">
+<span class="text-outline/70">Not started</span>
+<span class="text-outline/70">Learning</span>
+<span class="text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/30">● Revised</span>
+<span class="text-outline/70">Mastered</span>
+</div>
+</article>
+<!-- Card 4: Disk Scheduling -->
+<article class="bg-surface-container/70 border border-outline-variant/30 rounded-xl p-4 flex flex-col justify-between hover:border-primary/40 transition-colors">
+<div class="space-y-2.5">
+<div class="flex items-start justify-between gap-2">
+<h3 class="font-headline text-sm font-bold text-on-surface">Disk Scheduling: SCAN, LOOK</h3>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-error/15 text-error border border-error/30 shrink-0">HIGH</span>
+</div>
+<ul class="text-xs text-on-surface-variant space-y-1.5 list-disc list-inside">
+<li>Elevator algorithm servicing requests in current direction.</li>
+<li>LOOK reverses at the last request instead of boundary.</li>
+<li>C-SCAN provides uniform wait with circular scan.</li>
+</ul>
+<div class="flex flex-wrap gap-1 pt-1">
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Elevator</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">C-SCAN</span>
+<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-bright text-on-surface-variant">Head Reversal</span>
+</div>
+</div>
+<!-- 4-State Topic Tracker -->
+<div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[10px] font-mono text-outline">
+<span class="text-outline/70">Not started</span>
+<span class="text-outline/70">Learning</span>
+<span class="text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded border border-primary/30">● Revised</span>
+<span class="text-outline/70">Mastered</span>
+</div>
+</article>
+</div>
+<!-- Formula Strip Header -->
+<div class="flex items-center justify-between pt-2">
+<h2 class="font-headline text-lg font-bold text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">calculate</span>
+              Formula Cards (Instant Reference)
+            </h2>
+<span class="text-xs font-mono text-primary cursor-pointer hover:underline">Export LaTeX</span>
+</div>
+<!-- Formulas Strip (3 Glass Cards) -->
+<div class="space-y-3">
+<!-- Formula A: Turnaround Time -->
+<div class="bg-surface-container/60 border border-outline-variant/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-on-surface">Turnaround &amp; Waiting Time</span>
+<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-bright text-outline">Core Metric</span>
+</div>
+<div class="font-mono text-lg font-bold text-primary tracking-tight">
+                  TAT = CT − AT  ·  WT = TAT − BT
+                </div>
+<div class="font-mono text-[11px] text-outline">
+                  CT: Completion Time  |  AT: Arrival Time  |  BT: Burst Time
+                </div>
+</div>
+<div class="flex items-center gap-1 self-end sm:self-center">
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors" title="Copy LaTeX">
+<span class="material-symbols-outlined text-base">content_copy</span>
+</button>
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-secondary flex items-center justify-center transition-colors" title="Star Formula">
+<span class="material-symbols-outlined text-base" style="font-variation-settings: 'FILL' 1;">star</span>
+</button>
+</div>
+</div>
+<!-- Formula B: Exponential Burst Averaging -->
+<div class="bg-surface-container/60 border border-outline-variant/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-on-surface">Exponential Burst Averaging</span>
+<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-tertiary/20 text-tertiary">Prediction</span>
+</div>
+<div class="font-mono text-lg font-bold text-tertiary tracking-tight">
+                  τₙ₊₁ = α·tₙ + (1 − α)·τₙ
+                </div>
+<div class="font-mono text-[11px] text-outline">
+                  α: Smoothing factor [0,1]  |  tₙ: actual burst  |  τₙ: predicted burst
+                </div>
+</div>
+<div class="flex items-center gap-1 self-end sm:self-center">
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors" title="Copy LaTeX">
+<span class="material-symbols-outlined text-base">content_copy</span>
+</button>
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-on-surface-variant hover:text-secondary flex items-center justify-center transition-colors" title="Star Formula">
+<span class="material-symbols-outlined text-base">star</span>
+</button>
+</div>
+</div>
+<!-- Formula C: Total Head Movement -->
+<div class="bg-surface-container/60 border border-outline-variant/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="text-xs font-semibold text-on-surface">Total Disk Head Movement</span>
+<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-bright text-outline">Disk Seek</span>
+</div>
+<div class="font-mono text-lg font-bold text-primary tracking-tight">
+                  D = Σ |cᵢ − cᵢ₋₁|
+                </div>
+<div class="font-mono text-[11px] text-outline">
+                  cᵢ: Cylinder track at step i  |  c₀: Initial cylinder head position
+                </div>
+</div>
+<div class="flex items-center gap-1 self-end sm:self-center">
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-on-surface-variant hover:text-primary flex items-center justify-center transition-colors" title="Copy LaTeX">
+<span class="material-symbols-outlined text-base">content_copy</span>
+</button>
+<button class="w-8 h-8 rounded-lg bg-surface-bright hover:bg-surface-container-highest text-on-surface-variant hover:text-secondary flex items-center justify-center transition-colors" title="Star Formula">
+<span class="material-symbols-outlined text-base">star</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Erratum Callout -->
+<div class="bg-secondary/10 border border-secondary/30 rounded-xl p-4 flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary text-xl shrink-0 mt-0.5">warning</span>
+<div class="text-xs text-on-surface space-y-1">
+<div class="font-mono font-bold text-secondary">ERRATUM: Standard Reference Textbook p. 492</div>
+<p class="text-on-surface-variant leading-relaxed">
+                The SRTF average waiting time is strictly <span class="font-mono text-secondary font-bold">6.5 ms</span>, not "roughly 6–7.5". Always compute preemption points at exact arrival boundaries (specifically at <span class="font-mono text-on-surface">t = 3</span> when P2 arrives with lower remaining time).
+              </p>
+</div>
+</div>
+</div>
+<!-- ============================================================ -->
+<!-- RIGHT COLUMN: GANTT CHART EXECUTION SIMULATOR (5 COLS) -->
+<!-- ============================================================ -->
+<div class="lg:col-span-5 space-y-4">
+<div class="bg-surface-container/70 border border-outline-variant/30 rounded-2xl p-5 backdrop-blur-md space-y-5">
+<!-- Simulator Card Header -->
+<div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+<div>
+<h3 class="font-headline text-base font-bold text-on-surface">Live Schedule Execution</h3>
+<p class="text-xs text-on-surface-variant">SRTF (Shortest Remaining Time First)</p>
+</div>
+<span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-semibold bg-primary/15 text-primary border border-primary/30 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                Interactive Timeline
+              </span>
+</div>
+<!-- Visual Gantt Chart Strip (0 to 26) -->
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[11px] font-mono text-outline">
+<span>Execution Timeline</span>
+<span>Total Span: 26 ms</span>
+</div>
+<!-- Gantt Bar Blocks (Scaled horizontally: 3, 4, 2, 7, 10 out of 26) -->
+<div class="w-full h-11 bg-surface-container-low rounded-lg overflow-hidden flex border border-outline-variant/40 p-0.5 gap-0.5">
+<!-- P1: 0 to 3 (3/26 = 11.5%) -->
+<div class="h-full bg-primary/30 border border-primary/50 text-primary font-mono text-xs font-bold flex items-center justify-center rounded-sm hover:brightness-125 transition-all" style="width: 11.5%;" title="P1: [0 - 3]">
+                  P1
+                </div>
+<!-- P2: 3 to 7 (4/26 = 15.4%) -->
+<div class="h-full bg-secondary/30 border border-secondary/50 text-secondary font-mono text-xs font-bold flex items-center justify-center rounded-sm hover:brightness-125 transition-all" style="width: 15.4%;" title="P2: [3 - 7]">
+                  P2
+                </div>
+<!-- P4: 7 to 9 (2/26 = 7.7%) -->
+<div class="h-full bg-tertiary/30 border border-tertiary/50 text-tertiary font-mono text-xs font-bold flex items-center justify-center rounded-sm hover:brightness-125 transition-all" style="width: 7.7%;" title="P4: [7 - 9]">
+                  P4
+                </div>
+<!-- P1: 9 to 16 (7/26 = 26.9%) -->
+<div class="h-full bg-primary/30 border border-primary/50 text-primary font-mono text-xs font-bold flex items-center justify-center rounded-sm hover:brightness-125 transition-all" style="width: 26.9%;" title="P1 resumed: [9 - 16]">
+                  P1
+                </div>
+<!-- P3: 16 to 26 (10/26 = 38.5%) -->
+<div class="h-full bg-emerald-400/20 border border-emerald-400/40 text-emerald-300 font-mono text-xs font-bold flex items-center justify-center rounded-sm hover:brightness-125 transition-all" style="width: 38.5%;" title="P3: [16 - 26]">
+                  P3
+                </div>
+</div>
+<!-- Time Ticks with Alignment Guides -->
+<div class="relative w-full text-[10px] font-mono text-outline h-5">
+<span class="absolute left-0">0</span>
+<span class="absolute" style="left: 11.5%;">3</span>
+<span class="absolute" style="left: 26.9%;">7</span>
+<span class="absolute" style="left: 34.6%;">9</span>
+<span class="absolute" style="left: 61.5%;">16</span>
+<span class="absolute right-0">26</span>
+</div>
+</div>
+<!-- Process Parameters Table -->
+<div class="overflow-x-auto rounded-xl border border-outline-variant/30">
+<table class="w-full text-left text-xs font-mono">
+<thead class="bg-surface-container-high/90 text-on-surface-variant text-[11px] border-b border-outline-variant/30">
+<tr>
+<th class="p-2 font-semibold">PID</th>
+<th class="p-2 font-semibold">AT</th>
+<th class="p-2 font-semibold">BT</th>
+<th class="p-2 font-semibold text-primary">CT</th>
+<th class="p-2 font-semibold">TAT</th>
+<th class="p-2 font-semibold text-secondary">WT</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20 text-[11px] text-on-surface">
+<tr class="hover:bg-surface-bright/30">
+<td class="p-2 font-bold text-primary">P1</td>
+<td class="p-2 text-outline">0</td>
+<td class="p-2">10</td>
+<td class="p-2 text-primary font-semibold">16</td>
+<td class="p-2">16</td>
+<td class="p-2 text-secondary font-semibold">6</td>
+</tr>
+<tr class="hover:bg-surface-bright/30">
+<td class="p-2 font-bold text-secondary">P2</td>
+<td class="p-2 text-outline">3</td>
+<td class="p-2">4</td>
+<td class="p-2 text-primary font-semibold">7</td>
+<td class="p-2">4</td>
+<td class="p-2 text-secondary font-semibold">0</td>
+</tr>
+<tr class="hover:bg-surface-bright/30">
+<td class="p-2 font-bold text-emerald-400">P3</td>
+<td class="p-2 text-outline">5</td>
+<td class="p-2">10</td>
+<td class="p-2 text-primary font-semibold">26</td>
+<td class="p-2">21</td>
+<td class="p-2 text-secondary font-semibold">11</td>
+</tr>
+<tr class="hover:bg-surface-bright/30">
+<td class="p-2 font-bold text-tertiary">P4</td>
+<td class="p-2 text-outline">7</td>
+<td class="p-2">2</td>
+<td class="p-2 text-primary font-semibold">9</td>
+<td class="p-2">2</td>
+<td class="p-2 text-secondary font-semibold">0</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Summary KPI Metric Cards -->
+<div class="grid grid-cols-3 gap-2 pt-1">
+<div class="bg-surface-container-high/60 border border-outline-variant/30 rounded-xl p-2.5 text-center">
+<span class="block text-[10px] font-mono text-outline">Average WT</span>
+<span class="font-mono text-base font-bold text-secondary">6.5 ms</span>
+</div>
+<div class="bg-surface-container-high/60 border border-outline-variant/30 rounded-xl p-2.5 text-center">
+<span class="block text-[10px] font-mono text-outline">Average TAT</span>
+<span class="font-mono text-base font-bold text-primary">13.0 ms</span>
+</div>
+<div class="bg-surface-container-high/60 border border-outline-variant/30 rounded-xl p-2.5 text-center">
+<span class="block text-[10px] font-mono text-outline">CPU Util.</span>
+<span class="font-mono text-base font-bold text-on-surface">100%</span>
+</div>
+</div>
+<!-- GATE Quick Test Prompt Box -->
+<div class="p-3 rounded-xl bg-surface-container-low border border-primary/20 space-y-2">
+<div class="flex items-center justify-between text-xs font-mono">
+<span class="text-primary font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">quiz</span>
+                  GATE 2021 NAT Question
+                </span>
+<span class="text-outline">2 Marks</span>
+</div>
+<p class="text-xs text-on-surface-variant">
+                If process P5 arrives at <span class="font-mono text-on-surface">t = 8</span> with burst time <span class="font-mono text-on-surface">1 ms</span>, compute the new turnaround time for P1.
+              </p>
+<div class="flex items-center gap-2 pt-1">
+<input class="flex-1 bg-surface-container px-3 py-1.5 text-xs font-mono rounded-lg border border-outline-variant/40 focus:outline-none focus:border-primary text-on-surface" placeholder="Enter value in ms" type="text"/>
+<button class="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:brightness-110 transition-all">
+                  Submit
+                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

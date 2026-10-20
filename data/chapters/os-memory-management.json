@@ -1,0 +1,2425 @@
+{
+  "id": "os-memory-management",
+  "summary": "Memory management decides where processes live in physical memory; virtual memory lets each process use a large address space while only part of it is resident. GATE tests it mostly by computation: split an address into page number and offset, size flat and multi-level page tables, compute effective access time with a TLB and with page faults, and count faults for FIFO, LRU and Optimal on a reference string. The conceptual questions revolve around fragmentation, Belady's anomaly, segment limits and thrashing.",
+  "highYield": [
+    "Page-fault counts for one reference string under FIFO, LRU and Optimal, often with a second frame count to expose Belady's anomaly.",
+    "Address bit splits and page-table size: offset, VPN and PFN bits, entry width, and the number of levels when every table must fit in one page.",
+    "Effective access time with a TLB (hit ratio, lookup time, levels walked on a miss) and with page faults (fault rate, millisecond service time, dirty victims).",
+    "Which schemes suffer internal or external fragmentation, and which replacement policies are stack algorithms.",
+    "Thrashing: its cause (total working-set demand above the available frames) and its fixes (suspend processes, working-set or page-fault-frequency control).",
+    "Page faults of a nested loop over a row-major array, working-set size at a given time, and copy-on-write after fork."
+  ],
+  "topics": [
+    {
+      "id": "os-memory-management.contiguous-allocation",
+      "title": "Contiguous allocation and fragmentation",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        47,
+        48,
+        496,
+        497
+      ],
+      "points": [
+        "Contiguous allocation gives each process one unbroken block of physical memory; a relocation (base) register and a limit register check and relocate every address it issues.",
+        "Fixed partitioning divides memory into partitions in advance. A process smaller than its partition wastes the rest of that partition: internal fragmentation.",
+        "Variable partitioning carves a block of exactly the requested size, so nothing is wasted inside blocks, but as processes leave, free memory splits into scattered holes: external fragmentation.",
+        "External fragmentation means the total free memory could satisfy a request, yet no single hole is large enough for it.",
+        "Compaction slides the allocated blocks together so the holes merge into one; it needs run-time relocation and is expensive because it copies memory."
+      ],
+      "keyTerms": [
+        "fixed partitions",
+        "variable partitions",
+        "internal fragmentation",
+        "external fragmentation",
+        "compaction"
+      ],
+      "lesson": {
+        "why": "Questions on fragmentation ask you to tell internal from external waste and to say when compaction would help, so the two terms and what each one wastes must be exact.",
+        "intro": "In contiguous allocation every process gets one unbroken block of physical memory. A base register holds where the block starts and a limit register holds its length, so the hardware can add the base to each address the process issues and reject any address past the limit. Memory can be cut into partitions of fixed size before any process arrives, or blocks can be cut to the exact size each process asks for. Either way some memory ends up unusable, and the two ways of wasting it have different names.",
+        "definitions": [
+          {
+            "term": "Internal fragmentation",
+            "meaning": "Memory inside an allocated block that the process does not use, because the block is larger than the request."
+          },
+          {
+            "term": "External fragmentation",
+            "meaning": "Free memory split into holes that are each too small for a request, even though together they are large enough."
+          },
+          {
+            "term": "Compaction",
+            "meaning": "Moving allocated blocks together so that the free holes merge into one large hole."
+          }
+        ],
+        "principle": {
+          "text": "Fixed partitions waste memory inside blocks: a process in a partition of size $P$ wastes $P$ minus its size. Variable partitions waste nothing inside blocks but leave holes between them. A request is satisfiable only if one single hole is large enough, unless compaction merges the holes first.",
+          "tex": "\\text{internal waste} = P_{\\text{partition}} - s_{\\text{process}}"
+        },
+        "limits": "Compaction needs addresses to be relocated at run time (through the base register) and copies memory, so it is not free; a question allows it only if it says so. The leftover inside a fixed partition is internal fragmentation and cannot be handed to another process, and variable partitions never have internal fragmentation in the block they hand out.",
+        "example": {
+          "problem": "Memory is split into fixed partitions of 64 KB each. Processes of 40 KB, 64 KB and 25 KB are loaded, one per partition. How much memory is wasted inside the partitions, and is that internal or external fragmentation?",
+          "steps": [
+            "The 40 KB process leaves $64 - 40 = 24$ KB unused in its partition.",
+            "The 64 KB process fills its partition exactly, so it wastes $0$ KB.",
+            "The 25 KB process leaves $64 - 25 = 39$ KB unused.",
+            "The unused space lies inside allocated partitions and cannot be given to another process, so the total is $24 + 0 + 39 = 63$ KB."
+          ],
+          "result": "63 KB is wasted, and it is internal fragmentation."
+        },
+        "misconceptions": [
+          "Internal and external fragmentation are not the same total seen two ways: internal waste sits inside an allocated block, while external waste is free memory spread across holes.",
+          "Having enough total free memory does not mean a request can be served; without compaction the request needs one hole at least as large as itself."
+        ],
+        "recall": [
+          {
+            "q": "What do the base and limit registers do?",
+            "a": "The base is added to every address the process issues to relocate it, and the limit is the block length, so an address beyond it is rejected."
+          },
+          {
+            "q": "Which kind of partitioning suffers internal fragmentation?",
+            "a": "Fixed partitioning, because a process smaller than its partition leaves the rest of that partition unused."
+          },
+          {
+            "q": "When does compaction help?",
+            "a": "When total free memory is enough for a request but it is split into several holes; compaction merges the holes into one."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Variable partitioning leaves free holes of 12, 7, 15 and 9 KB. A process needs 30 KB and compaction is allowed. After compaction and the allocation, how many KB of free memory remain?",
+          "answer": 13,
+          "explanation": "The total free memory is $12 + 7 + 15 + 9 = 43$ KB. No single hole holds 30 KB, but compaction merges them into one 43 KB hole, and placing the process leaves $43 - 30 = 13$ KB. Answering that the request fails is tempting if you check only the largest hole, and that is correct only when compaction is not allowed."
+        },
+        "summary": "Fixed partitions waste memory inside blocks (internal); variable partitions leave unusable holes between blocks (external). Compaction merges holes at the cost of copying memory."
+      }
+    },
+    {
+      "id": "os-memory-management.placement-strategies",
+      "title": "First, best and worst fit",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        47,
+        496,
+        500
+      ],
+      "points": [
+        "With variable partitions the OS keeps a list of free holes and picks one for each request; the unused part of the chosen hole stays on the list as a smaller hole.",
+        "First fit takes the first hole that is large enough. It stops searching early, so it is the fastest policy.",
+        "Best fit takes the smallest hole that is large enough, leaving the smallest leftover; unless the list is kept sorted by size it must scan every hole.",
+        "Worst fit takes the largest hole, hoping the leftover stays big enough to be useful; it also scans the whole list.",
+        "In simulations first fit and best fit beat worst fit on both speed and memory utilisation, yet on a particular request sequence any policy can be the only one that fits everything, so always trace."
+      ],
+      "keyTerms": [
+        "hole",
+        "first fit",
+        "best fit",
+        "worst fit"
+      ],
+      "lesson": {
+        "why": "Placement questions give a list of holes and a stream of requests, and one wrong choice early changes every later answer, so the rules must be applied exactly.",
+        "intro": "Memory is handed out in one contiguous block per process. Over time the free memory breaks into separate free blocks called holes. When a request arrives, the system must pick one hole that is big enough. The pick is the placement strategy, and whatever part of the hole is not used stays behind as a smaller hole.",
+        "definitions": [
+          {
+            "term": "Hole",
+            "meaning": "A block of free memory sitting between allocated blocks."
+          },
+          {
+            "term": "Fits",
+            "meaning": "A hole fits a request when its size is at least the request size."
+          }
+        ],
+        "principle": {
+          "text": "Among the holes that fit, first fit takes the earliest one in the list, best fit takes the smallest, and worst fit takes the largest. The chosen hole shrinks by the request size.",
+          "tex": "\\text{leftover} = \\text{hole} - \\text{request}"
+        },
+        "limits": "No policy wins on every input: a request stream exists on which each of them is the only one that places everything. Holes that touch merge into one only when a block next to them is freed, not when a request is placed.",
+        "example": {
+          "problem": "Holes in memory order are 14, 9, 30 and 11 KB. Requests of 10 KB and then 9 KB arrive. List the holes left after first fit and after best fit.",
+          "steps": [
+            "First fit, 10 KB: the first hole that fits is 14 KB, which leaves 4 KB. The list is 4, 9, 30, 11.",
+            "First fit, 9 KB: the first fitting hole is the 9 KB hole, an exact fit, so it vanishes. The list is 4, 30, 11.",
+            "Best fit, 10 KB: the fitting holes are 14, 30 and 11, and the smallest is 11, which leaves 1 KB. The list is 14, 9, 30, 1.",
+            "Best fit, 9 KB: the smallest fitting hole is the 9 KB hole, an exact fit. The list is 14, 30, 1."
+          ],
+          "result": "First fit leaves 4, 30, 11 KB; best fit leaves 14, 30, 1 KB."
+        },
+        "misconceptions": [
+          "Best fit does not leave the best memory behind; it tends to leave tiny leftovers such as the 1 KB hole above, which are hard to use later.",
+          "The leftover of a placement stays in the list at the same position as the hole it came from; it is not moved to the end or merged with a neighbouring hole."
+        ],
+        "recall": [
+          {
+            "q": "Which hole does worst fit choose?",
+            "a": "The largest hole, provided it is big enough for the request."
+          },
+          {
+            "q": "Why is first fit usually the fastest policy?",
+            "a": "It stops scanning at the first hole that fits, while best and worst fit must look at every hole."
+          },
+          {
+            "q": "What happens to a hole that matches the request exactly?",
+            "a": "It is used up completely and leaves no hole behind."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Holes in memory order are 8, 20, 12 and 6 KB. Requests of 7 KB and then 12 KB are placed by worst fit. What is the size in KB of the largest hole afterwards?",
+          "answer": 12,
+          "explanation": "Worst fit puts 7 KB into the 20 KB hole, leaving 13. For the 12 KB request the largest hole is now 13, so 12 KB goes there and leaves 1. The holes are 8, 1, 12, 6 and the largest is 12 KB. Answering 20 or 13 is tempting because it reads the list after fewer requests."
+        },
+        "summary": "Pick among the holes that fit: first fit the earliest, best fit the smallest, worst fit the largest. Trace each request in order, because the leftover of one request is the input to the next."
+      }
+    },
+    {
+      "id": "os-memory-management.next-fit",
+      "title": "Next fit and tracing a request sequence",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Next fit is first fit with a roving pointer: each search starts where the previous allocation was made and wraps around the hole list, spreading allocations over memory instead of crowding its start.",
+        "To trace a sequence, keep the holes in address order, take the requests one at a time, shrink the chosen hole by the request size and keep the remainder as a hole.",
+        "A request that fits nowhere waits or fails, as the question states; compaction happens only if the question allows it.",
+        "With fixed partitions the leftover of a partition is internal fragmentation and cannot be given to another process; with variable partitions it becomes a new hole.",
+        "Knuth's fifty-percent rule: in steady state first fit leaves about one hole for every two allocated blocks, so if holes are about as large as blocks, roughly a third of memory sits in holes."
+      ],
+      "keyTerms": [
+        "next fit",
+        "roving pointer",
+        "fifty-percent rule"
+      ],
+      "lesson": {
+        "why": "Sequence questions give a hole list and several requests under one policy, and next fit differs from first fit only through where each search starts, which is easy to lose track of.",
+        "intro": "A placement policy chooses which free hole serves each request. First fit always begins its search at the front of the hole list. Next fit keeps a pointer to the hole that served the previous request and begins the next search there, going around to the front if it reaches the end. After a request the chosen hole shrinks by the request size, and what remains stays in the list as a smaller hole in the same position.",
+        "definitions": [
+          {
+            "term": "Roving pointer",
+            "meaning": "The marker that records the hole used last, where the next search starts."
+          },
+          {
+            "term": "Fifty-percent rule",
+            "meaning": "Knuth's observation that in steady state first fit leaves about one hole for every two allocated blocks."
+          }
+        ],
+        "principle": {
+          "text": "For each request, scan the holes from the pointer onward, wrapping around once, and take the first hole whose size is at least the request. Shrink it by the request and move the pointer to it. If no hole fits, the request waits or fails as the question states.",
+          "tex": "\\text{hole}_i \\leftarrow \\text{hole}_i - r,\\quad \\text{pointer} \\leftarrow i"
+        },
+        "limits": "The pointer starts at the first hole, so until a request is placed next fit and first fit agree. With fixed partitions the leftover inside a partition is internal fragmentation and never becomes a hole for another process.",
+        "example": {
+          "problem": "Holes in address order are 16, 6, 12 and 9 KB. Requests of 5, 10, 7 and 4 KB arrive in that order. Trace next fit and compare the final list with first fit.",
+          "steps": [
+            "Request 5: the pointer is at the first hole, 16 fits and leaves 11. The list is 11, 6, 12, 9 and the pointer is at hole 1.",
+            "Request 10: the search starts at hole 1 (11), which fits and leaves 1. The list is 1, 6, 12, 9.",
+            "Request 7: from hole 1, the 1 KB hole is too small and the 6 KB hole is too small, so the 12 KB hole serves it and leaves 5. The list is 1, 6, 5, 9 and the pointer is at hole 3.",
+            "Request 4: the search starts at hole 3 (5), which fits and leaves 1. Next fit ends with 1, 6, 1, 9.",
+            "First fit would place the last 4 KB request in the 6 KB hole, because it scans from the front, and end with 1, 2, 5, 9."
+          ],
+          "result": "Next fit leaves 1, 6, 1, 9 KB; first fit leaves 1, 2, 5, 9 KB."
+        },
+        "misconceptions": [
+          "Next fit does not continue from the hole after the last one; it restarts at the hole last used, which may still fit the next request.",
+          "A leftover is not moved: it stays at its original position in the list, and the pointer still points at it."
+        ],
+        "recall": [
+          {
+            "q": "Where does a next fit search begin?",
+            "a": "At the hole that served the previous request, wrapping around to the front of the list if needed."
+          },
+          {
+            "q": "What happens to a request that no hole can serve?",
+            "a": "It waits or fails as the question states; compaction occurs only if the question allows it."
+          },
+          {
+            "q": "How does next fit differ from first fit?",
+            "a": "First fit always starts at the front of the list, while next fit starts where the last allocation was made."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Holes in address order are 12, 5, 9 and 14 KB. Requests of 7, 6, 5 and 4 KB are served by next fit. After all four requests, what is the size in KB of the largest remaining hole?",
+          "answer": 5,
+          "explanation": "The 7 KB request takes the 12 KB hole, leaving 5. The 6 KB request starts there: 5 and 5 are too small, so the 9 KB hole serves it and leaves 3. The 5 KB request starts at that 3 KB hole, which is too small, so the 14 KB hole leaves 9. The 4 KB request starts at the 9 KB hole and leaves 5. The list is 5, 5, 3, 5, so the largest is 5. Answering 14 is tempting because first fit would leave the 14 KB hole untouched, but next fit reaches it on the third request."
+        },
+        "summary": "Next fit is first fit with a pointer: each search starts at the hole last used, wraps around, and takes the first hole that fits. Trace one request at a time, since each leftover feeds the next search."
+      }
+    },
+    {
+      "id": "os-memory-management.paging",
+      "title": "Paging and address translation",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        48,
+        497,
+        500,
+        503
+      ],
+      "points": [
+        "Paging splits the logical address space into fixed-size pages and physical memory into frames of the same size. Any page can sit in any free frame, so there is no external fragmentation.",
+        "A virtual address is a virtual page number (VPN) followed by an offset. The page table maps the VPN to a physical frame number (PFN), and the offset is copied unchanged: physical address = PFN followed by offset.",
+        "With page size $P = 2^d$ bytes the offset has d bits; a v-bit virtual address has v − d VPN bits and a p-bit physical address has p − d PFN bits. 32-bit addresses with 4 KB pages give a 12-bit offset and a 20-bit VPN.",
+        "A page-table entry holds the frame number plus control bits: valid (present), protection (read/write/execute), reference (used by replacement) and dirty (modified since loaded, so it must be written back on eviction).",
+        "Internal fragmentation remains: a process's last page is on average half empty. Larger pages give smaller tables and usually fewer faults but waste more; smaller pages waste less but need more entries.",
+        "Worked translation: 16-bit virtual addresses with 1 KB pages give a 10-bit offset and a 6-bit VPN. 0x2A5C splits into VPN 001010₂ = 10 and offset 0x25C; if page 10 is in frame 5, the physical address is 5 × 1024 + 0x25C = 0x165C. Split in binary, since a 10-bit offset does not fall on a hex-digit boundary."
+      ],
+      "keyTerms": [
+        "page",
+        "frame",
+        "VPN",
+        "PFN",
+        "offset",
+        "valid bit",
+        "dirty bit",
+        "reference bit"
+      ],
+      "lesson": {
+        "why": "Address translation is the base of every other topic in this chapter, and a split of an address into page number and offset is asked directly in many forms.",
+        "intro": "Paging cuts the program address space into equal blocks called pages, and cuts physical memory into blocks of the same size called frames. Any page can be put in any free frame, so the pages of a program need not sit next to each other. A table records which frame holds each page, and the hardware uses it on every memory access.",
+        "definitions": [
+          {
+            "term": "Page table",
+            "meaning": "The table that gives, for each page number, the frame that holds that page."
+          },
+          {
+            "term": "Offset",
+            "meaning": "The position of a byte inside its page; it is the same inside the frame."
+          },
+          {
+            "term": "MMU",
+            "meaning": "The memory management unit, the hardware that reads the page table and translates every address; the operating system builds and updates the table, but the hardware does the lookup."
+          },
+          {
+            "term": "Valid bit",
+            "meaning": "A bit in a table entry that says whether the page is in memory; access to an entry marked invalid traps to the operating system."
+          },
+          {
+            "term": "Protection bit",
+            "meaning": "A bit in a table entry that limits the access allowed, for example read-only; a write to a read-only page traps."
+          },
+          {
+            "term": "Dirty bit",
+            "meaning": "A bit set by the hardware when a page is written, so the system knows the page differs from its copy on disk."
+          }
+        ],
+        "principle": {
+          "text": "A virtual address splits into a page number and an offset. The page table replaces the page number by a frame number, and the offset is copied unchanged.",
+          "tex": "\\text{page} = \\lfloor a / P \\rfloor,\\quad \\text{offset} = a \\bmod P,\\quad \\text{physical} = \\text{frame} \\times P + \\text{offset}"
+        },
+        "limits": "The picture assumes the page is in memory. If the table entry says the page is absent, translation fails and the system must load the page first. Paging removes external fragmentation but not internal fragmentation, because the last page of a program is rarely full. The table itself also takes memory: it has one entry per page, so a large address space needs a large table.",
+        "example": {
+          "problem": "The page size is 4096 bytes. Pages 0, 1 and 2 are in frames 7, 2 and 5. Find the physical address for virtual address 9000.",
+          "steps": [
+            "Divide 9000 by 4096: the quotient is 2 and the remainder is 808, so the page is 2 and the offset is 808.",
+            "The table puts page 2 in frame 5.",
+            "The physical address is $5 \\times 4096 + 808 = 21288$."
+          ],
+          "result": "Virtual address 9000 maps to physical address 21288."
+        },
+        "misconceptions": [
+          "The offset does not change during translation; only the page number is replaced. Adding the old page number into the result is a common slip.",
+          "Paging does not remove all waste: the unused tail of the last page of each program is internal fragmentation, and bigger pages mean more of it."
+        ],
+        "recall": [
+          {
+            "q": "How many offset bits does a page of $2^d$ bytes need?",
+            "a": "It needs d bits, and the remaining high bits of the address are the page number."
+          },
+          {
+            "q": "Which kind of fragmentation does paging remove, and which stays?",
+            "a": "External fragmentation is removed; internal fragmentation stays in the last page of each program."
+          },
+          {
+            "q": "What is a dirty bit for?",
+            "a": "It marks a page that was modified since it was loaded, so it must be written back before its frame is reused."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The page size is 512 bytes. Pages 0, 1 and 2 are in frames 4, 0 and 6. What is the physical address for virtual address 1300?",
+          "answer": 3348,
+          "explanation": "Since 1300 = 2 x 512 + 276, the page is 2 and the offset is 276. Page 2 is in frame 6, so the address is 6 x 512 + 276 = 3348. Two slips are tempting: taking the frame of page 1 instead (frame 0) gives 276, and dropping the offset gives 6 x 512 = 3072."
+        },
+        "summary": "Split the address into page number and offset by dividing by the page size, look the page up in the table, and join the frame number with the same offset."
+      }
+    },
+    {
+      "id": "os-memory-management.page-table-size",
+      "title": "Page-table size arithmetic",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        497,
+        503
+      ],
+      "points": [
+        "A single-level table has one entry for every virtual page, so its size is 2^(VPN bits) × entry size, no matter how little of the address space the process actually uses.",
+        "The number of entries comes from the virtual address width; the width of each entry comes from the physical address width (PFN bits) plus the control bits, usually rounded up to whole bytes.",
+        "32-bit virtual addresses, 4 KB pages and 4-byte entries give 2²⁰ entries and a 4 MB table per process. With 64-bit addresses a flat table is impossibly large, which is why multi-level and inverted tables exist.",
+        "Units: KB = 2¹⁰ bytes, MB = 2²⁰ and GB = 2³⁰. Rewrite every size as a power of two first, then add or subtract exponents."
+      ],
+      "keyTerms": [
+        "page-table entry",
+        "entry width",
+        "per-process page table"
+      ],
+      "lesson": {
+        "why": "Sizing a page table is a short computation that GATE repeats with new numbers, and the usual error is to mix up which address width gives the entry count and which gives the entry width.",
+        "intro": "A single-level page table keeps one entry for every page the virtual address space could contain, whether the program uses that page or not. So its size is the number of entries times the size of one entry. The number of entries comes from how many pages the virtual address space has, and the entry must be wide enough to hold a frame number.",
+        "prerequisites": [
+          "os-memory-management.paging"
+        ],
+        "principle": {
+          "text": "Let v be the virtual address bits, d the offset bits, P the page size in bytes (so $d = \\log_2 P$) and e the entry size in bytes. The entry count is the number of virtual pages, $2^{v-d}$. The entry width is set by the frame number of the physical address, plus control bits, rounded up to whole bytes when the question says so.",
+          "tex": "\\text{table size} = 2^{\\,v - d} \\times e"
+        },
+        "limits": "This size holds per process and for a flat table only. A multi-level or inverted table is sized differently, and a question that gives the entry size directly does not need the physical address width at all.",
+        "example": {
+          "problem": "A system has 36-bit virtual addresses, 16 KB pages and 4-byte table entries. How large is the flat page table?",
+          "steps": [
+            "A 16 KB page is $2^{14}$ bytes, so the offset takes 14 bits.",
+            "The page number has $36 - 14 = 22$ bits, so the table has $2^{22}$ entries.",
+            "The size is $2^{22} \\times 4 = 2^{24}$ bytes, which is 16 MB."
+          ],
+          "result": "The flat page table is 16 MB per process."
+        },
+        "misconceptions": [
+          "The physical address width does not decide how many entries the table has; it only decides how wide each entry must be.",
+          "The table is not sized by the memory the program actually uses; a tiny program still has an entry for every possible page."
+        ],
+        "recall": [
+          {
+            "q": "What decides the number of entries in a flat page table?",
+            "a": "The virtual address width minus the offset bits, since there is one entry per virtual page."
+          },
+          {
+            "q": "What decides the width of one entry?",
+            "a": "The frame number bits from the physical address width, plus the control bits."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A system has 30-bit virtual addresses, 1 KB pages and 4-byte page table entries. What is the size of the flat page table in KB?",
+          "answer": 4096,
+          "explanation": "A 1 KB page needs 10 offset bits, so the page number has 20 bits and the table has $2^{20}$ entries. At 4 bytes each that is $2^{22}$ bytes, which is 4096 KB. Answering 1024 is tempting because it treats the entries as 1 byte each: $2^{20}$ bytes is 1024 KB, and the entry size is forgotten."
+        },
+        "summary": "Flat table size is $2^{v-d}$ times the entry size. Count entries from the virtual address, and take the entry width from the physical address."
+      }
+    },
+    {
+      "id": "os-memory-management.multi-level-page-tables",
+      "title": "Multi-level (hierarchical) page tables",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        497,
+        500,
+        502,
+        503
+      ],
+      "points": [
+        "The VPN is split into several indices: the outer index selects an entry of the outer table, which points to an inner table, and so on; only the last level holds frame numbers.",
+        "Inner tables are allocated only for regions in use, so a sparse address space needs a few small tables instead of one huge flat table. With a 10 + 10 + 12 split of a 32-bit address, each inner table maps 4 MB.",
+        "Designing the levels: if every table must fit in one page, a table holds page size ÷ entry size entries, each level resolves log₂(page size ÷ entry size) VPN bits, and the number of levels is ⌈VPN bits ÷ that⌉.",
+        "Cost: after a TLB miss a k-level table needs k memory accesses before the data access. A fully used address space needs every inner table plus the outer ones, so the hierarchy can be slightly larger than a flat table."
+      ],
+      "keyTerms": [
+        "outer page table",
+        "inner page table",
+        "sparse address space",
+        "page-table walk"
+      ],
+      "lesson": {
+        "why": "Questions ask for the number of levels, the index widths of a hierarchical table, or how many table pages a process using a given amount of memory needs, and the rule that every table fits in one page settles all three.",
+        "intro": "A flat page table for a large address space is huge, and most of it would map pages the program never touches. A multi-level table splits the page number into several indices. The first index picks an entry in a top table, that entry points to a table of the next level, and only the last level holds frame numbers. Tables are created only for regions that are in use.",
+        "prerequisites": [
+          "os-memory-management.paging",
+          "os-memory-management.page-table-size"
+        ],
+        "definitions": [
+          {
+            "term": "Page-table walk",
+            "meaning": "Reading one entry per level, from the top table down to the frame number."
+          },
+          {
+            "term": "Table page",
+            "meaning": "One page-sized table at any level; a table is allocated only when some entry below it is in use."
+          }
+        ],
+        "principle": {
+          "text": "Let v be the virtual address bits, d the offset bits, P the page size in bytes and e the entry size in bytes. When every table fills exactly one page, a table holds $P/e$ entries, so each level resolves $\\log_2(P/e)$ index bits, and the number of levels L is the page number bits divided by the bits per level, rounded up. To count the table pages a process needs, start at the lowest level: the tables there number the pages used divided by $P/e$, rounded up. Each level above needs its table count divided by $P/e$, rounded up, until one top table remains. Total size is the table count times P.",
+          "tex": "L = \\left\\lceil \\dfrac{v - d}{\\log_2 (P / e)} \\right\\rceil"
+        },
+        "limits": "The rule holds only when each table is required to fit in a page; when the question fixes the index widths directly, use those. A fully used address space needs all the tables, so the hierarchy can be slightly bigger than the flat table.",
+        "example": {
+          "problem": "A system has 40-bit virtual addresses, 4 KB pages and 8-byte entries, and every table fits in one page. How many levels are needed, and how many KB of tables does a process need if it uses 3000 contiguous pages starting at virtual page 0?",
+          "steps": [
+            "The offset takes 12 bits, so the page number has $40 - 12 = 28$ bits.",
+            "One table holds $4096 / 8 = 512 = 2^9$ entries, so each level resolves 9 bits.",
+            "Three levels cover 27 bits, which is not enough, so $\\lceil 28 / 9 \\rceil = 4$ levels are needed.",
+            "Count from the bottom. Each table holds 512 entries, so the lowest level needs $\\lceil 3000 / 512 \\rceil = 6$ tables, because the run starts at page 0 and so aligns with a table boundary.",
+            "The level above needs $\\lceil 6 / 512 \\rceil = 1$ table, and so does each higher level, giving 6 + 1 + 1 + 1 = 9 tables of 4 KB, which is 36 KB."
+          ],
+          "result": "Four levels are needed, and the process needs 9 table pages, 36 KB. Pages scattered widely would touch more lowest-level tables and cost more."
+        },
+        "misconceptions": [
+          "Dividing the whole address width by the bits per level is wrong; the offset bits are never translated and must be removed first.",
+          "A page-table walk is not free: after a miss in the translation cache, a k-level table costs k memory accesses before the data access."
+        ],
+        "recall": [
+          {
+            "q": "How many index bits does one level resolve?",
+            "a": "It resolves $\\log_2$ of page size divided by entry size, because one table fills one page."
+          },
+          {
+            "q": "Why does a multi-level table save memory?",
+            "a": "Lower-level tables exist only for regions the program uses, so unused address ranges need no tables."
+          },
+          {
+            "q": "How do you count the table pages a process needs?",
+            "a": "Take the pages used divided by entries per table, rounded up, for the lowest level, repeat for each level above until one top table remains, then add the counts."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A system has 48-bit virtual addresses, 16 KB pages and 8-byte entries, and every table fits in one page. How many levels are needed?",
+          "answer": 4,
+          "explanation": "A 16 KB page needs 14 offset bits, so the page number has 34 bits. One table holds $16384 / 8 = 2048 = 2^{11}$ entries, so each level resolves 11 bits. Since 34 / 11 is about 3.09, three levels leave bits uncovered and four are needed. Rounding down to 3 is the tempting slip."
+        },
+        "summary": "Remove the offset bits, divide the page number bits by the bits per level, and round up. Bits per level come from page size over entry size."
+      }
+    },
+    {
+      "id": "os-memory-management.inverted-page-table",
+      "title": "Inverted and hashed page tables",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        497,
+        500,
+        502
+      ],
+      "points": [
+        "An inverted page table has one entry per physical frame for the whole system, recording which process and which virtual page occupy that frame; its number of entries depends on physical memory, not on the virtual address space.",
+        "The position of an entry is the frame number, which is why the entry stores the process id and VPN rather than a frame number.",
+        "Translation must find the entry holding (process id, VPN): a linear search costs time proportional to the number of frames, so real designs hash the pair and follow a short chain.",
+        "It saves a great deal of memory on 64-bit machines, but lookup is slower and sharing a frame between processes is awkward, because each entry records a single owner.",
+        "A hashed page table is the per-process alternative for large address spaces: the VPN is hashed into a bucket whose chain holds (VPN, PFN, next) elements, so its size tracks the pages in use. Clustered variants let one element map several consecutive pages."
+      ],
+      "keyTerms": [
+        "inverted page table",
+        "hashed page table",
+        "process id"
+      ],
+      "lesson": {
+        "why": "GATE contrasts the inverted table with the ordinary one, so you must know what it is indexed by, how big it is, and why its lookup time varies.",
+        "intro": "An ordinary page table has one entry for every virtual page of every process. An inverted page table turns this around and has one entry for every physical frame in the machine. Each entry records which process and which virtual page currently sit in that frame. The table therefore grows with physical memory and not with the size of the virtual address space.",
+        "prerequisites": [
+          "os-memory-management.paging"
+        ],
+        "principle": {
+          "text": "The number of entries equals the number of frames. To translate, the system finds the entry holding the pair (process id, page number); the position of that entry is the frame number.",
+          "tex": "\\text{entries} = \\dfrac{\\text{physical memory}}{\\text{page size}}"
+        },
+        "limits": "The search for the matching pair is not a direct index, so lookup time depends on where the match is or how long the hash chain is. Sharing one frame between processes is awkward because an entry names a single owner.",
+        "example": {
+          "problem": "Physical memory is 256 MB, pages are 4 KB and each inverted-table entry takes 8 bytes. How large is the table?",
+          "steps": [
+            "Physical memory has $2^{28} / 2^{12} = 2^{16} = 65536$ frames.",
+            "The table has one entry per frame, so 65536 entries.",
+            "The size is $65536 \\times 8 = 524288$ bytes, which is 512 KB for the whole system."
+          ],
+          "result": "The table is 512 KB, shared by all processes."
+        },
+        "misconceptions": [
+          "The virtual address width does not change the size of an inverted table; doubling the virtual address space leaves it the same.",
+          "It is not a faster table: finding the entry needs a search or a hash, so access time is not the same for every address."
+        ],
+        "recall": [
+          {
+            "q": "How many entries does an inverted page table have?",
+            "a": "One per physical frame, so the count depends on physical memory only."
+          },
+          {
+            "q": "Why does an entry store a process id as well as a page number?",
+            "a": "Different processes use the same virtual page numbers, so the pair is needed to tell them apart."
+          },
+          {
+            "q": "How do real designs avoid scanning the whole inverted table?",
+            "a": "They hash the (process id, page number) pair and follow a short chain of entries."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A machine has 2 GB of physical memory and 8 KB pages. An inverted page table entry takes 8 bytes. What is the table size in KB?",
+          "answer": 2048,
+          "explanation": "There are $2^{31} / 2^{13} = 2^{18}$ frames, so the table has $2^{18}$ entries of 8 bytes, which is $2^{21}$ bytes or 2048 KB. Using the virtual address width would give a far larger number, which is the tempting error because an ordinary table is sized that way."
+        },
+        "summary": "An inverted table has one entry per frame, keyed by (process id, page number). It saves memory on large address spaces but costs a search on every lookup."
+      }
+    },
+    {
+      "id": "os-memory-management.tlb",
+      "title": "TLB and effective memory-access time",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        500,
+        501,
+        503,
+        504,
+        505
+      ],
+      "points": [
+        "The translation lookaside buffer is a small, fast associative cache of recent VPN → PFN translations, typically 64 to 1024 entries; a hit skips the page-table walk.",
+        "With lookup time t, memory time m and hit ratio h, a single-level table gives EAT = h(t + m) + (1 − h)(t + 2m): a miss costs one extra memory access to read the page-table entry.",
+        "With a k-level table a miss costs k extra accesses: EAT = h(t + m) + (1 − h)(t + (k + 1)m). If the question says the TLB lookup overlaps the memory access on a miss, drop t from the miss term.",
+        "A TLB miss is not a page fault: the page may well be in memory, and only the table walk is added. A page fault means the entry's valid bit is clear and the page must come from disk.",
+        "On a context switch the TLB is flushed unless its entries carry address-space identifiers (ASIDs), which let translations of several processes coexist.",
+        "Faults can happen only on a TLB miss, because the TLB caches only resident pages. If a fraction p of all references fault, EAT = h(t + m) + (1 − h − p)(t + 2m) + p(t + m + s), where s covers servicing the fault and the restarted access; the fault term dominates once s is in milliseconds."
+      ],
+      "keyTerms": [
+        "TLB",
+        "hit ratio",
+        "effective access time",
+        "ASID",
+        "page-table walk"
+      ],
+      "lesson": {
+        "why": "Effective access time with a TLB is a computation you can do from one formula, and the cost of a miss depends on the number of table levels.",
+        "intro": "Without help, every memory access of a program needs a second access to read the page table. The translation lookaside buffer, or TLB, is a small fast table that remembers recent translations from page number to frame number. If the translation is there, it is a hit and the page table is skipped. If not, it is a miss and the page table in memory must be read.",
+        "prerequisites": [
+          "os-memory-management.paging"
+        ],
+        "definitions": [
+          {
+            "term": "Hit ratio",
+            "meaning": "The fraction of references whose translation is found in the TLB."
+          },
+          {
+            "term": "Effective access time",
+            "meaning": "The average time per memory reference, weighted by how often hits and misses happen."
+          },
+          {
+            "term": "TLB reach",
+            "meaning": "The memory the TLB can cover without a miss: number of entries times page size."
+          },
+          {
+            "term": "Page fault",
+            "meaning": "An access to a page that is not in memory; the operating system reads it from disk, taking one disk transfer time."
+          },
+          {
+            "term": "Dirty page",
+            "meaning": "A page changed since it was loaded. If the frame to be reused holds one, it is first written back to disk, so the fault costs two transfers instead of one."
+          }
+        ],
+        "principle": {
+          "text": "Let t be the TLB lookup time, m the memory access time, h the hit ratio and k the number of table levels. A hit costs one lookup and one memory access. A miss costs the lookup, k table reads and the data access. Faults occur only after a miss: let f be the fraction of misses that fault, D the disk transfer time and w the fraction of faults whose victim page is dirty. A fault adds $D(1+w)$ to the miss cost. The reach is entries times page size, and a TLB with N entries translates $N \\times (P / \\text{word size})$ distinct addresses of a word-addressed memory without a miss.",
+          "tex": "\\mathrm{EAT} = h\\,(t + m) + (1-h)\\,\\bigl(t + (k+1)\\,m + f\\,D\\,(1+w)\\bigr), \\qquad \\text{reach} = N \\times P"
+        },
+        "limits": "With f = 0 the fault term vanishes and the formula is the fault-free one. A miss is not a fault: the page may be in memory, and only the walk is added. Faults come only after a miss, because the TLB holds only pages that are in memory, so f is a fraction of misses. A TLB entry also stores the page number, frame number and control bits, so the size of the TLB in bytes is entries times that entry width, not its reach.",
+        "example": {
+          "problem": "The TLB lookup takes 10 ns, a memory access takes 100 ns, the hit ratio is 0.9 and the page table has one level. Find the effective access time.",
+          "steps": [
+            "A hit costs $10 + 100 = 110$ ns.",
+            "A miss costs $10 + 100 + 100 = 210$ ns: lookup, one table read and the data read.",
+            "Weighting by the hit ratio gives $0.9 \\times 110 + 0.1 \\times 210 = 99 + 21 = 120$ ns."
+          ],
+          "result": "The effective access time is 120 ns."
+        },
+        "misconceptions": [
+          "A TLB miss is not a page fault. A miss only adds the table walk; a fault means the page is not in memory and comes from disk.",
+          "The TLB lookup time is paid on a miss as well as on a hit, since the lookup happens first, unless the question says it overlaps with the walk."
+        ],
+        "recall": [
+          {
+            "q": "What does a TLB store?",
+            "a": "Recent translations from page number to frame number, so the page table can be skipped on a hit."
+          },
+          {
+            "q": "How many memory accesses does a TLB miss cost with a k-level page table?",
+            "a": "It costs k accesses to walk the table plus one for the data, so k + 1 in total."
+          },
+          {
+            "q": "Why is the TLB flushed on a context switch?",
+            "a": "Its entries belong to the old process, unless they carry address-space identifiers that keep the processes apart."
+          },
+          {
+            "q": "How many distinct addresses can a TLB of N entries translate without a miss?",
+            "a": "N times the addresses per page; for a byte-addressed memory that is N times the page size, and for a word-addressed memory it is N times page size divided by word size."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The TLB lookup takes 20 ns, a memory access takes 80 ns, the hit ratio is 0.75 and the page table has two levels. What is the effective access time in ns?",
+          "answer": 140,
+          "explanation": "A hit costs $20 + 80 = 100$ ns. A miss costs $20 + 3 \\times 80 = 260$ ns: two table reads and the data read. The average is $0.75 \\times 100 + 0.25 \\times 260 = 140$ ns. Charging only one extra access on a miss, as for a single-level table, gives 120 ns, which is the tempting wrong answer."
+        },
+        "summary": "Effective access time weights a cheap hit and an expensive miss by the hit ratio, a miss costs k extra memory accesses for a k-level table, and a fault adds disk time to a miss only. Reach is entries times page size."
+      }
+    },
+    {
+      "id": "os-memory-management.segmentation",
+      "title": "Segmentation and segmented paging",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        48,
+        498,
+        501,
+        502,
+        504
+      ],
+      "points": [
+        "Segmentation divides a program into variable-sized logical units such as code, data, heap and stack, matching the programmer's view; a logical address is (segment number, offset).",
+        "The segment table stores a base and a limit for each segment. The hardware checks offset < limit and traps if it fails; otherwise the physical address is base + offset.",
+        "Protection and sharing work naturally per segment (a read-only code segment can be shared), but variable-sized segments bring external fragmentation back.",
+        "Segmented paging pages every segment: the address becomes (segment, page, offset), each segment has its own page table, and external fragmentation disappears again. Older x86 combined both; x86-64 relies almost entirely on paging."
+      ],
+      "keyTerms": [
+        "segment table",
+        "base",
+        "limit",
+        "segmentation trap",
+        "segmented paging"
+      ],
+      "lesson": {
+        "why": "Segmentation questions ask for the physical address of a (segment, offset) pair or whether it traps, and a one-off error at the limit is the usual way to lose the mark.",
+        "intro": "A program is made of parts of different lengths, such as its code, its data and its stack. Segmentation gives each part its own block of memory, called a segment. A logical address names the segment number and an offset inside that segment. A segment table has one row per segment, holding where the segment starts in physical memory (its base) and how long it is (its limit). Hardware looks up the row for the segment, checks the offset against the limit and, if it is acceptable, adds the base.",
+        "definitions": [
+          {
+            "term": "Base",
+            "meaning": "The physical address where a segment starts."
+          },
+          {
+            "term": "Limit",
+            "meaning": "The length of a segment; valid offsets run from 0 up to but not including the limit."
+          },
+          {
+            "term": "Segmented paging",
+            "meaning": "Each segment is itself divided into pages, so the address is (segment, page, offset) and each segment has its own page table."
+          }
+        ],
+        "principle": {
+          "text": "The address (s, d) is valid only if the offset is less than the limit of segment s. Then the physical address is the base of the segment plus the offset. Otherwise the hardware traps to the operating system.",
+          "tex": "\\text{PA} = \\begin{cases} \\text{base}[s] + d & 0 \\le d < \\text{limit}[s] \\\\ \\text{trap} & \\text{otherwise} \\end{cases}"
+        },
+        "limits": "Because segments have different sizes, segmentation brings back external fragmentation. Segmented paging removes it by paging each segment, at the price of an extra table lookup per segment.",
+        "example": {
+          "problem": "A segment table has segment 0 with base 2200 and limit 600, segment 1 with base 8000 and limit 250, and segment 2 with base 5100 and limit 900. Translate the addresses (2, 300), (0, 599) and (1, 250).",
+          "steps": [
+            "(2, 300): the offset $300 < 900$, so the address is valid and the physical address is $5100 + 300 = 5400$.",
+            "(0, 599): the offset $599 < 600$, so it is valid and the physical address is $2200 + 599 = 2799$.",
+            "(1, 250): the offset $250$ is not less than the limit $250$, so the hardware traps."
+          ],
+          "result": "The addresses map to 5400 and 2799, and (1, 250) causes a trap."
+        },
+        "misconceptions": [
+          "An offset equal to the limit is out of range, because offsets start at 0; a segment of limit 250 has offsets 0 to 249.",
+          "Segmentation does not remove external fragmentation, since segments are variable in size; only paging them does."
+        ],
+        "recall": [
+          {
+            "q": "What does a segment table row hold?",
+            "a": "The base address and the limit (length) of one segment."
+          },
+          {
+            "q": "What does the hardware do when the offset is at least the limit?",
+            "a": "It raises a trap to the operating system instead of forming a physical address."
+          },
+          {
+            "q": "Why does segmented paging avoid external fragmentation?",
+            "a": "Each segment is split into fixed-size pages, so memory is allocated in frames of one size."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A process has segment 0 with base 1500 and limit 700, segment 1 with base 4000 and limit 350, and segment 2 with base 9200 and limit 1200. What is the physical address for the logical address (2, 1199)?",
+          "answer": 10399,
+          "explanation": "The offset $1199 < 1200$, so the address is valid and the physical address is $9200 + 1199 = 10399$. Reporting a trap is tempting because 1199 is so close to the limit, but only an offset of 1200 or more would trap."
+        },
+        "summary": "A segmented address is (segment, offset). Check offset < limit, then add the base; otherwise trap. Variable-sized segments cause external fragmentation, which paging each segment removes."
+      }
+    },
+    {
+      "id": "os-memory-management.demand-paging",
+      "title": "Demand paging and page-fault service",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        497,
+        498,
+        501,
+        502,
+        505
+      ],
+      "points": [
+        "Virtual memory keeps only the pages a process is using in memory and loads the others from disk on first access; pure demand paging starts with no pages loaded at all.",
+        "A reference to a page whose valid bit is clear traps to the OS, which checks the reference is legal, finds a free frame (evicting a victim if none is free), reads the page from disk, updates the page table and restarts the faulting instruction.",
+        "With fault rate p, memory time m and fault-service time s, EAT = (1 − p)m + p·s. Because s is in milliseconds and m in nanoseconds, p = 0.001 with m = 100 ns and s = 8 ms already gives about 8.1 μs, 81 times slower than memory.",
+        "A dirty victim must be written back before the new page is read, roughly doubling the service time; a clean victim is simply overwritten. Weight the two service times by the fraction of dirty victims.",
+        "Copy-on-write makes fork cheap: parent and child share every frame, marked read-only. The first write by either side to a shared page raises a protection fault, and the OS copies only that page and makes the copy writable; pages never written are never copied.",
+        "Demand paging works because of locality, and loop order decides it. C stores arrays row-major, so with a row of A[R][C] filling at least a page and fewer than R frames, a column-wise loop faults on every element (R × C faults) while a row-wise loop faults once per page."
+      ],
+      "keyTerms": [
+        "page fault",
+        "pure demand paging",
+        "valid bit",
+        "fault-service time",
+        "dirty page"
+      ],
+      "lesson": {
+        "why": "Page-fault arithmetic and loop-order fault counts appear again and again in this chapter, and every replacement question assumes you know what a fault costs.",
+        "intro": "A program rarely needs all of its pages at once, so the system loads a page into memory only when the program first touches it. Each page-table entry has a valid bit. If the bit is clear, the access traps to the operating system. This trap is a page fault. The system finds a frame, reads the page from disk, fixes the table and runs the instruction again. A disk read is tens of thousands of times slower than a memory access, so even rare faults dominate the average access time. Loops over arrays hit this too. C stores a 2-D array row by row, so a loop along a row touches each page once, while a loop down a column jumps a whole row per step and revisits every page on each pass; if the frames cannot hold all of them, every pass reloads them.",
+        "prerequisites": [
+          "os-memory-management.paging"
+        ],
+        "definitions": [
+          {
+            "term": "Page fault",
+            "meaning": "A trap raised when the program touches a page whose valid bit is clear, that is, a page not in memory."
+          },
+          {
+            "term": "Fault-service time",
+            "meaning": "The time to handle one fault: mostly the disk read, plus a write-back if the evicted page was dirty."
+          },
+          {
+            "term": "Effective access time",
+            "meaning": "The average time of one memory access once faults are mixed in with ordinary accesses."
+          }
+        ],
+        "principle": {
+          "text": "Each access either finds its page in memory and takes the memory time, or faults and takes the fault-service time. The average weights the two by the fault rate. For an array whose pages are $P$ in number, a row-wise loop faults $P$ times. A column-wise loop faults $P$ times per column when the frames can hold all $P$ pages, and on every page change otherwise, because LRU evicts each page just before the loop returns to it.",
+          "tex": "\\mathrm{EAT} = (1 - p)\\,m + p\\,s = m + p\\,(s - m)"
+        },
+        "limits": "The formula treats p as one fixed fraction of all accesses and s as one fixed cost. If dirty and clean victims cost differently, first average s over the two kinds. It also ignores the TLB; when a TLB is present, m itself is an average. The loop-order count assumes the array is the only data in the frames and the loop reads each page in the same cyclic order on every pass.",
+        "example": {
+          "problem": "Memory time is 200 ns, fault-service time is 5 ms and 4 of every 10000 accesses fault. Find the effective access time.",
+          "steps": [
+            "Convert to one unit: 5 ms is 5000000 ns, and $p = 4/10000 = 0.0004$.",
+            "Weight the two cases: $0.9996 \\times 200 + 0.0004 \\times 5000000 = 199.92 + 2000 = 2199.92$ ns.",
+            "Compare with $m$: $2199.92 / 200 \\approx 11$, so the machine runs about eleven times slower than a fault-free one."
+          ],
+          "result": "The effective access time is 2199.92 ns, about 11 times the memory time."
+        },
+        "misconceptions": [
+          "Mixing units. Memory time is in nanoseconds and service time in milliseconds; convert one of them before you multiply.",
+          "A rate of 1 fault in 10000 sounds negligible. It is not, because the service time is so large that the fault term dominates the sum.",
+          "Assuming loop order does not matter because the same elements are touched. On a $64 \\times 64$ array where a page holds two rows (32 pages) and the process has 20 frames, a row-wise loop faults 32 times but a column-wise loop faults 2048 times, because each pass cycles through 32 pages with only 20 frames. With 40 frames the column-wise loop also faults only 32 times."
+        ],
+        "recall": [
+          {
+            "q": "What does the OS do on a page fault, in order?",
+            "a": "It checks the reference is legal, finds a frame (evicting a victim if none is free), reads the page from disk, updates the page table and restarts the instruction."
+          },
+          {
+            "q": "Write the effective access time with fault rate p.",
+            "a": "$\\mathrm{EAT} = (1 - p)\\,m + p\\,s$, where m is the memory time and s is the fault-service time."
+          },
+          {
+            "q": "Why is a dirty victim more expensive than a clean one?",
+            "a": "It must be written to disk before the new page is read, which roughly doubles the service time; a clean victim is just overwritten."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Memory time is 100 ns and fault-service time is 8 ms. One access in 100000 faults. What is the effective access time in ns, rounded to the nearest integer?",
+          "answer": 180,
+          "explanation": "With $p = 10^{-5}$ and $s = 8000000$ ns, $\\mathrm{EAT} = 0.99999 \\times 100 + 10^{-5} \\times 8000000 = 99.999 + 80 = 179.999$, which rounds to 180 ns. Answering 100 is tempting because faults look rare, but the fault term adds 80 ns. Answering 8000100 comes from forgetting to weight s by p."
+        },
+        "summary": "Convert to one unit, then weight memory time by 1 minus p and service time by p. Faults are rare but so slow that they decide the average."
+      }
+    },
+    {
+      "id": "os-memory-management.replacement-policies",
+      "title": "FIFO, Optimal and LRU replacement",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        501,
+        503
+      ],
+      "points": [
+        "When no frame is free, the replacement policy picks a victim. Faults are counted from the first reference, so with empty frames every distinct page costs at least one compulsory fault.",
+        "FIFO evicts the page that was loaded earliest; a hit does not change its place in the queue.",
+        "Optimal (OPT, Belady's MIN) evicts the page whose next use lies farthest in the future, or that is never used again. It gives the fewest faults possible but needs future knowledge, so it serves only as a benchmark.",
+        "LRU evicts the page whose last use is oldest: OPT's rule applied looking backward in time. It is usually close to optimal, but not always better than FIFO: on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 with 3 frames FIFO faults 9 times, LRU 10 and OPT 7.",
+        "Trace method: one column per reference, one row per frame; mark each reference hit or miss and, for each miss, note why the victim was chosen (load order, next use or last use)."
+      ],
+      "keyTerms": [
+        "victim",
+        "compulsory fault",
+        "FIFO",
+        "OPT",
+        "LRU"
+      ],
+      "lesson": {
+        "why": "Counting faults for FIFO, LRU and Optimal on a short reference string is a task you can do by hand in a few lines, and the answer is exact, so one wrong eviction costs the mark.",
+        "intro": "When every frame holds a page and a new page is needed, the system must throw one out. The rule it uses to choose is the replacement policy. FIFO throws out the page that has been in memory longest. LRU throws out the page whose last use is oldest. Optimal throws out the page whose next use is farthest away. The first two look only at the past; Optimal looks at the future, so no real system can run it, but it shows the fewest faults any policy could reach.",
+        "prerequisites": [
+          "os-memory-management.demand-paging"
+        ],
+        "definitions": [
+          {
+            "term": "Victim",
+            "meaning": "The resident page chosen to be evicted when a new page needs a frame."
+          },
+          {
+            "term": "Compulsory fault",
+            "meaning": "The first fault on a page; it cannot be avoided by any policy."
+          },
+          {
+            "term": "LFU and MFU",
+            "meaning": "Least and Most Frequently Used: evict the resident page with the fewest (LFU) or the most (MFU) references so far. A question may show only the frame contents and ask which policy produced them; test each policy's rule against every eviction."
+          },
+          {
+            "term": "Fault rate",
+            "meaning": "The number of page faults divided by the number of references, a fraction between 0 and 1. For 9 faults in 15 references it is $9/15 = 0.6$."
+          }
+        ],
+        "analogy": {
+          "text": "A desk with three slots for books: FIFO returns the book that has sat on the desk longest, LRU the one you have not opened for the longest time, Optimal the one you will not need until latest.",
+          "breaksWhen": "Real programs reuse pages in patterns, so a page unused for a long time is not always unneeded; the analogy hides that LRU can still pick badly."
+        },
+        "principle": {
+          "text": "Each policy picks the victim by one key: load time for FIFO, last-use time for LRU, next-use time for Optimal. A hit changes the order only for LRU; for FIFO a hit changes nothing.",
+          "tex": "\\mathrm{faults}_{\\mathrm{OPT}} \\le \\mathrm{faults}_{\\mathrm{LRU}},\\ \\mathrm{faults}_{\\mathrm{FIFO}}"
+        },
+        "limits": "The ordering of Optimal below the others always holds, but LRU is not always below FIFO: on some strings FIFO faults less. Counting also assumes the frames start empty, so each distinct page costs at least one compulsory fault. If a question gives a policy variant with limited look-ahead, apply its window rule instead of the plain Optimal rule. With a window of the next $w$ references (including the current one), evict a resident page that does not appear in the window; if every resident page appears, evict the one whose first use in the window comes last.",
+        "example": {
+          "problem": "Three frames, initially empty. Reference string 3, 1, 4, 1, 5, 3, 1, 4, 5. Count the faults under FIFO, LRU and Optimal.",
+          "steps": [
+            "FIFO: 3, 1 and 4 fault, giving queue 3, 1, 4. The second 1 hits and changes nothing. 5 evicts 3, 3 evicts 1, 1 evicts 4, 4 evicts 5 and 5 evicts 3: 8 faults.",
+            "LRU: 3, 1, 4 fault. The second 1 hits and becomes most recent, so 3 is now oldest. 5 evicts 3, then 3 evicts 4, then 1 hits, 4 evicts 5 and 5 evicts 3: 7 faults.",
+            "Optimal: 3, 1, 4 fault. At 5, the next uses are 3 (position 6), 1 (position 7) and 4 (position 8), so 4 goes. Then 3, 1 hit; at 4 neither 3 nor 1 is used again, so one of them goes, and 5 hits: 5 faults."
+          ],
+          "result": "FIFO 8 faults, LRU 7 faults, Optimal 5 faults."
+        },
+        "misconceptions": [
+          "Treating FIFO like LRU by moving a page to the back on a hit. In FIFO the order is fixed by load time.",
+          "Forgetting that a page not used again at all is the best victim for Optimal, ahead of any page with a later use.",
+          "Assuming LRU never loses to FIFO. It can: on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 with 3 frames FIFO faults 9 times and LRU 10 times."
+        ],
+        "recall": [
+          {
+            "q": "Which key picks the victim in FIFO, LRU and Optimal?",
+            "a": "FIFO uses load time (oldest), LRU uses last-use time (oldest), Optimal uses next-use time (farthest)."
+          },
+          {
+            "q": "Does a hit change the FIFO queue?",
+            "a": "No. A page keeps its place in the queue from the moment it was loaded."
+          },
+          {
+            "q": "Why is Optimal not used in a real system?",
+            "a": "It needs the future reference string, so it serves only as a benchmark for other policies."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Three frames, initially empty, LRU replacement. Reference string 1, 2, 3, 1, 4, 1, 2, 5, 2, 3. How many page faults occur?",
+          "answer": 7,
+          "explanation": "Faults: 1, 2, 3 (fill), the second 1 hits, 4 evicts 2, the next 1 hits, 2 evicts 3, 5 evicts 4, 2 hits, 3 evicts 1. That is 3 + 1 + 1 + 1 + 1 = 7 faults. Answering 8 is what FIFO gives, since FIFO would evict 1 at the first replacement and fault on it again. Answering 6 comes from counting the last 3 as a hit."
+        },
+        "summary": "Pick the victim by load time, last use or next use, trace one column per reference, and count the misses. Only LRU reorders on a hit."
+      }
+    },
+    {
+      "id": "os-memory-management.lru-approximations",
+      "title": "Implementing LRU, the clock algorithm and LFU",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        501,
+        502
+      ],
+      "points": [
+        "Exact LRU needs work on every reference. A timestamp per entry makes eviction an O(n) search for the oldest stamp; a stack kept as a doubly linked list plus a hash map moves the referenced page to the top in O(1).",
+        "The clock (second-chance) algorithm keeps the frames in a circle with one reference bit each. On a fault the hand inspects the current frame: bit 1 means clear it and move on, bit 0 means evict that page.",
+        "If every bit is 1, the hand clears them all in one sweep and evicts the page where it started, so the clock degenerates to FIFO.",
+        "LFU evicts the page with the smallest reference count, and keeps pages that were heavily used long ago unless the counts are aged. Enhanced second chance also prefers clean victims to dirty ones, using the (reference, dirty) pair."
+      ],
+      "keyTerms": [
+        "reference bit",
+        "second chance",
+        "clock hand",
+        "LFU",
+        "aging"
+      ],
+      "lesson": {
+        "why": "Real systems cannot afford exact LRU, so questions ask how it can be implemented and how the clock algorithm picks its victim; tracing the hand correctly is the skill tested.",
+        "intro": "Least recently used (LRU) removes the page that has gone unused the longest. Doing that exactly means updating something on every memory reference. One way stores a timestamp with each page, which makes the eviction a search for the oldest stamp. Another keeps pages in a stack where a referenced page moves to the top. Most hardware offers only a reference bit per page, which the hardware sets to 1 when the page is used. The clock algorithm uses that bit to approximate LRU cheaply.",
+        "definitions": [
+          {
+            "term": "Reference bit",
+            "meaning": "A bit that hardware sets to 1 whenever the page is read or written."
+          },
+          {
+            "term": "Clock hand",
+            "meaning": "A pointer that moves around the circle of frames to find a victim."
+          },
+          {
+            "term": "Second chance",
+            "meaning": "A page with its bit set is spared once: the bit is cleared and the hand moves on."
+          }
+        ],
+        "principle": {
+          "text": "On a fault the hand inspects its frame. If the reference bit is 1, clear it and advance. If the bit is 0, evict that page, load the new page there with bit 1, and advance the hand. A hit sets the page's bit to 1 and does not move the hand.",
+          "tex": "\\text{bit}=1 \\Rightarrow \\text{bit}\\leftarrow 0,\\ \\text{advance};\\qquad \\text{bit}=0 \\Rightarrow \\text{evict}"
+        },
+        "limits": "If every bit is 1, the hand clears all of them in one sweep and evicts the page where it started, so clock behaves as FIFO. Conventions differ on whether a freshly loaded page has bit 1 or 0, so use the one the question states; this lesson uses 1. LFU keeps counts instead of bits and may hold a page that was busy long ago.",
+        "example": {
+          "problem": "Three frames start empty and the clock hand is at frame 0. A newly loaded page and a hit page both get bit 1. Trace the references 1, 2, 3, 1, 4, 2, 5 and count the faults.",
+          "steps": [
+            "References 1, 2, 3 each fault and fill frames 0, 1, 2 with bits 1, 1, 1. The hand wraps to frame 0. That is 3 faults.",
+            "Reference 1 is a hit and keeps its bit at 1.",
+            "Reference 4 faults. The hand clears the bits of 1, 2 and 3 in turn, comes back to frame 0 where the bit is now 0, and evicts page 1. Frames hold 4, 2, 3 with bits 1, 0, 0, and the hand is at frame 1. That is fault 4.",
+            "Reference 2 is a hit, so its bit becomes 1.",
+            "Reference 5 faults. The hand is at frame 1 (page 2, bit 1), so it clears that bit and moves to frame 2 (page 3, bit 0), which is evicted. Frames hold 4, 2, 5. That is fault 5."
+          ],
+          "result": "The trace has 5 faults, and page 2 survives because its second chance was earned by a hit."
+        },
+        "misconceptions": [
+          "A bit of 1 does not protect a page forever: the hand clears it, so the page must be referenced again before the hand returns.",
+          "Clock does not always differ from FIFO; with all bits set it behaves exactly like FIFO."
+        ],
+        "recall": [
+          {
+            "q": "How can exact LRU be implemented?",
+            "a": "With a timestamp per page (evict the smallest) or with a stack or linked list that moves each referenced page to the top."
+          },
+          {
+            "q": "What does the clock hand do to a frame whose reference bit is 1?",
+            "a": "It clears the bit to 0 and advances to the next frame without evicting."
+          },
+          {
+            "q": "What does enhanced second chance add?",
+            "a": "It uses the pair (reference, dirty) and prefers to evict clean pages, which need no write-back."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Three frames start empty with the hand at frame 0. A loaded page or a hit page gets reference bit 1, and the hand advances only past the frame it fills. How many page faults does the clock algorithm incur on the reference string 3, 1, 2, 3, 4, 1, 3, 5, 2?",
+          "answer": 7,
+          "explanation": "Pages 3, 1 and 2 fault and fill the frames (3 faults); the second 3 is a hit. Reference 4 finds every bit set, clears them all and evicts page 3, leaving 4, 1, 2 with bits 1, 0, 0 (fault 4). Reference 1 is a hit. Reference 3 faults and evicts page 2 (fault 5). Reference 5 faults and evicts page 1 (fault 6), and reference 2 faults and evicts page 4 (fault 7). Answering 6 is tempting if you expect the hit on page 1 to protect it, but the hand clears its bit before it returns."
+        },
+        "summary": "Exact LRU needs work on each reference, so systems use the reference bit. Clock gives a page with bit 1 a second chance by clearing it, evicts the first page found with bit 0, and acts as FIFO when all bits are 1."
+      }
+    },
+    {
+      "id": "os-memory-management.beladys-anomaly",
+      "title": "Belady's anomaly and stack algorithms",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        501,
+        502,
+        504
+      ],
+      "points": [
+        "Belady's anomaly: for some reference strings, giving a process more frames produces more faults. Under FIFO, 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 faults 9 times with 3 frames but 10 times with 4.",
+        "A stack algorithm has the inclusion property: the pages resident with n frames are always a subset of those resident with n + 1 frames, so extra frames can never add a fault.",
+        "LRU and OPT are stack algorithms and never show the anomaly. FIFO and second chance (clock) are not stack algorithms, and both can show it.",
+        "The anomaly compares one policy at two frame counts. It does not mean FIFO always loses to LRU: on the string above with 3 frames FIFO beats LRU, 9 faults to 10."
+      ],
+      "keyTerms": [
+        "Belady's anomaly",
+        "stack algorithm",
+        "inclusion property"
+      ],
+      "lesson": {
+        "why": "Questions ask which policies can show the anomaly and whether a given statement about it is true; the answer follows from one idea, the inclusion property.",
+        "intro": "It seems obvious that more frames should never mean more faults. For FIFO that is false. On some reference strings FIFO faults more with four frames than with three. This surprise is Belady's anomaly. It happens because FIFO decides by load order, so the pages kept in a larger memory can differ from those kept in a smaller one, and the extra frame can hold the wrong page at the wrong time.",
+        "prerequisites": [
+          "os-memory-management.replacement-policies"
+        ],
+        "definitions": [
+          {
+            "term": "Stack algorithm",
+            "meaning": "A policy whose set of resident pages with n frames is always inside its set with n + 1 frames on the same string."
+          },
+          {
+            "term": "Inclusion property",
+            "meaning": "The subset relation between the resident sets for n and n + 1 frames, which stack algorithms keep at every moment."
+          }
+        ],
+        "principle": {
+          "text": "If a policy has the inclusion property, every hit with n frames is also a hit with n + 1 frames, so faults cannot rise as frames are added. LRU and Optimal have it. FIFO and second chance do not, so they can show the anomaly.",
+          "tex": "R(n) \\subseteq R(n + 1) \\;\\Rightarrow\\; \\mathrm{faults}(n + 1) \\le \\mathrm{faults}(n)"
+        },
+        "limits": "The anomaly says that some string misbehaves, not that every string does; most strings give fewer faults with more frames. It also compares a policy with itself at two sizes. It does not say FIFO is always worse than LRU: at three frames on the example string FIFO has 9 faults and LRU 10.",
+        "example": {
+          "problem": "Reference string 3, 2, 1, 0, 3, 2, 4, 3, 2, 1, 0, 4 under FIFO. Count the faults with 3 frames and with 4 frames.",
+          "steps": [
+            "With 3 frames, 3, 2, 1, 0, 3, 2 and 4 all fault, because each page is evicted before its reuse. Then 3 and 2 hit, 1 and 0 fault and the final 4 hits: 9 faults.",
+            "With 4 frames, 3, 2, 1, 0 fault and the repeats of 3 and 2 hit. Then 4, 3, 2, 1, 0 and 4 all fault, because the queue keeps evicting the page needed next: 4 + 6 = 10 faults.",
+            "Compare: 10 faults with 4 frames is more than 9 with 3 frames."
+          ],
+          "result": "FIFO faults 9 times with 3 frames and 10 times with 4 frames. LRU on the same string faults 10 and then 8, never rising."
+        },
+        "misconceptions": [
+          "Believing every policy can show the anomaly. LRU and Optimal cannot, because they are stack algorithms.",
+          "Reading the anomaly as 'FIFO is worse than LRU'. It compares one policy at two frame counts, and FIFO beats LRU at 3 frames here.",
+          "Expecting the anomaly on any string. One string where it happens is enough to say the algorithm suffers from it, but most strings do not show it."
+        ],
+        "recall": [
+          {
+            "q": "State Belady's anomaly.",
+            "a": "For some reference strings, giving a process more frames produces more page faults."
+          },
+          {
+            "q": "What property stops a policy from showing the anomaly?",
+            "a": "The inclusion property: the pages resident with n frames are always a subset of those resident with n + 1 frames."
+          },
+          {
+            "q": "Which of FIFO, LRU, Optimal and second chance can show the anomaly?",
+            "a": "FIFO and second chance can; LRU and Optimal cannot."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which one of the following replacement policies can never show Belady's anomaly?",
+          "options": [
+            "FIFO",
+            "Least recently used",
+            "Second chance (clock)",
+            "Random replacement"
+          ],
+          "answer": 1,
+          "explanation": "LRU keeps the n most recently used pages, and those are always among the n + 1 most recent, so it has the inclusion property. FIFO is tempting because it is the textbook example of the anomaly, which is exactly why it is wrong here. Second chance is FIFO with a reference bit and keeps the same weakness. Random can behave like FIFO on some run, so it can show the anomaly too."
+        },
+        "summary": "More frames can mean more faults under FIFO and second chance. LRU and Optimal are stack algorithms with the inclusion property, so they never do."
+      }
+    },
+    {
+      "id": "os-memory-management.thrashing-working-set",
+      "title": "Thrashing, working sets and page-fault frequency",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        500,
+        501,
+        502,
+        503
+      ],
+      "points": [
+        "A thrashing process faults so often that it spends more time paging than executing; across the system, CPU utilisation collapses while the paging disk stays saturated.",
+        "The cause is too high a degree of multiprogramming, so each process holds fewer frames than it actively uses. A scheduler that admits more work whenever CPU utilisation drops makes it worse.",
+        "The working set W(t, Δ) is the set of distinct pages referenced in the last Δ references. Too small a Δ misses part of the current locality; too large a Δ spans several localities.",
+        "If the total demand D = Σ WSSᵢ exceeds the available frames m, suspend a process; while D stays below m, more processes can be admitted. Each process should hold at least its working set.",
+        "Page-fault-frequency control sets an upper and a lower fault-rate bound per process: above the upper bound give it more frames, below the lower bound take some away."
+      ],
+      "keyTerms": [
+        "thrashing",
+        "working set",
+        "window Δ",
+        "locality",
+        "page-fault frequency"
+      ],
+      "lesson": {
+        "why": "Thrashing questions ask when the system should suspend a process, which depends on comparing total working-set demand with the available frames.",
+        "intro": "A process runs well when the pages it is using at the moment are in memory. If the system gives it too few frames, almost every reference faults, and the process spends its time waiting for the disk instead of running. When many processes are in this state together, the CPU sits idle and the paging disk stays busy. This is thrashing. It happens when too many processes are admitted at once, so each holds fewer frames than it actively uses.",
+        "definitions": [
+          {
+            "term": "Locality",
+            "meaning": "The set of pages a process uses during one phase of its execution."
+          },
+          {
+            "term": "Working set",
+            "meaning": "The distinct pages referenced in the last $\\Delta$ references, written $W(t,\\Delta)$."
+          },
+          {
+            "term": "Page-fault frequency",
+            "meaning": "A control scheme that adds frames when a process's fault rate exceeds an upper bound and removes them when it falls below a lower bound."
+          }
+        ],
+        "principle": {
+          "text": "Each process needs at least its working set in memory. If the total demand of all processes is greater than the number of available frames, thrashing follows and a process must be suspended. Admit a new process only while the total stays within the frames.",
+          "tex": "D = \\sum_i \\mathrm{WSS}_i,\\qquad D > m \\Rightarrow \\text{suspend a process}"
+        },
+        "limits": "The working set depends on the window $\\Delta$: too small a window misses part of the current locality, and too large a window spans several localities and overstates the demand. Adding processes when CPU utilisation is low makes thrashing worse.",
+        "example": {
+          "problem": "A process references the pages 1, 2, 1, 3, 2, 1, 4, 5, 4, 5 and the window is $\\Delta = 4$. Find the working set after reference 6 and after reference 10. Then three processes have working-set sizes 12, 20 and 14 with 40 frames available; should one be suspended?",
+          "steps": [
+            "After reference 6 the last 4 references are 1, 3, 2, 1, so the working set is $\\{1,2,3\\}$ with size 3.",
+            "After reference 10 the last 4 references are 4, 5, 4, 5, so the working set is $\\{4,5\\}$ with size 2. The locality has moved.",
+            "For the three processes, $D = 12 + 20 + 14 = 46$.",
+            "Since $46 > 40$, demand exceeds the frames, so a process must be suspended."
+          ],
+          "result": "The working sets are {1, 2, 3} and {4, 5}; because 46 > 40, one process is suspended."
+        },
+        "misconceptions": [
+          "A high page-fault rate does not call for more processes to keep the CPU busy; adding processes lowers each one's share of frames and deepens the thrashing.",
+          "The working set counts distinct pages, not references, so a repeated page in the window is counted once."
+        ],
+        "recall": [
+          {
+            "q": "What is thrashing?",
+            "a": "A state where processes fault so often that they spend more time paging than executing, so CPU utilisation collapses."
+          },
+          {
+            "q": "When should the system suspend a process under the working-set model?",
+            "a": "When the sum of the working-set sizes of all processes exceeds the number of available frames."
+          },
+          {
+            "q": "How does page-fault-frequency control work?",
+            "a": "It gives a process more frames when its fault rate is above an upper bound and takes frames away when the rate is below a lower bound."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four processes have working-set sizes 18, 25, 9 and 14 frames, and the system has 60 frames. By how many frames does the total demand exceed the supply?",
+          "answer": 6,
+          "explanation": "The total demand is $D = 18 + 25 + 9 + 14 = 66$ frames, so the excess over $60$ is $66 - 60 = 6$ frames. Answering 0 is tempting if you compare each process with 60 separately, but each fits alone while the sum does not."
+        },
+        "summary": "Thrashing arises when too many processes leave each with fewer frames than its working set. Compare the total demand with the frames, and suspend a process when it is larger."
+      }
+    },
+    {
+      "id": "os-memory-management.frame-allocation",
+      "title": "Frame allocation: equal, proportional, global and local",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Equal allocation gives each of n processes ⌊m / n⌋ of the m free frames. Proportional allocation gives process i the share aᵢ = (sᵢ / S) × m, where sᵢ is its size and S the total size, usually rounded down.",
+        "Priority allocation scales the shares by priority (or by a mix of size and priority), so important processes fault less.",
+        "Every process needs a minimum number of frames set by the instruction set: enough to hold every page one instruction can touch, or that instruction can never complete.",
+        "Global replacement may take a victim from any process, which usually raises throughput but lets one process change another's fault rate; local replacement takes victims only from the faulting process's own frames."
+      ],
+      "keyTerms": [
+        "equal allocation",
+        "proportional allocation",
+        "minimum frames",
+        "global replacement",
+        "local replacement"
+      ],
+      "lesson": {
+        "why": "Allocation questions ask how many frames each process receives under a rule, so the rounding and the formula must be applied exactly.",
+        "intro": "When several processes share the free frames, the system must decide how many each gets. The simplest rule gives every process the same share. A fairer rule gives larger processes more frames in proportion to their sizes. Separately, when a process faults and no frame is free, the system can take a victim from any process or only from the faulting one. These two choices decide how much processes affect one another.",
+        "definitions": [
+          {
+            "term": "Minimum frames",
+            "meaning": "The least number of frames a process needs, set by the instruction set, so that one instruction can touch all its pages."
+          },
+          {
+            "term": "Global replacement",
+            "meaning": "The victim may be chosen from any process's frames."
+          },
+          {
+            "term": "Local replacement",
+            "meaning": "The victim is chosen only among the frames of the faulting process."
+          }
+        ],
+        "principle": {
+          "text": "With $m$ frames and $n$ processes, equal allocation gives each $\\lfloor m/n \\rfloor$ frames. Proportional allocation gives process $i$ a share in proportion to its size $s_i$, rounded down.",
+          "tex": "a_i = \\left\\lfloor \\frac{s_i}{S}\\, m \\right\\rfloor,\\qquad S = \\sum_j s_j"
+        },
+        "limits": "Rounding down can leave a few frames unassigned. Global replacement raises throughput but lets one process change another's fault rate; local replacement keeps the rates independent but can leave some frames idle. No process may be given fewer than its minimum.",
+        "example": {
+          "problem": "There are 62 free frames and two processes of sizes 10 and 127 pages. How many frames does each receive under equal and under proportional allocation?",
+          "steps": [
+            "Equal allocation gives $\\lfloor 62/2 \\rfloor = 31$ frames to each process.",
+            "The total size is $S = 10 + 127 = 137$.",
+            "Proportional allocation gives the small process $\\lfloor 10/137 \\times 62 \\rfloor = 4$ frames.",
+            "It gives the large process $\\lfloor 127/137 \\times 62 \\rfloor = 57$ frames, and one frame is left unassigned by the rounding."
+          ],
+          "result": "Equal: 31 and 31. Proportional: 4 and 57."
+        },
+        "misconceptions": [
+          "Proportional allocation is by size, not by the number of page faults; priority allocation is a separate scheme.",
+          "Local replacement does not guarantee better throughput; it only prevents one process from taking another's frames."
+        ],
+        "recall": [
+          {
+            "q": "What fixes the minimum number of frames for a process?",
+            "a": "The instruction set: it must hold every page that a single instruction can reference, or that instruction can never complete."
+          },
+          {
+            "q": "What is the difference between global and local replacement?",
+            "a": "Global replacement can take a victim from any process, while local replacement takes one only from the faulting process's own frames."
+          },
+          {
+            "q": "How are frames shared under proportional allocation?",
+            "a": "Each process gets its size divided by the total size, times the number of frames, rounded down."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "There are 64 free frames, shared by three processes of 20, 60 and 120 pages. Under proportional allocation with rounding down, how many frames does the largest process receive?",
+          "answer": 38,
+          "explanation": "The total size is $S = 200$, so the largest process gets $\\lfloor 120/200 \\times 64 \\rfloor = \\lfloor 38.4 \\rfloor = 38$. Answering 39 is tempting if you round to the nearest integer instead of down."
+        },
+        "summary": "Equal allocation divides frames evenly; proportional allocation divides by size and rounds down; global replacement can steal frames from other processes, local replacement cannot."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "os-memory-management.address-bits",
+      "name": "Offset, VPN and PFN bits",
+      "tex": "d = \\log_2 P, \\qquad n_{\\text{VPN}} = v - d, \\qquad n_{\\text{PFN}} = p - d",
+      "text": "d = log₂ P; VPN bits = v − d; PFN bits = p − d",
+      "where": [
+        [
+          "P",
+          "page size in bytes"
+        ],
+        [
+          "v",
+          "virtual address width in bits"
+        ],
+        [
+          "p",
+          "physical address width in bits"
+        ]
+      ],
+      "note": "32-bit virtual addresses with 4 KB pages: d = 12 and 20 VPN bits.",
+      "topic": "os-memory-management.paging",
+      "origin": "source",
+      "pages": [
+        497,
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.page-frame-count",
+      "name": "Number of pages and frames",
+      "tex": "N_{\\text{pages}} = 2^{\\,v-d}, \\qquad N_{\\text{frames}} = 2^{\\,p-d}",
+      "text": "pages = 2^(v − d); frames = 2^(p − d)",
+      "note": "Equivalently virtual space ÷ page size and physical memory ÷ page size.",
+      "topic": "os-memory-management.paging",
+      "origin": "source",
+      "pages": [
+        497,
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.flat-table-size",
+      "name": "Single-level page-table size",
+      "tex": "S_{\\text{PT}} = 2^{\\,v-d} \\times e",
+      "text": "PT size = 2^(v − d) × e",
+      "where": [
+        [
+          "e",
+          "bytes per page-table entry"
+        ]
+      ],
+      "note": "32-bit addresses, 4 KB pages and 4-byte entries: 2²⁰ × 4 B = 4 MB per process. Multiply by the number of processes if each has its own table.",
+      "topic": "os-memory-management.page-table-size",
+      "origin": "source",
+      "pages": [
+        497,
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.pte-width",
+      "name": "Page-table entry width",
+      "tex": "e = \\left\\lceil \\frac{(p - d) + c}{8} \\right\\rceil \\ \\text{bytes}",
+      "text": "e = ⌈((p − d) + c) / 8⌉ bytes",
+      "where": [
+        [
+          "c",
+          "control bits: valid, dirty, reference, protection"
+        ]
+      ],
+      "note": "Round only as the question instructs: some round to whole bytes, some to a power of two such as 4 bytes, some use the exact bit count.",
+      "topic": "os-memory-management.page-table-size",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.levels",
+      "name": "Levels of a hierarchical page table",
+      "tex": "L = \\left\\lceil \\frac{v - d}{\\log_2 (P / e)} \\right\\rceil",
+      "text": "L = ⌈(v − d) / log₂(P / e)⌉",
+      "where": [
+        [
+          "P / e",
+          "entries that fit in one page-sized table"
+        ]
+      ],
+      "note": "Assumes every table must fit in one page, so one level resolves log₂(P/e) bits; the outermost level takes whatever bits are left over.",
+      "topic": "os-memory-management.multi-level-page-tables",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.inverted-table-size",
+      "name": "Inverted page-table size",
+      "tex": "S_{\\text{IPT}} = 2^{\\,p-d} \\times e'",
+      "text": "IPT size = number of frames × entry size",
+      "where": [
+        [
+          "e′",
+          "bytes per entry (process id, VPN, control bits)"
+        ]
+      ],
+      "note": "One table for the whole system; its entry count grows with physical memory, not with the virtual address space or the number of processes.",
+      "topic": "os-memory-management.inverted-page-table",
+      "origin": "source",
+      "pages": [
+        497
+      ]
+    },
+    {
+      "id": "os-memory-management.eat-tlb",
+      "name": "Effective access time with a TLB",
+      "tex": "\\text{EAT} = t + h\\,m + (1 - h)\\,(m_{\\text{PT}} + m)",
+      "text": "EAT = t + h·m + (1 − h)(m_PT + m)",
+      "where": [
+        [
+          "t",
+          "TLB lookup time"
+        ],
+        [
+          "h",
+          "TLB hit ratio"
+        ],
+        [
+          "m",
+          "memory access time"
+        ],
+        [
+          "m_PT",
+          "time to read the page table on a miss"
+        ]
+      ],
+      "note": "For a single-level table m_PT = m, so EAT = h(t + m) + (1 − h)(t + 2m). If the TLB lookup overlaps the memory access on a miss, drop t from the miss term.",
+      "topic": "os-memory-management.tlb",
+      "origin": "source",
+      "pages": [
+        500,
+        503,
+        504,
+        505
+      ]
+    },
+    {
+      "id": "os-memory-management.eat-tlb-multilevel",
+      "name": "Effective access time with a TLB and a k-level table",
+      "tex": "\\text{EAT} = h\\,(t + m) + (1 - h)\\,\\bigl(t + (k + 1)\\,m\\bigr)",
+      "text": "EAT = h(t + m) + (1 − h)(t + (k + 1)m)",
+      "where": [
+        [
+          "k",
+          "page-table levels walked on a TLB miss"
+        ]
+      ],
+      "note": "Ignores page faults and assumes no page-table entries are cached; k = 1 gives the single-level formula.",
+      "topic": "os-memory-management.tlb",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.eat-page-fault",
+      "name": "Effective access time with page faults",
+      "tex": "\\text{EAT} = (1 - p)\\, m + p\\, s",
+      "text": "EAT = (1 − p)·m + p·s",
+      "where": [
+        [
+          "p",
+          "page-fault rate"
+        ],
+        [
+          "m",
+          "memory access time"
+        ],
+        [
+          "s",
+          "page-fault service time"
+        ]
+      ],
+      "note": "Convert s to nanoseconds first (1 ms = 10⁶ ns). Some questions write the fault term as p(s + m); the difference is negligible when s ≫ m. For a target EAT, p ≤ (EAT − m) / (s − m).",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "source",
+      "pages": [
+        498,
+        501,
+        502,
+        505
+      ]
+    },
+    {
+      "id": "os-memory-management.fault-service-dirty",
+      "name": "Fault-service time with dirty victims",
+      "tex": "s = (1 - f)\\, s_{\\text{clean}} + f\\, s_{\\text{dirty}}",
+      "text": "s = (1 − f)·s_clean + f·s_dirty",
+      "where": [
+        [
+          "f",
+          "fraction of victims that are dirty"
+        ],
+        [
+          "s_dirty",
+          "service time including the write-back of the victim"
+        ]
+      ],
+      "note": "Often s_dirty ≈ 2 × s_clean, because the victim is written out before the new page is read in.",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.segment-translation",
+      "name": "Segment address translation",
+      "tex": "\\text{PA} = \\begin{cases} \\text{base}[s] + d & \\text{if } 0 \\le d < \\text{limit}[s] \\\\ \\text{trap} & \\text{otherwise} \\end{cases}",
+      "text": "PA = base[s] + d if d < limit[s], else trap",
+      "where": [
+        [
+          "s",
+          "segment number"
+        ],
+        [
+          "d",
+          "offset within the segment"
+        ]
+      ],
+      "note": "The comparison is strict: an offset equal to the limit is already out of range.",
+      "topic": "os-memory-management.segmentation",
+      "origin": "source",
+      "pages": [
+        48,
+        498
+      ]
+    },
+    {
+      "id": "os-memory-management.optimal-page-size",
+      "name": "Page size that minimises overhead",
+      "tex": "\\text{overhead}(P) = \\frac{s\\,e}{P} + \\frac{P}{2}, \\qquad P^{*} = \\sqrt{2\\,s\\,e}",
+      "text": "overhead = s·e / P + P / 2, minimised at P = √(2·s·e)",
+      "where": [
+        [
+          "s",
+          "average process size in bytes"
+        ],
+        [
+          "e",
+          "bytes per page-table entry"
+        ]
+      ],
+      "note": "The first term is page-table space, the second the average internal fragmentation of half a page per process. s = 1 MB and e = 8 B give P = 4 KB.",
+      "topic": "os-memory-management.paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.working-set-demand",
+      "name": "Total working-set demand",
+      "tex": "D = \\sum_{i} \\mathrm{WSS}_i, \\qquad D > m \\;\\Rightarrow\\; \\text{thrashing}",
+      "text": "D = Σ WSS_i; D > m means thrashing",
+      "where": [
+        [
+          "WSS_i",
+          "size of process i's working set"
+        ],
+        [
+          "m",
+          "available frames"
+        ]
+      ],
+      "note": "Suspend a process when D exceeds m; admit another only while D stays within m.",
+      "topic": "os-memory-management.thrashing-working-set",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        500
+      ]
+    },
+    {
+      "id": "os-memory-management.proportional-allocation",
+      "name": "Proportional frame allocation",
+      "tex": "a_i = \\left\\lfloor \\frac{s_i}{S}\\, m \\right\\rfloor, \\qquad S = \\sum_j s_j",
+      "text": "a_i = ⌊(s_i / S) × m⌋, S = Σ s_j",
+      "where": [
+        [
+          "s_i",
+          "size of process i in pages"
+        ],
+        [
+          "m",
+          "free frames to share"
+        ]
+      ],
+      "note": "Rounding down can leave a few frames unassigned; equal allocation is the special case a_i = ⌊m / n⌋.",
+      "topic": "os-memory-management.frame-allocation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.eat-tlb-fault",
+      "name": "Effective access time with a TLB and page faults",
+      "tex": "\\text{EAT} = h\\,(t + m) + (1 - h - p)\\,(t + 2m) + p\\,(t + m + s)",
+      "text": "EAT = h(t + m) + (1 − h − p)(t + 2m) + p(t + m + s)",
+      "where": [
+        [
+          "h",
+          "TLB hit ratio"
+        ],
+        [
+          "p",
+          "fraction of all references that page-fault (p ≤ 1 − h)"
+        ],
+        [
+          "s",
+          "fault-service time, including the restarted access"
+        ]
+      ],
+      "note": "Single-level table, serial TLB lookup. A fault is found only after the table read, so its path is t + m + s. If the question gives the fault rate per TLB miss, use p = (1 − h) × that rate.",
+      "topic": "os-memory-management.tlb",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.array-traversal-faults",
+      "name": "Page faults of a row-major array traversal",
+      "tex": "F_{\\text{row}} = \\left\\lceil \\frac{R\\,C\\,b}{P} \\right\\rceil, \\qquad F_{\\text{col}} = R \\times C \\ \\ (C\\,b \\ge P,\\ f < R)",
+      "text": "row-wise faults = ⌈R·C·b / P⌉; column-wise faults = R × C when a row fills a page (C·b ≥ P) and frames f < R",
+      "where": [
+        [
+          "R, C",
+          "rows and columns of the array"
+        ],
+        [
+          "b",
+          "bytes per element"
+        ],
+        [
+          "P",
+          "page size in bytes"
+        ],
+        [
+          "f",
+          "frames available to the array (LRU or FIFO)"
+        ]
+      ],
+      "note": "Assumes the array starts on a page boundary and is not resident. If C·b is a multiple of P, f ≥ R frames make the column-wise loop fault only once per page too.",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "os-memory-management.lru-linked-list",
+      "name": "Exact LRU: doubly linked list plus hash map",
+      "best": "O(1) per reference",
+      "worst": "O(1) per reference",
+      "space": "O(f) for f frames",
+      "notes": "Every reference moves its page to the head of the list; the victim is always at the tail.",
+      "topic": "os-memory-management.lru-approximations",
+      "origin": "source",
+      "pages": [
+        48
+      ]
+    },
+    {
+      "id": "os-memory-management.lru-timestamps",
+      "name": "Exact LRU: timestamp per frame",
+      "best": "O(1) per hit (write the clock)",
+      "worst": "O(f) per fault (find the oldest stamp)",
+      "space": "One counter per frame",
+      "notes": "Cheap on hits, but every replacement scans all f frames for the smallest stamp.",
+      "topic": "os-memory-management.lru-approximations",
+      "origin": "source",
+      "pages": [
+        48,
+        499
+      ]
+    },
+    {
+      "id": "os-memory-management.clock-sweep",
+      "name": "Clock (second chance)",
+      "best": "O(1) per fault",
+      "worst": "O(f) per fault (one full sweep)",
+      "space": "One reference bit per frame",
+      "notes": "The worst case happens when every bit is set: the sweep clears them all and the clock acts like FIFO.",
+      "topic": "os-memory-management.lru-approximations",
+      "origin": "source",
+      "pages": [
+        48,
+        499
+      ]
+    },
+    {
+      "id": "os-memory-management.inverted-lookup",
+      "name": "Inverted page-table lookup",
+      "average": "O(1) with a hash on (pid, VPN)",
+      "worst": "O(F) linear search over F frames",
+      "space": "O(F), independent of the virtual space",
+      "topic": "os-memory-management.inverted-page-table",
+      "origin": "source",
+      "pages": [
+        497
+      ]
+    },
+    {
+      "id": "os-memory-management.hole-search",
+      "name": "First, best and worst fit over h holes",
+      "best": "O(1) when the first hole fits (first fit)",
+      "worst": "O(h) for all three",
+      "notes": "Best and worst fit must scan the whole hole list unless it is kept sorted by size; first fit stops at the first hole that fits.",
+      "topic": "os-memory-management.placement-strategies",
+      "origin": "source",
+      "pages": [
+        47,
+        496
+      ]
+    },
+    {
+      "id": "os-memory-management.translation-cost",
+      "name": "Address translation with a k-level page table",
+      "best": "TLB hit: lookup + 1 memory access",
+      "worst": "TLB miss: lookup + (k + 1) memory accesses",
+      "notes": "Page faults are extra: a fault adds the millisecond-scale disk service time on top of the walk.",
+      "topic": "os-memory-management.multi-level-page-tables",
+      "origin": "source",
+      "pages": [
+        497,
+        500,
+        501
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "os-memory-management.fault-count",
+      "title": "Page faults for a reference string under FIFO, LRU or Optimal",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the reference string across the page with one row per frame (or keep a running list of resident pages); start with empty frames unless told otherwise.",
+        "On each reference mark hit or miss. On a miss with a free frame just load the page; otherwise pick the victim by the policy's rule.",
+        "FIFO: evict the earliest-loaded page (hits do not reorder). LRU: evict the page whose last use is oldest. OPT: evict the page whose next use is farthest away or never comes.",
+        "Count every miss, including the compulsory ones at the start, unless the question asks only for replacements (faults minus the frames filled while memory was empty)."
+      ],
+      "trap": "Reordering the FIFO queue on a hit, or dropping the compulsory faults from the count.",
+      "topic": "os-memory-management.replacement-policies",
+      "origin": "source",
+      "pages": [
+        499,
+        501,
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.bit-split-table-size",
+      "title": "Address bit split and single-level page-table size",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Write every size as a power of two (KB = 2¹⁰ bytes) and take the offset bits d = log₂(page size).",
+        "VPN bits = virtual address bits − d; PFN bits = physical address bits − d.",
+        "Entry width = PFN bits + control bits, rounded as the question instructs.",
+        "Table size = 2^(VPN bits) × entry size; multiply by the number of processes if each has its own table."
+      ],
+      "trap": "Counting entries from the physical address width, or sizing an entry without its control bits.",
+      "topic": "os-memory-management.page-table-size",
+      "origin": "source",
+      "pages": [
+        497,
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.multilevel-design",
+      "title": "Multi-level page tables: levels, index bits and memory used",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "When each table occupies one page, entries per table = page size ÷ entry size, and each level resolves log₂ of that many VPN bits.",
+        "Levels = ⌈VPN bits ÷ bits per level⌉; the outermost level gets the leftover bits.",
+        "For a sparse process, count the last-level tables it needs: each maps (entries per table) × page size bytes of address space.",
+        "Add one page for every table at every level, including the single outermost table."
+      ],
+      "trap": "Forgetting the outer table, or assuming a region that straddles an inner-table boundary needs only one inner table.",
+      "topic": "os-memory-management.multi-level-page-tables",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.eat-with-tlb",
+      "title": "Effective access time with a TLB",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Check whether the TLB lookup time is charged on a miss (serial lookup) or hidden (overlapped with memory).",
+        "Hit path: t + m. Miss path: t + k·m + m for a k-level table.",
+        "EAT = h × hit path + (1 − h) × miss path; add a page-fault term only if a fault rate is given."
+      ],
+      "trap": "Treating a TLB miss as a page fault, or charging a single table access for a multi-level table.",
+      "topic": "os-memory-management.tlb",
+      "origin": "source",
+      "pages": [
+        500,
+        503,
+        504
+      ]
+    },
+    {
+      "id": "os-memory-management.eat-with-faults",
+      "title": "Effective access time or maximum fault rate under demand paging",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Put every time in one unit, normally nanoseconds (1 ms = 10⁶ ns).",
+        "Find the service time s, weighting clean and dirty victims if the question separates them.",
+        "EAT = (1 − p)·m + p·s; for a target EAT, solve p ≤ (EAT − m) / (s − m)."
+      ],
+      "trap": "Leaving s in milliseconds, or forgetting that a dirty victim adds a write-back to the service time.",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "source",
+      "pages": [
+        498,
+        501,
+        502
+      ]
+    },
+    {
+      "id": "os-memory-management.placement-trace",
+      "title": "Placing a request sequence with first, best, worst or next fit",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "List the holes in address order with their current sizes.",
+        "For each request apply the rule: first hole that fits, smallest that fits, largest, or first that fits searching on from the roving pointer.",
+        "Replace the chosen hole by its remainder and move on; a request that fits nowhere fails or waits."
+      ],
+      "trap": "Assuming best fit always succeeds where the others fail; only a trace of the given sequence decides it.",
+      "topic": "os-memory-management.placement-strategies",
+      "origin": "source",
+      "pages": [
+        47,
+        496
+      ]
+    },
+    {
+      "id": "os-memory-management.segment-translate",
+      "title": "Segment-table translation and limit checks",
+      "frequency": "low",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Look up the base and limit for the segment number.",
+        "Trap if offset ≥ limit; otherwise physical address = base + offset.",
+        "In segmented paging, split the offset further into a page number and a page offset and index that segment's page table."
+      ],
+      "trap": "Accepting an offset equal to the limit, or adding the offset to the limit instead of the base.",
+      "topic": "os-memory-management.segmentation",
+      "origin": "source",
+      "pages": [
+        48,
+        498
+      ]
+    },
+    {
+      "id": "os-memory-management.belady-stack",
+      "title": "Belady's anomaly and stack-algorithm properties",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Stack algorithms (LRU, OPT, and any policy whose ranking of pages does not depend on the frame count) never fault more with more frames.",
+        "FIFO and second chance are not stack algorithms and can show the anomaly.",
+        "To demonstrate it, run FIFO with 3 and 4 frames on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5: 9 faults against 10."
+      ],
+      "trap": "Calling the anomaly FIFO-only, or reading it as proof that FIFO is always worse than LRU.",
+      "topic": "os-memory-management.beladys-anomaly",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        504
+      ]
+    },
+    {
+      "id": "os-memory-management.array-loop-faults",
+      "title": "Page faults of a nested loop over a two-dimensional array",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find elements per page P ÷ b and bytes per row C × b; C stores arrays row-major, so A[i][j] lives at offset (i × C + j) × b.",
+        "Row-wise loop (i outer, j inner): consecutive accesses share a page, so faults = number of pages the array spans, ⌈R·C·b ÷ P⌉.",
+        "Column-wise loop (j outer, i inner): consecutive accesses jump C × b bytes. If a row fills at least a page and fewer than R frames are available, every access lands on a page evicted since its last use: R × C faults.",
+        "If two or more rows share a page, a column pass touches only ⌈R·C·b ÷ P⌉ pages; check whether those all fit in the frames before calling every access a fault."
+      ],
+      "trap": "Counting the row-wise figure for a column-wise loop, or forgetting that the frame count decides whether the column pass keeps its pages.",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.working-set-size",
+      "title": "Working set and working-set size at a given time",
+      "frequency": "low",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Number the references from 1; the working set at time t with window Δ is the set of distinct pages among references t − Δ + 1 to t.",
+        "Count the distinct pages: that is WSS(t, Δ). Include reference t itself.",
+        "For thrashing questions, add the working-set sizes of all processes and compare the sum with the available frames."
+      ],
+      "trap": "Taking the window one reference off (references t − Δ to t − 1), or counting repeated pages more than once.",
+      "topic": "os-memory-management.thrashing-working-set",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "os-memory-management.q-lru-faults",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A process has 3 page frames, initially empty, and uses LRU replacement. How many page faults occur for the reference string 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5? Count the faults that fill the empty frames too.",
+      "answer": 10,
+      "explanation": "1, 2 and 3 are compulsory faults. 4 evicts 1, the least recently used, leaving 2 3 4; 1 evicts 2 (3 4 1); 2 evicts 3 (4 1 2); 5 evicts 4 (1 2 5). Then 1 and 2 hit. 3 evicts 5, whose last use is older than those of 1 and 2 (1 2 3); 4 evicts 1 (2 3 4); 5 evicts 2 (3 4 5). Faults: 3 + 7 = 10.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.replacement-policies",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Page faults",
+      "pages": [
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.q-optimal-faults",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "For the reference string 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 with 3 initially empty frames, how many page faults does the Optimal (OPT) replacement policy cause?",
+      "options": [
+        "6",
+        "7",
+        "9",
+        "10"
+      ],
+      "answer": 1,
+      "explanation": "1, 2 and 3 are compulsory faults. 4 evicts 3, whose next use (the 10th reference) is farthest away, leaving 1 2 4. 1 and 2 hit. 5 evicts 4, next used at the 11th reference, after 1 and 2 (1 2 5). 1 and 2 hit. 3 evicts 1 or 2, neither of which is used again; 4 then evicts either page other than 5, since neither is used again. 5 hits. Faults: 3 + 4 = 7. 6 is OPT's count with 4 frames, and 9 and 10 are FIFO's and LRU's counts with 3 frames.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.replacement-policies",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Optimal vs LRU",
+      "pages": [
+        503
+      ]
+    },
+    {
+      "id": "os-memory-management.q-fifo-belady",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Under FIFO replacement with initially empty frames, how many page faults does the reference string 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 cause with 3 frames and with 4 frames, respectively?",
+      "options": [
+        "9 and 10",
+        "9 and 8",
+        "10 and 8",
+        "7 and 6"
+      ],
+      "answer": 0,
+      "explanation": "3 frames: 1, 2, 3, 4, 1, 2, 5 all fault (4 evicts 1, 1 evicts 2, 2 evicts 3, 5 evicts 4), 1 and 2 hit, 3 evicts 1, 4 evicts 2 and 5 hits: 9 faults. 4 frames: 1 to 4 fault, 1 and 2 hit, and then 5, 1, 2, 3, 4, 5 each evict the oldest page and all fault: 10 faults. More frames, more faults: Belady's anomaly. 10 and 8 are LRU's counts and 7 and 6 are OPT's.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.beladys-anomaly",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-belady-policies",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these page-replacement policies can cause more page faults when a process is given more frames (Belady's anomaly)?",
+      "options": [
+        "FIFO",
+        "LRU",
+        "Optimal (OPT)",
+        "Second chance (clock)"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "LRU and OPT are stack algorithms: the pages resident with n frames are always a subset of those resident with n + 1 frames, so extra frames never add a fault. FIFO is the classic counterexample, with 9 faults on 3 frames and 10 on 4 for 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5. Second chance is not a stack algorithm either: when each newly loaded page gets reference bit 1, it makes exactly FIFO's choices on that string and also faults 9 times with 3 frames and 10 times with 4. If new pages get bit 0 instead, the string 1, 1, 2, 2, 3, 4, 3 faults 4 times with 2 frames and 5 times with 3, so clock can show the anomaly under either convention.",
+      "difficulty": "hard",
+      "topic": "os-memory-management.beladys-anomaly",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-page-table-size",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A machine has 32-bit virtual addresses, 36-bit physical addresses and 8 KB pages (1 KB = 2¹⁰ bytes). Each page-table entry holds the frame number plus 4 control bits, rounded up to a whole number of bytes. What is the size of one process's single-level page table?",
+      "options": [
+        "4 MB",
+        "2 MB",
+        "32 MB",
+        "1.6875 MB"
+      ],
+      "answer": 1,
+      "explanation": "The offset is log₂ 8192 = 13 bits, so the VPN has 32 − 13 = 19 bits and the table has 2¹⁹ entries. The frame number has 36 − 13 = 23 bits; with 4 control bits an entry needs 27 bits, rounded up to 4 bytes. Size = 2¹⁹ × 4 B = 2²¹ B = 2 MB. 1.6875 MB skips the rounding, 4 MB assumes 4 KB pages and 32 MB counts one entry per physical frame.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.page-table-size",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-multilevel-levels",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Virtual addresses are 46 bits, pages are 8 KB (1 KB = 2¹⁰ bytes) and every page-table entry is 4 bytes. If each table at every level must fit in exactly one page, how many levels does the hierarchical page table need?",
+      "options": [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "answer": 1,
+      "explanation": "The offset is 13 bits, so the VPN has 46 − 13 = 33 bits. One page holds 8 KB ÷ 4 B = 2¹¹ entries, so each level resolves 11 bits, and 33 ÷ 11 = 3 levels; the outermost table is exactly 2¹¹ × 4 B = 8 KB, one page. Taking 4 KB pages by mistake gives 34 VPN bits at 10 bits per level, hence the wrong answer 4.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.multi-level-page-tables",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-two-level-sparse",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 32-bit machine uses 4 KB pages, 4-byte page-table entries and a two-level page table split 10 + 10 + 12. Every table occupies one page, and an inner table exists only if some page it maps is in use. A process uses only the lowest 8 MB of its address space (code and data) and the highest 4 MB (stack). How many KB do its page tables occupy in total? (1 KB = 2¹⁰ bytes, 1 MB = 2²⁰ bytes)",
+      "answer": 16,
+      "explanation": "An inner table has 2¹⁰ entries, each mapping a 4 KB page, so it covers 2¹⁰ × 4 KB = 4 MB. The lowest 8 MB needs the inner tables for outer entries 0 and 1, and the highest 4 MB needs the one for entry 1023: 3 inner tables. Adding the outer table gives 4 tables × 4 KB = 16 KB, against 2²⁰ × 4 B = 4 MB for a single-level table.",
+      "difficulty": "hard",
+      "topic": "os-memory-management.multi-level-page-tables",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-tlb-eat",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A paging system keeps a single-level page table in memory. A TLB lookup takes 5 ns, a memory access takes 100 ns and the TLB hit ratio is 0.96. The TLB is searched before every memory reference, so its lookup time is paid on hits and on misses. Ignoring page faults, what is the effective memory-access time in ns?",
+      "answer": 109,
+      "explanation": "A hit costs the lookup plus the data access: 5 + 100 = 105 ns. A miss costs the lookup, one access to read the page-table entry and the data access: 5 + 100 + 100 = 205 ns. EAT = 0.96 × 105 + 0.04 × 205 = 100.8 + 8.2 = 109 ns.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.tlb",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — EAT",
+      "pages": [
+        504
+      ]
+    },
+    {
+      "id": "os-memory-management.q-eat-dirty",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Memory access takes 100 ns. Servicing a page fault takes 8 ms when the victim page is clean (or a free frame exists) and 20 ms when the victim is dirty and must first be written back; 70% of victims are dirty. One access in 10⁶ causes a page fault. Using EAT = (1 − p) × memory time + p × fault-service time, what is the effective access time in ns? Give one decimal place.",
+      "answer": 116.4,
+      "tolerance": 0.05,
+      "explanation": "Average service time s = 0.3 × 8 + 0.7 × 20 = 16.4 ms = 1.64 × 10⁷ ns. With p = 10⁻⁶, EAT = (1 − 10⁻⁶) × 100 + 10⁻⁶ × 1.64 × 10⁷ = 99.9999 + 16.4 ≈ 116.4 ns. A fault rate of one in a million already makes memory about 16% slower.",
+      "difficulty": "hard",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-segment-trap",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A segment table holds (base, limit) = (2000, 500) for segment 0, (3100, 120) for segment 1, (700, 900) for segment 2 and (5200, 300) for segment 3. Which logical address (segment, offset) is translated without a trap, and to which physical address?",
+      "options": [
+        "(1, 120) → 3220",
+        "(3, 310) → 5510",
+        "(0, 512) → 2512",
+        "(2, 850) → 1550"
+      ],
+      "answer": 3,
+      "explanation": "A reference is legal only if offset < limit. (1, 120) fails because 120 is not below 120, (3, 310) fails because 310 ≥ 300 and (0, 512) fails because 512 ≥ 500. Only (2, 850) passes (850 < 900), giving 700 + 850 = 1550. The other three addresses are what base + offset would give without the limit check.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.segmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-external-fragmentation",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following memory-management schemes suffer from external fragmentation?",
+      "options": [
+        "Pure paging",
+        "Pure segmentation",
+        "Contiguous allocation with variable-size partitions",
+        "Segmented paging (each segment is paged)"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "External fragmentation arises when variable-sized blocks are carved out of memory: segments and variable partitions leave holes between them that may be too small for the next request. Paging uses equal-sized frames, so any free frame fits any page and only the last page of a process wastes space (internal fragmentation). Segmented paging stores every segment in pages, so it too has only internal fragmentation.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.contiguous-allocation",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Segmentation",
+      "pages": [
+        47,
+        48,
+        497,
+        498,
+        504
+      ]
+    },
+    {
+      "id": "os-memory-management.q-table-structures",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about page tables and the TLB are true?",
+      "options": [
+        "An inverted page table has one entry per physical frame, so its number of entries does not depend on the virtual address space.",
+        "A two-level page table never occupies more memory than a single-level table for the same address space.",
+        "A TLB miss on a page that is in memory is resolved by a page-table walk, with no disk access.",
+        "The number of entries in a single-level page table is fixed by the size of physical memory."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "The inverted table is indexed by frame, and a TLB miss is not a page fault, so those two statements hold. The two-level claim fails when the whole address space is in use: every inner table is needed plus the outer table, so the hierarchy is slightly larger than the flat table. The physical-memory claim mixes up the two widths: a conventional table has one entry per virtual page, so the virtual address width sets the number of entries, while the physical address width sets the size of each entry.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.inverted-page-table",
+      "origin": "source",
+      "pages": [
+        497,
+        501,
+        504
+      ]
+    },
+    {
+      "id": "os-memory-management.q-placement-fit",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Free holes in address order are 150, 200, 350, 500 and 550 KB. Requests of 530, 240, 350 and 250 KB arrive in that order, and each allocation leaves the unused part of its hole as a smaller hole. Which placement policy satisfies all four requests?",
+      "options": [
+        "First fit",
+        "Best fit",
+        "Worst fit",
+        "Next fit"
+      ],
+      "answer": 2,
+      "explanation": "Every policy must put 530 KB in the 550 KB hole (20 KB left). First fit and best fit then both place 240 KB in the 350 KB hole (110 left) and 350 KB in the 500 KB hole (150 left); next fit, searching on from the 550 KB hole, wraps around and makes the same two choices. All three are left with holes of 150, 200, 110, 150 and 20 KB, so 250 KB fails. Worst fit puts 240 KB in the 500 KB hole (260 left), fills the 350 KB hole exactly with the 350 KB request and fits 250 KB into the 260 KB remainder.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.placement-strategies",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-clock-victims",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Four frames hold pages A, B, C and D in clock order, with reference bits 1, 1, 0 and 1, and the clock hand points at A. On a fault the hand clears each set bit it passes and advances; it replaces the first page whose bit is already 0, gives the new page reference bit 1 and moves one frame past it. Two faults occur with no hits in between, loading E and then F. Which pages are evicted?",
+      "options": [
+        "C, then A",
+        "C, then D",
+        "A, then B",
+        "C, then E"
+      ],
+      "answer": 0,
+      "explanation": "First fault: A and B have bit 1, so both are cleared and skipped; C has bit 0 and is replaced by E (bit 1), and the hand moves to D. Second fault: D's bit is cleared and the hand moves on to A, whose bit was cleared during the first sweep, so A is replaced by F. Evicting D second ignores its reference bit, and A then B is plain FIFO from the hand.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.lru-approximations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-thrashing-fix",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "CPU utilisation has collapsed and the paging disk is saturated because the combined working sets of the running processes exceed physical memory. Which action restores throughput?",
+      "options": [
+        "Admit more processes so the CPU has more work to do",
+        "Suspend some processes until the remaining working sets fit in memory",
+        "Shorten the CPU time quantum so processes take turns faster",
+        "Switch page replacement from LRU to FIFO"
+      ],
+      "answer": 1,
+      "explanation": "The system is thrashing: the total working-set demand exceeds the available frames, so every process keeps faulting. Swapping some processes out frees their frames, and each remaining process can then hold its working set. Admitting more processes, the reflex of a scheduler that sees an idle CPU, deepens the shortage; a shorter quantum or a different replacement policy creates no frames.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.thrashing-working-set",
+      "origin": "source",
+      "pages": [
+        48,
+        499,
+        500,
+        501
+      ]
+    },
+    {
+      "id": "os-memory-management.q-proportional-allocation",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Fifty free frames are shared by three processes of 20, 45 and 135 pages using proportional allocation, with each share rounded down and any leftover frame kept in the free pool. How many frames does each process receive?",
+      "options": [
+        "16, 16 and 16",
+        "5, 11 and 34",
+        "5, 12 and 34",
+        "5, 11 and 33"
+      ],
+      "answer": 3,
+      "explanation": "The total size is 20 + 45 + 135 = 200 pages, so the shares are 50 × 20/200 = 5, 50 × 45/200 = 11.25 and 50 × 135/200 = 33.75. Rounding down gives 5, 11 and 33, leaving 1 frame free. 5, 11 and 34 rounds to the nearest instead, 5, 12 and 34 rounds up and would need 51 frames, and 16 each is equal allocation.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.frame-allocation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-address-translate",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A machine has 16-bit virtual addresses and 1 KB pages (1 KB = 2¹⁰ bytes). The page table maps virtual page 10 to physical frame 5. What physical address does virtual address 0x2A5C translate to?",
+      "options": [
+        "0x165C",
+        "0x525C",
+        "0x145C",
+        "0x0A5C"
+      ],
+      "answer": 0,
+      "explanation": "The offset is log₂ 1024 = 10 bits, leaving 6 VPN bits. 0x2A5C = 0010 1010 0101 1100₂: the top six bits 001010₂ give VPN 10 and the low ten bits 10 0101 1100₂ = 0x25C give the offset. Frame 5 starts at 5 × 1024 = 0x1400, so the physical address is 0x1400 + 0x25C = 0x165C. 0x525C writes the frame's hex digit in front of the offset's hex digits, which works only when the offset is a whole number of hex digits; 0x145C drops the offset's top bit; 0x0A5C keeps the low 12 bits of the virtual address.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-eat-tlb-faults",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A paging system has a single-level page table in memory and a TLB that is searched before every reference. A TLB lookup takes 10 ns, a memory access 100 ns, and the TLB hit ratio is 0.9. Of all memory references, 0.01% cause a page fault (a fault is detected only after the page-table entry is read on a TLB miss), and servicing a fault, including the restarted access, takes 5 ms. What is the effective memory-access time in ns, rounded to the nearest integer?",
+      "answer": 620,
+      "tolerance": 0.5,
+      "explanation": "Three paths. TLB hit (0.9): 10 + 100 = 110 ns. TLB miss, page resident (1 − 0.9 − 0.0001 = 0.0999): 10 + 100 + 100 = 210 ns. Page fault (0.0001): 10 + 100 + 5 × 10⁶ ns. EAT = 0.9 × 110 + 0.0999 × 210 + 0.0001 × 5,000,110 = 99 + 20.979 + 500.011 = 619.99 ≈ 620 ns. One fault in ten thousand references costs more than four times the rest of the access time combined; leaving s in milliseconds would give about 120 ns.",
+      "difficulty": "hard",
+      "topic": "os-memory-management.tlb",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-array-column-faults",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An array int A[512][512] with 4-byte ints is stored in row-major order starting on a page boundary. Pages are 2 KB (1 KB = 2¹⁰ bytes), the array gets 128 page frames that are initially empty, replacement is LRU, and the code and loop variables live elsewhere. How many page faults does the loop for (j = 0; j < 512; j++) for (i = 0; i < 512; i++) A[i][j] = 0; cause on A?",
+      "answer": 262144,
+      "explanation": "A row holds 512 × 4 = 2048 bytes, exactly one page, so row i is page i. The inner loop walks down a column and touches pages 0, 1, …, 511 in turn. With 128 frames LRU keeps only the 128 most recent rows, so when the next column starts at row 0, that page was evicted 384 references earlier. Every access faults: 512 × 512 = 262,144. Swapping the loops (i outer) would fault only once per page, 512 times, and so would this loop with 512 or more frames.",
+      "difficulty": "medium",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-working-set",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A process makes the page references 1, 2, 3, 2, 1, 4, 5, 4, 4, 5, 6, 5, 6, 6, 7, 1, numbered 1 to 16. The working set at time t with window Δ is the set of distinct pages among the Δ most recent references up to and including reference t. With Δ = 5, what is the working-set size at t = 16?",
+      "answer": 4,
+      "explanation": "The window is references 12 to 16: 5, 6, 6, 7, 1. The distinct pages are {5, 6, 7, 1}, so the size is 4. Shifting the window back one reference (11 to 15: 6, 5, 6, 6, 7) gives 3, the usual off-by-one slip. At t = 10 the window 4, 5, 4, 4, 5 gives only 2, which shows the working set shrinking inside a locality and growing at a transition.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.thrashing-working-set",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-memory-management.q-copy-on-write",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A process calls fork() on a system that implements copy-on-write. Which of the following statements are true?",
+      "options": [
+        "Right after the fork, parent and child map the same physical frames, with the shared pages marked read-only.",
+        "When either process first writes to a shared page, a fault occurs and the OS copies only that page.",
+        "The fork copies the parent's whole address space into new frames before the child runs.",
+        "A page that neither process ever writes is read in again from disk for the child."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Copy-on-write defers copying: the child's page table points at the parent's frames, and both mappings are made read-only. A write traps as a protection fault; the handler copies that one page, maps the copy writable and restarts the write. Copying everything at fork time is exactly what copy-on-write avoids, and a page that is never written stays shared in its existing frame with no disk access at all.",
+      "difficulty": "easy",
+      "topic": "os-memory-management.demand-paging",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Paging removes external fragmentation, not internal: the last page of each process is on average half empty, and larger pages waste more.",
+      "origin": "source",
+      "pages": [
+        48,
+        497,
+        504
+      ]
+    },
+    {
+      "text": "A TLB miss is not a page fault. The page may be resident; the miss adds only a page-table walk, with no disk access.",
+      "origin": "source",
+      "pages": [
+        504
+      ]
+    },
+    {
+      "text": "Say whether the TLB lookup time is charged on a miss: serial and overlapped lookups give different EATs, and a k-level table adds k memory accesses on a miss, not one.",
+      "origin": "source",
+      "pages": [
+        500,
+        504
+      ]
+    },
+    {
+      "text": "Belady's anomaly is not FIFO-only: second chance can show it too. Stack algorithms such as LRU and OPT are immune.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Count compulsory faults: with empty frames the first reference to every distinct page is a fault and belongs in the total, unless the question asks only for replacements.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Effective access time mixes nanoseconds and milliseconds. Convert the fault-service time (1 ms = 10⁶ ns) before multiplying by the fault rate.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "The virtual address width sets how many page-table entries there are; the physical address width sets how wide each entry is. Swapping them is the classic slip.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A segment offset is legal only if it is strictly less than the limit; an offset equal to the limit traps.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Allocation",
+      "lines": [
+        "First fit: first hole that fits (fastest); best fit: smallest that fits; worst fit: largest",
+        "Fixed partitions → internal fragmentation; variable partitions → external",
+        "Compaction cures external fragmentation but copies memory",
+        "Paging: internal fragmentation only; segmentation brings external back",
+        "Segmented paging: every segment paged, no external fragmentation"
+      ],
+      "origin": "source",
+      "pages": [
+        47,
+        48,
+        496,
+        497,
+        505
+      ]
+    },
+    {
+      "heading": "Paging and TLB",
+      "lines": [
+        "Offset d = log₂(page size); VPN = v − d bits; PFN = p − d bits",
+        "Single-level table = 2^VPN × entry size (32-bit, 4 KB, 4 B → 4 MB)",
+        "Inverted table: one entry per frame, looked up by hashing (pid, VPN)",
+        "EAT = t + h·m + (1 − h)(m_PT + m); single level: m_PT = m",
+        "TLB miss ≠ page fault"
+      ],
+      "origin": "source",
+      "pages": [
+        497,
+        500,
+        503,
+        504,
+        505
+      ]
+    },
+    {
+      "heading": "Virtual memory",
+      "lines": [
+        "EAT = (1 − p)·m + p·s, with s converted to ns",
+        "FIFO: Belady's anomaly; OPT: fewest faults, needs the future; LRU: practical; clock approximates LRU",
+        "1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 with 3 frames: LRU 10, OPT 7",
+        "Thrashing: working sets exceed memory → reduce multiprogramming; PFF tunes frames per process"
+      ],
+      "origin": "source",
+      "pages": [
+        48,
+        498,
+        499,
+        500,
+        503,
+        505
+      ]
+    },
+    {
+      "heading": "Extra rules",
+      "lines": [
+        "Levels = ⌈VPN bits ÷ log₂(page size ÷ entry size)⌉",
+        "k-level table: a TLB miss costs (k + 1) memory accesses",
+        "Stack algorithms (LRU, OPT) never show Belady's anomaly; FIFO and clock can",
+        "Same string with FIFO: 9 faults on 3 frames, 10 on 4",
+        "Proportional allocation: aᵢ = ⌊(sᵢ / S) × m⌋; next fit = first fit from a roving pointer",
+        "TLB + faults: EAT = h(t + m) + (1 − h − p)(t + 2m) + p(t + m + s), faults only on TLB misses",
+        "Row-major A[R][C], row ≥ 1 page, frames < R: column loop R × C faults, row loop one per page"
+      ],
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "errata": [
+    {
+      "page": 504,
+      "claim": "Belady's anomaly is FIFO-specific.",
+      "correction": "Second chance (clock) shows it too. When each newly loaded page gets reference bit 1, clock makes FIFO's choices on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 and faults 9 times with 3 frames but 10 times with 4; with new pages given bit 0, the string 1, 1, 2, 2, 3, 4, 3 faults 4 times with 2 frames but 5 times with 3. LRU and Optimal are stack algorithms and never show it."
+    },
+    {
+      "page": 504,
+      "claim": "PYQ-9: \"Min frames to avoid Belady's? A: LRU avoids it.\"",
+      "correction": "The answer names a policy instead of a frame count, and no frame count would be right: for every n ≥ 3 some reference string makes FIFO fault more with n + 1 frames than with n (the classic string scales up as 1…n+1, 1…n−1, n+2, 1…n+2). Only the choice of policy avoids the anomaly; stack algorithms such as LRU and Optimal never fault more when frames are added."
+    },
+    {
+      "page": 500,
+      "claim": "TLB shootdown: on a VM update or context switch, invalidate stale entries.",
+      "correction": "A TLB shootdown is the cross-processor invalidation done when a mapping changes on a multiprocessor: the CPU that changed the page table interrupts the others so they drop the stale entry. Discarding entries on a context switch is an ordinary TLB flush, which address-space identifiers (ASIDs) make unnecessary."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "os-memory-virtual-memory",
+      "status": "partial",
+      "topics": [
+        "os-memory-management.contiguous-allocation",
+        "os-memory-management.placement-strategies",
+        "os-memory-management.next-fit",
+        "os-memory-management.paging",
+        "os-memory-management.page-table-size",
+        "os-memory-management.multi-level-page-tables",
+        "os-memory-management.inverted-page-table",
+        "os-memory-management.tlb",
+        "os-memory-management.segmentation",
+        "os-memory-management.demand-paging",
+        "os-memory-management.replacement-policies",
+        "os-memory-management.lru-approximations",
+        "os-memory-management.beladys-anomaly",
+        "os-memory-management.thrashing-working-set",
+        "os-memory-management.frame-allocation"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2939 @@
+{
+  "chapter": "dl-number-representations",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q28",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;D",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "difficulty": "medium",
+      "stem": "In a system, numbers are represented using 4-bit two’s complement form. Consider four numbers $N_1 = 1011$, $N_2 = 1101$, $N_3 = 1010$ and $N_4 = 1001$ in the system. Which of the following operations will result in arithmetic overflow?",
+      "options": [
+        "$N_1 + N_2$",
+        "$N_2 + N_3$",
+        "$N_3 - N_4$",
+        "$N_1 + N_4$"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the range and what overflow means",
+            "body": "Two's complement with $n$ bits stores an integer $v$ as the bit pattern of $v \\bmod 2^n$. The leftmost bit has weight $-2^{n-1}$ and every other bit $+2^i$, so the representable values are exactly $-2^{n-1}$ to $2^{n-1}-1$. Overflow means the true arithmetic result falls outside that range, so the $n$-bit pattern would show a wrong value. With $n = 4$ the range is $-8$ to $+7$. We compute each true result as an ordinary integer and test it against this range."
+          },
+          {
+            "title": "Decode the four numbers",
+            "body": "The leftmost bit has weight $-8$. $1011 = -8 + 3 = -5$, $1101 = -8 + 5 = -3$, $1010 = -8 + 2 = -6$, $1001 = -8 + 1 = -7$.",
+            "tex": "N_1 = -5,\\quad N_2 = -3,\\quad N_3 = -6,\\quad N_4 = -7"
+          },
+          {
+            "title": "Evaluate each operation against $[-8, 7]$",
+            "body": "(A) $-5 + (-3) = -8$, inside the range (it is the pattern 1000). (B) $-3 + (-6) = -9$, below $-8$: overflow. (C) $-6 - (-7) = 1$, inside. (D) $-5 + (-7) = -12$, below $-8$: overflow.",
+            "tex": "-8,\\ \\ -9,\\ \\ 1,\\ \\ -12"
+          },
+          {
+            "title": "Answer",
+            "body": "Overflow happens in B and D, so the answer is options B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Adding two negatives overflows when the sum is below $-8$, that is when their magnitudes add to more than 8. $5+3 = 8$ is fine, $3+6 = 9$ and $5+7 = 12$ are not. Subtracting a negative adds a positive, so C cannot overflow here. Safe for any width: compare the true sum to the range."
+        },
+        "traps": [
+          {
+            "text": "Option A gives exactly $-8$. It is the most negative value and still fits, so calling it overflow is the off-by-one slip."
+          },
+          {
+            "text": "Option C looks like a subtraction of two large numbers, but $N_3 - N_4 = -6 + 7 = 1$. Subtracting a negative number adds, it never pushes the result to an extreme."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.add-sub-overflow",
+          "clues": "Four named 4-bit patterns and the wording \"which operations result in arithmetic overflow\" point to testing each exact result against the representable range.",
+          "contrast": "twos-complement only converts between patterns and values; here decoding is the first step and the real task is the range test, where a result sitting exactly on the lowest value still fits."
+        },
+        "check": {
+          "body": "Second route, by carries: overflow happens exactly when the carry into the sign bit differs from the carry out of it. For 1101 + 1010 the carry into the sign bit is 0 and the carry out is 1, so it overflows (the 4-bit pattern 0111 would read $+7$ instead of $-9$). For 1011 + 1101 both carries are 1, and the pattern 1000 correctly reads $-8$."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2 question 28",
+          "url": "https://gateoverflow.in/523128/gate-cse-2026-set-2-question-18"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each option, what is the exact integer result, and does it still fit in 4 bits?"
+        },
+        {
+          "kind": "concept",
+          "text": "In two’s complement, overflow means the true result lies outside the range that the bit width can hold."
+        },
+        {
+          "kind": "principle",
+          "text": "The leftmost bit has weight $-2^{n-1}$, so $n$ bits cover $-2^{n-1}$ through $2^{n-1}-1$. Compare each exact result with both ends of that range."
+        },
+        {
+          "kind": "setup",
+          "text": "Decode the four bit patterns into ordinary signed integers first, then do each operation in plain arithmetic. Subtracting $N_4$ means adding the negative of its value."
+        },
+        {
+          "kind": "partial",
+          "text": "Decoding gives $N_1 = -5$ and $N_2 = -3$, so $N_1 + N_2$ is $-8$. Ask whether that value can be written in 4 bits."
+        }
+      ],
+      "variation": {
+        "stem": "In a system, numbers are represented using 5-bit two’s complement form. Consider four numbers $N_1 = 10110$, $N_2 = 10011$, $N_3 = 01101$ and $N_4 = 01011$ in the system. Which of the following operations will result in arithmetic overflow?",
+        "options": [
+          "$N_1 + N_3$",
+          "$N_3 + N_4$",
+          "$N_1 + N_2$",
+          "$N_3 - N_4$"
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "With 5 bits the range is $-16$ to $+15$, and the numbers decode to $N_1=-10$, $N_2=-13$, $N_3=13$, $N_4=11$. The results are $3$, $24$, $-23$ and $2$, so only $N_3+N_4$ and $N_1+N_2$ leave the range."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s2-q34",
+      "type": "nat",
+      "marks": 1,
+      "key": "-60.25",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "medium",
+      "stem": "The 32-bit IEEE 754 single precision representation of a number is 0xC2710000. The number in decimal representation is ________. (rounded off to two decimal places)",
+      "answer": -60.25,
+      "solutionDiagram": {
+        "alt": "The hex word 0xC2710000 split into sign 1, exponent 10000100 and fraction 1110001, then the steps to the value minus 60.25."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the single-precision layout",
+            "body": "IEEE 754 single precision uses 32 bits: 1 sign bit $s$, an 8-bit exponent field $e$ read as an unsigned number, and a 23-bit fraction $f$. For a normal number ($0 < e < 255$) the value is $(-1)^s \\times 1.f \\times 2^{e-127}$. The leading 1 before the point is not stored (the hidden bit), and 127 is the bias subtracted from $e$ to allow negative exponents.",
+            "tex": "x = (-1)^{s}\\,(1.f)_2\\,2^{\\,e-127}"
+          },
+          {
+            "title": "Split the hex into bits and fields",
+            "body": "C2710000 in binary is 1100 0010 0111 0001 0000 0000 0000 0000. The first bit is the sign: $s = 1$, so the number is negative. The next eight bits are 1000 0100, so $e = 132$. The remaining 23 bits are 1110001 followed by sixteen zeros.",
+            "tex": "s = 1,\\quad e = 10000100_2 = 132,\\quad f = 1110001\\,0\\ldots0"
+          },
+          {
+            "title": "Remove the bias",
+            "body": "The true exponent is $132 - 127 = 5$. The significand is $1.1110001_2 = 1 + \\tfrac12 + \\tfrac14 + \\tfrac18 + \\tfrac1{64} = 1.8828125$.",
+            "tex": "1.1110001_2 \\times 2^5 = 1.8828125 \\times 32"
+          },
+          {
+            "title": "Compute and finish",
+            "body": "Moving the point five places right gives $111100.01_2 = 60 + 0.25 = 60.25$. With the sign bit set the value is $-60.25$, already exact to two decimals.",
+            "tex": "x = -60.25"
+          }
+        ],
+        "shortcut": {
+          "body": "Read the exponent from the first three hex digits: C27 means sign 1 and exponent 1000 0100 = 132, so $2^5$. Then the leading hex digits of the fraction, 71 = 0111 0001, give the first bits 1110001 after the hidden 1: $1.1110001 \\times 32 = 111100.01$. About one minute."
+        },
+        "traps": [
+          {
+            "text": "Forgetting the hidden 1 gives $0.1110001 \\times 32 = 28.25$, and forgetting the sign gives $+60.25$."
+          },
+          {
+            "text": "Using bias 128 gives exponent $4$, and the answer becomes $-30.125$. Bias 126 gives exponent $6$ and $-120.5$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "A 32-bit hex word described as IEEE 754 single precision, with the decimal value asked for: split it into sign, exponent and fraction, then apply the bias and the hidden 1.",
+          "contrast": "ieee754-special matters only when the exponent field is all zeros or all ones. Here it is neither, so the ordinary normal-number formula applies."
+        },
+        "check": {
+          "body": "Re-encode the result. $60.25 = 111100.01_2 = 1.1110001_2 \\times 2^5$, so the sign bit is 1, the exponent field is $5+127 = 132 = 1000\\,0100$ and the fraction is 1110001 followed by zeros. Regrouping in fours gives 1100 0010 0111 0001 0000 ..., which is the word C2710000 from the question."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2 question 34",
+          "url": "https://gateoverflow.in/523122/gate-cse-2026-set-2-question-24"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which three fields make up the 32 bits, and which of them sets the size of the number?"
+        },
+        {
+          "kind": "concept",
+          "text": "Single precision stores a sign, a biased exponent and a fraction that has an unwritten leading 1."
+        },
+        {
+          "kind": "principle",
+          "text": "For a normal number the value is $(-1)^s \\times 1.f \\times 2^{e-127}$, with the exponent field $e$ read as an unsigned integer."
+        },
+        {
+          "kind": "setup",
+          "text": "Write each hex digit as four bits, cut after the first bit and after the ninth, and convert the 8-bit middle piece to decimal before removing the bias."
+        },
+        {
+          "kind": "partial",
+          "text": "The first nine bits come from the digits C, 2 and the first bit of 7: they read 1 followed by 1000 0100, a sign bit and an exponent field you can now convert."
+        }
+      ],
+      "variation": {
+        "stem": "The 32-bit IEEE 754 single precision representation of a number is 0xC2F40000. The number in decimal representation is ________. (rounded off to two decimal places)",
+        "answer": -122,
+        "explanation": "C2F4 is 1100 0010 1111 0100, so the sign is 1, the exponent field is 1000 0101 = 133 and the fraction begins 1110100. The true exponent is $133-127 = 6$ and the significand is $1.1110100_2 = 1.90625$, so the magnitude is $1.90625 \\times 64 = 122$ and the number is $-122$."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q22",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;C",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "difficulty": "medium",
+      "stem": "Consider the 8-bit signed integers $X$, $Y$ and $Z$ represented using the sign-magnitude form. The binary representations of $X$ and $Y$ are as follows: $X$: 10110100, $Y$: 01001100. Which of the following operations to compute $Z$ result(s) in an arithmetic overflow?",
+      "options": [
+        "$Z = X + Y$",
+        "$Z = X - Y$",
+        "$Z = -X + Y$",
+        "$Z = -X - Y$"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Define sign-magnitude and its range",
+            "body": "In sign-magnitude form the leftmost bit is the sign (1 means negative) and the other bits are the magnitude as an ordinary binary number. With 8 bits the magnitude has 7 bits, so it is at most $127$ and the representable values are $-127$ to $+127$. Overflow means the true result has magnitude above 127."
+          },
+          {
+            "title": "Decode X and Y",
+            "body": "$X = 10110100$ has sign 1 and magnitude $0110100_2 = 52$, so $X = -52$. $Y = 01001100$ has sign 0 and magnitude $1001100_2 = 76$, so $Y = +76$.",
+            "tex": "X = -52,\\qquad Y = +76"
+          },
+          {
+            "title": "Evaluate the four results",
+            "body": "(A) $X + Y = 24$, fits. (B) $X - Y = -52 - 76 = -128$, magnitude 128: overflow. (C) $-X + Y = 52 + 76 = 128$: overflow. (D) $-X - Y = 52 - 76 = -24$, fits.",
+            "tex": "24,\\ \\ -128,\\ \\ 128,\\ \\ -24"
+          },
+          {
+            "title": "Answer",
+            "body": "B and C exceed $\\pm 127$, so the answer is options B and C. Note that $-128$ would fit in two’s complement but sign-magnitude has no code for it."
+          }
+        ],
+        "shortcut": {
+          "body": "Overflow needs two operands of the same effective sign: B is $(-52) + (-76)$ and C is $(+52) + (+76)$. Both magnitudes add to $128 > 127$. A and D mix signs, so the result is smaller than either operand and cannot overflow. Takes 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Treating the range as $-128$ to $127$ (two’s complement habit) would make B look legal. Sign-magnitude loses $-128$."
+          },
+          {
+            "text": "Calling A overflow because both bit patterns look large ignores the sign bit of X: it makes $X$ negative, so A is $76 - 52$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.add-sub-overflow",
+          "clues": "The words \"sign-magnitude form\" and \"arithmetic overflow\" for X+Y, X-Y, -X+Y and -X-Y: decode the two inputs, apply the signs, and test the magnitude of each result.",
+          "contrast": "signed-representations teaches the sign-magnitude encoding itself, and here it is only the first step. Unlike two’s complement, the range is symmetric, so the extra low value of two’s complement does not exist."
+        },
+        "check": {
+          "body": "Test magnitudes only. Operands of opposite effective sign subtract their magnitudes, so the result cannot exceed the larger input, 76. Operands of the same effective sign add magnitudes, $52+76 = 128$, which needs the 8-bit magnitude 1000 0000, more than the 7 magnitude bits 111 1111 = 127 can hold."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1 question 22",
+          "url": "https://gateoverflow.in/523068/gate-cse-2026-set-1-question-12"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What range of values can 8-bit sign-magnitude hold, and how does each exact result compare with it?"
+        },
+        {
+          "kind": "concept",
+          "text": "Sign-magnitude keeps a sign bit apart from a plain binary magnitude, which gives a symmetric range."
+        },
+        {
+          "kind": "principle",
+          "text": "Overflow means the exact result has a magnitude that 7 magnitude bits cannot store. Only operands of the same effective sign can add up to more than either of them."
+        },
+        {
+          "kind": "setup",
+          "text": "Decode X and Y into signed decimals, then rewrite each operation with the negations applied: $-X$ flips the sign of X, and $X - Y$ is $X + (-Y)$. Evaluate each in ordinary arithmetic."
+        },
+        {
+          "kind": "partial",
+          "text": "After decoding, the four operations become $-52+76$, $-52-76$, $52+76$ and $52-76$. Compare the size of each result with the largest magnitude 7 bits can hold."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the 7-bit signed integers $X$ and $Y$ represented using the sign-magnitude form. The binary representations are $X$: 1101000 and $Y$: 1011110. Which of the following operations to compute $Z$ result(s) in an arithmetic overflow?",
+        "options": [
+          "$Z = X + Y$",
+          "$Z = X - Y$",
+          "$Z = -X + Y$",
+          "$Z = -X - Y$"
+        ],
+        "answer": [
+          0,
+          3
+        ],
+        "explanation": "With 7 bits the magnitude has 6 bits, so values run from $-63$ to $+63$. Here $X=-40$ and $Y=-30$, giving $X+Y=-70$, $X-Y=-10$, $-X+Y=10$ and $-X-Y=70$. Only the two same-sign sums have magnitude above 63."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q36",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "hard",
+      "stem": "Consider the real valued variables X, Y and Z represented using the IEEE 754 single-precision floating-point format. The binary representations of X and Y in hexadecimal notation are as follows: X: 35C00000, Y: 34A00000. Let $Z = X + Y$. Which one of the following is the binary representation of $Z$, in hexadecimal notation?",
+      "options": [
+        "35C80000",
+        "35CC0000",
+        "35E80000",
+        "35EC0000"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Decode of X and Y, shifting Y right by two places to match exponent 107, adding the significands to 1.1101 and reading off 0x35E80000."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the format and the rule for adding",
+            "body": "A single-precision normal number is $(-1)^s \\times 1.f \\times 2^{e-127}$ with 1 sign bit, an 8-bit exponent field $e$ and a 23-bit fraction $f$ (the leading 1 is implied). To add two such numbers the hardware shifts the one with the smaller exponent right until both exponents agree, adds the significands, then renormalises so the result again has the form $1.f$."
+          },
+          {
+            "title": "Decode X and Y",
+            "body": "35C00000 = 0011 0101 1100 0000 ...: sign 0, exponent 0110 1011 = 107, fraction 1000...0. So $X = 1.1_2 \\times 2^{107-127} = 1.5 \\times 2^{-20}$. 34A00000 = 0011 0100 1010 0000 ...: sign 0, exponent 0110 1001 = 105, fraction 0100...0. So $Y = 1.01_2 \\times 2^{-22} = 1.25 \\times 2^{-22}$.",
+            "tex": "X = 1.1_2 \\times 2^{-20},\\qquad Y = 1.01_2 \\times 2^{-22}"
+          },
+          {
+            "title": "Align the exponents",
+            "body": "The exponents differ by $107 - 105 = 2$, so shift $Y$ right two places: $1.01_2 \\times 2^{-22} = 0.0101_2 \\times 2^{-20}$. No bits fall off the 23-bit fraction, so nothing is lost."
+          },
+          {
+            "title": "Add the significands",
+            "body": "$1.1000_2 + 0.0101_2 = 1.1101_2$. This is already of the form $1.f$, so there is no renormalising and the exponent stays 107.",
+            "tex": "1.1000_2 + 0.0101_2 = 1.1101_2 \\quad (= 1.8125)"
+          },
+          {
+            "title": "Write the result back as hex",
+            "body": "Sign 0, exponent 0110 1011, fraction 1101 000... (23 bits, the 4 significant fraction bits 1101 then zeros). The 32 bits are 0 01101011 11010000000000000000000 = 0011 0101 1110 1000 0000 ... = 0x35E80000, which is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "The exponents are 107 and 105, so the sum keeps exponent 107 (the significand sum stays below 2, so there is no carry) and the first hex digits stay 35. Only the top fraction bits change: $1.5 + 1.25/4 = 1.8125 = 1.1101_2$, so the fraction starts 1101 and the word is 35E8 0000. Options A, B and D decode to significands 1.5625, 1.59375 and 1.84375, none of them 1.8125."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "35C80000 decodes to significand $1.5625$, so $Y$ would have contributed only $0.0625$ instead of $0.3125$. That is the result of dropping the hidden 1 of $Y$ (using $0.01_2 = 0.25$ instead of $1.01_2 = 1.25$) before shifting it right two places."
+          },
+          {
+            "option": 1,
+            "text": "35CC0000 decodes to significand $1.59375$, so $Y$ would have contributed $0.09375$ instead of $0.3125$. Its fraction bits are 1001 1, not 1101, so it is not the aligned sum. The true contribution is $1.25 / 4 = 0.3125$."
+          },
+          {
+            "option": 3,
+            "text": "35EC0000 decodes to significand $1.84375 = 1.5 + 0.34375$. That is $0.03125$ more than the true sum $1.8125$: the fifth fraction bit is set where it should be clear, so the fraction reads 1101 1 instead of 1101 0."
+          },
+          {
+            "text": "Not aligning the exponents and adding $1.1 + 1.01 = 10.11$ gives the exponent field 108, so the word starts 0x36 instead of 0x35. Adding $1.5 + 1.25 = 2.75$ is the same mistake."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "Two hex words in IEEE 754 single precision and a request for the hex word of their sum: decode both, align the exponents, add, then encode again.",
+          "contrast": "Adding the two 32-bit words as integers is wrong, because the exponent and the hidden 1 make a floating-point sum something other than a bitwise sum."
+        },
+        "check": {
+          "body": "Scale everything by $2^{-22}$. Then $X = 6 \\times 2^{-22}$ and $Y = 1.25 \\times 2^{-22}$, so $Z = 7.25 \\times 2^{-22} = 1.8125 \\times 2^{-20}$. The significand 1.8125 needs only four fraction bits, so nothing is rounded away, and the exponent field stays 107 = 0110 1011 with fraction 1101 followed by zeros, which encodes as 0x35E80000.",
+          "tex": "Z = (4 \\cdot 1.5 + 1.25)\\,2^{-22} = 7.25 \\cdot 2^{-22}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1 question 36",
+          "url": "https://gateoverflow.in/523054/gate-cse-2026-set-1-question-26"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before adding, what must be true of the two exponents, and which operand has to be changed to make it so?"
+        },
+        {
+          "kind": "concept",
+          "text": "Floating-point addition aligns the operand with the smaller exponent by shifting its significand to the right."
+        },
+        {
+          "kind": "principle",
+          "text": "Decode each word as $1.f \\times 2^{e-127}$ with the hidden 1 included, shift by the exponent difference, add the significands, and renormalise only if the sum reaches 2 or more."
+        },
+        {
+          "kind": "setup",
+          "text": "Split 35C00000 and 34A00000 into sign, exponent and fraction, take the difference of the exponent fields, and write both significands over the same exponent before adding."
+        },
+        {
+          "kind": "partial",
+          "text": "The exponent fields differ by 2, so the smaller operand moves right by two places. It starts as $1.01_2$ with its hidden 1, not as $0.01_2$."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the real valued variables X and Y represented using the IEEE 754 single-precision floating-point format. The binary representations of X and Y in hexadecimal notation are X: 42500000 and Y: 41100000. Let $Z = X + Y$. Which one of the following is the binary representation of $Z$, in hexadecimal notation?",
+        "options": [
+          "42B00000",
+          "42740000",
+          "42540000",
+          "428C0000"
+        ],
+        "answer": 1,
+        "explanation": "X has exponent field 132 and significand $1.101_2 = 1.625$. Y has exponent field 130 and significand $1.001_2 = 1.125$, so it shifts right by 2 places to $0.01001_2$ at the exponent of X. The sum is $1.11101_2 = 1.90625$ with exponent field 132, which is 0100 0010 0111 0100 0 ... = 0x42740000."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q32",
+      "type": "nat",
+      "marks": 1,
+      "key": "13",
+      "topic": "dl-number-representations.multiplication-booth",
+      "difficulty": "hard",
+      "stem": "The following two signed 2’s complement numbers (multiplicand $M$ and multiplier $Q$) are being multiplied using Booth’s algorithm: $M$: 1100 1101 1110 1101 and $Q$: 1010 0100 1010 1010. The total number of addition and subtraction operations to be performed is ___________. (Answer in integer)",
+      "answer": 13,
+      "solutionDiagram": {
+        "alt": "The multiplier bits with the extra zero, each adjacent pair labelled as subtract M, add M or no operation, ending with 7 subtractions and 6 additions."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Define Booth’s rule",
+            "body": "Booth’s algorithm multiplies two’s complement numbers by scanning the multiplier $Q$ from the right, one bit at a time. An extra bit $q_{-1} = 0$ sits to the right of $Q$. At step $i$ the pair $(q_i, q_{i-1})$ decides the action: 00 or 11 means only shift; 01 means add $M$ (the end of a run of 1s); 10 means subtract $M$ (the start of a run of 1s). The question counts adds plus subtracts, not shifts."
+          },
+          {
+            "title": "Write Q with the extra bit",
+            "body": "Q = 1010 0100 1010 1010 and the appended bit $q_{-1} = 0$ give the 17 symbols 1 0 1 0 0 1 0 0 1 0 1 0 1 0 1 0 0. Each step looks at a bit $q_i$ and the bit to its right, $q_{i-1}$. An operation happens exactly where those two bits differ.",
+            "tex": "Q\\,q_{-1} = 1010\\,0100\\,1010\\,1010\\,0"
+          },
+          {
+            "title": "Mark the pairs",
+            "body": "From $i = 0$ upward the actions are: $i=0$ (00) none; 1 (10) $-M$; 2 (01) $+M$; 3 (10) $-M$; 4 (01) $+M$; 5 (10) $-M$; 6 (01) $+M$; 7 (10) $-M$; 8 (01) $+M$; 9 (00) none; 10 (10) $-M$; 11 (01) $+M$; 12 (00) none; 13 (10) $-M$; 14 (01) $+M$; 15 (10) $-M$."
+          },
+          {
+            "title": "Count and check",
+            "body": "Subtractions occur at $i = 1, 3, 5, 7, 10, 13, 15$, which is 7. Additions occur at $i = 2, 4, 6, 8, 11, 14$, which is 6. Total $7 + 6 = 13$. Check: the 13 shifted terms sum to $M \\times Q = (-12819)(-23382) = 299733858$.",
+            "tex": "7 + 6 = 13"
+          }
+        ],
+        "shortcut": {
+          "body": "Write Q with the extra 0 on the right and count the runs of equal bits: 1 | 0 | 1 | 00 | 1 | 00 | 1 | 0 | 1 | 0 | 1 | 0 | 1 | 00 is 14 runs, so there are 13 places where neighbouring bits differ, and each is one addition or subtraction. Only Q matters; $M$ never changes the count. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Counting the 1s of Q (7 of them) or only the 01 pairs (6) misses that every run of 1s costs a subtract at its start and an add at its end."
+          },
+          {
+            "text": "Counting the 16 shifts as operations gives 16. That is the number of cycles, not the number of additions and subtractions."
+          },
+          {
+            "text": "Leaving out the appended $q_{-1} = 0$ loses the pair at $i = 0$; here it is 00 so the count survives, but with a multiplier ending in 1 it would drop an operation."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.multiplication-booth",
+          "clues": "Two 16-bit two’s complement numbers multiplied with Booth’s algorithm, and the question counts additions and subtractions: that count depends only on the bit pattern of the multiplier.",
+          "contrast": "The number of shift cycles is always 16, the width, and plain shift-and-add adds once per 1 bit. Neither is the Booth count, which charges per run of 1s."
+        },
+        "check": {
+          "body": "Count by runs of 1s. Q contains seven 1s and none is adjacent to another, so there are seven runs. Each run costs a subtraction at its start and an addition just above its end, which is 14 operations. The run at the top bit has no position above it inside the 16 bits, so its addition never happens: $14 - 1 = 13$."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2 question 32",
+          "url": "https://gateoverflow.in/460813/gate-cse-2025-set-2-question-22"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "In Booth’s algorithm, which multiplier bit pairs trigger an addition or subtraction, and which only a shift?"
+        },
+        {
+          "kind": "concept",
+          "text": "Booth recoding turns each run of 1s in the multiplier into one subtraction at its start and one addition after its end."
+        },
+        {
+          "kind": "principle",
+          "text": "An operation happens exactly where two neighbouring multiplier bits differ, counting an extra 0 to the right of the lowest bit. The multiplicand has no effect on the count."
+        },
+        {
+          "kind": "setup",
+          "text": "Append the extra 0 to the 16-bit multiplier to get 17 symbols, then count the places where a symbol differs from the one beside it."
+        },
+        {
+          "kind": "partial",
+          "text": "Reading from the left, the first six symbols 1 0 1 0 0 1 already contain four places where neighbours differ."
+        }
+      ],
+      "variation": {
+        "stem": "The following two signed 2’s complement numbers (multiplicand $M$ and multiplier $Q$) are being multiplied using Booth’s algorithm: $M$: 0011 1010 1100 0111 and $Q$: 0110 1101 0011 0001. The total number of addition and subtraction operations to be performed is ___________. (Answer in integer)",
+        "answer": 10,
+        "explanation": "Write Q with the extra 0 on the right and count positions where neighbouring symbols differ. Q has five runs of 1s (11, 11, 1, 11, 1), none touching the top bit, so each costs one subtraction and one addition: $5 \\times 2 = 10$."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q49",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;C",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "medium",
+      "stem": "Three floating point numbers $X$, $Y$, and $Z$ are stored in three registers RX, RY, and RZ, respectively in IEEE 754 single precision format as given below in hexadecimal: RX = 0xC1100000, RY = 0x40C00000, and RZ = 0x41400000. Which of the following option(s) is/are CORRECT?",
+      "options": [
+        "$4(X + Y) + Z = 0$",
+        "$2Y - Z = 0$",
+        "$4X + 3Z = 0$",
+        "$X + Y + Z = 0$"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the decoding rule",
+            "body": "A normal single-precision word has 1 sign bit, an 8-bit exponent field $e$ and a 23-bit fraction $f$, and denotes $(-1)^s \\times 1.f \\times 2^{e-127}$. The 1 before the point is implied (hidden bit) and 127 is the bias.",
+            "tex": "x = (-1)^s (1.f)_2\\, 2^{e-127}"
+          },
+          {
+            "title": "Decode X",
+            "body": "0xC1100000 = 1100 0001 0001 0000 ...: sign 1, exponent 1000 0010 = 130, fraction 001 0000.... So $X = -1.001_2 \\times 2^{3} = -1.125 \\times 8 = -9$."
+          },
+          {
+            "title": "Decode Y and Z",
+            "body": "0x40C00000 = 0100 0000 1100 0000 ...: sign 0, exponent 1000 0001 = 129, fraction 1000...: $Y = 1.1_2 \\times 2^2 = 6$. 0x41400000 = 0100 0001 0100 0000 ...: sign 0, exponent 1000 0010 = 130, fraction 100...: $Z = 1.1_2 \\times 2^3 = 12$.",
+            "tex": "X = -9,\\quad Y = 6,\\quad Z = 12"
+          },
+          {
+            "title": "Test the four statements",
+            "body": "(A) $4(-9 + 6) + 12 = -12 + 12 = 0$, true. (B) $2 \\cdot 6 - 12 = 0$, true. (C) $4(-9) + 3 \\cdot 12 = -36 + 36 = 0$, true. (D) $-9 + 6 + 12 = 9 \\ne 0$, false.",
+            "tex": "0,\\ \\ 0,\\ \\ 0,\\ \\ 9"
+          },
+          {
+            "title": "Answer",
+            "body": "A, B and C are correct."
+          }
+        ],
+        "shortcut": {
+          "body": "Only the top three hex digits and the next one matter: C11 means $-$, exponent 130 so $2^3$, fraction 0010 gives $1.125$, hence $-9$. 40C means $2^2 \\times 1.5 = 6$ and 414 means $2^3 \\times 1.5 = 12$. Then test each equation with integers in seconds."
+        },
+        "traps": [
+          {
+            "text": "Statement D is the tempting one because $12 - 9 + 6$ looks balanced; it sums to $9$, not 0."
+          },
+          {
+            "text": "Misreading C1100000 as positive gives $X = +9$ and breaks A and C."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "Three registers given as hex words in IEEE 754 single precision, with linear equations to test: decode each register to its decimal value and substitute.",
+          "contrast": "Comparing or combining the raw hex words as integers does not work. The word for $X+Y$ is not the sum of the words for $X$ and $Y$."
+        },
+        "check": {
+          "body": "Check one relation straight from the words. 0x41400000 and 0x40C00000 have the same fraction 1000... and exponent fields 130 and 129, which differ by one. Doubling a floating-point number raises the exponent by one, so $Z = 2Y$ without decoding the fraction."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2 question 49",
+          "url": "https://gateoverflow.in/460796/gate-cse-2025-set-2-question-39"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What number does each register hold, and in what form are the four equations easiest to test?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each register is a single precision word with a sign, a biased exponent and a fraction, so its value can be read off the fields."
+        },
+        {
+          "kind": "principle",
+          "text": "Normal numbers decode as $(-1)^s \\times 1.f \\times 2^{e-127}$. When the fraction has few set bits the decoded values come out as small integers."
+        },
+        {
+          "kind": "setup",
+          "text": "Split each hex word into binary, subtract 127 from the exponent field, attach the hidden 1 to the fraction, and shift the point by that exponent."
+        },
+        {
+          "kind": "partial",
+          "text": "The top bits of 0xC1100000 are 1 then 1000 0010: a negative sign and an exponent field of 130, so a true exponent of 3."
+        }
+      ],
+      "variation": {
+        "stem": "Three floating point numbers $X$, $Y$, and $Z$ are stored in three registers RX, RY, and RZ, respectively in IEEE 754 single precision format as given below in hexadecimal: RX = 0xC1400000, RY = 0x41200000, and RZ = 0x40A00000. Which of the following option(s) is/are CORRECT?",
+        "options": [
+          "$2X + 5Z = 0$",
+          "$Y - 2Z = 0$",
+          "$5X + 6Y = 0$",
+          "$X + Y + Z = 0$"
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "RX has sign 1, exponent field 130 and significand 1.5, so $X=-12$. RY gives $1.25 \\times 8 = 10$ and RZ gives $1.25 \\times 4 = 5$. Then $2X+5Z=1$, $Y-2Z=0$, $5X+6Y=0$ and $X+Y+Z=3$, so only the second and third hold."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q25",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;D",
+      "topic": "dl-number-representations.twos-complement",
+      "difficulty": "easy",
+      "stem": "The number $-6$ can be represented as 1010 in 4-bit 2’s complement representation. Which of the following is/are CORRECT 2’s complement representation(s) of $-6$?",
+      "options": [
+        "1000 1010 in 8-bits",
+        "1111 1010 in 8-bits",
+        "1000 0000 0000 1010 in 16-bits",
+        "1111 1111 1111 1010 in 16-bits"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Define two’s complement and sign extension",
+            "body": "Two’s complement with $n$ bits stores an integer $v$ as the bit pattern of $v \\bmod 2^n$. The leftmost bit has weight $-2^{n-1}$ and every other bit has weight $+2^i$. To write the same number with more bits you copy the sign bit into all the new leftmost positions; this is called sign extension."
+          },
+          {
+            "title": "Why copying the sign bit preserves the value",
+            "body": "Extending an $n$-bit negative number by one more 1 on the left changes the old sign bit’s weight from $-2^{n-1}$ to $+2^{n-1}$ and gives the new leftmost bit weight $-2^{n}$. Because $-2^{n} + 2^{n-1} = -2^{n-1}$, the total is unchanged. A leading 0 would instead make the number positive.",
+            "tex": "-2^{n} + 2^{n-1} = -2^{n-1}"
+          },
+          {
+            "title": "Decode each option",
+            "body": "(A) 1000 1010 $= -128 + 10 = -118$. (B) 1111 1010 $= -128 + 122 = -6$. (C) 1000 0000 0000 1010 $= -32768 + 10 = -32758$. (D) 1111 1111 1111 1010 $= -32768 + 32762 = -6$.",
+            "tex": "-118,\\ \\ -6,\\ \\ -32758,\\ \\ -6"
+          },
+          {
+            "title": "Answer",
+            "body": "The correct extensions are the ones padded with 1s: B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Sign-extend 1010 by copying the leading 1: the correct wide forms are 1111 1010 and 1111 1111 1111 1010, so pick the options whose new bits are all 1s. Options padded with 0s after a leading 1 (A, C) are not extensions. Ten seconds."
+        },
+        "traps": [
+          {
+            "text": "Options A and C pad the middle with zeros while putting a 1 on the far left, which is sign-magnitude style thinking, not two’s complement. They decode to $-118$ and $-32758$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.twos-complement",
+          "clues": "\"Correct 2’s complement representation(s) of $-6$\" in 8 and 16 bits: the same value written at a wider width, which is sign extension.",
+          "contrast": "Sign-magnitude widens by inserting zeros after the sign bit, while two’s complement copies the sign bit into every new position. Mixing the two habits is what the wrong options do."
+        },
+        "check": {
+          "body": "Second route, by modular value. The 8-bit pattern of $-6$ is $2^8 - 6 = 250 = 1111\\,1010_2$ and the 16-bit pattern is $2^{16} - 6 = 65530 = 1111\\,1111\\,1111\\,1010_2$. Both agree with the sign-extended forms."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1 question 25",
+          "url": "https://gateoverflow.in/460065/gate-cse-2025-set-1-question-15"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "A two’s complement number keeps its value when it is written in more bits. How does the weight of the leftmost bit change as bits are added?"
+        },
+        {
+          "kind": "concept",
+          "text": "Widening a two’s complement number is called sign extension."
+        },
+        {
+          "kind": "principle",
+          "text": "Decode a candidate by giving the leftmost bit the weight $-2^{n-1}$ and adding the weights of the other 1 bits. A pattern represents $-6$ only if it decodes to exactly $-6$."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option take the negative weight of its leftmost bit ($-128$ in 8 bits, $-32768$ in 16 bits), add the weights of the remaining 1 bits, and compare with $-6$."
+        },
+        {
+          "kind": "partial",
+          "text": "Try widening 1010 by a single bit with a 0: 01010 decodes to $8 + 2 = +10$, so the new leftmost bit cannot be chosen freely."
+        }
+      ],
+      "variation": {
+        "stem": "The number $-3$ can be represented as 101 in 3-bit 2’s complement representation. Which of the following is/are CORRECT 2’s complement representation(s) of $-3$?",
+        "options": [
+          "1111 1101 in 8-bits",
+          "1000 0101 in 8-bits",
+          "1111 1111 1111 1101 in 16-bits",
+          "0000 0000 0000 0101 in 16-bits"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Sign extension copies the leading 1 of 101 into every new position, giving 1111 1101 and 1111 1111 1111 1101. The pattern 1000 0101 decodes to $-123$, and 0000 0000 0000 0101 is the zero-extension of 101, which is $+5$."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q14",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "dl-number-representations.ieee754-special",
+      "difficulty": "medium",
+      "stem": "The format of a single-precision floating-point number as per the IEEE 754 standard is: Sign (1 bit), Exponent (8 bits), Mantissa (23 bits). Choose the largest floating-point number among the following options.",
+      "options": [
+        "Sign 0, Exponent 0111 1111, Mantissa 1111 1111 1111 1111 1111 111",
+        "Sign 0, Exponent 1111 1110, Mantissa 1111 1111 1111 1111 1111 111",
+        "Sign 0, Exponent 1111 1111, Mantissa 1111 1111 1111 1111 1111 111",
+        "Sign 0, Exponent 0111 1111, Mantissa 0000 0000 0000 0000 0000 000"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the format and the reserved exponent",
+            "body": "A single-precision word is sign, 8-bit exponent field $e$ and 23-bit mantissa (fraction) $f$. For $1 \\le e \\le 254$ it is a normal number $(-1)^s \\times 1.f \\times 2^{e-127}$. The exponent field $e = 255$ (all ones) is reserved: fraction 0 means infinity, and any nonzero fraction means NaN (not a number). NaN is not a number at all, so it cannot be the largest number."
+          },
+          {
+            "title": "Classify the four options",
+            "body": "A: $e = 127$, so $2^0 \\times 1.111\\ldots1 \\approx 2 - 2^{-23}$, just under 2. B: $e = 254$, so $2^{127} \\times (2 - 2^{-23})$, about $3.4 \\times 10^{38}$. C: $e = 255$ with a nonzero fraction, which is NaN. D: $e = 127$, fraction 0, so exactly 1.",
+            "tex": "A \\approx 2,\\quad B \\approx 3.4 \\times 10^{38},\\quad C = \\text{NaN},\\quad D = 1"
+          },
+          {
+            "title": "Compare",
+            "body": "NaN (C) is not comparable. Among the numbers, the exponent dominates: $2^{127}$ against $2^0$, so B is the largest. B is also the largest finite single-precision value."
+          }
+        ],
+        "shortcut": {
+          "body": "Look only at the exponent fields: 1111 1111 is NaN here, so skip it; 1111 1110 is the biggest legal exponent, so B wins without computing anything."
+        },
+        "traps": [
+          {
+            "text": "Option C has the biggest bit pattern, but all-ones exponent with a nonzero fraction is NaN, not a number, so it is not the largest."
+          },
+          {
+            "text": "Option A has the largest mantissa but a tiny exponent; its value is about 2, far below $2^{127}$."
+          },
+          {
+            "text": "Option D is exactly 1, the smallest of the valid numbers listed."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-special",
+          "clues": "Bit patterns given as sign, exponent and mantissa, with one exponent field all ones: the largest pattern may be a reserved encoding rather than the largest number.",
+          "contrast": "ieee754-format covers decoding ordinary normal numbers. This question needs the exception: an all-ones exponent is not a huge normal number, so ranking by raw bit pattern breaks there."
+        },
+        "check": {
+          "body": "Boundary case. Raise the exponent field of the winning pattern by one and it becomes the all-ones pattern with a nonzero mantissa, which is NaN, so no legal number in the list can sit above it. Lower its exponent field to 0111 1111 and it would equal the first option, so the exponent really does dominate."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2 question 14",
+          "url": "https://gateoverflow.in/422893/gate-cse-2024-set-2-question-4"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which exponent field values are reserved in IEEE 754, and what do those patterns mean?"
+        },
+        {
+          "kind": "concept",
+          "text": "Normal single-precision numbers use exponent fields 1 to 254. Field 0 and field 255 are kept for zero, subnormals, infinity and NaN."
+        },
+        {
+          "kind": "principle",
+          "text": "Among positive normal numbers the exponent field decides the order first, and the mantissa only breaks ties between equal exponents. A NaN has no place in an ordering."
+        },
+        {
+          "kind": "setup",
+          "text": "Classify each option as a normal number, infinity or NaN using its exponent field, then rank the genuine numbers by exponent first."
+        },
+        {
+          "kind": "partial",
+          "text": "Two options share the exponent field 0111 1111. Between those two, the mantissa alone decides, and more set fraction bits means larger."
+        }
+      ],
+      "variation": {
+        "stem": "The format of a single-precision floating-point number as per the IEEE 754 standard is: Sign (1 bit), Exponent (8 bits), Mantissa (23 bits). Choose the largest finite floating-point number among the following options.",
+        "options": [
+          "Sign 1, Exponent 1111 1110, Mantissa 1111 1111 1111 1111 1111 111",
+          "Sign 0, Exponent 1111 1111, Mantissa 0000 0000 0000 0000 0000 000",
+          "Sign 0, Exponent 1111 1110, Mantissa 1111 1111 1111 1111 1111 110",
+          "Sign 0, Exponent 1111 1110, Mantissa 1111 1111 1111 1111 1111 111"
+        ],
+        "answer": 3,
+        "explanation": "Option A is negative and option B has the all-ones exponent with a zero mantissa, which is infinity, not a finite number. Options C and D share the largest legal exponent field 254, so the mantissa decides, and D has one more fraction bit set than C."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q49",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;D",
+      "topic": "dl-number-representations.base-conversion",
+      "difficulty": "easy",
+      "stem": "Which of the following is/are EQUAL to 224 in radix-5 (i.e., base-5) notation?",
+      "options": [
+        "64 in radix-10",
+        "100 in radix-8",
+        "50 in radix-16",
+        "121 in radix-7"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Define positional value",
+            "body": "In radix $r$ a numeral $d_2 d_1 d_0$ stands for $d_2 r^2 + d_1 r + d_0$, where every digit is between 0 and $r-1$. To compare numerals in different radices, convert each to one common base, here decimal.",
+            "tex": "(d_2 d_1 d_0)_r = d_2 r^2 + d_1 r + d_0"
+          },
+          {
+            "title": "Convert the target",
+            "body": "$224_5 = 2 \\cdot 25 + 2 \\cdot 5 + 4 = 50 + 10 + 4 = 64$.",
+            "tex": "224_5 = 64_{10}"
+          },
+          {
+            "title": "Convert the options",
+            "body": "(A) $64_{10} = 64$. (B) $100_8 = 1 \\cdot 64 = 64$. (C) $50_{16} = 5 \\cdot 16 = 80$. (D) $121_7 = 49 + 14 + 1 = 64$.",
+            "tex": "64,\\ \\ 64,\\ \\ 80,\\ \\ 64"
+          },
+          {
+            "title": "Answer",
+            "body": "Options A, B and D equal 64, so they equal $224_5$. Option C is 80."
+          }
+        ],
+        "shortcut": {
+          "body": "Get 64 from $224_5$ at once, then recognise $100_8 = 8^2 = 64$ and $64_{10} = 64$ without computing; only $121_7$ and $50_{16}$ need one line each."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Reading $50_{16}$ as 50 or as 5 times 10 ignores the radix. In base 16, $50_{16} = 5 \\cdot 16 = 80$, not 64, so C does not equal $224_5$."
+          },
+          {
+            "text": "Reading $100_8$ as 100, or $121_7$ as 121, treats the numeral as decimal. Converting each digit by its place value ($64$ and $49 + 14 + 1 = 64$) shows both equal 64."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.base-conversion",
+          "clues": "The stem asks which numerals in radices 10, 8, 16 and 7 are EQUAL to a numeral in radix 5, so every option has to be brought to one base before comparing.",
+          "contrast": "This is not a question about an unknown radix (solving for r) or about digit-string patterns; every radix is given, so plain positional conversion decides it."
+        },
+        "check": {
+          "body": "Run the conversion the other way. Divide 64 by 5: quotient 12, remainder 4; divide 12 by 5: quotient 2, remainder 2; then 2. The remainders read from last to first are 2, 2, 4, which is the given numeral. For the one option that fails, 50 in radix 16 is 80, and 80 in radix 5 is 310, not 224."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2 question 49",
+          "url": "https://gateoverflow.in/422858/gate-cse-2024-set-2-question-39"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Several numerals are written in different radices. What single quantity could you compute for each so that they can be compared fairly?"
+        },
+        {
+          "kind": "concept",
+          "text": "A numeral is a sum of digits times powers of its radix, so each numeral names an ordinary number that does not depend on the radix used to write it."
+        },
+        {
+          "kind": "principle",
+          "text": "Two numerals are equal exactly when they name the same number. So convert the given numeral and each option to one common base, and compare. Do not compare the digit strings themselves."
+        },
+        {
+          "kind": "setup",
+          "text": "For each numeral multiply every digit by its radix to the power of its position, counting positions from 0 at the right, and add. In a three-digit numeral the weights are the radix squared, the radix, and 1."
+        },
+        {
+          "kind": "partial",
+          "text": "Start with the target: its digits are 2, 2 and 4 with weights 25, 5 and 1. Work out that decimal value, then test each option against it one at a time."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following is/are EQUAL to 213 in radix-4 (i.e., base-4) notation?",
+        "options": [
+          "39 in radix-10",
+          "47 in radix-8",
+          "30 in radix-16",
+          "103 in radix-6"
+        ],
+        "answer": [
+          0,
+          1,
+          3
+        ],
+        "explanation": "Convert the target first: $213_4 = 2\\cdot 16 + 1\\cdot 4 + 3 = 39$. Then convert each option: $47_8 = 32 + 7 = 39$, $103_6 = 36 + 3 = 39$, and $39$ in radix 10 is already 39, while $30_{16} = 48$. The numerals equal to 39 are options A, B and D."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q13",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "difficulty": "medium",
+      "stem": "Consider a system that uses 5 bits for representing signed integers in 2’s complement format. In this system, two integers $A$ and $B$ are represented as $A = 01010$ and $B = 11010$. Which one of the following operations will result in either an arithmetic overflow or an arithmetic underflow?",
+      "options": [
+        "$A + B$",
+        "$A - B$",
+        "$B - A$",
+        "$2 * B$"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the range",
+            "body": "Two's complement with $n$ bits stores an integer $v$ as the bit pattern of $v \\bmod 2^n$. The leftmost bit has weight $-2^{n-1}$ and every other bit $+2^i$, so the representable values are exactly $-2^{n-1}$ to $2^{n-1}-1$. Overflow means the true arithmetic result falls outside that range, so the $n$-bit pattern would show a wrong value. Overflow is a result above the top of the range, underflow a result below the bottom. With $n = 5$ the range is $-16$ to $+15$."
+          },
+          {
+            "title": "Decode A and B",
+            "body": "$A = 01010 = 10$. $B = 11010 = -16 + 10 = -6$.",
+            "tex": "A = 10,\\qquad B = -6"
+          },
+          {
+            "title": "Evaluate each operation",
+            "body": "(A) $A + B = 4$, fits. (B) $A - B = 10 + 6 = 16$, above 15: overflow. (C) $B - A = -16$, equals the bottom of the range, fits. (D) $2B = -12$, fits.",
+            "tex": "4,\\ \\ 16,\\ \\ -16,\\ \\ -12"
+          },
+          {
+            "title": "Answer",
+            "body": "Only $A - B = 16$ leaves $[-16, 15]$, so the answer is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Decode to 10 and $-6$. The only result that can leave the range is the one with the largest magnitude: $10 + 6 = 16 > 15$. Option C is $-16$, which is exactly the minimum and fits."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "$A + B$ adds a positive and a negative number, so the result lies between the two operands and cannot overflow: $10 - 6 = 4$."
+          },
+          {
+            "option": 2,
+            "text": "$B - A = -6 - 10 = -16$ is the most negative 5-bit value (10000). Calling it underflow is the off-by-one slip: the range is asymmetric, $-16$ to $+15$."
+          },
+          {
+            "option": 3,
+            "text": "$2 * B = -12$, inside the range. Doubling is a left shift, and it overflows only when the top two bits of $B$ differ; here they are 11, so the sign is kept."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.add-sub-overflow",
+          "clues": "The phrase \"arithmetic overflow or arithmetic underflow\" over fixed-width 2's complement operands, with four expressions to test, means comparing true results with the n-bit range.",
+          "contrast": "Not a number-representation question about reading a single pattern (twos-complement); here the operations are the point, and a subtraction or a doubling can overflow even when the operands themselves are small."
+        },
+        "check": {
+          "body": "Do the subtraction in hardware style. A - B is A + (NOT B) + 1 = 01010 + 00101 + 1 = 10000. Both addends are non-negative in 5 bits yet the result has sign bit 1, so the sign flipped from the operands: overflow. Run the same method on B - A: 11010 + 10101 + 1 = 1 10000, and with the carry dropped the sign agrees with both negative addends, so no overflow."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1 question 13",
+          "url": "https://gateoverflow.in/422839/gate-cse-2024-set-1-question-3"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Overflow is about the true result of the operation, not about its bit pattern. What range of values can five bits hold in this notation?"
+        },
+        {
+          "kind": "concept",
+          "text": "In two's complement the leftmost bit carries a negative weight and the other bits positive weights, so the range is not symmetric around zero."
+        },
+        {
+          "kind": "principle",
+          "text": "An operation overflows or underflows exactly when its true arithmetic result lies outside the representable range. Compare each result with both ends of the range, including the end values themselves."
+        },
+        {
+          "kind": "setup",
+          "text": "Decode A and B into ordinary signed numbers first. Then evaluate the four expressions as ordinary arithmetic, with no bit tricks, and compare each value with the range limits."
+        },
+        {
+          "kind": "partial",
+          "text": "The range is $-16$ to $+15$. In A = 01010 the sign bit is 0, so A is just the positive value of its low four bits. In B = 11010 the leading 1 contributes $-16$ and the rest adds back a positive part."
+        }
+      ],
+      "variation": {
+        "stem": "Consider a system that uses 6 bits for representing signed integers in 2’s complement format. In this system, two integers $A$ and $B$ are represented as $A = 011001$ and $B = 111010$. Which one of the following operations will result in either an arithmetic overflow or an arithmetic underflow?",
+        "options": [
+          "$A + B$",
+          "$A - B$",
+          "$B - A$",
+          "$2 * A$"
+        ],
+        "answer": 3,
+        "explanation": "With 6 bits the range is $-32$ to $+31$. Decoding gives $A = 25$ and $B = -6$. The results are $A+B=19$, $A-B=31$, $B-A=-31$ and $2A=50$; only $2A = 50$ leaves the range."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q32",
+      "type": "nat",
+      "marks": 1,
+      "key": "110",
+      "topic": "dl-number-representations.base-conversion",
+      "difficulty": "easy",
+      "stem": "A particular number is written as 132 in radix-4 representation. The same number in radix-5 representation is ________.",
+      "answer": 110,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define positional value and the conversion method",
+            "body": "In radix $r$ the numeral $d_2 d_1 d_0$ means $d_2 r^2 + d_1 r + d_0$. To change radix, first find the value, then write it in the new radix by repeated division by that radix: the remainders, read from last to first, are the new digits.",
+            "tex": "(d_2 d_1 d_0)_r = d_2 r^2 + d_1 r + d_0"
+          },
+          {
+            "title": "Find the value",
+            "body": "$132_4 = 1 \\cdot 16 + 3 \\cdot 4 + 2 = 16 + 12 + 2 = 30$.",
+            "tex": "132_4 = 30_{10}"
+          },
+          {
+            "title": "Write 30 in radix 5",
+            "body": "$30 \\div 5 = 6$ remainder 0. $6 \\div 5 = 1$ remainder 1. $1 \\div 5 = 0$ remainder 1. Reading the remainders from last to first gives 1, 1, 0.",
+            "tex": "30 = 1 \\cdot 25 + 1 \\cdot 5 + 0 = 110_5"
+          }
+        ],
+        "shortcut": {
+          "body": "The value is 30 and $30 = 25 + 5$, so in radix 5 it is $110$ right away. About 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Reading the digits in the wrong order (011) or stopping at $30 \\div 5 = 6$ and writing 60 are the common slips; the answer is 110."
+          },
+          {
+            "text": "Treating 132 as decimal and converting 132 to radix 5 gives $1012_5$, which ignores that the number was in radix 4."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.base-conversion",
+          "clues": "One number is given in radix 4 and wanted in radix 5, a NAT answer that is itself a numeral, which is a two-step change of base through the value.",
+          "contrast": "Not an unknown-radix problem: both radices are fixed, so no equation in r has to be solved. The only subtlety is that the answer is written as digits, read as a decimal-looking number."
+        },
+        "check": {
+          "body": "Convert the answer back: 110 in radix 5 is $1\\cdot 25 + 1\\cdot 5 + 0 = 30$, and 132 in radix 4 is 30 too. Another look: a radix-5 numeral ending in 0 must be a multiple of 5, and 30 is."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 question 32",
+          "url": "https://gateoverflow.in/399289/gate-cse-2023-question-22"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The same quantity is written in two radices. Which value does the radix-4 numeral stand for, and in what form is the final result wanted?"
+        },
+        {
+          "kind": "concept",
+          "text": "A numeral in radix $r$ is a sum of digits times powers of $r$. Going to a new radix means rewriting that value as a sum of powers of the new radix."
+        },
+        {
+          "kind": "principle",
+          "text": "To write a value in radix $r$, divide by $r$ repeatedly and collect remainders. Each remainder is a digit, and the last remainder is the leading digit."
+        },
+        {
+          "kind": "setup",
+          "text": "First get the value of the given numeral using the weights of its radix. Then divide that value by the target radix, again and again until the quotient is zero, and write the remainders in the right order."
+        },
+        {
+          "kind": "partial",
+          "text": "The digits 1, 3, 2 have weights 16, 4 and 1 in radix 4. Add them to get an ordinary number, then start dividing it by the target radix."
+        }
+      ],
+      "variation": {
+        "stem": "A particular number is written as 213 in radix-6 representation. The same number in radix-7 representation is ________.",
+        "answer": 144,
+        "explanation": "$213_6 = 2\\cdot 36 + 1\\cdot 6 + 3 = 81$. Dividing by 7: $81 = 11\\cdot 7 + 4$, $11 = 1\\cdot 7 + 4$, $1 = 0\\cdot 7 + 1$. Reading the remainders from last to first gives 144, so the numeral is $144_7$."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q45",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "dl-number-representations.ieee754-format",
+      "difficulty": "hard",
+      "stem": "Consider the IEEE-754 single precision floating point numbers P = 0xC1800000 and Q = 0x3F5C2EF4. Which one of the following corresponds to the product of these numbers (i.e., $P \\times Q$), represented in the IEEE-754 single precision format?",
+      "options": [
+        "0x404C2EF4",
+        "0x405C2EF4",
+        "0xC15C2EF4",
+        "0xC14C2EF4"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the format and the product rule",
+            "body": "A normal single-precision number is $(-1)^s \\times 1.f \\times 2^{e-127}$ with 1 sign bit, an 8-bit exponent field $e$ and a 23-bit fraction $f$. The product of two such numbers has sign equal to the XOR of the signs, significand equal to the product of the significands and exponent equal to the sum of the true exponents. If the new significand reaches 2 or more it is shifted right once and the exponent rises by 1."
+          },
+          {
+            "title": "Decode P",
+            "body": "0xC1800000 = 1100 0001 1000 0000 ...: sign 1, exponent 1000 0011 = 131, fraction 0. So $P = -1.0 \\times 2^{4} = -16$.",
+            "tex": "P = -16"
+          },
+          {
+            "title": "Decode Q",
+            "body": "0x3F5C2EF4 = 0011 1111 0101 1100 0010 1110 1111 0100: sign 0, exponent 0111 1110 = 126, fraction 101 1100 0010 1110 1111 0100 (hex 5C2EF4). So $Q = 1.f \\times 2^{-1}$, about $0.86009$.",
+            "tex": "Q = (1.f)\\times 2^{-1},\\quad f = \\mathrm{0x5C2EF4}"
+          },
+          {
+            "title": "Multiply",
+            "body": "Because $P$ has significand exactly 1.0, the product keeps the fraction of $Q$ unchanged. The sign is negative. The true exponent is $4 + (-1) = 3$, so the exponent field is $3 + 127 = 130 = 1000\\,0010_2$.",
+            "tex": "P \\times Q = -(1.f) \\times 2^{3}"
+          },
+          {
+            "title": "Assemble the word",
+            "body": "Sign 1, exponent 1000 0010, fraction 5C2EF4: 1 10000010 1011100001011101111 0100 = 1100 0001 0101 1100 0010 1110 1111 0100 = 0xC15C2EF4, option C."
+          }
+        ],
+        "shortcut": {
+          "body": "P is a power of two ($-16$, significand 1.0), so the product changes only the sign and the exponent and leaves the fraction 5C2EF4 alone. The sign must be negative, so the word starts with C and A, B are out. The exponent is $127 + 4 - 1 = 130 = 0x82$, so the first byte is 1 1000 0010 giving C1: only option C."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Option A starts 0x40: sign 0 and exponent field 128. It is positive although $P$ is negative, and its fraction 4C2EF4 differs from that of $Q$."
+          },
+          {
+            "option": 1,
+            "text": "Option B keeps the fraction 5C2EF4 but its sign bit is 0 and its exponent field is 128 (true exponent 1). The product of a negative and a positive is negative, and the exponent is $4 + (-1) = 3$."
+          },
+          {
+            "option": 3,
+            "text": "Option D has the right sign and exponent but fraction 4C2EF4 instead of 5C2EF4. Multiplying by $1.0$ leaves the fraction of $Q$ unchanged, so any change in the fraction is wrong."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-format",
+          "clues": "Two operands are given as 32-bit hex words and the product must be given as a hex word, so fields must be decoded, combined and re-packed with a bias.",
+          "contrast": "This is multiplication, not addition: no exponent alignment or significand shift is needed, which is why a power-of-two operand makes the fraction pass through unchanged."
+        },
+        "check": {
+          "body": "Check the magnitude. The value of Q is about 0.86009 and P is -16, so the product should be about -13.76. Decode option C: sign negative, exponent field 130 gives $2^3$, significand $1.f = 2 \\times 0.86009 = 1.72018$, so the value is about $-13.76$. Option D, with fraction 4C2EF4, has significand about 1.595 and value about $-12.76$, so it fails the same check."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 question 45",
+          "url": "https://gateoverflow.in/399276/gate-cse-2023-question-35"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each hex word is a packed sign, exponent and fraction. Before multiplying, what does each field of P and Q tell you?"
+        },
+        {
+          "kind": "concept",
+          "text": "A normal single-precision number is $(-1)^s \\times 1.f \\times 2^{e-127}$, with a 1 sign bit, 8 exponent bits and 23 fraction bits."
+        },
+        {
+          "kind": "principle",
+          "text": "For a product, the signs are combined by XOR, the true exponents add, and the significands multiply. If the new significand reaches 2 it is shifted and the exponent goes up by one."
+        },
+        {
+          "kind": "setup",
+          "text": "Write both hex words in binary and split them 1 | 8 | 23. Compare the fraction fields: if one operand has fraction 0, multiplying by its significand 1.0 changes nothing in the other one."
+        },
+        {
+          "kind": "partial",
+          "text": "The leading hex digit C is binary 1100, which starts with a sign bit of 1. Read off the exponent field of P from the next bits and subtract 127 to get its true exponent."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the IEEE-754 single precision floating point numbers P = 0x41000000 and Q = 0xBF5C2EF4. Which one of the following corresponds to the product of these numbers (i.e., $P \\times Q$), represented in the IEEE-754 single precision format?",
+        "options": [
+          "0x40DC2EF4",
+          "0xC1DC2EF4",
+          "0xC0DC2EF4",
+          "0xC05C2EF4"
+        ],
+        "answer": 2,
+        "explanation": "P is $+1.0\\times 2^{3} = 8$ (exponent field 130). Q is negative with exponent field 126, so its true exponent is $-1$ and its fraction is 5C2EF4. A significand of 1.0 leaves the fraction of Q alone, the sign is negative and the true exponent is $3 + (-1) = 2$, so the field is 129 = 1000 0001. The word is 1 10000001 followed by the fraction, which is 0xC0DC2EF4."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q18",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "difficulty": "easy",
+      "stem": "Let R1 and R2 be two 4-bit registers that store numbers in 2’s complement form. For the operation R1 + R2, which one of the following values of R1 and R2 gives an arithmetic overflow?",
+      "options": [
+        "R1 = 1011 and R2 = 1110",
+        "R1 = 1100 and R2 = 1010",
+        "R1 = 0011 and R2 = 0100",
+        "R1 = 1001 and R2 = 1111"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the range and the overflow rule",
+            "body": "Two's complement with $n$ bits stores an integer $v$ as the bit pattern of $v \\bmod 2^n$. The leftmost bit has weight $-2^{n-1}$ and every other bit $+2^i$, so the representable values are exactly $-2^{n-1}$ to $2^{n-1}-1$. Overflow means the true arithmetic result falls outside that range, so the $n$-bit pattern would show a wrong value. With 4 bits the range is $-8$ to $+7$. A convenient test: overflow happens only when both operands have the same sign and the sum has the opposite sign."
+          },
+          {
+            "title": "Decode and add each pair",
+            "body": "(A) $1011 = -5$, $1110 = -2$, sum $-7$, fits. (B) $1100 = -4$, $1010 = -6$, sum $-10$, below $-8$. (C) $0011 = 3$, $0100 = 4$, sum $7$, fits. (D) $1001 = -7$, $1111 = -1$, sum $-8$, fits.",
+            "tex": "-7,\\ \\ -10,\\ \\ 7,\\ \\ -8"
+          },
+          {
+            "title": "Answer",
+            "body": "Only pair B leaves $[-8, 7]$ (in 4 bits its pattern would read 0110, which is $+6$, a wrong sign), so option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Both operands negative in A, B and D; only B has magnitudes summing to more than 8 ($4 + 6 = 10$). In C the sum is exactly 7, the top of the range."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Both operands are negative and 1011 + 1110 looks large, but $-5 + (-2) = -7$ is inside $[-8, 7]$. Two negatives overflow only when their magnitudes add to more than 8."
+          },
+          {
+            "option": 2,
+            "text": "$0011 + 0100 = 3 + 4 = 7$ is the top of the range, so it fits. Candidates see two positives whose sum is 0111 and fear a sign flip, but the sign bit is still 0."
+          },
+          {
+            "option": 3,
+            "text": "$1001 + 1111 = -7 + (-1) = -8$ is exactly the bottom of the range. The range is asymmetric, so $-8$ is legal and this pair does not overflow."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.add-sub-overflow",
+          "clues": "Four register pairs in 4-bit 2's complement form, and the question asks for the pair whose sum gives an arithmetic overflow, so each true sum is tested against the range.",
+          "contrast": "Not a carry-out question: a carry out of the top bit does not mean overflow in 2's complement. What matters is whether the sign of the sum disagrees with two same-sign operands."
+        },
+        "check": {
+          "body": "Add the winning pair in 4 bits: 1100 + 1010 = 1 0110, and dropping the carry leaves 0110, which reads as a positive number although both operands are negative, so the sign has flipped. Apply the same sign test to the other pairs: A gives 1001 (negative), C gives 0111 (positive), D gives 1000 (negative), all matching their operands."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022 question 18",
+          "url": "https://gateoverflow.in/371928/gate-cse-2022-question-8"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Only one pair of numbers pushes the sum out of what four bits can hold. First ask what values a 4-bit register can hold at all."
+        },
+        {
+          "kind": "concept",
+          "text": "In 2's complement the leftmost bit has weight $-2^{n-1}$. With four bits the representable values form a range that reaches one step further on the negative side."
+        },
+        {
+          "kind": "principle",
+          "text": "The sum overflows when the true sum falls outside the range. That can happen only when both operands have the same sign, because adding opposite signs lands between them."
+        },
+        {
+          "kind": "setup",
+          "text": "Decode each pair into signed decimal numbers and add them as ordinary integers. Compare each sum with the two ends of the range, and note which end is allowed."
+        },
+        {
+          "kind": "partial",
+          "text": "Pair C is 3 and 4 and pair A is two negatives; start by decoding the negatives, whose leading 1 contributes $-8$ and whose other bits add a positive part."
+        }
+      ],
+      "variation": {
+        "stem": "Let R1 and R2 be two 5-bit registers that store numbers in 2’s complement form. For the operation R1 + R2, which one of the following values of R1 and R2 gives an arithmetic overflow?",
+        "options": [
+          "R1 = 01100 and R2 = 00011",
+          "R1 = 11000 and R2 = 11100",
+          "R1 = 01001 and R2 = 00111",
+          "R1 = 10100 and R2 = 11111"
+        ],
+        "answer": 2,
+        "explanation": "The 5-bit range is $-16$ to $+15$. The sums are $12+3=15$, $-8+(-4)=-12$, $9+7=16$ and $-12+(-1)=-13$. Only $9 + 7 = 16$ passes the top of the range, so only option C overflows (its 5-bit pattern would read 10000, which is $-16$)."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q41",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "medium",
+      "stem": "Consider three floating point numbers $A$, $B$ and $C$ stored in registers $R_A$, $R_B$ and $R_C$, respectively as per IEEE-754 single precision floating point format. The 32-bit content stored in these registers (in hexadecimal form) are as follows. $R_A$ = 0xC1400000, $R_B$ = 0x42100000, $R_C$ = 0x41400000. Which one of the following is FALSE?",
+      "options": [
+        "$A + C = 0$",
+        "$C = A + B$",
+        "$B = 3C$",
+        "$(B - C) > 0$"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Define the decoding rule",
+            "body": "A single-precision word is 1 sign bit, an 8-bit exponent field $e$ and a 23-bit fraction $f$. A normal number is $(-1)^s \\times 1.f \\times 2^{e-127}$: the 1 before the point is implied and 127 is the bias. A question asking for the FALSE statement needs all four statements tested.",
+            "tex": "x = (-1)^s (1.f)_2\\, 2^{e-127}"
+          },
+          {
+            "title": "Decode A and C",
+            "body": "0xC1400000 = 1100 0001 0100 0000 ...: sign 1, exponent 1000 0010 = 130, fraction 1000...: $A = -1.1_2 \\times 2^3 = -12$. 0x41400000 differs only in the sign bit: $C = +12$.",
+            "tex": "A = -12,\\qquad C = +12"
+          },
+          {
+            "title": "Decode B",
+            "body": "0x42100000 = 0100 0010 0001 0000 ...: sign 0, exponent 1000 0100 = 132, fraction 0010 0000...: $B = 1.001_2 \\times 2^5 = 1.125 \\times 32 = 36$.",
+            "tex": "B = 36"
+          },
+          {
+            "title": "Check each statement",
+            "body": "(A) $-12 + 12 = 0$, true. (B) $A + B = -12 + 36 = 24 \\ne 12 = C$, false. (C) $3 \\cdot 12 = 36 = B$, true. (D) $36 - 12 = 24 > 0$, true.",
+            "tex": "A + B = 24 \\ne C"
+          },
+          {
+            "title": "Answer",
+            "body": "The false statement is $C = A + B$, option B."
+          }
+        ],
+        "shortcut": {
+          "body": "A and C differ only in the sign bit, so $A + C = 0$ without decoding. Decode $C = 12$ and $B = 36$ and note $B = 3C$ and $B - C > 0$. That leaves B, and $A + B = 24$ confirms it."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "$A + C = 0$ is true: the two words differ only in the sign bit, so $A = -C$. It is not the false statement."
+          },
+          {
+            "option": 2,
+            "text": "$B = 3C$ is true, since $36 = 3 \\cdot 12$. Misreading 0x42100000 as 18 (exponent 4 instead of 5) would make it false, which is a decoding slip."
+          },
+          {
+            "option": 3,
+            "text": "$B - C = 24 > 0$ is true. Reading the sign of $A$ and $C$ the wrong way round would make people doubt it."
+          },
+          {
+            "text": "Stopping after statement A is true and assuming the equalities hold misses that $A + B = 24$, not 12."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "Registers are given as hex IEEE-754 words and the statements are arithmetic relations among the decoded numbers, with FALSE as the target.",
+          "contrast": "Not a range or precision question: no smallest or largest value is asked. The work is decoding three words and then testing relations such as sums and multiples."
+        },
+        "check": {
+          "body": "Test the failing statement a second way. If C = A + B were true, then B = C - A = 12 + 12 = 24. But the exponent field of R_B is 132, so B = 1.001 in binary times $2^5$ = 36, not 24. The two routes disagree, so the statement cannot hold."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022 question 41",
+          "url": "https://gateoverflow.in/371905/gate-cse-2022-question-31"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Three hex words are given and you are hunting for the one statement that fails. What would you need to know about each register before testing any statement?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each word is 1 sign bit, 8 exponent bits and 23 fraction bits, and a normal value is $(-1)^s \\times 1.f \\times 2^{e-127}$."
+        },
+        {
+          "kind": "principle",
+          "text": "The FALSE statement is found only by testing all four. Two words that differ in nothing but the sign bit hold values that are negatives of each other."
+        },
+        {
+          "kind": "setup",
+          "text": "Convert each hex digit to four bits, split the 32 bits as 1 | 8 | 23, subtract 127 from the exponent field, and attach the implied 1 to the fraction. Then do ordinary arithmetic on the three decoded numbers."
+        },
+        {
+          "kind": "partial",
+          "text": "Look at $R_A$ and $R_C$ first: compare their hex digits and see which bit differs. That already settles one statement without full decoding."
+        }
+      ],
+      "variation": {
+        "stem": "Consider three floating point numbers $A$, $B$ and $C$ stored in registers $R_A$, $R_B$ and $R_C$, respectively as per IEEE-754 single precision floating point format. The 32-bit content stored in these registers (in hexadecimal form) are as follows. $R_A$ = 0xC1100000, $R_B$ = 0x41100000, $R_C$ = 0x40E00000. Which one of the following is FALSE?",
+        "options": [
+          "$A + B = 0$",
+          "$C = B - 2$",
+          "$B = 2C$",
+          "$(A + C) < 0$"
+        ],
+        "answer": 2,
+        "explanation": "0xC1100000 has sign 1, exponent 130 and fraction 001, so $A = -1.125\\cdot 8 = -9$. 0x41100000 differs only in the sign, so $B = 9$. 0x40E00000 has exponent 129 and fraction 11, so $C = 1.75\\cdot 4 = 7$. Then $A+B=0$, $B-2=7=C$ and $A+C=-2<0$ are true, but $2C = 14 \\ne 9$, so option C is false."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q4",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "dl-number-representations.fp-range-precision",
+      "difficulty": "easy",
+      "stem": "The format of the single-precision floating-point representation of a real number as per the IEEE 754 standard is as follows: sign | exponent | mantissa. Which one of the following choices is correct with respect to the smallest normalized positive number represented using the standard?",
+      "options": [
+        "exponent = 00000000 and mantissa = 00000000000000000000000",
+        "exponent = 00000000 and mantissa = 00000000000000000000001",
+        "exponent = 00000001 and mantissa = 00000000000000000000000",
+        "exponent = 00000001 and mantissa = 00000000000000000000001"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Single-precision field layout and the four options: only exponent 00000001 with an all-zero fraction is the smallest normalised positive number."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a normalised single-precision number is",
+            "body": "A single-precision word has 32 bits: 1 sign bit $S$, 8 exponent bits $E$ and 23 fraction bits $F$ (the question calls them the mantissa). Read $E$ as an ordinary unsigned number from 0 to 255. A normalised number is one with $1 \\le E \\le 254$, and it means $(-1)^S \\times 1.F \\times 2^{E-127}$, where the 1 in front of the point is not stored but always understood. The exponent pattern $E = 0$ is reserved: with $F = 0$ it means the number zero, and with $F \\ne 0$ it means a subnormal number, which has no understood 1. $E = 255$ is reserved for infinity and NaN. The rule that decides the question: a normalised number must have $E \\ge 1$.",
+            "tex": "x = (-1)^S\\,(1.F)_2 \\times 2^{E-127}, \\qquad 1 \\le E \\le 254"
+          },
+          {
+            "title": "Throw out the options with exponent 00000000",
+            "body": "Options A and B have $E = 0$, so neither is normalised. Option A is the number zero, which is not positive. Option B is a subnormal number worth $2^{-23} \\times 2^{-126} = 2^{-149}$. It is the smallest positive number of all, but the question asks for the smallest normalised one."
+          },
+          {
+            "title": "Compare C and D",
+            "body": "Both have $E = 00000001 = 1$, so the power of two is $1 - 127 = -126$. In C the fraction is all zeros, so the value is $1.0 \\times 2^{-126}$. In D the last fraction bit is 1, so the value is $(1 + 2^{-23}) \\times 2^{-126}$, which is slightly larger. With the exponent fixed, a smaller fraction gives a smaller number, so C is smaller.",
+            "tex": "x_{\\min} = 1.0 \\times 2^{1-127} = 2^{-126} \\approx 1.18 \\times 10^{-38}"
+          },
+          {
+            "title": "Answer",
+            "body": "The smallest normalised positive number has exponent 00000001 and an all-zero fraction, which is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Smallest normalised means the smallest allowed exponent and the smallest fraction. Allowed exponents start at 1, not 0, because 0 is taken by zero and subnormals. So the exponent is 00000001 and the fraction is all zeros. Any option with exponent 00000000 can be struck out on sight."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Exponent 0 and fraction 0 is the smallest bit pattern, but it stands for the number zero. It is not positive and not normalised."
+          },
+          {
+            "option": 1,
+            "text": "Exponent 0 with the lowest fraction bit set is the smallest positive number the format can hold, $2^{-149}$. It is subnormal, and the question asks for the smallest normalised number."
+          },
+          {
+            "option": 3,
+            "text": "Candidates think a positive number needs a nonzero fraction. The understood leading 1 already makes the value positive, so the fraction can stay all zeros, and a fraction of 0...01 only makes the value larger."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.fp-range-precision",
+          "clues": "The words \"smallest normalized positive\" together with exponent and mantissa bit patterns in the options point to the extreme-value rules for the single-precision format.",
+          "contrast": "Do not confuse it with the smallest positive number at all, which is subnormal with exponent 0 and a fraction of one. \"Normalized\" removes that pattern."
+        },
+        "check": {
+          "body": "The largest subnormal number is $(1 - 2^{-23}) \\times 2^{-126}$, which is just below $2^{-126}$. So the first normal number sits directly above all the subnormals and nothing normal can be smaller. A bit-pattern check agrees: the pattern with exponent 1 and fraction 0 is the integer 0x00800000, the first word after the subnormals."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Four bit patterns are offered and the question has two qualifiers: smallest, and normalised. Which qualifier rules out most of the patterns?"
+        },
+        {
+          "kind": "concept",
+          "text": "Exponent field 0 and exponent field 255 are reserved in IEEE 754; they mean zero or subnormal, and infinity or NaN. Everything in between is a normal number."
+        },
+        {
+          "kind": "principle",
+          "text": "A normal number is $1.F \\times 2^{E-127}$ with the 1 implied. For a fixed exponent a larger fraction gives a larger value, and a larger exponent field gives a larger value still."
+        },
+        {
+          "kind": "setup",
+          "text": "Cross out every option whose exponent field is not allowed for normal numbers. Among the survivors, compare the fraction fields at the same exponent."
+        }
+      ],
+      "variation": {
+        "stem": "The format of the single-precision floating-point representation of a real number as per the IEEE 754 standard is as follows: sign | exponent | mantissa. Which one of the following choices is correct with respect to the largest finite positive number represented using the standard?",
+        "options": [
+          "exponent = 11111111 and mantissa = 00000000000000000000000",
+          "exponent = 11111111 and mantissa = 00000000000000000000001",
+          "exponent = 11111110 and mantissa = 11111111111111111111111",
+          "exponent = 11111110 and mantissa = 00000000000000000000000"
+        ],
+        "answer": 2,
+        "explanation": "Exponent 11111111 is reserved for infinity (zero fraction) and NaN (nonzero fraction), so neither is a finite number. The largest usable exponent field is 11111110 = 254, and the largest fraction is all ones. The value is $(2 - 2^{-23})\\cdot 2^{127} \\approx 3.4\\cdot 10^{38}$, which is option C."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q18",
+      "type": "nat",
+      "marks": 1,
+      "key": "3",
+      "topic": "dl-number-representations.base-conversion",
+      "difficulty": "easy",
+      "stem": "If $x$ and $y$ are two decimal digits and $(0.1101)_2 = (0.8xy5)_{10}$, the decimal value of $x + y$ is ____.",
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "Place values of the binary fraction 0.1101 add up to 0.8125, and the digits 8, 1, 2, 5 are lined up under 8, x, y, 5 to give x = 1 and y = 2."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Binary fractions and the rule for equal numerals",
+            "body": "After the point, the digits of a binary numeral have weights $\\tfrac12, \\tfrac14, \\tfrac18, \\tfrac1{16}, \\dots$ (each is half the one before). After the point in a decimal numeral the weights are $\\tfrac1{10}, \\tfrac1{100}, \\dots$. Two numerals are equal when they name the same number, and a decimal numeral that does not end in an endless run of 9s is the only decimal numeral for its number. So the plan is to find the decimal value of $(0.1101)_2$ and read off its digits."
+          },
+          {
+            "title": "Evaluate (0.1101) in binary",
+            "body": "The bits are 1, 1, 0, 1 with weights $\\tfrac12, \\tfrac14, \\tfrac18, \\tfrac1{16}$. The third bit is 0, so it adds nothing.",
+            "tex": "(0.1101)_2 = \\tfrac12 + \\tfrac14 + 0 + \\tfrac1{16} = \\tfrac{13}{16} = 0.8125"
+          },
+          {
+            "title": "Match the digits with 0.8xy5",
+            "body": "The decimal numeral $0.8125$ has digits 8, 1, 2, 5 after the point. The pattern $0.8xy5$ has digits 8, $x$, $y$, 5. Matching place by place gives $x = 1$ and $y = 2$, so $x + y = 3$.",
+            "tex": "x + y = 1 + 2 = 3"
+          }
+        ],
+        "shortcut": {
+          "body": "Learn that $\\tfrac1{16} = 0.0625$. Then $0.1101$ in binary is $0.5 + 0.25 + 0.0625 = 0.8125$ in one line, and the digits are read straight off. The same trick works for any four-bit fraction: the value is the integer $1101_2 = 13$ divided by 16."
+        },
+        "traps": [
+          {
+            "text": "Answer 13: the bits 1101 were read as the whole number 13 and the point was ignored. The value has to be divided by 16 to get 0.8125."
+          },
+          {
+            "text": "Answer 7: the digits of 0.8125 were lined up with the end of the pattern, so $x = 2$ and $y = 5$. The last 5 in the pattern is fixed, so $x$ and $y$ are the two digits between 8 and 5, which are 1 and 2."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.base-conversion",
+          "clues": "A binary fraction equated to a decimal fraction with two unknown digits means converting a fractional part between bases and matching digits.",
+          "contrast": "Not an integer base change by repeated division: for a fractional part you add weights going right (or multiply by the radix going the other way), and the position of each digit matters."
+        },
+        "check": {
+          "body": "Multiply the decimal value back: $0.8125 \\times 16 = 13$, and 13 is 1101 in binary, the given bits. Also plug in the digits: $0.8xy5$ with $x = 1$ and $y = 2$ reads 0.8125, which is the value just found."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "A binary fraction is set equal to a decimal fraction with two unknown digits. What must be true about the two numerals if they name the same number?"
+        },
+        {
+          "kind": "concept",
+          "text": "After the point, binary digits carry the weights $\\tfrac12, \\tfrac14, \\tfrac18, \\dots$, halving each time, and decimal digits carry $\\tfrac1{10}, \\tfrac1{100}, \\dots$."
+        },
+        {
+          "kind": "principle",
+          "text": "Equal numbers have the same decimal expansion. So find the decimal expansion of the binary fraction and match it digit by digit with the pattern, place by place."
+        },
+        {
+          "kind": "setup",
+          "text": "Add the weights of the 1 bits of the binary fraction to get a single decimal value, and write it with the same number of decimal places as the pattern has."
+        },
+        {
+          "kind": "partial",
+          "text": "The bits are 1, 1, 0, 1, so the weights used are $\\tfrac12$, $\\tfrac14$ and $\\tfrac1{16}$. The three of them add to a fraction over 16; turn that into a decimal."
+        }
+      ],
+      "variation": {
+        "stem": "If $p$ and $q$ are two decimal digits and $(0.1011)_2 = (0.6pq5)_{10}$, the decimal value of $p + q$ is ____.",
+        "answer": 15,
+        "explanation": "The bits 1011 have weights $\\tfrac12, \\tfrac14, \\tfrac18, \\tfrac1{16}$, so $(0.1011)_2 = \\tfrac{11}{16} = 0.6875$. Matching $0.6875$ with $0.6pq5$ gives $p = 8$ and $q = 7$, so $p + q = 15$."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q44",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;D",
+      "topic": "dl-number-representations.positional-systems",
+      "difficulty": "medium",
+      "stem": "If the numerical value of a 2-byte unsigned integer on a little endian computer is 255 more than that on a big endian computer, which of the following choices represent(s) the unsigned integer on a little endian computer?",
+      "options": [
+        "0x6665",
+        "0x0001",
+        "0x4243",
+        "0x0100"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "The two bytes of each option placed at addresses 0 and 1 and read as little endian and as big endian: options A and D differ by plus 255, options B and C by minus 255."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Bytes, significance and the two byte orders",
+            "body": "A 2-byte unsigned integer is stored in two memory cells with consecutive addresses. One byte is the high byte $H$ (weight 256) and the other is the low byte $L$ (weight 1), so the number is $256H + L$ with $0 \\le H, L \\le 255$. A little endian computer puts the low byte at the lower address. A big endian computer puts the high byte at the lower address. So the same two bytes in memory are read as two different numbers by the two machines. The question compares those two readings of the same memory contents."
+          },
+          {
+            "title": "Write the difference as an equation",
+            "body": "Let the little endian value be $256H + L$, so memory holds $L$ at address 0 and $H$ at address 1. A big endian computer reads address 0 as its high byte, so it sees $256L + H$. The little endian value is 255 more exactly when the difference is 255.",
+            "tex": "(256H + L) - (256L + H) = 255\\,(H - L) = 255 \\;\\Longrightarrow\\; H - L = 1"
+          },
+          {
+            "title": "Test each option as the little endian value",
+            "body": "The high byte is the first two hex digits and the low byte is the last two. (A) 0x6665: $H = 0x66 = 102$, $L = 0x65 = 101$, $H - L = 1$. Yes: little endian 26213, big endian 0x6566 = 25958, difference 255. (B) 0x0001: $H = 0$, $L = 1$, $H - L = -1$, so the difference is $-255$. No. (C) 0x4243: $H = 66$, $L = 67$, $H - L = -1$. No. (D) 0x0100: $H = 1$, $L = 0$, $H - L = 1$. Yes: little endian 256, big endian 1."
+          },
+          {
+            "title": "Answer",
+            "body": "Options A and D satisfy $H - L = 1$, so the answer is A and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Swap the two bytes of each option to get the other machine's reading, and keep the option only if the first byte is exactly one more than the second: 66 and 65 fit, 01 and 00 fit, 00 and 01 do not, 42 and 43 do not. This takes about a minute and does not need any decimal conversion."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "0x0001 against 0x0100 differ by 255 in size, so it looks right. But 0x0001 is the little endian value here, and it is the smaller of the two, so the little endian number is 255 less, not more."
+          },
+          {
+            "option": 2,
+            "text": "0x4243 has two neighbouring bytes (the letters B and C), which suggests a difference of one. The high byte is smaller than the low byte, so the little endian value is 255 less than the big endian one."
+          },
+          {
+            "text": "Leaving out D is a common slip: 0x0100 looks like an odd choice, but with $H = 1$ and $L = 0$ it satisfies $H - L = 1$ exactly. Both A and D must be marked, because an MSQ scores only when the whole set is right."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.positional-systems",
+          "clues": "The words little endian, big endian and \"255 more\" on a 2-byte unsigned integer point to the two bytes keeping their weights 256 and 1 while swapping places between the machines.",
+          "contrast": "Base conversion rewrites one value in another base; here the digits stay the same and only their weights change with the byte order, so the difference of the two readings is the equation to solve."
+        },
+        "check": {
+          "body": "Test the identity on a pair that is not among the options. 0x0302 is 770 and its byte swap 0x0203 is 515, a difference of 255, with $H - L = 1$ again. A pair with $H - L = 2$, such as 0x0301 = 769 against 0x0103 = 259, differs by 510. So only $H - L = 1$ gives 255, whatever the size of the bytes, and the sign of $H - L$ decides plus or minus."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which two numbers are being compared, and what do they share in memory?"
+        },
+        {
+          "kind": "concept",
+          "text": "Little endian keeps the least significant byte at the lowest address, and big endian keeps the most significant byte there."
+        },
+        {
+          "kind": "principle",
+          "text": "A 2-byte unsigned value is $256H + L$, where $H$ is the high byte and $L$ the low byte. Switching the byte order swaps which byte carries the weight 256."
+        },
+        {
+          "kind": "setup",
+          "text": "Express both readings of the same two memory bytes using the high byte and the low byte, then state what their difference must equal."
+        },
+        {
+          "kind": "partial",
+          "text": "The difference collapses to 255 times a simple expression in $H$ and $L$, so the condition reduces to a small relation between the two bytes of each option."
+        }
+      ],
+      "variation": {
+        "stem": "If the numerical value of a 2-byte unsigned integer on a little endian computer is 765 more than that on a big endian computer, which of the following choices represent(s) the unsigned integer on a little endian computer?",
+        "options": [
+          "0x5F5C",
+          "0x0003",
+          "0x7B7A",
+          "0x0300"
+        ],
+        "answer": [
+          0,
+          3
+        ],
+        "explanation": "The difference is $(256H+L)-(256L+H)=255(H-L)$, so 765 more means $H-L=3$. In 0x5F5C the bytes are 95 and 92, and in 0x0300 they are 3 and 0, so both fit. 0x7B7A gives $H-L=1$, a difference of only 255, and 0x0003 gives $-3$, a difference of $-765$."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q6",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "dl-number-representations.base-conversion",
+      "difficulty": "easy",
+      "stem": "Let the representation of a number in base 3 be 210. What is the hexadecimal representation of the number?",
+      "options": [
+        "15",
+        "21",
+        "D2",
+        "528"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Base 3 digits 2, 1, 0 with weights 9, 3, 1 give 21, and 21 is 1 times 16 plus 5, which is 15 in hexadecimal."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Positional value and changing base",
+            "body": "In base $r$ a numeral $d_k \\dots d_1 d_0$ has the value $\\sum d_i\\, r^i$: the rightmost digit counts ones, the next counts $r$ each, the next $r^2$ each, and so on. Every digit is less than $r$. To change base, first find the value as an ordinary number, then write that number in the new base by repeated division. A numeral does not change its value when it is shown in another base, only its digits do.",
+            "tex": "(d_k \\dots d_1 d_0)_r = \\sum_{i=0}^{k} d_i\\, r^i"
+          },
+          {
+            "title": "Value of (210) in base 3",
+            "body": "The digits 2, 1, 0 have weights $3^2 = 9$, $3^1 = 3$ and $3^0 = 1$.",
+            "tex": "(210)_3 = 2 \\cdot 9 + 1 \\cdot 3 + 0 \\cdot 1 = 21"
+          },
+          {
+            "title": "Write 21 in base 16",
+            "body": "Divide by 16: $21 = 1 \\cdot 16 + 5$, so the quotient 1 is the left digit and the remainder 5 is the right digit. Both are below 16, so they are written as the hex digits 1 and 5.",
+            "tex": "21 = 1 \\cdot 16 + 5 = (15)_{16}"
+          },
+          {
+            "title": "Answer",
+            "body": "The hexadecimal representation is 15, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "Base 3 digits 2, 1, 0 give 18 + 3 + 0 = 21 in a few seconds. 21 is one sixteen and five, so hex 15. A quick check on the options: 21 is 0x15 only, since the digits of 0x21 would make 33."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "21 is the right value but in decimal. The question asks for hexadecimal, and 0x21 would be 33, so the value has to be converted once more."
+          },
+          {
+            "option": 2,
+            "text": "D2 is 210 written in hexadecimal. It comes from reading 210 as the decimal number and forgetting that the digits are base 3."
+          },
+          {
+            "option": 3,
+            "text": "528 is the decimal value of 0x210. It comes from reading the digits 210 as hexadecimal, so the base 3 meaning is ignored altogether."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.base-conversion",
+          "clues": "A short numeral with its base named (base 3) and a different target base (hexadecimal), with no fraction or sign, points to the chain of finding the value and then dividing by the new base.",
+          "contrast": "unknown-radix has the base itself as the unknown, found from an equation; here both bases are given, so no equation is needed."
+        },
+        "check": {
+          "body": "Convert back. Hex 15 is $1\\cdot 16+5=21$. Writing 21 in base 3 gives $2\\cdot 9+1\\cdot 3+0$, the digits 2, 1, 0 of the original numeral, so the round trip returns the given number."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What is the number worth as an ordinary quantity, and which base is wanted at the end?"
+        },
+        {
+          "kind": "concept",
+          "text": "A numeral is a sum of digits times powers of its base; changing base changes only how the same value is written."
+        },
+        {
+          "kind": "principle",
+          "text": "In base $r$ the digit weights from the right are $1, r, r^2, \\dots$. To write a value in a new base, divide repeatedly by that base and read the remainders."
+        },
+        {
+          "kind": "setup",
+          "text": "Turn the base 3 numeral into a plain number first using the weights 1, 3 and 9. Then divide that number by 16 to get the hex digits."
+        },
+        {
+          "kind": "partial",
+          "text": "Multiply the leftmost digit by its own place weight to see its share of the value, then add the shares of the other two digits."
+        }
+      ],
+      "variation": {
+        "stem": "Let the representation of a number in base 5 be 243. What is the hexadecimal representation of the number?",
+        "options": [
+          "49",
+          "73",
+          "579",
+          "94"
+        ],
+        "answer": 0,
+        "explanation": "The value is $2\\cdot 25+4\\cdot 5+3=73$. Dividing by 16 gives $73=4\\cdot 16+9$, so the hex digits are 4 and 9. The option 73 is the decimal value, 579 is the digits 243 read as hex ($579$ in decimal), and 94 swaps the two hex digits."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q24",
+      "type": "nat",
+      "marks": 1,
+      "key": "-7.75",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "easy",
+      "stem": "Consider the following representation of a number in IEEE 754 single-precision floating point format with a bias of 127. $S: 1$, $E: 10000001$, $F: 11110000000000000000000$. Here $S$, $E$ and $F$ denote the sign, exponent and fraction components of the floating point representation. The decimal value corresponding to the above representation (rounded to 2 decimal places) is ____.",
+      "answer": -7.75,
+      "solutionDiagram": {
+        "alt": "The fields S = 1, E = 10000001 and F = 1111 followed by zeros are decoded to exponent 2 and significand 1.9375, giving minus 7.75."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "How a single-precision word is read",
+            "body": "A normalised single-precision number has a sign bit $S$ (1 means negative), an 8-bit exponent field $E$ read as an unsigned number, and a 23-bit fraction $F$. The exponent is stored with a bias of 127, so the true power of two is $E - 127$. The fraction has an understood 1 in front of the point, so the significand is $1.F$ in binary. The rule is the formula below.",
+            "tex": "x = (-1)^S \\times (1.F)_2 \\times 2^{E-127}"
+          },
+          {
+            "title": "Decode the exponent and the sign",
+            "body": "$S = 1$, so the number is negative. $E = 10000001_2 = 128 + 1 = 129$, so the power of two is $129 - 127 = 2$."
+          },
+          {
+            "title": "Decode the significand",
+            "body": "$F$ starts 1111 and then has only zeros, so the significand is $1.1111_2$. The weights after the point are $\\tfrac12, \\tfrac14, \\tfrac18, \\tfrac1{16}$.",
+            "tex": "1.1111_2 = 1 + \\tfrac12 + \\tfrac14 + \\tfrac18 + \\tfrac1{16} = 1.9375"
+          },
+          {
+            "title": "Combine",
+            "body": "The value is the sign times the significand times $2^2$.",
+            "tex": "x = -1.9375 \\times 4 = -7.75"
+          }
+        ],
+        "shortcut": {
+          "body": "Shift the point instead of multiplying: the exponent 129 - 127 = 2 moves the point two places right, so 1.1111 becomes 111.11 = 7.75. The sign bit is 1, so the answer is -7.75. Watch for the understood 1 and the sign; those are where marks are lost."
+        },
+        "traps": [
+          {
+            "text": "7.75 without the minus sign: the sign bit S = 1 was read but not applied. It means negative."
+          },
+          {
+            "text": "-3.75: the understood leading 1 was left out, so the significand became 0.9375 instead of 1.9375 and 0.9375 times 4 gave 3.75 (the sign applied)."
+          },
+          {
+            "text": "-3.875: the exponent 129 was biased by 128 instead of 127, giving a power of 1 instead of 2, and 1.9375 times 2 is 3.875. The bias of single precision is 127."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "The three fields S, E and F are given as bit strings with a bias of 127 and the question asks for the decimal value, so the task is to decode a normalised single-precision word.",
+          "contrast": "ieee754-special covers an exponent field of all zeros or all ones; here E is 10000001, neither extreme, so the normal decode formula with the understood 1 applies."
+        },
+        "check": {
+          "body": "Bounds check and point shift. An unbiased exponent of 2 puts the magnitude in the interval from 4 to 8, and the sign bit makes it negative. Moving the point two places right in 1.1111 gives 111.11, which is $4+2+1+\\tfrac12+\\tfrac14$ and lies inside that interval."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which field gives the sign, which gives the power of two, and which gives the digits after the leading 1?"
+        },
+        {
+          "kind": "concept",
+          "text": "A normalised single-precision number stores a sign bit, a biased exponent and a fraction that has an understood leading 1."
+        },
+        {
+          "kind": "principle",
+          "text": "The value is $(-1)^S \\times (1.F)_2 \\times 2^{E-127}$. The exponent field is an unsigned number that is reduced by the bias to get the true power."
+        },
+        {
+          "kind": "setup",
+          "text": "Read $E$ as an unsigned binary number and subtract the bias. Read $F$ with place values $\\tfrac12, \\tfrac14, \\dots$ after the point and put the understood 1 in front."
+        },
+        {
+          "kind": "partial",
+          "text": "The fraction starts with four 1 bits and then only zeros. Add the four place values to the leading 1 to get the decimal significand."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following representation of a number in IEEE 754 single-precision floating point format with a bias of 127. $S: 1$, $E: 10000010$, $F: 01010000000000000000000$. Here $S$, $E$ and $F$ denote the sign, exponent and fraction components of the floating point representation. The decimal value corresponding to the above representation (rounded to 2 decimal places) is ____.",
+        "answer": -10.5,
+        "explanation": "The exponent field is 130, so the power of two is $130-127=3$. The significand is $1.0101_2=1+\\tfrac14+\\tfrac1{16}=1.3125$. With the sign bit 1 the value is $-1.3125\\times 8=-10.5$."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q29",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "medium",
+      "stem": "Consider three registers R1, R2, and R3 that store numbers in IEEE-754 single precision floating point format. Assume that R1 and R2 contain the values (in hexadecimal notation) 0x42200000 and 0xC1200000, respectively. If $R3 = \\frac{R1}{R2}$, what is the value stored in R3?",
+      "options": [
+        "0x40800000",
+        "0xC0800000",
+        "0x83400000",
+        "0xC8500000"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "R1 decodes to plus 40 and R2 to minus 10, so R3 is minus 4, which is sign 1, exponent 10000001, fraction zero, or 0xC0800000."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The single-precision format and the rule for decoding",
+            "body": "A single-precision word has 1 sign bit $S$, 8 exponent bits $E$ and 23 fraction bits $F$. A hex digit is 4 bits, so 8 hex digits fill the 32 bits, with the sign bit as the top bit of the first digit. The value is $(-1)^S \\times 1.F \\times 2^{E-127}$: the exponent is biased by 127 and there is an understood 1 before the point. To divide, decode both numbers, divide as ordinary numbers, and encode the quotient with the same rule in reverse.",
+            "tex": "x = (-1)^S\\,(1.F)_2\\,2^{E-127}"
+          },
+          {
+            "title": "Decode R1 = 0x42200000",
+            "body": "In binary, 0x42200000 is 0100 0010 0010 0000 0000 .... So $S = 0$, $E = 1000\\,0100 = 132$ and the fraction starts 01 and then has zeros. The power of two is $132 - 127 = 5$ and the significand is $1.01_2 = 1.25$.",
+            "tex": "R1 = +1.25 \\times 2^{5} = 40"
+          },
+          {
+            "title": "Decode R2 = 0xC1200000",
+            "body": "In binary, 0xC1200000 is 1100 0001 0010 0000 0000 .... So $S = 1$, $E = 1000\\,0010 = 130$ and the fraction again starts 01. The power of two is $130 - 127 = 3$ and the significand is $1.25$.",
+            "tex": "R2 = -1.25 \\times 2^{3} = -10"
+          },
+          {
+            "title": "Divide and encode the quotient",
+            "body": "$R3 = 40 / (-10) = -4 = -1.0 \\times 2^2$. The sign bit is 1, $E = 2 + 127 = 129 = 1000\\,0001$ and the fraction is all zeros. Writing 1 | 10000001 | 000... in groups of four gives 1100 0000 1000 0000 0000 ..., which is 0xC0800000, option B.",
+            "tex": "R3 = -4 \\;\\to\\; 1\\,|\\,10000001\\,|\\,0\\ldots0 = \\mathrm{0xC0800000}"
+          }
+        ],
+        "shortcut": {
+          "body": "Skip the fraction bits: 0x4220 and 0xC120 differ only in the sign and the exponent, and both fractions are 1.25. So R1/R2 = -(1.25 x 32)/(1.25 x 8) = -4. The result is negative, so the top hex digit is 8 to F, and a magnitude of 4 is 2^2 with E = 129, which starts 0xC08. This is unsafe only if the fractions differ."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "0x40800000 is +4. It has the right magnitude but the sign is lost: dividing a positive by a negative gives a negative result, and the sign bit has to be 1."
+          },
+          {
+            "option": 2,
+            "text": "0x83400000 has an exponent field of 00000110, so it is a tiny negative number near $2^{-121}$. Its exponent is nowhere near the biased value 129 that a magnitude of 4 needs."
+          },
+          {
+            "option": 3,
+            "text": "0xC8500000 has an exponent field of 144, so it is about $-2\\times 10^5$. A quick look at the exponent shows it is far too big for a quotient of 40 by 10."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "Registers are given as hex words in single precision and the result of a division must be written back as a hex word, so the work is decode, compute, then encode.",
+          "contrast": "fp-range-precision asks how large or fine the format can go; here every value is small and exact, so no rounding or range question arises."
+        },
+        "check": {
+          "body": "Decode the result back and multiply. 1 10000001 000... has $S=1$, $E=129$ and fraction zero, so it is $-1\\times 2^{2}=-4$. Then $R2\\times R3=(-10)(-4)=40$, which is the value of R1, so dividing R1 by R2 gives R3."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2020 CS question paper with its answer key, IIT Delhi page print, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What decimal numbers do the two registers hold, and what is their quotient?"
+        },
+        {
+          "kind": "concept",
+          "text": "A single-precision word is 32 bits: 1 sign bit, 8 exponent bits and 23 fraction bits, and 8 hex digits fill it exactly."
+        },
+        {
+          "kind": "principle",
+          "text": "Decode with $(-1)^S(1.F)_2 2^{E-127}$, divide as ordinary numbers, then encode by running the rule backwards, adding the bias to the power of two."
+        },
+        {
+          "kind": "setup",
+          "text": "Expand the leading hex digits of each register into bits to read the sign and exponent field. Compare the remaining digits to see how the two fractions relate."
+        },
+        {
+          "kind": "partial",
+          "text": "Both words have the same fraction bits, so the two significands are equal and cancel in the quotient. Only the powers of two and the signs remain to combine."
+        }
+      ],
+      "variation": {
+        "stem": "Consider three registers R1, R2, and R3 that store numbers in IEEE-754 single precision floating point format. Assume that R1 and R2 contain the values (in hexadecimal notation) 0x41C00000 and 0xC0400000, respectively. If $R3 = \\frac{R1}{R2}$, what is the value stored in R3?",
+        "options": [
+          "0xC1000000",
+          "0x41000000",
+          "0xC0800000",
+          "0xC1800000"
+        ],
+        "answer": 0,
+        "explanation": "R1 decodes to $+1.5\\times 2^{4}=24$ and R2 to $-1.5\\times 2^{1}=-3$, so $R3=24/(-3)=-8=-1.0\\times 2^3$. That gives sign 1, exponent $3+127=130=10000010$ and fraction zero, which is 0xC1000000. 0x41000000 is $+8$ with the sign lost, 0xC0800000 is $-4$ from halving the magnitude, and 0xC1800000 has an exponent field of 131 from using a bias of 128."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q4",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "dl-number-representations.twos-complement",
+      "difficulty": "easy",
+      "stem": "In 16-bit 2's complement representation, the decimal number $-28$ is:",
+      "options": [
+        "1111 1111 0001 1100",
+        "0000 0000 1110 0100",
+        "1111 1111 1110 0100",
+        "1000 0000 1110 0100"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Minus 28 in 16-bit 2's complement: write 28 as 0000 0000 0001 1100, flip every bit, add 1 to reach 1111 1111 1110 0100."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What 2's complement means",
+            "body": "In $n$-bit 2's complement the leftmost bit has weight $-2^{n-1}$ and every other bit has its usual positive weight $2^i$. A negative number $-m$ is stored as the bit pattern of $2^n - m$. Doing that by hand is easy: write $m$ in $n$ bits, flip every bit (this gives $2^n - 1 - m$), then add 1.",
+            "tex": "-m \\;\\mapsto\\; 2^{n} - m = \\overline{m} + 1"
+          },
+          {
+            "title": "Write 28 in 16 bits",
+            "body": "$28 = 16 + 8 + 4 = 11100_2$. In 16 bits that is 0000 0000 0001 1100."
+          },
+          {
+            "title": "Flip every bit, then add 1",
+            "body": "Flipping gives 1111 1111 1110 0011. Adding 1 turns the final 0011 into 0100, with no carry beyond that, so the result is 1111 1111 1110 0100 (0xFFE4).",
+            "tex": "1111\\,1111\\,1110\\,0011 + 1 = 1111\\,1111\\,1110\\,0100"
+          },
+          {
+            "title": "Check against the options",
+            "body": "As a check, 0xFFE4 = 65508, and $65508 - 65536 = -28$. That matches option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Take 28 = 0001 1100 in 8 bits. Flip to 1110 0011 and add 1 to get 1110 0100 (0xE4). To reach 16 bits, copy the sign bit 1 into the new high byte: 1111 1111 1110 0100. This is option C. You can also check which options end in ...0100 and begin with 1s."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "1111 1111 0001 1100 puts the sign bits in front of the plain pattern of 28 (0001 1100) without flipping. It is $-228$, not $-28$."
+          },
+          {
+            "option": 1,
+            "text": "0000 0000 1110 0100 is the 8-bit pattern of $-28$ (0xE4) padded with zeros. A zero-padded pattern is positive, here $+228$. The top bits must copy the sign bit."
+          },
+          {
+            "option": 3,
+            "text": "1000 0000 1110 0100 is the 8-bit pattern of $-28$ with a sign bit set over zero padding. In 16-bit 2's complement that is $-32540$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.twos-complement",
+          "clues": "A negative decimal number and a fixed 16-bit width with the words 2's complement ask for the bit pattern, so the invert-and-add-one method applies.",
+          "contrast": "signed-representations also covers sign-magnitude, which flips only the sign bit; the phrase 2's complement selects inversion of all bits plus one."
+        },
+        "check": {
+          "body": "Add the magnitude back. 1111 1111 1110 0100 + 0000 0000 0001 1100 gives 1 0000 0000 0000 0000, and the carry out of the 16th bit is dropped, leaving zero. A pattern and its negative must sum to zero."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How many bits must the pattern have, and what must the leftmost bit be for a negative number?"
+        },
+        {
+          "kind": "concept",
+          "text": "In $n$-bit two's complement the number $-m$ is stored as the pattern of $2^n - m$."
+        },
+        {
+          "kind": "principle",
+          "text": "By hand, write $m$ in $n$ bits, invert every bit, then add one."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the magnitude 28 in binary and pad it with leading zeros to the full 16 bits before you invert anything."
+        },
+        {
+          "kind": "partial",
+          "text": "Break 28 into powers of two to get its binary digits, then count how many positions are still empty out of 16."
+        }
+      ],
+      "variation": {
+        "stem": "In 12-bit 2's complement representation, the decimal number $-20$ is:",
+        "options": [
+          "1111 1110 1100",
+          "1111 1110 1011",
+          "0000 1110 1100",
+          "1000 0001 0100"
+        ],
+        "answer": 0,
+        "explanation": "Write 20 in 12 bits as 0000 0001 0100, invert every bit to get 1111 1110 1011, then add 1 to get 1111 1110 1100. 1111 1110 1011 stops before adding 1. 0000 1110 1100 is the 8-bit pattern of $-20$ padded with zeros, which is positive. 1000 0001 0100 is the sign-magnitude form."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q8",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "dl-number-representations.signed-representations",
+      "difficulty": "medium",
+      "stem": "Consider $Z = X - Y$, where $X$, $Y$ and $Z$ are all in sign-magnitude form. $X$ and $Y$ are each represented in $n$ bits. To avoid overflow, the representation of $Z$ would require a minimum of:",
+      "options": [
+        "$n$ bits",
+        "$n - 1$ bits",
+        "$n + 1$ bits",
+        "$n + 2$ bits"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "For n equal to 4 the operands lie in minus 7 to 7 and X minus Y in minus 14 to 14, which fits in 5-bit sign-magnitude (minus 15 to 15) but not 4-bit."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Sign-magnitude and overflow",
+            "body": "A sign-magnitude number keeps one bit for the sign (0 for plus, 1 for minus) and uses all the other bits for the size of the number as an unsigned magnitude. With $m$ magnitude bits the magnitude can be $0$ to $2^m - 1$, and the range is $-(2^m - 1)$ to $+(2^m - 1)$. Overflow means the true result lies outside the range of the width used. The task is to find the smallest width whose range holds every possible value of $X - Y$."
+          },
+          {
+            "title": "Range of X and Y",
+            "body": "With $n$ bits there are $n - 1$ magnitude bits, so $X$ and $Y$ each lie in $[-(2^{n-1} - 1),\\ 2^{n-1} - 1]$."
+          },
+          {
+            "title": "Range of X - Y",
+            "body": "The largest difference is the largest $X$ minus the smallest $Y$, and the smallest difference is the opposite. So $Z$ can reach $\\pm(2^{n} - 2)$.",
+            "tex": "-(2^n - 2) \\;\\le\\; X - Y \\;\\le\\; 2^n - 2"
+          },
+          {
+            "title": "Count the bits for Z",
+            "body": "With $n - 1$ magnitude bits the largest magnitude is $2^{n-1} - 1$, which is too small for $2^n - 2$ once $n \\ge 2$. With $n$ magnitude bits the largest magnitude is $2^n - 1 \\ge 2^n - 2$, which is enough. Add one sign bit: $n + 1$ bits in total. That is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Subtracting two numbers of size up to M gives a result up to 2M, and doubling a magnitude costs exactly one more bit. The sign bit is still just one bit, so the total grows by 1: n + 1. A tiny case confirms it: n = 4 gives X, Y in [-7, 7], X - Y in [-14, 14], and 5 bits hold up to 15."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "n bits is enough only for the sum of numbers of opposite sign or for the difference of numbers of the same sign. In the worst case, X - Y with X large and positive and Y large and negative, the magnitude doubles and n bits overflow."
+          },
+          {
+            "option": 1,
+            "text": "n - 1 bits is even narrower than the operands themselves. Such a width cannot hold X or Y, so it cannot hold their difference either."
+          },
+          {
+            "option": 3,
+            "text": "n + 2 bits would also hold the result, but it is more than needed. The magnitude of X - Y needs only one more bit than the operands' magnitudes, and the question asks for the minimum."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.signed-representations",
+          "clues": "Both operands and the result are in sign-magnitude form, the operand width is $n$, and the question asks for the minimum width of the result, so the sign bit and the magnitude bits are counted separately.",
+          "contrast": "add-sub-overflow tests a result against a fixed two's complement range; here the width itself is the unknown, so the worst-case magnitude is what to size."
+        },
+        "check": {
+          "body": "Test a small width by listing values. For $n=3$ the operands lie in $[-3, 3]$, so $X-Y$ reaches $\\pm 6$. A 3-bit sign-magnitude word stops at 3, while a 4-bit one reaches 7, so one extra bit is needed and enough."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What are the largest and smallest values of X - Y, compared with the range of one n-bit operand?"
+        },
+        {
+          "kind": "concept",
+          "text": "Sign-magnitude spends one bit on the sign and uses all the other bits as an unsigned magnitude."
+        },
+        {
+          "kind": "principle",
+          "text": "With $m$ magnitude bits the magnitude reaches $2^m - 1$. A width avoids overflow only when its largest magnitude covers the worst-case result."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the worst case by taking X at one extreme and Y at the opposite extreme. Then find how many magnitude bits that size needs and add the sign bit."
+        },
+        {
+          "kind": "partial",
+          "text": "Each operand has $n-1$ magnitude bits, so its magnitude is at most $2^{n-1}-1$. Subtracting an operand of opposite sign adds two such magnitudes."
+        }
+      ],
+      "variation": {
+        "stem": "Consider $Z = X - Y$, where $X$, $Y$ and $Z$ are all in sign-magnitude form. $X$ and $Y$ are each represented in 6 bits. To avoid overflow, the representation of $Z$ would require a minimum of:",
+        "options": [
+          "5 bits",
+          "6 bits",
+          "7 bits",
+          "8 bits"
+        ],
+        "answer": 2,
+        "explanation": "Six-bit sign-magnitude has 5 magnitude bits, so $X$ and $Y$ lie in $[-31, 31]$. The difference then reaches $\\pm 62$. That needs 6 magnitude bits (up to 63) plus one sign bit, so 7 bits; 6 bits would stop at 31."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q33",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "dl-number-representations.fixed-point",
+      "difficulty": "medium",
+      "stem": "Consider the unsigned 8-bit fixed point binary number representation below, $b_7 b_6 b_5 b_4 b_3 . b_2 b_1 b_0$, where the position of the binary point is between $b_3$ and $b_2$. Assume $b_7$ is the most significant bit. Some of the decimal numbers listed below cannot be represented exactly in the above representation: (i) 31.500 (ii) 0.875 (iii) 12.100 (iv) 3.001. Which one of the following statements is true?",
+      "options": [
+        "None of (i), (ii), (iii), (iv) can be exactly represented",
+        "Only (ii) cannot be exactly represented",
+        "Only (iii) and (iv) cannot be exactly represented",
+        "Only (i) and (ii) cannot be exactly represented"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Weights of the eight bits of the 5.3 fixed point format and a verdict for each number: 31.500 and 0.875 are multiples of one eighth, 12.100 and 3.001 are not."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What fixed point means and what it can store",
+            "body": "In a fixed point format the binary point sits at a fixed place, so the stored bits are just a whole number $k$ and the value is $k \\times 2^{-f}$, where $f$ is the number of bits after the point. Here $f = 3$ (bits $b_2 b_1 b_0$), and the five bits $b_7 \\dots b_3$ count whole units. The weights are $16, 8, 4, 2, 1$ before the point and $\\tfrac12, \\tfrac14, \\tfrac18$ after it. So the stored values are exactly the multiples of $\\tfrac18$ from 0 to $\\tfrac{255}{8} = 31.875$. A decimal number is represented exactly when $8x$ is a whole number between 0 and 255.",
+            "tex": "x \\text{ exact} \\iff 8x \\in \\{0, 1, \\dots, 255\\}"
+          },
+          {
+            "title": "Test the four numbers",
+            "body": "(i) $8 \\times 31.5 = 252$: a whole number in range, exact (11111.100). (ii) $8 \\times 0.875 = 7$: exact (00000.111). (iii) $8 \\times 12.1 = 96.8$: not whole, so 12.100 cannot be stored. (iv) $8 \\times 3.001 = 24.008$: not whole, so 3.001 cannot be stored.",
+            "tex": "252,\\ \\ 7,\\ \\ 96.8,\\ \\ 24.008"
+          },
+          {
+            "title": "Answer",
+            "body": "Only (iii) and (iv) cannot be represented exactly, which is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "The fraction part must be a multiple of 0.125, so it has to be one of .000, .125, .250, .375, .500, .625, .750, .875. Check the fraction of each number: .500 yes, .875 yes, .100 no, .001 no. Integer parts 31, 0, 12, 3 all fit in 5 bits. This takes under a minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing no decimal fraction can be stored exactly in binary. That is only true for fractions like 0.1 whose denominator has a factor other than 2. Fractions such as .5 and .875 are sums of powers of two and are exact."
+          },
+          {
+            "option": 1,
+            "text": "Claiming 0.875 cannot be stored. It equals $\\tfrac12 + \\tfrac14 + \\tfrac18$, which uses all three fraction bits, so it fits exactly."
+          },
+          {
+            "option": 3,
+            "text": "Saying 31.500 does not fit because 31.5 is close to 32. The integer part 31 is 11111, which five bits hold, and .5 is the first fraction bit, so it fits exactly."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.fixed-point",
+          "clues": "The format is drawn as bits with a fixed binary point between $b_3$ and $b_2$, and the question lists decimal values to test for exact storage, so the fixed spacing of the format decides each one.",
+          "contrast": "ieee754-format moves the point with an exponent, so its spacing changes with size; here the spacing is the same everywhere, which is why one multiple-of test settles every number."
+        },
+        "check": {
+          "body": "Write the binary forms. 31.5 is 11111.100 and 0.875 is 00000.111, both inside the eight bits. For 12.1 the fraction 0.1 is 0.000110011... in binary and never ends, so three fraction bits can reach only 12.000 or 12.125, and 12.100 sits between them."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which values can the eight bits represent, and how far apart are neighbouring values after the point?"
+        },
+        {
+          "kind": "concept",
+          "text": "A fixed point number is a whole count of a smallest unit, the weight of the last fractional bit."
+        },
+        {
+          "kind": "principle",
+          "text": "A number is exact only if it lands precisely on one of the evenly spaced values the format can hold."
+        },
+        {
+          "kind": "setup",
+          "text": "Count the bits after the point to find the smallest unit and the largest storable value. Then decide how each listed number is to be tested against both."
+        },
+        {
+          "kind": "partial",
+          "text": "Three bits sit after the point, so the unit is $2^{-3}$. For each number, ask whether its fractional part is a multiple of $\\tfrac18$."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the unsigned 8-bit fixed point binary number representation below, $b_7 b_6 b_5 b_4 . b_3 b_2 b_1 b_0$, where the position of the binary point is between $b_4$ and $b_3$. Assume $b_7$ is the most significant bit. Some of the decimal numbers listed below cannot be represented exactly in the above representation: (i) 15.0625 (ii) 7.300 (iii) 9.375 (iv) 16.500. Which one of the following statements is true?",
+        "options": [
+          "None of (i), (ii), (iii), (iv) can be exactly represented",
+          "Only (ii) cannot be exactly represented",
+          "Only (ii) and (iv) cannot be exactly represented",
+          "Only (i) and (iii) cannot be exactly represented"
+        ],
+        "answer": 2,
+        "explanation": "Four bits after the point make the unit $\\tfrac1{16}$, and four bits before it allow whole parts 0 to 15, so the largest value is 15.9375. Then $16\\times 15.0625=241$ and $16\\times 9.375=150$ are whole, so (i) and (iii) fit. $16\\times 7.3=116.8$ is not whole, and 16.5 needs a whole part of 16, which takes five bits."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q1",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "dl-number-representations.base-conversion",
+      "difficulty": "easy",
+      "stem": "The representation of the value of a 16-bit unsigned integer $X$ in hexadecimal number system is BCA9. The representation of the value of $X$ in octal number system is",
+      "options": [
+        "571244",
+        "736251",
+        "571247",
+        "136251"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "Hex digits B, C, A, 9 expanded to sixteen bits and regrouped in threes from the right into the octal digits 1, 3, 6, 2, 5, 1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Why binary is the bridge between hex and octal",
+            "body": "Hex is base $2^4$, so one hex digit is exactly 4 bits. Octal is base $2^3$, so one octal digit is exactly 3 bits. Because both are powers of 2, converting between them needs no arithmetic: expand each hex digit to 4 bits, then regroup the same bits in threes. The grouping must start at the right end, the end of the number with the units place, because the weights $8^j = 2^{3j}$ line up with bit positions counted from the right. The leftmost group may be shorter."
+          },
+          {
+            "title": "Expand hex to binary",
+            "body": "B = 1011, C = 1100, A = 1010, 9 = 1001. So BCA9 = 1011 1100 1010 1001, which is 16 bits.",
+            "tex": "\\mathrm{BCA9}_{16} = 1011\\,1100\\,1010\\,1001_2"
+          },
+          {
+            "title": "Regroup in threes from the right",
+            "body": "The 16 bits split as 1 | 011 | 110 | 010 | 101 | 001, with a single bit on the far left because 16 is not a multiple of 3. The groups are 1, 3, 6, 2, 5, 1.",
+            "tex": "1\\,|\\,011\\,|\\,110\\,|\\,010\\,|\\,101\\,|\\,001 \\;=\\; 136251_8"
+          },
+          {
+            "title": "Answer",
+            "body": "The octal representation is 136251, which is option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Write the binary, then draw group lines from the right: 1|011|110|010|101|001. The six digits are 1 3 6 2 5 1. A quick elimination: the value is below 65536 = 2^16, and the top octal digit of a 16-bit number is 0 or 1, so options starting with 5 or 7 are out immediately."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "571244 comes from grouping the bits in threes from the left and padding the last group with zeros: 101 111 001 010 100 1 becomes 5 7 1 2 4 4. The grouping must start at the right."
+          },
+          {
+            "option": 1,
+            "text": "736251 groups from the right but fills the short leftmost group 1 with ones (111 = 7) instead of leaving it as 001 = 1. Missing places are filled with zeros."
+          },
+          {
+            "option": 2,
+            "text": "571247 groups from the left like option A and then pads the last group with ones, so the last digit becomes 7. Both slips come from not starting at the units end."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.base-conversion",
+          "clues": "Both bases are powers of 2 (16 and 8) and the number is given as a 16-bit pattern in hex, so regrouping its bits converts it with no arithmetic.",
+          "contrast": "Going through decimal and dividing by 8 also works but is slow and error-prone; the power-of-2 relation makes the bit regrouping exact."
+        },
+        "check": {
+          "body": "Compare decimal values. BCA9 in hex is $11\\cdot 4096+12\\cdot 256+10\\cdot 16+9=48297$. Reading 136251 in octal gives $32768+12288+3072+128+40+1=48297$, the same number."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Is there a link between base 16 and base 8 that lets you skip decimal altogether?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each hex digit is exactly 4 bits, and each octal digit is exactly 3 bits."
+        },
+        {
+          "kind": "principle",
+          "text": "When both bases are powers of 2, go through binary: expand to bits, then regroup the same bits. Groups are counted from the right, the end with the units place."
+        },
+        {
+          "kind": "setup",
+          "text": "Expand each of the four hex digits to four bits and write all 16 bits in one row. Then draw group lines every three bits, starting at the right end."
+        },
+        {
+          "kind": "partial",
+          "text": "B is 1011 and C is 1100, so the row of bits begins 1011 1100. Convert A and 9 the same way before regrouping."
+        }
+      ],
+      "variation": {
+        "stem": "The representation of the value of a 16-bit unsigned integer $Y$ in hexadecimal number system is A5F3. The representation of the value of $Y$ in octal number system is",
+        "options": [
+          "122763",
+          "722763",
+          "513714",
+          "513717"
+        ],
+        "answer": 0,
+        "explanation": "A5F3 expands to 1010 0101 1111 0011. Grouping from the right in threes gives 1|010|010|111|110|011, which is 122763. 722763 fills the short leftmost group with ones, while 513714 and 513717 group from the left and pad the last group with zeros or ones."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q12",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "difficulty": "medium",
+      "stem": "Given the following binary number in 32-bit (single precision) IEEE-754 format: 00111110011011010000000000000000. The decimal value closest to this floating-point number is",
+      "options": [
+        "$1.45 \\times 10^{1}$",
+        "$1.45 \\times 10^{-1}$",
+        "$2.27 \\times 10^{-1}$",
+        "$2.27 \\times 10^{1}$"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "The 32 bits split as sign 0, exponent 01111100 equal to 124, and fraction 1101101 then zeros, decoded to 1.8515625 times 2 to the minus 3, about 0.2314."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The fields and the decoding rule",
+            "body": "A single-precision number has 1 sign bit $S$, 8 exponent bits $E$ and 23 fraction bits $F$, counted from the left. For a normalised number the value is $(-1)^S \\times 1.F \\times 2^{E-127}$, where 127 is the bias subtracted from the stored exponent and the 1 before the point is understood, not stored. Count the fields first, then compute.",
+            "tex": "x = (-1)^S\\,(1.F)_2\\,2^{E-127}"
+          },
+          {
+            "title": "Split the 32 bits",
+            "body": "0 | 01111100 | 11011010000000000000000. The sign is 0, so the number is positive. The exponent field is $01111100_2 = 64 + 32 + 16 + 8 + 4 = 124$, so the power of two is $124 - 127 = -3$."
+          },
+          {
+            "title": "Evaluate the significand",
+            "body": "The fraction is 1101101 followed by zeros, so the significand is $1.1101101_2$. The weights after the point are $\\tfrac12, \\tfrac14, \\tfrac18, \\dots$, and the bits are 1, 1, 0, 1, 1, 0, 1.",
+            "tex": "1.1101101_2 = 1 + \\tfrac12 + \\tfrac14 + \\tfrac1{16} + \\tfrac1{32} + \\tfrac1{128} = 1.8515625"
+          },
+          {
+            "title": "Scale and pick the closest option",
+            "body": "The value is $1.8515625 \\times 2^{-3} = 1.8515625 / 8 \\approx 0.2314$. The options are 14.5, 0.145, 0.227 and 22.7. The distances from 0.2314 are 14.27, 0.086, 0.004 and 22.47, so the closest is $2.27 \\times 10^{-1}$, option C.",
+            "tex": "x = 1.8515625 \\times 2^{-3} \\approx 0.2314 \\approx 2.27 \\times 10^{-1}"
+          }
+        ],
+        "shortcut": {
+          "body": "Only the size matters because the options are far apart. The exponent field is 124, so the power is -3 and the number is about 8 times smaller than its significand. The significand is between 1 and 2 (here about 1.85). So the value is about 1.85/8 = 0.23. Only 2.27 x 10^-1 is of that size."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "14.5 is about $1.85 \\times 2^3$. It comes from taking the exponent as $+3$ instead of $124 - 127 = -3$, a sign slip when removing the bias."
+          },
+          {
+            "option": 1,
+            "text": "0.145 is nearest to the answer if the understood 1 is left out: $0.8515625 / 8 \\approx 0.106$. The hidden bit must be added back, giving 1.85."
+          },
+          {
+            "option": 3,
+            "text": "22.7 is the correct digits 2.27 with the decimal point shifted by two places. The size of the number is set by $2^{-3}$, so a result near 23 is far too big."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.ieee754-conversion",
+          "clues": "A 32-bit string given in binary and the phrase \"single precision IEEE-754\" ask for the decimal value, so the bits must be split into sign, exponent and fraction and decoded.",
+          "contrast": "ieee754-format only names the fields and the bias; here the work is the full decode, and the options are far apart, so a size estimate from the exponent alone already separates them."
+        },
+        "check": {
+          "body": "Second route by magnitude: the exponent field 124 is 3 below the bias 127, so the number is the significand in $[1,2)$ divided by 8, namely about $1.85/8$. Re-encode 0.2314: it lies between $2^{-3}=0.125$ and $2^{-2}=0.25$, so its stored exponent must be $-3+127=124$, which matches the given field."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which three fields make up the 32 bits, and how many bits does each field get?"
+        },
+        {
+          "kind": "concept",
+          "text": "A normalised single-precision number stores a sign, a biased exponent and a fraction whose leading 1 is not stored."
+        },
+        {
+          "kind": "principle",
+          "text": "The real power of two is the stored exponent minus the bias, and the significand is $1.F$, not just $F$."
+        },
+        {
+          "kind": "setup",
+          "text": "Cut the string after bit 1 and after bit 9, read the middle field as an unsigned integer, then subtract the bias. Read the first few fraction bits with weights $\\tfrac12, \\tfrac14, \\dots$."
+        },
+        {
+          "kind": "partial",
+          "text": "The exponent field has the bit pattern 01111100, so its unsigned value is 124. Turn that into a power of two before touching the fraction."
+        }
+      ],
+      "variation": {
+        "stem": "A 32-bit single-precision IEEE-754 number has the bit pattern 01000001001101000000000000000000. The decimal value of this number is",
+        "options": [
+          "$3.25$",
+          "$0.176$",
+          "$11.25$",
+          "$5.625$"
+        ],
+        "answer": 2,
+        "explanation": "Sign 0, exponent field 10000010 is 130, so the power is $130-127=3$. The fraction 0110100 gives significand $1.0110100_2=1.40625$, and $1.40625\\times 2^3=11.25$. Leaving out the hidden 1 gives 3.25, reading the power as $-3$ gives 0.176, and using bias 128 gives 5.625."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q24",
+      "type": "nat",
+      "marks": 1,
+      "key": "8.0",
+      "topic": "dl-number-representations.unknown-radix",
+      "difficulty": "medium",
+      "stem": "Consider a quadratic equation $x^2 - 13x + 36 = 0$ with coefficients in a base $b$. The solutions of this equation in the same base $b$ are $x = 5$ and $x = 6$. Then $b =$ ____.",
+      "answer": 8,
+      "solution": {
+        "steps": [
+          {
+            "title": "A numeral in an unknown base",
+            "body": "In base $b$ a two-digit numeral $d_1 d_0$ means $d_1 b + d_0$. So $13$ in base $b$ means $b + 3$ and $36$ in base $b$ means $3b + 6$. The digits 5 and 6 are single digits, so they have the same value in every base larger than 6, and base $b$ needs $b \\ge 7$ because the digit 6 appears. Then the equation is an ordinary quadratic whose coefficients depend on $b$.",
+            "tex": "x^2 - (b + 3)\\,x + (3b + 6) = 0"
+          },
+          {
+            "title": "Use the sum and the product of the roots",
+            "body": "For $x^2 - sx + p = 0$ the roots add to $s$ and multiply to $p$. The roots are 5 and 6, so the sum is 11 and the product is 30. Setting these equal to the coefficients gives two equations.",
+            "tex": "5 + 6 = b + 3,\\qquad 5 \\cdot 6 = 3b + 6"
+          },
+          {
+            "title": "Solve and check",
+            "body": "The first equation gives $b = 8$. The second gives $3b = 24$, so $b = 8$ too, and the two agree. In base 8 the equation is $x^2 - 11x + 30 = 0$ in decimal terms, and $x = 5$ gives $25 - 55 + 30 = 0$, $x = 6$ gives $36 - 66 + 30 = 0$. The digits used (1, 3, 6, 5) are all below 8, so base 8 is valid."
+          }
+        ],
+        "shortcut": {
+          "body": "Add the roots: 5 + 6 = 11 must equal the coefficient 13 in base b, which is b + 3. So b = 8. A single equation is enough; the product 30 = 3b + 6 is only a check, and it agrees."
+        },
+        "traps": [
+          {
+            "text": "Answer 10: the equation is read in decimal, but then the roots would add to 13, not 11, and 5 and 6 are not roots of $x^2 - 13x + 36$ in base 10."
+          },
+          {
+            "text": "Answers 7 or 9: the digit 13 was expanded as $b + 2$ or $b + 4$ (an off-by-one in the digit 3). The digit 3 is the units digit, so 13 in base $b$ is $b + 3$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.unknown-radix",
+          "clues": "The coefficients 13 and 36 are written in an unknown base $b$ while the roots 5 and 6 are single digits, so each numeral must be expanded by place value and then compared with sums and products of the roots.",
+          "contrast": "base-conversion starts from a known base; here the base is the unknown, so the numerals become expressions in $b$ and an equation fixes $b$."
+        },
+        "check": {
+          "body": "Expand from the roots instead: $(x-5)(x-6)=x^2-11x+30$. Matching this with $x^2-13_b\\,x+36_b$ needs $b+3=11$ and $3b+6=30$, and both give $b=8$. Another base fails: $b=9$ would make the middle coefficient 12, not 11."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The numerals 13 and 36 are written in base $b$. What does each of them equal as an ordinary number that depends on $b$?"
+        },
+        {
+          "kind": "concept",
+          "text": "A two-digit numeral $d_1d_0$ in base $b$ has the value $d_1 b + d_0$, so the coefficients are expressions in $b$."
+        },
+        {
+          "kind": "principle",
+          "text": "For a monic quadratic, the roots add up to minus the middle coefficient and multiply to the constant term. These are facts about numbers, so they hold whatever base is used to write them."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the sum and the product of the two given roots as plain integers, then set each equal to the matching coefficient expressed in $b$. Two equations in one unknown give a built-in check."
+        },
+        {
+          "kind": "partial",
+          "text": "The numeral 13 in base $b$ equals $b+3$. Which sum of the roots should it match?"
+        }
+      ],
+      "variation": {
+        "stem": "Consider the quadratic equation $x^2 - 13x + 38 = 0$ with coefficients written in a base $b$. Its solutions, in the same base $b$, are $x = 5$ and $x = 7$. Then $b =$ ____.",
+        "answer": 9,
+        "explanation": "In base $b$ the numerals are $13_b=b+3$ and $38_b=3b+8$. The roots 5 and 7 add to 12, so $b+3=12$ and $b=9$. The product is 35, and $3b+8=35$ gives $b=9$ as well; the digit 8 is below 9, so the base is valid."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q7",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "dl-number-representations.fixed-point",
+      "difficulty": "easy",
+      "stem": "The $n$-bit fixed-point representation of an unsigned real number $X$ uses $f$ bits for the fraction part. Let $i = n - f$. The range of decimal values for $X$ in this representation is",
+      "options": [
+        "$2^{-f}$ to $2^{i}$",
+        "$2^{-f}$ to $(2^{i} - 2^{-f})$",
+        "$0$ to $2^{i}$",
+        "$0$ to $(2^{i} - 2^{-f})$"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "An n-bit unsigned fixed-point number with i integer bits and f fraction bits: all zeros is 0 and all ones is 2 to the i minus 2 to the minus f, shown for n equal to 8 and f equal to 3."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the fixed-point layout stores",
+            "body": "An unsigned fixed-point number has $i$ bits before the binary point and $f$ bits after it, so $n = i + f$. The stored bits are an unsigned whole number $k$ from 0 to $2^n - 1$, and the value is $k \\times 2^{-f}$, because the lowest bit has weight $2^{-f}$. The range is therefore the smallest and largest values of $k$ scaled by $2^{-f}$.",
+            "tex": "X = k \\cdot 2^{-f}, \\qquad 0 \\le k \\le 2^{n} - 1"
+          },
+          {
+            "title": "Smallest and largest value",
+            "body": "The smallest pattern is all zeros, so the minimum is 0. The largest is all ones, $k = 2^n - 1$.",
+            "tex": "X_{\\max} = \\frac{2^{n} - 1}{2^{f}} = 2^{i} - 2^{-f}"
+          },
+          {
+            "title": "Check with an example",
+            "body": "For $n = 8$ and $f = 3$ we have $i = 5$. All ones is 11111.111, which is $31 + \\tfrac78 = 31.875 = 32 - 0.125 = 2^5 - 2^{-3}$. The value $2^5 = 32$ itself would need a 6th integer bit. So the range is $0$ to $2^i - 2^{-f}$, option D."
+          }
+        ],
+        "shortcut": {
+          "body": "The smallest value is all zeros, which is 0, so options A and B (starting at the smallest nonzero step 2^-f) are out. The largest value is one step below the next power of two, 2^i, so it is 2^i - 2^-f, not 2^i. That leaves D."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "The range starting at the smallest step $2^{-f}$ is the range of the nonzero values, and the top 2^i can never be reached. The bit pattern of all zeros is a valid number and equals 0."
+          },
+          {
+            "option": 1,
+            "text": "This has the correct top value but starts at $2^{-f}$, the smallest nonzero number. The question gives the range of values for $X$, and 0 is one of them."
+          },
+          {
+            "option": 2,
+            "text": "Starting at 0 is right, but all ones is one step short of $2^i$. The value $2^i$ needs an extra integer bit, so it is outside this representation."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.fixed-point",
+          "clues": "The wording \"unsigned\", \"$f$ bits for the fraction part\" and \"range of decimal values\" asks for the extreme values of a fixed-point layout with a given split of integer and fraction bits.",
+          "contrast": "twos-complement ranges run from $-2^{n-1}$ to $2^{n-1}-1$; this number is unsigned, so the minimum is 0 and no negative end appears."
+        },
+        "check": {
+          "body": "Count the values instead. There are $2^n$ patterns spaced $2^{-f}$ apart starting at 0, so the largest value is $(2^n-1)\\,2^{-f}$. For $n=4$, $f=1$ the patterns give 0, 0.5, 1, ..., 7.5, and $2^{3}-2^{-1}=7.5$ agrees."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What are the smallest and the largest bit patterns of an unsigned $n$-bit string, and what number does each one stand for here?"
+        },
+        {
+          "kind": "concept",
+          "text": "In fixed point, the bits are an ordinary unsigned integer, and the binary point only fixes the weight of the lowest bit."
+        },
+        {
+          "kind": "principle",
+          "text": "If the lowest bit has weight $2^{-f}$, a stored integer $k$ means the value $k\\cdot 2^{-f}$, so the range is the integer range scaled by that weight."
+        },
+        {
+          "kind": "setup",
+          "text": "Take $k=0$ for the minimum and $k=2^n-1$ for the maximum, scale both by $2^{-f}$, and rewrite using $n=i+f$."
+        },
+        {
+          "kind": "partial",
+          "text": "The largest integer is $2^n-1$, so the largest value is $(2^n-1)/2^f$. Rewrite $2^n$ as $2^i\\cdot 2^f$ and simplify."
+        }
+      ],
+      "variation": {
+        "stem": "An unsigned real number is stored in a 12-bit fixed-point format with 5 bits for the fraction part. The range of decimal values it can represent is",
+        "options": [
+          "$0$ to $128$",
+          "$\\tfrac{1}{32}$ to $128$",
+          "$0$ to $127.96875$",
+          "$\\tfrac{1}{32}$ to $127.96875$"
+        ],
+        "answer": 2,
+        "explanation": "Here $i=12-5=7$ and the step is $2^{-5}=\\tfrac1{32}$. All zeros is 0 and all ones is $(2^{12}-1)/2^5 = 2^7-2^{-5}=127.96875$. The value 128 would need an eighth integer bit, and the smallest value is 0, not one step."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q9",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "difficulty": "medium",
+      "stem": "When two 8-bit numbers $A_7 \\cdots A_0$ and $B_7 \\cdots B_0$ in 2's complement representation (with $A_0$ and $B_0$ as the least significant bits) are added using a ripple-carry adder, the sum bits obtained are $S_7 \\cdots S_0$ and the carry bits are $C_7 \\cdots C_0$. An overflow is said to have occurred if",
+      "options": [
+        "the carry bit $C_7$ is 1",
+        "all the carry bits ($C_7, \\cdots, C_0$) are 1",
+        "$(A_7 \\cdot B_7 \\cdot \\overline{S_7} + \\overline{A_7} \\cdot \\overline{B_7} \\cdot S_7)$ is 1",
+        "$(A_0 \\cdot B_0 \\cdot \\overline{S_0} + \\overline{A_0} \\cdot \\overline{B_0} \\cdot S_0)$ is 1"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Three 8-bit additions in 2's complement: 100 plus 100 and minus 100 plus minus 100 overflow (the sign bit flips), while 100 plus minus 100 does not even though the carry out of bit 7 is 1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What overflow is in 2's complement",
+            "body": "In 8-bit 2's complement the bit 7 is the sign bit (1 means negative) and the range is $-128$ to $+127$. Overflow means the true sum is outside this range, so the 8 sum bits show a wrong number. A ripple-carry adder adds one column at a time from bit 0 up to bit 7 and passes a carry from each column to the next; $C_7$ is the carry out of the top column. Rule: two numbers of opposite sign can never overflow, because the sum lies between them. Two numbers of the same sign overflow exactly when the sum bit 7 has the other sign."
+          },
+          {
+            "title": "Turn the rule into a Boolean test",
+            "body": "Two negatives give a positive sum: $A_7 = B_7 = 1$ and $S_7 = 0$, which is $A_7 B_7 \\overline{S_7}$. Two positives give a negative sum: $A_7 = B_7 = 0$ and $S_7 = 1$, which is $\\overline{A_7}\\,\\overline{B_7} S_7$. Either case is overflow.",
+            "tex": "V = A_7 B_7 \\overline{S_7} + \\overline{A_7}\\,\\overline{B_7}\\, S_7"
+          },
+          {
+            "title": "See it on three additions",
+            "body": "$+100 + 100$: 0110 0100 + 0110 0100 = 1100 1000, so $S_7 = 1$ from two positives and $V = 1$, yet the carry out of bit 7 is $C_7 = 0$. $-100 + (-100)$: 1001 1100 + 1001 1100 = 1 0011 1000, so $S_7 = 0$ from two negatives, $V = 1$ and $C_7 = 1$. $+100 + (-100)$: 0110 0100 + 1001 1100 = 1 0000 0000, which is $0$, so there is no overflow, $V = 0$, but $C_7 = 1$."
+          },
+          {
+            "title": "Reject A, B and D",
+            "body": "A is false: the carry out of bit 7 is 1 in the third example (no overflow) and 0 in the first (overflow). B is false: $-1 + (-1)$ gives 1111 1110 with every carry equal to 1, but $-2$ is in range. D looks at the least significant bits: $A_0 = B_0 = 1$ forces $S_0 = 0$, so D is true for $1 + 1 = 2$, which does not overflow. A check over all 65 536 input pairs finds that C matches true overflow on every pair, and A, B and D each fail on some pair."
+          }
+        ],
+        "shortcut": {
+          "body": "Overflow in 2's complement means same-sign operands and a result of the opposite sign, and the sign is bit 7, not bit 0. Only option C tests bit 7 with that pattern. If you want the carry form: overflow = C7 XOR C6 (carry into the sign column differs from the carry out), but that form is not offered here."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "The carry out of bit 7 detects overflow for unsigned numbers. For 2's complement it fails both ways: $+100 + (-100)$ has $C_7 = 1$ with no overflow, and $+100 + 100$ overflows with $C_7 = 0$."
+          },
+          {
+            "option": 1,
+            "text": "All carries equal to 1 happens for harmless sums such as $-1 + (-1) = -2$, so it is not a test for overflow."
+          },
+          {
+            "option": 3,
+            "text": "This has the right shape but uses bit 0 instead of bit 7. The least significant bits say nothing about the sign, so the test fires on harmless sums such as $1 + 1$."
+          }
+        ],
+        "recognize": {
+          "concept": "dl-number-representations.add-sub-overflow",
+          "clues": "Two 8-bit 2's complement numbers added by a ripple-carry adder with named sum bits and carry bits, and the question asks when overflow occurs, so a condition on the sign bits is wanted.",
+          "contrast": "Carry out of the top bit signals overflow for unsigned addition; for 2's complement the sign-bit pattern (or carry into versus carry out of the sign column) decides it, and the carry out alone is misleading."
+        },
+        "check": {
+          "body": "Second route by carries: overflow equals $C_7\\oplus C_6$, the carry out of the sign column differing from the carry into it. For $+100+100$ the carry into bit 7 is 1 and the carry out is 0, so overflow, matching the sign test. For $+100+(-100)$ both carries are 1, so no overflow."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For which pairs of operands can the true sum fall outside what 8 bits of 2's complement can hold, and which pairs are always safe?"
+        },
+        {
+          "kind": "concept",
+          "text": "Overflow in 2's complement means the exact sum is outside the representable range, so the sum bits show a wrong number."
+        },
+        {
+          "kind": "principle",
+          "text": "Adding two numbers of opposite sign gives a result between them, so it cannot overflow. Only operands of the same sign can overflow, and then the result shows the opposite sign."
+        },
+        {
+          "kind": "setup",
+          "text": "Find which bit carries the sign, then write a Boolean test that fires for same-sign operands with a different-sign result. Compare that shape with each option, noting which bit position it uses."
+        },
+        {
+          "kind": "partial",
+          "text": "Try $+100+100$ and $-100+(-100)$ in 8 bits and look at the sign bit of each result against the operands. Then test each option's condition on the same two sums."
+        }
+      ],
+      "variation": {
+        "stem": "Two 6-bit numbers in 2's complement form are added, and the sum is kept in 6 bits. Which of the following additions gives an arithmetic overflow? The decimal values of the operands are given.",
+        "options": [
+          "$17 + 14$",
+          "$(-17) + (-15)$",
+          "$20 + 13$",
+          "$25 + (-30)$"
+        ],
+        "answer": 2,
+        "explanation": "With 6 bits the range is $-32$ to $31$. The exact sums are 31, $-32$, 33 and $-5$. Only $20+13=33$ leaves the range; its operands are both positive while the stored sum has sign bit 1. The pair 17 and 14 reaches 31 and $-17-15$ reaches $-32$, which still fit."
+      }
+    }
+  ],
+  "skipped": []
+}

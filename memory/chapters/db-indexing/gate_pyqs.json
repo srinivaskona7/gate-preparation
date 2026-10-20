@@ -1,0 +1,988 @@
+{
+  "chapter": "db-indexing",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2021-s2",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2017-s2"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q46",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "db-indexing.dense-sparse",
+      "difficulty": "medium",
+      "stem": "An index in a DBMS is said to be dense if an index entry appears for every search-key value in the indexed file. Otherwise it is called a sparse index. Consider the following two statements.\nS1: A hash index must be a dense index\nS2: A $B^+$ tree index can be a sparse index\nWhich one of the following options is correct?",
+      "options": [
+        "Both S1 and S2 are true",
+        "Both S1 and S2 are false",
+        "S1 is true and S2 is false",
+        "S1 is false and S2 is true"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "Dense and sparse, from the definition",
+            "body": "An index is a small lookup structure that maps a search-key value to the place in the data file where the record lives. A dense index has one entry for every search-key value in the file. A sparse index has entries for only some values, usually one per data block. The deciding rule: a sparse index is legal only when the data file is sorted on the search key. Then, to find a key, you jump to the largest index entry that is at most the key and read forward inside the block. Without sorted order that forward read proves nothing."
+          },
+          {
+            "title": "S1: a hash index",
+            "body": "A hash index sends a key $k$ to bucket $h(k)$ and nothing else. Neighbouring keys land in unrelated buckets and the data file is not ordered by the key. If a key had no entry, the lookup could not \"go to the nearest smaller key\", because no such order exists. So every key must have its own entry. S1 is true."
+          },
+          {
+            "title": "S2: a $B^+$ tree index",
+            "body": "The leaf level of a $B^+$ tree holds the search keys in sorted order. When the data file itself is sorted on that key (a clustered index), the leaves may hold only one entry per data block, which is exactly a sparse index. So a $B^+$ tree index can be sparse. S2 is true."
+          },
+          {
+            "title": "Answer",
+            "body": "S1 and S2 are both true, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask one question per statement: does the structure need sorted data to skip keys? Hash has no order, so it cannot skip, so it is dense. A $B^+$ tree keeps order, so over a sorted file it can skip. Both true, about 30 seconds. The rule is unsafe only if a question defines \"sparse\" differently."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Thinking a $B^+$ tree is always dense because its leaves look complete. Sparse over a sorted data file is allowed."
+          },
+          {
+            "option": 2,
+            "text": "Believing S2 is false because \"every $B^+$ tree leaf lists all keys\". That holds for an unclustered (secondary) tree, not for a clustered one."
+          },
+          {
+            "option": 3,
+            "text": "Believing a hash index can skip keys because buckets hold several keys. A bucket groups keys by hash value, not by order, so each key still needs its own entry."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.dense-sparse",
+          "clues": "The stem defines dense and sparse and then asks about two index types, a hash index and a $B^+$ tree index, so each statement is a test of whether the structure can skip search-key values.",
+          "contrast": "A clustered $B^+$ tree over a sorted file can be sparse, while an unclustered one cannot; tell them apart by whether the data file is sorted on the search key."
+        },
+        "check": {
+          "body": "Try to break S1: drop key 42 from a hash index. Looking up 42 hashes to a bucket with no entry for it, and with no key order there is no neighbour to fall back on, so the record is lost. For S2, take a sorted file with 10 records per block: one leaf entry per block still reaches every key."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/523110/gate-cse-2026-set-2-question-36"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Judge each statement on its own. For each structure, ask whether it could leave out a search-key value and still find that value."
+        },
+        {
+          "kind": "concept",
+          "text": "A dense index lists every search-key value. A sparse index lists only some, usually one per data block, and the lookup finishes by reading inside that block."
+        },
+        {
+          "kind": "principle",
+          "text": "Leaving entries out only works if the records are ordered on the search key, so a lookup can go to the nearest smaller entry and read forward."
+        },
+        {
+          "kind": "setup",
+          "text": "For the hash index, ask whether keys that are close in value are close in the file. For the tree, ask whether the leaf level could ever skip a key, and what the data file would need to look like if it did."
+        }
+      ],
+      "variation": {
+        "stem": "Consider two statements about indexes.\nS1: A sparse index can be built only on a search key by which the data file is sorted.\nS2: A secondary index on a non-key attribute of an unsorted data file can be sparse.\nWhich one of the following options is correct?",
+        "options": [
+          "Both S1 and S2 are true",
+          "Both S1 and S2 are false",
+          "S1 is true and S2 is false",
+          "S1 is false and S2 is true"
+        ],
+        "answer": 2,
+        "explanation": "A sparse index finds a key by jumping to the largest entry not above it and reading forward, which needs the file sorted on that key, so S1 is true. An unsorted file gives the forward read no meaning, so a secondary index on it must list every record and S2 is false. Option C."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q57",
+      "type": "nat",
+      "marks": 2,
+      "key": "33",
+      "topic": "db-indexing.insertion-splits",
+      "difficulty": "hard",
+      "stem": "In a $B^+$-tree where each node can hold at most four key values, a root to leaf path consists of the following nodes: $A = (49, 77, 83, -)$, $B = (7, 19, 33, 44)$, $C = (20^*, 22^*, 25^*, 26^*)$. The $*$-marked keys signify that these are data entries in a leaf. Assume that a pointer between keys $k_1$ and $k_2$ points to a subtree containing keys in $[k_1, k_2)$, and that when a leaf is created, the smallest key in it is copied up into its parent. A record with key value 23 is inserted into the $B^+$-tree. The smallest key value in the parent of the leaf that contains $25^*$ is __________. (Answer in integer)",
+      "answer": 33,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the one rule",
+            "body": "A node here holds at most 4 keys. A leaf holds data entries (marked *). An internal node holds separator keys and child pointers. Rule: insert into the right leaf; if a node would hold 5 keys it splits. A leaf split copies the smallest key of the new right leaf into the parent (the key stays in the leaf). An internal split moves the middle key up (it leaves the node). Splits can cascade upward."
+          },
+          {
+            "title": "Find the leaf and split it",
+            "body": "23 lies in $[19, 33)$, so it goes to leaf $C$ under $B$. $C$ becomes $20, 22, 23, 25, 26$: 5 keys, too many. Split into $(20, 22)$ and $(23, 25, 26)$. The smallest key of the new leaf, 23, is copied up into $B$."
+          },
+          {
+            "title": "Split the parent B",
+            "body": "$B$ becomes $7, 19, 23, 33, 44$: 5 keys. Split an internal node by moving the middle key, 23, up and leaving two keys on each side: $(7, 19)$ and $(33, 44)$. $A$ gets 23 and has $23, 49, 77, 83$, which fits in 4 keys."
+          },
+          {
+            "title": "Locate leaf 25*",
+            "body": "The leaf $(23, 25, 26)$ covers $[23, 33)$. After the split, that range is the first child of the node $(33, 44)$, so its parent is $(33, 44)$. Its smallest key is 33. Answer: 33."
+          }
+        ],
+        "shortcut": {
+          "body": "The leaf holding 25 is the right half of the split leaf, and the internal node above it splits too. 23 moves up the middle, so 25 stays with the upper half $(33, 44)$. About 2 minutes. Unsafe when the stem fixes a different split convention for the extra key."
+        },
+        "traps": [
+          {
+            "text": "23: that is the key copied up and then moved to the root $A$, not the parent of the leaf."
+          },
+          {
+            "text": "19: stopping after the leaf split and reading 19, the key of $B$ that used to point at the leaf's range $[19, 33)$, instead of the smallest key of the node that now holds the leaf."
+          },
+          {
+            "text": "7: reading the smallest key of the old, unsplit $B$."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.insertion-splits",
+          "clues": "Every node on the path is full, a key is inserted, and the stem fixes the copy-up rule for leaves. That means a leaf split followed by an internal split, and the question reads off a node after the cascade.",
+          "contrast": "Do not treat the leaf split and the internal split alike. The leaf keeps the copied key, the internal node gives its middle key away, and that difference decides which keys the surviving halves hold."
+        },
+        "check": {
+          "body": "Keep the invariants. The leaves must still hold the five entries 20, 22, 23, 25, 26, split as $(20, 22)$ and $(23, 25, 26)$. The root keys $23, 49, 77, 83$ stay sorted. The pointer left of 33 in $(33, 44)$ covers $[23, 33)$, and 25 lies in that range, so the leaf with 25 hangs under $(33, 44)$."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Tree after inserting 23: root A with 23, 49, 77, 83; below it B split into (7, 19) and (33, 44); leaf (20, 22) under the left half, leaf (23, 25, 26) under the right half."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/460846/gate-cse-2025-set-2-question-47"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Follow the new key down from the root, then track what each overflow pushes upward. The question asks about the node above the leaf that holds 25, after all splitting is done."
+        },
+        {
+          "kind": "concept",
+          "text": "A node that would hold more than 4 keys splits in two. A leaf split copies a key up and keeps it in the leaf, while an internal split moves a key up and removes it from the node."
+        },
+        {
+          "kind": "principle",
+          "text": "A pointer between $k_1$ and $k_2$ covers $[k_1, k_2)$. Use that to find the leaf for the new key, and later to see which keys bound the leaf holding 25."
+        },
+        {
+          "kind": "setup",
+          "text": "Insert 23 into $C$ and count its keys. If it overflows, split it evenly and decide which key goes into $B$. Then count the keys of $B$ and see whether it overflows as well."
+        },
+        {
+          "kind": "partial",
+          "text": "$C$ splits into $(20, 22)$ and $(23, 25, 26)$, so 23 is copied into $B$ and $B$ now holds five keys. Decide which key leaves $B$ at the middle and which keys stay on each side."
+        }
+      ],
+      "variation": {
+        "stem": "In a $B^+$-tree where each node can hold at most four key values, a root to leaf path consists of the nodes $A = (40, 70, 90, -)$, $B = (6, 14, 28, 37)$ and $C = (14^*, 17^*, 19^*, 23^*)$. The $*$-marked keys are data entries in a leaf. A pointer between keys $k_1$ and $k_2$ points to a subtree containing keys in $[k_1, k_2)$, and when a leaf is created, the smallest key in it is copied up into its parent. A record with key 21 is inserted. The smallest key value in the parent of the leaf that contains $23^*$ is __________. (Answer in integer)",
+        "answer": 28,
+        "explanation": "21 lies in $[14, 28)$, so it goes to $C$, which overflows and splits into $(14, 17)$ and $(19, 21, 23)$, copying 19 into $B$. $B$ holds $6, 14, 19, 28, 37$ and splits, moving the middle key 19 up to $A$ and leaving $(6, 14)$ and $(28, 37)$. The leaf with 23 covers $[19, 28)$, the first child of $(28, 37)$, so the answer is 28."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q21",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;D",
+      "topic": "db-indexing.insertion-splits",
+      "difficulty": "medium",
+      "stem": "Consider the following $B^+$ tree with 5 nodes, in which a node can store at most 3 key values. The value 23 is now inserted in the $B^+$ tree. Which of the following options(s) is/are CORRECT?",
+      "figure": "The root holds the keys 6, 12, 19. It has four children, all leaves: (1, 4, 3), (7, 9, 10), (13, 15, 17) and (20, 21, 22). A node holds at most 3 keys.",
+      "options": [
+        "None of the nodes will split.",
+        "At least one node will split and redistribute.",
+        "The total number of nodes will remain same.",
+        "The height of the tree will increase."
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "diagram": {
+        "alt": "Root with keys 6, 12, 19 above four full leaves."
+      },
+      "solutionDiagram": {
+        "alt": "Tree after inserting 23: new root 19, internal nodes (6, 12) and (22), five leaves."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "Order here is the capacity: each node stores at most 3 keys. In a $B^+$ tree all data keys sit in the leaves, and a key is inserted in the leaf whose range contains it. If a node would exceed its capacity it splits in two. A leaf split copies the first key of the new right leaf up into the parent. If the parent overflows it splits too, and if the root splits the tree grows one level taller."
+          },
+          {
+            "title": "Where 23 goes",
+            "body": "The last pointer of the root covers keys $\\ge 19$, so 23 goes to leaf $(20, 21, 22)$. That leaf is full, so it would hold $20, 21, 22, 23$: 4 keys. It must split."
+          },
+          {
+            "title": "Split the leaf",
+            "body": "Split into $(20, 21)$ and $(22, 23)$. Copy 22 up into the root."
+          },
+          {
+            "title": "The root overflows",
+            "body": "The root now holds $6, 12, 19, 22$: 4 keys, over the limit. The root splits: 19 moves up as the new root, with $(6, 12)$ and $(22)$ as its children. The tree has gone from 2 levels to 3, so its height increased, and the node count went from 5 to 8."
+          },
+          {
+            "title": "Check each option",
+            "body": "A false: nodes split. B true: a leaf and the root both split. C false: 5 nodes become 8. D true: a new root was created. Answer: B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Spot that both the target leaf and the root are full. A full leaf splits and pushes a key into a full root, which then splits and adds a level. Fewer than 90 seconds. Unsafe if the leaf had a free slot: then nothing splits."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Missing that the leaf $(20, 21, 22)$ is already full."
+          },
+          {
+            "option": 2,
+            "text": "Counting only the leaf split as one extra node; the root split adds more nodes, so the count never stays the same."
+          },
+          {
+            "text": "Stopping after the leaf split: with a full root, the push-up cascades and the height increases (option D is easy to leave out)."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.insertion-splits",
+          "clues": "A figure of a tree whose leaves are full, a node capacity of 3, and one insertion; the options ask about splits, node count and height, which are the effects of an overflow that may cascade.",
+          "contrast": "This is about structure after insertion, not about search cost. Do not answer from node counts alone, because a split that reaches the root changes the height as well."
+        },
+        "check": {
+          "body": "Count after the insertion. The leaves are $(1, 4, 3)$, $(7, 9, 10)$, $(13, 15, 17)$, $(20, 21)$ and $(22, 23)$ with 13 data keys, under two internal nodes and one new root. That is 8 nodes against 5 before. All leaves sit at the same depth, three levels down, so the tree grew by exactly one level."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/460069/gate-cse-2025-set-1-question-11"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Insert 23 by hand and watch what happens at each level. Judge the four statements only after that."
+        },
+        {
+          "kind": "concept",
+          "text": "A node that would exceed 3 keys splits in two. A leaf split copies a key up into the parent, and a split of the root adds a level to the tree."
+        },
+        {
+          "kind": "principle",
+          "text": "Whether a node splits depends on whether the target node has a free slot, and whether the split travels upward depends on whether the parent has one."
+        },
+        {
+          "kind": "setup",
+          "text": "Use the root keys to choose the leaf for 23. Then count the keys in that leaf and in the root before and after each insertion step, and count the nodes at the end."
+        },
+        {
+          "kind": "partial",
+          "text": "23 is at least 19, so it belongs in the last leaf, which already holds three keys and cannot take a fourth without splitting."
+        }
+      ],
+      "variation": {
+        "stem": "Consider a $B^+$ tree in which a node can store at most 3 key values. The root holds the keys 8 and 16 and has three leaf children: $(2, 5, 7)$, $(9, 11, 14)$ and $(17, 19, 20)$. The value 12 is now inserted. Which of the following option(s) is/are CORRECT?",
+        "options": [
+          "No node will split.",
+          "Exactly one node will split.",
+          "The total number of nodes will increase by one.",
+          "The height of the tree will increase."
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "12 belongs in the leaf $(9, 11, 14)$, which is full, so it splits into $(9, 11)$ and $(12, 14)$ and 12 is copied into the root. The root then holds $8, 12, 16$, which fits in 3 keys, so the split stops there. One node splits, the node count rises from 4 to 5 and the height stays the same. Options B and C."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q26",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;B",
+      "topic": "db-indexing.file-organization",
+      "difficulty": "medium",
+      "stem": "Which of the following file organizations is/are I/O efficient for the scan operation in DBMS?",
+      "options": [
+        "Sorted",
+        "Heap",
+        "Unclustered tree index",
+        "Unclustered hash index"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A scan reads every record of the file. Cost is measured in disk block reads, not records. A file of $b$ blocks can be scanned in $b$ reads when the records sit packed in consecutive blocks. A clustered organization stores records in the file itself; an unclustered index only stores pointers, while the records stay wherever they are."
+          },
+          {
+            "title": "Heap and sorted",
+            "body": "A heap file stores records back to back in blocks, so a scan costs $b$ block reads. A sorted file is also packed in blocks (just in key order), so a scan costs about $b$ reads too. Both are efficient."
+          },
+          {
+            "title": "Unclustered indexes",
+            "body": "Following the leaf entries of an unclustered tree index gives one pointer per record, and neighbouring entries can point to different blocks. In the worst case each record costs its own block read, so $r$ reads in place of $b$. $r$ is the bfr times larger. An unclustered hash index is worse still: entries sit in buckets by hash, with no useful order. Both are inefficient."
+          },
+          {
+            "title": "Answer",
+            "body": "Sorted and heap files can be scanned in about $b$ block reads, and the two unclustered indexes cannot. The answer is options A and B."
+          }
+        ],
+        "shortcut": {
+          "body": "A scan wants contiguous blocks. Only the two organizations that hold the records themselves in packed blocks, heap and sorted, qualify. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Choosing option C because tree leaves are sorted. Sorted pointers still jump between blocks, so each record can cost a read."
+          },
+          {
+            "text": "Choosing option D because a hash index \"finds every record\": it finds them by key, not in a cheap sequential sweep."
+          },
+          {
+            "text": "Dropping the heap file because it is unordered. Order does not matter for a full scan."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.file-organization",
+          "clues": "The word scan means reading every record, so cost is about the number of blocks, and the options list file organizations and index kinds that differ in how compactly they hold the records.",
+          "contrast": "Searching for one key is a different question, where a tree or hash index beats a scan. For a full scan the ranking depends on how compactly the records are stored, not on how fast a key is located."
+        },
+        "check": {
+          "body": "Put in numbers: 1000 blocks of 10 records each, so 10,000 records. Reading a heap or sorted file takes 1000 reads. Walking an unclustered index can take 10,000 reads, ten times more. The penalty equals the blocking factor, and with one record per block the two would tie, which fits the cause being scattered records."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/422881/gate-cse-2024-set-2-question-16"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Think about what a full scan needs: every record, read as cheaply as possible. Count block reads, not records."
+        },
+        {
+          "kind": "concept",
+          "text": "Disk cost is counted in blocks. A file of $b$ blocks read in physical order costs about $b$ reads when the records themselves are packed into those blocks."
+        },
+        {
+          "kind": "principle",
+          "text": "An index that stores only pointers does not move the records. Following pointer after pointer can land in a different block each time, so the reads can approach the number of records."
+        },
+        {
+          "kind": "setup",
+          "text": "For each organization ask two things. Does it hold the records themselves in packed blocks? And if you read it from end to end, how many block reads per record can it cost in the worst case?"
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following file organizations is/are I/O efficient for reading all the records in order of the search key?",
+        "options": [
+          "Sorted file",
+          "Heap file",
+          "Clustered tree index",
+          "Unclustered tree index"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Take $b = 1000$ blocks and $r = 10{,}000$ records. A sorted file is read in about $b$ reads. A clustered tree keeps the records in key order next to its leaves, so it also costs about $b$. A heap file is in no useful order, so it needs a sort that adds at least $2b$ more I/Os, and an unclustered tree can cost up to $r$ reads. Options A and C."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q21",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "db-indexing.b-plus-tree",
+      "difficulty": "easy",
+      "stem": "In a $B^+$ tree, the requirement of at least half-full (50%) node occupancy is relaxed for which one of the following cases?",
+      "options": [
+        "Only the root node",
+        "All leaf nodes",
+        "All internal nodes",
+        "Only the leftmost leaf node"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A $B^+$ tree keeps its height balanced by requiring every node to be at least half full: that is the minimum occupancy. Without it a tree could degenerate into long, nearly empty nodes. When a node drops below the minimum after a deletion, it borrows from a neighbour or merges."
+          },
+          {
+            "title": "Why the root is different",
+            "body": "The root has no sibling to borrow from or merge with. A tree with few records has a root holding just 1 key and 2 children (or only a leaf root). Forcing half occupancy would make small trees impossible. When the last two children of the root merge, the root disappears and the child becomes the new root."
+          },
+          {
+            "title": "Answer",
+            "body": "Only the root is excused, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "Recall \"all nodes at least half full except the root\". 20 seconds. Safe for every textbook definition."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Thinking the leaves are exempt because they hold data. Leaves must be at least half full too."
+          },
+          {
+            "option": 2,
+            "text": "Thinking internal nodes are exempt; they follow the same minimum fan-out rule."
+          },
+          {
+            "option": 3,
+            "text": "Picking a leaf by position. No leaf is special by position."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.b-plus-tree",
+          "clues": "The words at least half-full, 50% occupancy and relaxed point at the minimum-occupancy invariant of a $B^+$ tree, and the options name which nodes are exempt.",
+          "contrast": "The maximum-capacity rule, where a node splits when it overflows, has no exemptions. Only the lower bound has one, so do not mix the two rules."
+        },
+        "check": {
+          "body": "Test with at most 3 keys per node, so a non-root node needs at least 2. After a single insertion the tree is one node holding 1 key, below that minimum, yet the tree is valid. Any other node always has a sibling to borrow from or merge with, so it can keep the minimum."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/422831/gate-cse-2024-set-1-question-11"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The rule being relaxed is the minimum occupancy of a $B^+$ tree node. Ask what that rule protects, and where a tree has to break it in order to exist at all."
+        },
+        {
+          "kind": "concept",
+          "text": "In general a node must hold at least about half of its capacity. After a deletion the tree restores this by borrowing from a sibling or by merging with one."
+        },
+        {
+          "kind": "principle",
+          "text": "A rule that works by borrowing or merging can only bind a node that has a neighbour to borrow from. It also cannot bind when the tree holds too few keys to fill even one node halfway."
+        },
+        {
+          "kind": "setup",
+          "text": "Picture the smallest tree after one or two insertions. Find the node that would break the half-full rule there and match it to an option."
+        }
+      ],
+      "variation": {
+        "stem": "In a $B^+$ tree an internal node has at most 6 children, and every non-root internal node must have at least half of that, rounded up. What is the smallest number of children the root may have when it is an internal node?",
+        "options": [
+          "2",
+          "3",
+          "1",
+          "6"
+        ],
+        "answer": 0,
+        "explanation": "Non-root internal nodes need $\\lceil 6/2 \\rceil = 3$ children, but the root is excused from the half-full rule. A root that is an internal node needs only 2 children, one on each side of its single key. Option A; 3 is the non-root minimum, 1 counts keys instead of children, and 6 is the maximum."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q62",
+      "type": "nat",
+      "marks": 2,
+      "key": "6",
+      "topic": "db-indexing.index-access-cost",
+      "difficulty": "medium",
+      "stem": "Consider a database of fixed-length records, stored as an ordered file. The database has 25,000 records, with each record being 100 bytes, of which the primary key occupies 15 bytes. The data file is block-aligned in that each data record is fully contained within a block. The database is indexed by a primary index file, which is also stored as a block-aligned ordered file. The figure below depicts this indexing scheme. Suppose the block size of the file system is 1024 bytes, and a pointer to a block occupies 5 bytes. The system uses binary search on the index file to search for a record with a given key. You may assume that a binary search on an index file of $b$ blocks takes $\\log_2 b$ block accesses in the worst case. Given a key, the number of block accesses required to identify the block in the data file that may contain a record with the key, in the worst case, is __________.",
+      "figure": "A data file with records of 15 bytes of primary key and 85 bytes of other fields. An index file beside it has one entry per data block: the block anchor primary key and a block pointer.",
+      "diagram": {
+        "alt": "A sorted data file of 100-byte records and, beside it, an index file with one block-anchor key and block pointer per data block."
+      },
+      "answer": 6,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A primary index is built on the sorted key of an ordered file and holds one entry per data block: the block anchor (its first key) and a pointer to the block. Because the file is sorted, one entry per block is enough. The index is itself a sorted file stored in blocks, so we can binary-search it. Block-aligned means a record never straddles two blocks, so the blocking factor is $\\lfloor B/R \\rfloor$. The question asks only for the reads needed to identify the data block, which is the search in the index file."
+          },
+          {
+            "title": "Data file blocks",
+            "body": "Blocking factor $\\lfloor 1024/100 \\rfloor = 10$ records per block. Blocks: $25000/10 = 2500$. So the index has 2500 entries."
+          },
+          {
+            "title": "Index file blocks",
+            "body": "An entry is $15 + 5 = 20$ bytes. Entries per block: $\\lfloor 1024/20 \\rfloor = 51$. Blocks: $\\lceil 2500/51 \\rceil = 50$.",
+            "tex": "b_i = \\left\\lceil \\dfrac{2500}{51} \\right\\rceil = 50"
+          },
+          {
+            "title": "Binary search",
+            "body": "Worst case $\\lceil \\log_2 50 \\rceil = \\lceil 5.64 \\rceil = 6$ reads. The anchor entry found names the one data block, so no data block is read yet. Answer: 6.",
+            "tex": "\\lceil \\log_2 50 \\rceil = 6"
+          }
+        ],
+        "shortcut": {
+          "body": "10 records per block gives 2500 data blocks; 51 index entries per block gives about 50 index blocks; $2^5 = 32 < 50 \\le 64 = 2^6$, so 6. About 2 minutes. Do not add 1: the question stops before reading the data block."
+        },
+        "traps": [
+          {
+            "text": "7: adding one read for the data block itself. The question asks to identify the block, not to read it."
+          },
+          {
+            "text": "9: building a dense index of 25,000 entries ($\\lceil 25000/51 \\rceil = 491$ blocks). A primary index has one entry per block."
+          },
+          {
+            "text": "5: rounding $\\log_2 50 = 5.64$ down. The worst case needs the ceiling."
+          },
+          {
+            "text": "12: binary-searching the 2500 data blocks directly, ignoring the index."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.index-access-cost",
+          "clues": "Primary index, ordered file, block-aligned and binary search on the index file together say: count the index file blocks from one entry per data block, then take a logarithm.",
+          "contrast": "A dense secondary index has one entry per record and so many more blocks. Here the index is on the sorted key, so one entry per data block is enough."
+        },
+        "check": {
+          "body": "Test the bound with 50 index blocks. Five halvings reach $2^5 = 32 < 50$, so five reads cannot always finish the search. Six halvings reach $2^6 = 64 \\ge 50$, so six always do."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Index file of 50 blocks and the halving steps of binary search, ending after 6 reads."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/399259/gate-cse-2023-question-52"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question stops at identifying the data block. Decide which file is searched and which file is not yet touched."
+        },
+        {
+          "kind": "concept",
+          "text": "A primary index on an ordered file has one entry per data block: a block anchor key and a block pointer. The index is itself an ordered file that can be binary searched."
+        },
+        {
+          "kind": "principle",
+          "text": "Records are block-aligned, so a blocking factor is the floor of block size over entry size, for the data file and the index alike. Binary search over $b$ blocks costs the ceiling of $\\log_2 b$ in the worst case."
+        },
+        {
+          "kind": "setup",
+          "text": "Work in order: records per data block, number of data blocks, bytes per index entry, entries per index block, number of index blocks. Apply the logarithm last."
+        },
+        {
+          "kind": "partial",
+          "text": "A data block holds 10 records, so the 25,000 records need 2,500 data blocks, and the index has one entry for each of them."
+        }
+      ],
+      "variation": {
+        "stem": "A database of fixed-length records is stored as an ordered file with 30,000 records of 100 bytes each, and the primary key takes 12 bytes. Records are not split across blocks. A primary index, stored as a block-aligned ordered file, has one entry per data block holding the block anchor key and a 6-byte block pointer. The block size is 512 bytes. Binary search on an index file of $b$ blocks takes $\\lceil \\log_2 b \\rceil$ block accesses in the worst case. The number of block accesses needed to identify the data block that may contain a given key, in the worst case, is __________.",
+        "answer": 8,
+        "explanation": "A block holds $\\lfloor 512/100 \\rfloor = 5$ records, so there are 6000 data blocks and 6000 index entries. An entry is $12 + 6 = 18$ bytes, so a block holds 28 entries and the index has $\\lceil 6000/28 \\rceil = 215$ blocks. Binary search takes $\\lceil \\log_2 215 \\rceil = 8$ accesses."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q21",
+      "type": "nat",
+      "marks": 1,
+      "key": "698",
+      "topic": "db-indexing.blocking-factor",
+      "difficulty": "easy",
+      "stem": "A data file consisting of 1,50,000 student-records is stored on a hard disk with block size of 4096 bytes. The data file is sorted on the primary key RollNo. The size of a record pointer for this disk is 7 bytes. Each student-record has a candidate key attribute called ANum of size 12 bytes. Suppose an index file with records consisting of two fields, ANum value and the record pointer to the corresponding student record, is built and stored on the same disk. Assume that the records of data file and index file are not split across disk blocks. The number of blocks in the index file is __________.",
+      "answer": 698,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "The data file is sorted on RollNo, but the index is on ANum, a different key. So the data are not in ANum order, and the index must have one entry for every record (a dense, secondary index). Rule: blocks needed = $\\lceil \\text{entries} / \\text{entries per block} \\rceil$, and entries per block is $\\lfloor B / \\text{entry size} \\rfloor$ because entries are not split across blocks."
+          },
+          {
+            "title": "Entry size and blocking factor",
+            "body": "One entry is $12 + 7 = 19$ bytes. Entries per block: $\\lfloor 4096/19 \\rfloor = \\lfloor 215.58 \\rfloor = 215$."
+          },
+          {
+            "title": "Blocks",
+            "body": "Entries: 150000, one per student record. Blocks: $\\lceil 150000/215 \\rceil = \\lceil 697.67 \\rceil = 698$.",
+            "tex": "\\left\\lceil \\dfrac{150000}{\\lfloor 4096/19 \\rfloor} \\right\\rceil = 698"
+          }
+        ],
+        "shortcut": {
+          "body": "$19 \\times 215 = 4085 \\le 4096$, so 215 fit; $150000/215 \\approx 697.7$, round up to 698. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "696: multiplying $150000 \\times 19$ and dividing by 4096 (695.8), which lets entries be split across blocks."
+          },
+          {
+            "text": "697: rounding 697.67 down. A leftover entry still needs a block."
+          },
+          {
+            "text": "Fewer blocks from a sparse index: the file is sorted on a different key, so sparse is impossible."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.blocking-factor",
+          "clues": "The index is on ANum while the file is sorted on RollNo, so there is one entry per record, and records not split across blocks means a floor for entries per block.",
+          "contrast": "A primary index on the sort key needs only one entry per data block and gives far fewer blocks. Check which attribute the file is sorted on before counting entries."
+        },
+        "check": {
+          "body": "Test the count from both sides. 698 blocks of 215 entries hold up to $698 \\times 215 = 150{,}070$ entries, enough for 150,000. 697 blocks hold $697 \\times 215 = 149{,}855$, which is short, so 698 is the least that works."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/357519/gate-cse-2021-set-2-question-21"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "First ask whether the index can have fewer entries than the file has records. Compare the attribute the data file is sorted on with the attribute the index is built on."
+        },
+        {
+          "kind": "concept",
+          "text": "A sparse index needs the data file sorted on the indexed attribute. Otherwise the index needs one entry for every record."
+        },
+        {
+          "kind": "principle",
+          "text": "Entries are not split across blocks, so entries per block is a floor of block size over entry size, and the number of blocks is a ceiling of entries over entries per block."
+        },
+        {
+          "kind": "setup",
+          "text": "Add the two fields to get the entry size, divide the block size by it and round down, then divide the number of entries by that and round up."
+        },
+        {
+          "kind": "partial",
+          "text": "Each entry holds the key and the pointer, so it takes 19 bytes, and the number of entries is fixed by the index type you decided on."
+        }
+      ],
+      "variation": {
+        "stem": "A data file of 2,50,000 student-records is stored on a disk with block size 4096 bytes, sorted on the attribute RollNo. Each record has another candidate key, PanNo, of 15 bytes, and a record pointer is 9 bytes. An index file whose records have two fields, the PanNo value and the record pointer, is built on PanNo and stored on the same disk. Records of the index file are not split across blocks. The number of blocks in the index file is __________.",
+        "answer": 1471,
+        "explanation": "The file is sorted on RollNo, not PanNo, so the index needs one entry per record: 250,000 entries. An entry is $15 + 9 = 24$ bytes, so $\\lfloor 4096/24 \\rfloor = 170$ entries fit in a block. The index needs $\\lceil 250000/170 \\rceil = 1471$ blocks."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q54",
+      "type": "nat",
+      "marks": 2,
+      "key": "4",
+      "topic": "db-indexing.tree-search-cost",
+      "difficulty": "medium",
+      "stem": "Consider a database implemented using $B^+$ tree for file indexing and installed on a disk drive with block size of 4 KB. The size of search key is 12 bytes and the size of tree/disk pointer is 8 bytes. Assume that the database has one million records. Also assume that no node of the $B^+$ tree and no records are present initially in main memory. Consider that each record fits into one disk block. The minimum number of disk accesses required to retrieve any record in the database is __________.",
+      "answer": 4,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A $B^+$ tree node is one disk block. Searching reads one node per level from the root down to a leaf, then one block for the record. So accesses = levels + 1. \"Minimum\" means the best case: pack every node full, which gives the fewest levels. Order $p$ is the maximum number of child pointers, with $p - 1$ keys."
+          },
+          {
+            "title": "Node capacity",
+            "body": "Fit $p$ pointers and $p - 1$ keys in 4096 bytes: $8p + 12(p - 1) \\le 4096$ gives $20p \\le 4108$, so $p = 205$, with 204 keys per node (leaves also hold 204 keys, because the record pointer is the same size as a tree pointer).",
+            "tex": "8p + 12(p-1) \\le 4096 \\Rightarrow p = 205"
+          },
+          {
+            "title": "Levels needed",
+            "body": "With full nodes, $h$ levels hold at most $205^{h-1} \\times 204$ keys: 204 for 1 level, 41,820 for 2, 8,573,100 for 3. One million needs 3 levels."
+          },
+          {
+            "title": "Add the data block",
+            "body": "3 node reads plus 1 read of the record block: 4."
+          }
+        ],
+        "shortcut": {
+          "body": "Fan-out is about 200. $200^2 = 40{,}000 < 10^6 < 8 \\times 10^6 = 200^3$, so 3 levels, plus 1 data block: 4. About 1.5 minutes. Do not drop the data block."
+        },
+        "traps": [
+          {
+            "text": "3: counting only tree levels and forgetting the read of the record itself."
+          },
+          {
+            "text": "5: using a half-full tree or a 4-level height, which is the worst case, not the minimum."
+          },
+          {
+            "text": "2: treating the root as already in main memory, which the question rules out, and also leaving out the read of the record block."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.tree-search-cost",
+          "clues": "One million records, a block size, key and pointer sizes and the words minimum number of disk accesses point to fan-out from node order, then the height, then one more read for the record.",
+          "contrast": "Maximum or minimum keys for a given height is the capacity question. Here the capacity is used in reverse to find the height, and the data block read is then added."
+        },
+        "check": {
+          "body": "Check the two heights on either side. Two levels of full nodes index at most $205 \\times 204 = 41{,}820$ keys, below a million. Three levels index $205^2 \\times 204 = 8{,}573{,}100$, above a million. So 3 levels suffice and 2 do not."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Three B+ tree levels, each costing one read, then one data block read: 4 accesses."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/333177/gate-cse-2020-question-54"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Count what a search must read from the top of the tree to the record, and note that nothing is cached in main memory."
+        },
+        {
+          "kind": "concept",
+          "text": "In a $B^+$ tree each node occupies one disk block, so a search reads one block per level and then reads the block of the record."
+        },
+        {
+          "kind": "principle",
+          "text": "The fewest reads come from the shortest possible tree, the one with every node full. The number of levels is the least that holds all the keys at full capacity."
+        },
+        {
+          "kind": "setup",
+          "text": "Find how many pointers fit in a block using the pointers plus one fewer keys. Then find how many keys $h$ levels of full nodes can index, and find the smallest $h$ that reaches one million."
+        },
+        {
+          "kind": "partial",
+          "text": "A full node has a fan-out in the low 200s, so two levels of full nodes index only some tens of thousands of keys."
+        }
+      ],
+      "variation": {
+        "stem": "A database uses a $B^+$ tree for file indexing on a disk with block size 8 KB. The search key is 16 bytes and a tree or disk pointer is 8 bytes. The database has 50 million records and each record fits in one disk block. No node of the tree and no record is in main memory at the start. The minimum number of disk accesses required to retrieve any record is __________.",
+        "answer": 5,
+        "explanation": "With $p$ pointers and $p - 1$ keys, $8p + 16(p-1) \\le 8192$ gives $p = 342$, so 341 keys per node. Full nodes index $341$ keys on 1 level, $342 \\times 341$ on 2 and $342^2 \\times 341 \\approx 3.99 \\times 10^7$ on 3, which is under 50 million, so 4 levels are needed. Add one read for the record: 5."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q14",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "db-indexing.b-plus-tree",
+      "difficulty": "easy",
+      "stem": "Which one of the following statements is NOT correct about the $B^+$ tree data structure used for creating an index of a relational database table?",
+      "options": [
+        "$B^+$ Tree is a height-balanced tree",
+        "Non-leaf nodes have pointers to data records",
+        "Key values in each node are kept in sorted order",
+        "Each leaf node has a pointer to the next leaf node"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A $B^+$ tree is a search tree on disk blocks. Internal (non-leaf) nodes hold only separator keys and pointers to child nodes, which guide the search. All real entries, key plus pointer to the data record, sit in the leaves. The leaves are chained left to right so range queries can walk along them."
+          },
+          {
+            "title": "Check each statement",
+            "body": "A is true: all leaves lie at the same depth. C is true: keys inside a node are sorted. D is true: leaves link to the next leaf. B is false: internal nodes point to child nodes, not to data records. Only leaves point to records."
+          },
+          {
+            "title": "Answer",
+            "body": "The incorrect statement is B, option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Recall the defining difference from a B-tree: data pointers appear only in leaves. 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Doubting \"height-balanced\": every leaf has the same depth, so it is true."
+          },
+          {
+            "option": 2,
+            "text": "Doubting sorted keys; sorting is what enables binary search inside a node."
+          },
+          {
+            "option": 3,
+            "text": "Forgetting the leaf chain, which exists for range scans."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.b-plus-tree",
+          "clues": "The stem asks which statement is NOT correct about a $B^+$ tree index, and one option places pointers to data records in non-leaf nodes, which is the place to test first.",
+          "contrast": "A B tree stores record pointers in internal nodes too, while a $B^+$ tree keeps them only in the leaves; ask where the record pointers sit to tell them apart."
+        },
+        "check": {
+          "body": "Take a 4096-byte block with 8-byte keys and 8-byte pointers. An internal node with only child pointers fits $8p + 8(p-1) \\le 4096$, so $p = 256$. If each key also carried an 8-byte record pointer, it would need $8p + 16(p-1) \\le 4096$, so $p = 171$. The smaller fan-out makes the tree taller, which costs extra block reads per lookup, so a design that keeps record pointers out of internal nodes is the one that fits the other three statements: equal leaf depth, sorted keys and a leaf chain."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/302834/gate-cse-2019-question-14"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Three of the four statements are true of a $B^+$ tree index. Test each option against what you know of the structure, and find the one that fails."
+        },
+        {
+          "kind": "concept",
+          "text": "A $B^+$ tree is a height-balanced search tree whose nodes are disk blocks, so one block read should cut the search down as much as possible."
+        },
+        {
+          "kind": "principle",
+          "text": "The $B^+$ tree differs from the plain B tree in where record pointers are kept. Decide for each option whether it fits that rule."
+        },
+        {
+          "kind": "setup",
+          "text": "Take the options one at a time and picture a node: what does an internal node hold, what does a leaf hold, and how are the leaves related to each other?"
+        }
+      ],
+      "variation": {
+        "stem": "Which one of the following statements is NOT correct about a $B^+$ tree used as a database index?",
+        "options": [
+          "A range query can be answered by one root-to-leaf search followed by a walk along the leaf chain",
+          "Every search key present in the index appears in some leaf node",
+          "A search for a key that equals a separator key in an internal node stops at that internal node",
+          "When a leaf overflows on insertion, it is split and a separator key is sent up to its parent"
+        ],
+        "answer": 2,
+        "explanation": "Separator keys in internal nodes only direct the search, and the entry with its record pointer is in a leaf, so the search must continue down to the leaf even when the key equals a separator. That makes the third statement false. The others describe the leaf chain, the leaf level holding all keys, and the split that copies a separator upward. Option C."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q49",
+      "type": "nat",
+      "marks": 2,
+      "key": "52.0",
+      "topic": "db-indexing.node-order",
+      "difficulty": "easy",
+      "stem": "In a $B^+$ tree, if the search-key value is 8 bytes long, the block size is 512 bytes and the block pointer size is 2 bytes, then the maximum order of the $B^+$ tree is __________.",
+      "answer": 52,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "The order $p$ of a $B^+$ tree is the maximum number of child pointers an internal node holds. A node with $p$ pointers holds $p - 1$ keys. The whole node must fit in one disk block, so the rule is: pointers times pointer size plus keys times key size must be at most the block size."
+          },
+          {
+            "title": "Set up",
+            "body": "$2p + 8(p - 1) \\le 512$.",
+            "tex": "2p + 8(p-1) \\le 512"
+          },
+          {
+            "title": "Solve",
+            "body": "$10p \\le 520$, so $p \\le 52$. The largest integer is 52, so $52 \\times 2 + 51 \\times 8 = 512$ bytes fit exactly. The leaf, with the same pointer size for records and the next leaf, gives the same bound. Answer: 52."
+          }
+        ],
+        "shortcut": {
+          "body": "One pointer-key pair costs 10 bytes, and the node has one spare pointer: $(512 + 8)/10 = 52$. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "51: reporting the number of keys ($p - 1$) instead of the order, or dividing 512 by the pair size 10 and rounding down, which forgets the extra pointer; both slips give 51."
+          },
+          {
+            "text": "64: dividing 512 by the key size alone."
+          }
+        ],
+        "recognize": {
+          "concept": "db-indexing.node-order",
+          "clues": "The stem gives a key size, a block pointer size and a block size, and asks for the maximum order, so the node must be fitted into one block.",
+          "contrast": "Counting entries in a leaf uses a different size inequality, since a leaf has keys with record pointers; here the question names block pointers, which points to the internal node rule."
+        },
+        "check": {
+          "body": "Substitute both neighbours. For $p = 52$, the node needs $52 \\times 2 + 51 \\times 8 = 512$ bytes, which fits exactly. For $p = 53$, it needs $53 \\times 2 + 52 \\times 8 = 522$ bytes, which exceeds the block. So 52 is the largest order that fits."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow discussion",
+          "url": "https://gateoverflow.in/118561/gate-cse-2017-set-2-question-49"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What must be true about the size of one node, given that a node is stored in one disk block?"
+        },
+        {
+          "kind": "concept",
+          "text": "The order of a $B^+$ tree is the largest number of child pointers a node can hold, and a node holds one fewer key than it has child pointers."
+        },
+        {
+          "kind": "principle",
+          "text": "Write the total bytes of the pointers plus the total bytes of the keys, and require that sum not to exceed the block size."
+        },
+        {
+          "kind": "setup",
+          "text": "Let $p$ be the order. Express the number of pointers and the number of keys in terms of $p$, multiply each by its size, and form an inequality with the block size."
+        },
+        {
+          "kind": "partial",
+          "text": "The inequality simplifies to a multiple of $p$ on the left and a number a little above the block size on the right. Divide, then round down to a whole number."
+        }
+      ],
+      "variation": {
+        "stem": "In a $B^+$ tree, the search-key value is 12 bytes long, the block size is 1000 bytes and the block pointer size is 4 bytes. The maximum order of the $B^+$ tree is __________.",
+        "answer": 63,
+        "explanation": "A node with $p$ pointers has $p - 1$ keys, so $4p + 12(p - 1) \\le 1000$, which gives $16p \\le 1012$ and $p \\le 63.25$. The largest whole order is 63, using $63 \\times 4 + 62 \\times 12 = 996$ bytes."
+      }
+    }
+  ],
+  "skipped": []
+}

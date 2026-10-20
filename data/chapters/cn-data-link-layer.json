@@ -1,0 +1,2159 @@
+{
+  "id": "cn-data-link-layer",
+  "summary": "The data link layer moves frames across a single link: it detects transmission errors, controls the flow of frames, and decides who may use a shared medium. GATE asks for computation here: a CRC remainder by XOR division, check bits for a Hamming code, stop-and-wait and sliding-window efficiency from a = T_p/T_t, window and sequence-number bounds for Go-Back-N and Selective Repeat, ALOHA throughput, and the CSMA/CD minimum frame size 2·T_p·R. Ethernet's frame format and backoff close the chapter; framing and learning bridges stay as background.",
+  "highYield": [
+    "CRC by modulo-2 division: append r zeros, XOR-divide by the (r + 1)-bit generator and send the r-bit remainder; also which error patterns a given generator always catches.",
+    "Efficiency 1/(1 + 2a) for stop-and-wait and min(1, W/(1 + 2a)) for a window W, with throughput = efficiency × bandwidth.",
+    "Window bounds with k-bit sequence numbers: 2ᵏ − 1 for Go-Back-N and 2ᵏ⁻¹ for Selective Repeat, and the bits needed to fill a link (W = 1 + 2a).",
+    "CSMA/CD minimum frame L = 2·T_p·R (64 bytes for classic 10 Mbps Ethernet) and binary exponential backoff probabilities.",
+    "ALOHA maxima 1/(2e) ≈ 0.184 (pure) and 1/e ≈ 0.368 (slotted), and success probability when stations transmit with given probabilities."
+  ],
+  "topics": [
+    {
+      "id": "cn-data-link-layer.dll-services",
+      "title": "Data link layer services and sublayers",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        628,
+        632
+      ],
+      "points": [
+        "The data link layer moves frames across one link (hop by hop): it frames the bit stream, adds physical (MAC) addresses, detects errors with a trailer, and may provide flow and error control.",
+        "It has two sublayers: Logical Link Control (LLC), which faces the network layer and handles flow and error control, and Medium Access Control (MAC), which decides who may transmit on a shared medium.",
+        "Error control on a link is usually detection plus retransmission (ARQ); error-correcting codes are used where retransmission is too costly."
+      ],
+      "keyTerms": [
+        "LLC",
+        "MAC sublayer",
+        "ARQ"
+      ],
+      "lesson": {
+        "why": "Questions on this layer ask what it does for a frame, which sublayer does which job, and why error control appears on every link instead of only at the ends.",
+        "intro": "Two machines joined by one cable or one wireless link need a layer that turns a raw stream of bits into discrete frames and delivers each frame across that single link. That is the data link layer. It wraps each packet from above in a header with physical addresses and a trailer with an error-detecting code. It works hop by hop: when a packet crosses several links, a fresh frame is built and checked on every one of them.",
+        "definitions": [
+          {
+            "term": "Frame",
+            "meaning": "The unit the data link layer sends: a header, the packet as payload, and a trailer."
+          },
+          {
+            "term": "LLC",
+            "meaning": "Logical Link Control, the upper sublayer. It faces the network layer and handles flow and error control."
+          },
+          {
+            "term": "MAC sublayer",
+            "meaning": "Medium Access Control, the lower sublayer. It decides who may transmit when several stations share one medium."
+          },
+          {
+            "term": "ARQ",
+            "meaning": "Automatic Repeat reQuest: detect a damaged or missing frame and have the sender transmit it again."
+          }
+        ],
+        "principle": {
+          "text": "The data link layer delivers frames over one link only. LLC gives the network layer flow and error control; MAC arbitrates access to a shared medium. Errors are normally handled by detection plus retransmission (ARQ), and correcting codes are kept for links where resending is too costly."
+        },
+        "limits": "End-to-end delivery across many links is not this layer's job; routing and end-to-end reliability belong to the layers above. On a dedicated point-to-point link there is no shared medium, so MAC has little to decide.",
+        "example": {
+          "problem": "A packet travels from host A through routers R1 and R2 to host B, so it crosses three links. How many frames are built for it, and how many times is a frame check performed on it?",
+          "steps": [
+            "The layer works per link, so each link carries its own frame: A to R1, R1 to R2, R2 to B. That is 3 frames.",
+            "Every receiving end of a link strips the frame, checks the trailer and, if it is correct, passes the packet up. R1, R2 and B each check once, so there are 3 checks.",
+            "Between links the physical addresses in the header are replaced, while the packet inside is carried unchanged."
+          ],
+          "result": "3 frames and 3 frame checks; each link has its own frame."
+        },
+        "misconceptions": [
+          "Data link addresses do not travel from source to destination: they name the two ends of one link and change at every hop.",
+          "LLC and MAC are not two names for one job. MAC controls access to a shared medium, while LLC provides flow and error control towards the network layer."
+        ],
+        "recall": [
+          {
+            "q": "Over what span does the data link layer deliver a frame?",
+            "a": "One link (one hop), not the whole path between source and destination."
+          },
+          {
+            "q": "Which sublayer decides who may transmit on a shared medium?",
+            "a": "The MAC sublayer."
+          },
+          {
+            "q": "What does ARQ do when a frame is damaged?",
+            "a": "The error is detected and the sender transmits the frame again."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A packet crosses 5 links between two hosts. How many data link frames carry it, assuming no retransmission?",
+          "options": [
+            "1",
+            "4",
+            "5",
+            "6"
+          ],
+          "answer": 2,
+          "explanation": "A frame is built afresh on every link and there are 5 links, so 5 frames. The option 1 tempts if the frame is thought of as end to end, and 4 comes from counting the 4 intermediate devices instead of the links."
+        },
+        "summary": "The data link layer frames data and checks it across a single link; LLC supplies flow and error control, MAC arbitrates a shared medium, and ARQ repairs errors by resending."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.framing",
+      "title": "Framing: character count, byte stuffing and bit stuffing",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        55,
+        628,
+        631,
+        635
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "Framing marks where each frame starts and ends. A length (character count) field is fragile: one corrupted count desynchronises every frame after it.",
+        "Byte stuffing, used by byte-oriented protocols such as PPP, delimits frames with a flag byte and inserts an escape byte before any flag or escape byte that appears in the data.",
+        "Bit stuffing (HDLC) uses the flag 01111110: the sender inserts a 0 after every run of five consecutive 1s in the data and the receiver deletes it, so six 1s in a row can only be a flag.",
+        "Example: 011111111 becomes 0111110111, since a 0 is stuffed after the first five 1s and the remaining three 1s need nothing."
+      ],
+      "keyTerms": [
+        "flag",
+        "byte stuffing",
+        "bit stuffing",
+        "HDLC"
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.parity",
+      "title": "Single and two-dimensional parity",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        55,
+        628,
+        632
+      ],
+      "points": [
+        "A single even (or odd) parity bit makes the number of 1s in the codeword even (or odd). It detects any odd number of flipped bits and misses every even number.",
+        "Two-dimensional parity arranges the data in a grid with a parity bit per row and per column. It detects all 1-, 2- and 3-bit errors and can locate and correct a single flipped bit where the failing row and column cross.",
+        "It misses some 4-bit errors: four flips at the corners of a rectangle leave every row and column parity unchanged.",
+        "Single parity has minimum Hamming distance 2, so it detects one error and corrects none."
+      ],
+      "keyTerms": [
+        "even parity",
+        "odd parity",
+        "two-dimensional parity"
+      ],
+      "lesson": {
+        "why": "Parity questions ask which errors a parity scheme detects, which it misses, and how a two-dimensional grid locates a flipped bit.",
+        "intro": "Parity is the simplest error check. Count the 1s in the data and add one extra bit so the total count of 1s is even (even parity) or odd (odd parity). The receiver counts again. If the count has the wrong parity, something was flipped in transit. One bit cannot say which position went wrong, so the idea is extended to a grid in which every row and every column has its own parity bit.",
+        "prerequisites": [
+          "cn-data-link-layer.dll-services"
+        ],
+        "definitions": [
+          {
+            "term": "Even parity",
+            "meaning": "The parity bit is chosen so the total number of 1s, parity bit included, is even."
+          },
+          {
+            "term": "Two-dimensional parity",
+            "meaning": "Data arranged in rows, with a parity bit for each row and for each column."
+          },
+          {
+            "term": "Hamming distance",
+            "meaning": "The number of bit positions in which two codewords differ; a code with minimum distance $d$ detects up to $d-1$ errors."
+          }
+        ],
+        "principle": {
+          "text": "A single parity bit detects any odd number of flipped bits and misses every even number. In a two-dimensional grid a single flipped bit makes exactly one row and one column fail, and their crossing is the bit to correct. Four flips at the corners of a rectangle leave every row and column parity unchanged and go unseen."
+        },
+        "limits": "Single parity cannot locate or correct anything, and two flipped bits cancel out. Two-dimensional parity corrects only one error; with more errors the failing rows and columns are ambiguous.",
+        "example": {
+          "problem": "Use even parity on a 3-by-4 grid with rows 1011, 0110, 1100. Find the row and column parity bits, then say what happens if the third bit of the second row is flipped in transit.",
+          "steps": [
+            "Row parities: 1011 has three 1s so its bit is 1; 0110 has two so 0; 1100 has two so 0. The row parity bits are 1, 0, 0.",
+            "Column parities: the columns hold 1,0,1 and 0,1,1 and 1,1,0 and 1,0,0, giving 0, 0, 0, 1.",
+            "Flip the third bit of row 2, so that row reads 0100. Recomputed row parities become 1, 1, 0 against the stored 1, 0, 0, so only row 2 fails. Recomputed column parities become 0, 0, 1, 1 against the stored 0, 0, 0, 1, so only column 3 fails.",
+            "The failing row and column cross at row 2, column 3: that is the flipped bit."
+          ],
+          "result": "Parity bits are 1, 0, 0 for the rows and 0, 0, 0, 1 for the columns; the flip is located at row 2, column 3 and can be corrected."
+        },
+        "misconceptions": [
+          "More 1s does not mean more errors. A parity check only compares the count's parity, so two flips return it to the original parity and the error passes.",
+          "Two-dimensional parity does not catch every 4-bit error: the four corners of a rectangle leave all row and column parities unchanged."
+        ],
+        "recall": [
+          {
+            "q": "Which errors does a single parity bit detect?",
+            "a": "Any odd number of flipped bits; it misses every even number."
+          },
+          {
+            "q": "How does two-dimensional parity locate a single error?",
+            "a": "Exactly one row and one column fail, and the bit at their crossing is the one flipped."
+          },
+          {
+            "q": "What minimum Hamming distance does single parity have, and what does that allow?",
+            "a": "Distance 2, so it detects one error and corrects none."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An 8-bit word using even parity arrives as 10110101. What can the receiver conclude?",
+          "options": [
+            "No error occurred",
+            "An odd number of bits were flipped, at unknown positions",
+            "Exactly one bit was flipped and it is the last bit",
+            "An even number of bits were flipped"
+          ],
+          "answer": 1,
+          "explanation": "The word has five 1s, which is odd, so the even-parity rule is broken. That means an odd number of bits changed, but a single parity bit cannot say which. The option about an even number tempts because even parity is in use, yet an even number of flips would keep the count even."
+        },
+        "summary": "Single parity detects odd numbers of flips only; a row-and-column grid detects up to three flips and corrects one, but a rectangle of four flips slips through."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.hamming",
+      "title": "Hamming distance and Hamming codes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        55,
+        629,
+        632,
+        633,
+        635
+      ],
+      "points": [
+        "The Hamming distance between two codewords is the number of positions where they differ (the number of 1s in their XOR); a code's minimum distance d is the smallest distance between any two of its codewords.",
+        "A code with minimum distance d detects up to d − 1 errors and corrects up to ⌊(d − 1)/2⌋. Detecting s errors needs d ≥ s + 1; correcting t errors needs d ≥ 2t + 1.",
+        "A Hamming code for m data bits needs the smallest r with 2ʳ ≥ m + r + 1: 4 data bits need 3 check bits and 11 need 4, but 12 need 5.",
+        "Check bits sit at positions 1, 2, 4, 8, …; the one at position 2ⁱ covers every position whose binary index has bit i set. At the receiver the failed checks form the syndrome, whose value is the position of a single flipped bit (0 means no error).",
+        "A Hamming code has d = 3 and corrects one error; one extra overall parity bit gives d = 4 (SECDED: single-error correction, double-error detection)."
+      ],
+      "keyTerms": [
+        "Hamming distance",
+        "minimum distance",
+        "syndrome",
+        "SECDED"
+      ],
+      "lesson": {
+        "why": "Hamming distance questions ask how many errors a code detects or corrects, and the check-bit count for a given number of data bits. Both reduce to short calculations once the definitions are clear.",
+        "intro": "A code is a chosen set of valid bit strings, called codewords. If a received string is not a codeword, the receiver knows something went wrong. The Hamming distance between two strings is the number of positions where they differ. The minimum distance of a code is the smallest such distance over all pairs of codewords. The larger it is, the more flips it takes to turn one codeword into another, so the more errors the code can notice or repair.",
+        "prerequisites": [
+          "cn-data-link-layer.parity"
+        ],
+        "definitions": [
+          {
+            "term": "Hamming code",
+            "meaning": "A code that places parity (check) bits at the power-of-two positions 1, 2, 4, 8 of the word and fills the other positions with data."
+          },
+          {
+            "term": "Hamming distance",
+            "meaning": "The number of bit positions in which two equal-length strings differ."
+          },
+          {
+            "term": "Syndrome",
+            "meaning": "The pattern of failed parity checks at the receiver; for a single flipped bit it is the position of that bit. Example: in a 7-bit word, if the groups of check bits 1 and 4 fail and the group of 2 holds, the syndrome is $1+4=5$, so bit 5 flipped."
+          }
+        ],
+        "principle": {
+          "text": "A code with minimum distance $d$ detects up to $d-1$ bit errors and corrects up to $\\lfloor (d-1)/2 \\rfloor$. The check bit at position $2^i$ covers every position whose binary index has bit $i$ set (check bit 1 covers 1, 3, 5, 7, 9, 11; check bit 2 covers 2, 3, 6, 7, 10, 11) and makes its group even. A Hamming code with $m$ data bits needs the smallest $r$ check bits with the inequality below.",
+          "tex": "2^{r} \\ge m + r + 1"
+        },
+        "limits": "These counts assume the errors are flips of bits in place, not lost or inserted bits. A code that corrects $t$ errors is only guaranteed to do so when no more than $t$ bits are flipped; a larger error can be decoded to the wrong codeword.",
+        "example": {
+          "problem": "A code has the codewords 00000, 01101, 10110 and 11011. Find its minimum distance, how many errors it detects and how many it corrects.",
+          "steps": [
+            "Compare every pair of codewords by XOR and count the 1s. There are six pairs.",
+            "The distances are 3, 3, 4, 4, 3 and 3, so the smallest is $d=3$.",
+            "Detection is $d-1=2$ errors. Correction is $\\lfloor (3-1)/2 \\rfloor = 1$ error."
+          ],
+          "result": "$d=3$: it detects 2 errors and corrects 1."
+        },
+        "misconceptions": [
+          "Minimum distance is the smallest distance over all pairs, not the distance between the first two codewords or the largest one.",
+          "A code that detects 2 errors does not also correct 2; correcting $t$ errors needs $d \\ge 2t+1$, which is stricter than detecting them."
+        ],
+        "recall": [
+          {
+            "q": "How many errors does a code of minimum distance $d$ detect and correct?",
+            "a": "It detects $d-1$ and corrects $\\lfloor (d-1)/2 \\rfloor$."
+          },
+          {
+            "q": "At which positions do the check bits of a Hamming code sit?",
+            "a": "At the powers of two: positions 1, 2, 4, 8, and so on."
+          },
+          {
+            "q": "What does a non-zero syndrome tell the receiver?",
+            "a": "Its value is the position of the single flipped bit; zero means no error was seen."
+          },
+          {
+            "q": "Which positions does the check bit at position 4 cover?",
+            "a": "Every position whose binary index has the 4s bit set: 4, 5, 6, 7, 12, 13, and so on. Its group must have even parity."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A single-error-correcting Hamming code protects 20 data bits. What is the minimum number of check bits needed?",
+          "answer": 5,
+          "explanation": "Find the smallest $r$ with $2^r \\ge 20 + r + 1$. For $r=4$ the right side is 25 and $2^4=16$, which fails. For $r=5$ the right side is 26 and $2^5=32$, which holds. Stopping at 4 tempts because $\\log_2 20$ is about 4.3, but the check bits must also cover their own positions."
+        },
+        "summary": "Minimum distance $d$ detects $d-1$ errors and corrects $\\lfloor (d-1)/2 \\rfloor$; a Hamming code needs the smallest $r$ with $2^r \\ge m+r+1$."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.checksum",
+      "title": "Internet checksum",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        55,
+        629,
+        632
+      ],
+      "points": [
+        "The sender splits the data into k-bit words (16-bit for IP, TCP and UDP), adds them in one's complement arithmetic and sends the complement of the sum as the checksum.",
+        "One's complement addition wraps any carry out of the top bit back into the lowest bit (end-around carry) instead of discarding it.",
+        "The receiver adds all the words including the checksum; an all-1s result, whose complement is 0, means no error was detected.",
+        "8-bit example: 10110011 + 11001010 = 1 01111101, which wraps to 01111110; adding 01101100 gives 11101010, so the checksum is 00010101.",
+        "The checksum is cheap in software but weak: it misses errors that cancel in the sum, such as reordered words, or the same bit position flipping 0 to 1 in one word and 1 to 0 in another."
+      ],
+      "keyTerms": [
+        "one's complement",
+        "end-around carry"
+      ],
+      "lesson": {
+        "why": "Checksum questions ask you to compute the checksum of a few words or to verify a received block, and the two usual slips are dropping the carry and forgetting the complement.",
+        "intro": "The Internet checksum treats the data as a list of fixed-size words, for instance 16 bits each in IP, TCP and UDP. The sender adds the words with a special rule: a carry that falls off the top is added back at the bottom. It then flips every bit of the total, and that flipped result is the checksum sent along with the data. The receiver adds everything, checksum included. If nothing changed, the total is all 1s.",
+        "prerequisites": [
+          "cn-data-link-layer.parity"
+        ],
+        "definitions": [
+          {
+            "term": "One's complement",
+            "meaning": "The number with every bit flipped, 0 to 1 and 1 to 0."
+          },
+          {
+            "term": "End-around carry",
+            "meaning": "A carry out of the top bit is added back into the lowest bit instead of being discarded."
+          }
+        ],
+        "principle": {
+          "text": "Add the words in one's complement arithmetic (wrap each carry around), then complement the sum to get the checksum. The receiver adds all words plus the checksum; the result must be all 1s."
+        },
+        "limits": "The checksum is cheap but weak. It misses errors that cancel in the sum, such as swapped words, or a bit changing 0 to 1 in one word and 1 to 0 in the same position of another.",
+        "example": {
+          "problem": "Find the 8-bit checksum of the words 01100110, 11010101 and 00111100.",
+          "steps": [
+            "Add the first two: 01100110 + 11010101 = 1 00111011. The carry out of the top is 1, so wrap it: 00111011 + 1 = 00111100.",
+            "Add the third word: 00111100 + 00111100 = 01111000, with no carry.",
+            "Complement the sum 01111000 to get 10000111.",
+            "Check as the receiver: 01111000 + 10000111 = 11111111, all 1s."
+          ],
+          "result": "The checksum is 10000111."
+        },
+        "misconceptions": [
+          "The carry is not discarded as in ordinary 8-bit addition; it is added back to the lowest bit.",
+          "The checksum is the complement of the sum, not the sum itself, and the receiver's all-1s test only works because of that complement."
+        ],
+        "recall": [
+          {
+            "q": "What is end-around carry?",
+            "a": "A carry out of the top bit is added back into the lowest bit."
+          },
+          {
+            "q": "What must the receiver's total be if no error is detected?",
+            "a": "All 1s, which is zero after complementing."
+          },
+          {
+            "q": "Name an error the checksum cannot detect.",
+            "a": "Reordering words, or compensating bit flips in the same position of two words, leaves the sum unchanged."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Find the 8-bit Internet checksum of the words 10010011, 01101110 and 00010111.",
+          "options": [
+            "11100110",
+            "00011001",
+            "11100111",
+            "10000111"
+          ],
+          "answer": 0,
+          "explanation": "10010011 + 01101110 = 1 00000001, which wraps to 00000010. Adding 00010111 gives 00011001. The checksum is its complement, 11100110. The option 00011001 is the uncomplemented sum, the usual slip."
+        },
+        "summary": "Add the words with end-around carry, complement the total to get the checksum, and expect all 1s when the receiver adds everything including the checksum."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.crc",
+      "title": "Cyclic redundancy check (CRC)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        55,
+        629,
+        632,
+        633,
+        635
+      ],
+      "points": [
+        "Treat the data bits as a polynomial M(x) and choose a generator G(x) of degree r (r + 1 bits). Append r zeros, divide by G(x) using modulo-2 (XOR) long division, and replace the zeros with the r-bit remainder.",
+        "The frame sent is then exactly divisible by G(x). The receiver divides what arrives by G(x) and a non-zero remainder signals an error; CRC detects errors but cannot correct them.",
+        "Worked example: data 1101 with G = 1011 (x³ + x + 1). Dividing 1101000 by 1011 leaves remainder 001, so the frame sent is 1101001.",
+        "An error pattern E(x) goes unnoticed only when G(x) divides E(x). If G has more than one term, every single-bit error is caught; if x + 1 is a factor of G, every error with an odd number of flipped bits is caught.",
+        "If G has a constant term, every burst of length ≤ r is caught; a burst of length r + 1 slips through with probability $2^{-(r-1)}$ and a longer burst with probability $2^{-r}$.",
+        "Every double-bit error is caught only if G(x) divides no xᵏ + 1 for k up to the frame length; a factor x + 1 does not ensure this. CRC-16 and CRC-32 are standard, and Ethernet uses CRC-32."
+      ],
+      "keyTerms": [
+        "generator polynomial",
+        "modulo-2 division",
+        "burst error",
+        "CRC-32"
+      ],
+      "lesson": {
+        "why": "CRC questions ask for the remainder appended to a message or for which errors the check catches. Both come from one routine: divide using XOR and keep the remainder.",
+        "intro": "A cyclic redundancy check adds a few extra bits to a message so the whole frame divides evenly by an agreed bit pattern, the generator. The division uses XOR instead of subtraction, so there are no carries or borrows. The sender computes the remainder and sends it after the data. The receiver divides the whole frame again. A zero remainder means the frame looks fine; anything else means an error.",
+        "prerequisites": [
+          "cn-data-link-layer.parity"
+        ],
+        "definitions": [
+          {
+            "term": "Generator",
+            "meaning": "The agreed divisor bit pattern. If it has $r+1$ bits, the check field has $r$ bits."
+          },
+          {
+            "term": "Modulo-2 division",
+            "meaning": "Long division in which each subtraction is an XOR of the divisor with the current leading bits."
+          },
+          {
+            "term": "Generator polynomial",
+            "meaning": "The generator written with one term per 1 bit: $x^3+x+1$ means bits 1011 (coefficients of $x^3,x^2,x^1,x^0$). Its degree is $r$, the number of check bits."
+          }
+        ],
+        "principle": {
+          "text": "Append $r$ zeros to the data $M(x)$, divide by the generator $G(x)$ of degree $r$ over modulo-2 arithmetic, and send the remainder in place of the zeros. The frame is then a multiple of $G(x)$.",
+          "tex": "T(x) = M(x)\\,x^{r} + \\operatorname{rem}\\!\\left(\\frac{M(x)\\,x^{r}}{G(x)}\\right)"
+        },
+        "limits": "CRC detects errors but cannot correct them. An error goes unnoticed only when the error pattern is itself a multiple of the generator, so a poor generator misses some patterns that a good one would catch.",
+        "example": {
+          "problem": "Data 1010 is sent with generator 1011. Find the frame.",
+          "steps": [
+            "The generator has 4 bits, so $r=3$. Append three zeros: 1010000.",
+            "XOR 1011 under the leading 1: 1010000 becomes 0001000. The next leading 1 is at the fourth bit, so XOR 1011 there: 0001000 becomes 0000011.",
+            "No leading 1 remains in the first four bits, so the remainder is the last three bits, 011."
+          ],
+          "result": "The frame sent is 1010011."
+        },
+        "misconceptions": [
+          "Zeros are appended before dividing, not after; the remainder then replaces those zeros rather than being added to them.",
+          "The remainder always has exactly $r$ bits, so leading zeros count: a remainder of 1 with $r=3$ is sent as 001."
+        ],
+        "recall": [
+          {
+            "q": "How many check bits does a generator of $r+1$ bits produce?",
+            "a": "Exactly $r$ bits, the remainder padded with leading zeros."
+          },
+          {
+            "q": "What does the receiver conclude from a non-zero remainder?",
+            "a": "The frame was corrupted in transit; CRC can only detect this, not locate or repair it."
+          },
+          {
+            "q": "When does an error go undetected?",
+            "a": "When the error pattern, read as a polynomial, is divisible by the generator."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Data 1101 is sent using the generator 101. What check bits are appended?",
+          "options": [
+            "01",
+            "10",
+            "11",
+            "00"
+          ],
+          "answer": 1,
+          "explanation": "The generator has 3 bits, so two zeros are appended, giving 110100. XOR 101 at the first bit: 011100. At the second bit: 001000. At the third bit: 000010. The remainder is the last two bits, 10. The option 01 tempts when the two bits are written in reverse order."
+        },
+        "summary": "Append $r$ zeros, divide by the generator with XOR, and send the $r$-bit remainder; a non-zero remainder at the receiver signals an error."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.stop-and-wait",
+      "title": "Stop-and-wait ARQ and the parameter a",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        56,
+        629,
+        632,
+        634
+      ],
+      "points": [
+        "The sender transmits one frame and waits for its ACK before sending the next; a timeout triggers retransmission, and a 1-bit sequence number lets the receiver discard duplicates.",
+        "One cycle lasts T_t + 2T_p (ACK transmission time ignored) and only T_t of it carries data, so η = T_t/(T_t + 2T_p) = 1/(1 + 2a), where a = T_p/T_t.",
+        "Throughput = η × bandwidth. Example: T_t = 1 ms and T_p = 5 ms give a = 5 and η = 1/11 ≈ 9.09%.",
+        "Stop-and-wait suits small a (short links, long frames); on long or fast links, where a is large, the sender spends most of each cycle idle.",
+        "If the ACK's transmission time or processing time is given, the cycle becomes T_t + 2T_p + T_ack + processing, and η = T_t divided by that cycle."
+      ],
+      "keyTerms": [
+        "ARQ",
+        "timeout",
+        "a = Tp/Tt"
+      ],
+      "lesson": {
+        "why": "Efficiency of stop-and-wait appears as a direct calculation, and the questions also test which link properties make it worse.",
+        "intro": "In stop-and-wait the sender transmits one frame and then does nothing until the acknowledgement comes back. Sending the frame takes the transmission time. The signal then crosses the link, and the acknowledgement crosses back, which takes two propagation delays. Only the transmission time carries useful data; the rest of each cycle the link is idle.",
+        "prerequisites": [
+          "cn-data-link-layer.dll-services"
+        ],
+        "definitions": [
+          {
+            "term": "Transmission time",
+            "meaning": "The time to push all bits of a frame onto the link: frame size divided by bandwidth."
+          },
+          {
+            "term": "Propagation delay",
+            "meaning": "The time a signal needs to travel the length of the link."
+          }
+        ],
+        "principle": {
+          "text": "One cycle lasts $T_t + 2T_p$ when the acknowledgement is negligible, and only $T_t$ of it is useful, so the efficiency depends on the ratio $a = T_p/T_t$.",
+          "tex": "\\eta = \\frac{T_t}{T_t + 2T_p} = \\frac{1}{1+2a}"
+        },
+        "limits": "The formula ignores acknowledgement size, processing time and errors. If the acknowledgement time or a processing delay is given, add it to the cycle in the denominator.",
+        "example": {
+          "problem": "A frame of 1000 bits is sent over a 1 Mbps link with a one-way propagation delay of 2 ms. Find the efficiency.",
+          "steps": [
+            "$T_t = 1000 / 10^6 = 1$ ms.",
+            "$a = T_p/T_t = 2$.",
+            "$\\eta = 1/(1+2\\cdot 2) = 1/5$."
+          ],
+          "result": "The efficiency is 20%."
+        },
+        "misconceptions": [
+          "The round trip is $2T_p$, not $T_p$; the data goes out and the acknowledgement comes back.",
+          "A faster link lowers efficiency, because $T_t$ shrinks while $T_p$ stays the same, so $a$ grows."
+        ],
+        "recall": [
+          {
+            "q": "What is the stop-and-wait efficiency formula?",
+            "a": "$\\eta = 1/(1+2a)$ with $a = T_p/T_t$."
+          },
+          {
+            "q": "Why does a longer link lower the efficiency?",
+            "a": "Propagation delay grows, so more of each cycle is spent waiting for the acknowledgement."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A stop-and-wait sender uses 4000-bit frames on a 2 Mbps link with a one-way propagation delay of 3 ms. The acknowledgement time is negligible. What is the efficiency in percent?",
+          "answer": 25,
+          "explanation": "$T_t = 4000/(2\\times 10^6) = 2$ ms, so $a = 3/2$ and $\\eta = 2/(2+6) = 0.25$, which is 25%. Using $T_p$ once instead of twice in the cycle gives 40%, which tempts."
+        },
+        "summary": "Stop-and-wait wastes the round trip: $\\eta = T_t/(T_t+2T_p)$, which falls as the link gets longer or faster."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.gbn-sr",
+      "title": "Go-Back-N and Selective Repeat",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        632
+      ],
+      "points": [
+        "Sliding-window ARQ keeps up to W unacknowledged frames in flight, filling the pipe while the ACKs for earlier frames are still on their way.",
+        "Go-Back-N: sender window W, receiver window 1. The receiver accepts only the next in-order frame, discards everything else and sends cumulative ACKs; on a timeout the sender resends the lost frame and every frame sent after it.",
+        "Selective Repeat: both sides keep windows. The receiver buffers correct out-of-order frames and acknowledges each one, so the sender resends only frames that were actually lost or damaged.",
+        "One loss with a full window costs about W retransmissions under GBN and 1 under SR: 8 frames with window 4 and one lost frame take 12 transmissions with GBN and 9 with SR.",
+        "GBN keeps the receiver simple (no buffering) but wastes bandwidth when errors are frequent; SR saves bandwidth but needs receive buffers and a timer per frame."
+      ],
+      "keyTerms": [
+        "Go-Back-N",
+        "Selective Repeat",
+        "cumulative ACK",
+        "receive window"
+      ],
+      "lesson": {
+        "why": "These questions count transmissions after a loss, or ask what each protocol does with out-of-order frames. Both come from the difference between the two receivers.",
+        "intro": "Stop-and-wait idles while it waits for each acknowledgement. A sliding window fixes that by letting the sender have several frames in flight at once, up to the window size W. The two protocols differ in what happens after a loss. Go-Back-N throws away everything that arrives after the missing frame and makes the sender start again from it. Selective Repeat keeps the later frames and asks for only the missing one.",
+        "prerequisites": [
+          "cn-data-link-layer.stop-and-wait"
+        ],
+        "definitions": [
+          {
+            "term": "Cumulative ACK",
+            "meaning": "An acknowledgement that confirms every frame up to and including the number it names."
+          },
+          {
+            "term": "Receive window",
+            "meaning": "The range of sequence numbers the receiver will accept: 1 frame for Go-Back-N, W frames for Selective Repeat."
+          }
+        ],
+        "principle": {
+          "text": "Go-Back-N has sender window W and receiver window 1: only the next expected frame is accepted, and on a timeout the lost frame and all frames sent after it are resent. Selective Repeat buffers correct out-of-order frames and acknowledges each, so only the lost frame is resent."
+        },
+        "limits": "The counts below assume a full window is outstanding when the timer fires and that only data frames are lost. If the loss is near the end of the data, fewer frames are outstanding and Go-Back-N resends fewer.",
+        "example": {
+          "problem": "10 frames are sent with window 4. Frame 3 is lost once and the timeout exceeds the time to fill the window. How many transmissions in total under Go-Back-N and under Selective Repeat?",
+          "steps": [
+            "Frames 1 to 4 go out. Frames 1 and 2 are acknowledged, the window slides, and frames 5 and 6 are sent, so frames 3 to 6 are outstanding when frame 3 times out.",
+            "Go-Back-N: the receiver discarded frames 4, 5 and 6 because frame 3 was missing, so frames 3, 4, 5, 6 are all resent: 4 extra transmissions, 10 + 4 = 14.",
+            "Selective Repeat: the receiver kept frames 4, 5 and 6, so only frame 3 is resent: 10 + 1 = 11."
+          ],
+          "result": "14 transmissions under Go-Back-N and 11 under Selective Repeat."
+        },
+        "misconceptions": [
+          "Go-Back-N does not resend the whole file after a loss, only the lost frame and those sent after it.",
+          "Cumulative ACKs do not mean the receiver stored later frames. Go-Back-N discards out-of-order frames; only Selective Repeat buffers them."
+        ],
+        "recall": [
+          {
+            "q": "What is the receiver window in Go-Back-N?",
+            "a": "1; only the next in-order frame is accepted."
+          },
+          {
+            "q": "After one loss with a full window, how many frames does Go-Back-N resend?",
+            "a": "About W: the lost frame and every frame sent after it."
+          },
+          {
+            "q": "What extra cost does Selective Repeat pay for fewer retransmissions?",
+            "a": "Receive buffers and a timer per frame."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "12 frames are sent with Go-Back-N and window 5. Frame 4 is lost once, the window is full when its timer expires, and nothing else is lost. How many transmissions in total?",
+          "answer": 17,
+          "explanation": "Frames 4 to 8 are outstanding when frame 4 times out, and all five are resent, so 12 + 5 = 17. Answering 13 is the Selective Repeat count, where only frame 4 is resent."
+        },
+        "summary": "Go-Back-N resends the lost frame plus everything after it; Selective Repeat resends only the lost frame at the price of buffers and per-frame timers."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.window-bounds",
+      "title": "Window size, sequence numbers and link efficiency",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        632,
+        633,
+        635,
+        63
+      ],
+      "points": [
+        "With k-bit sequence numbers (2ᵏ values), Go-Back-N allows a sender window of at most 2ᵏ − 1 and Selective Repeat at most 2ᵏ⁻¹; in general the sender and receiver windows must satisfy W_s + W_r ≤ 2ᵏ.",
+        "Reason: if all ACKs of a full window are lost, the receiver must tell old frames from new ones. With 3-bit numbers, a GBN window of 8 or an SR window of 5 lets a retransmitted old frame be accepted as new data.",
+        "A window W gives η = min(1, W/(1 + 2a)): the sender sends W frames in W·T_t and then waits until the first ACK returns at T_t + 2T_p.",
+        "Keeping the link fully busy needs W ≥ 1 + 2a, and the sequence numbers then need k ≥ ⌈log₂(W + 1)⌉ bits for GBN and ⌈log₂(2W)⌉ for SR.",
+        "Example: T_t = 1 ms and T_p = 20 ms need W = 41, so GBN needs 6 bits and SR 7; with 3-bit numbers GBN is capped at 7 and SR at 4."
+      ],
+      "keyTerms": [
+        "sequence number space",
+        "1 + 2a",
+        "window size"
+      ],
+      "lesson": {
+        "why": "Sliding window questions ask how large a window keeps the link busy and how many sequence-number bits that window needs. The two answers differ, and the exam tests both.",
+        "intro": "A sliding window sender may send several frames before it must wait for an acknowledgement. The window size is how many it may have outstanding. If the window is too small, the sender stops and waits while the link sits idle. If it is too large for the numbering, the receiver cannot tell a new frame from a repeat of an old one. So two limits apply, one from timing and one from the sequence numbers. In Go-Back-N the receiver accepts frames only in order (its window is 1); in Selective Repeat it buffers out-of-order frames (its window is also $W$).",
+        "prerequisites": [
+          "cn-data-link-layer.stop-and-wait",
+          "cn-data-link-layer.gbn-sr"
+        ],
+        "definitions": [
+          {
+            "term": "Window",
+            "meaning": "The number of frames the sender may send without having received their acknowledgements."
+          }
+        ],
+        "principle": {
+          "text": "To keep the link fully busy, the window must cover one whole cycle. With a smaller window the efficiency is $W$ frame times per cycle, capped at 1. Go-Back-N needs $W+1$ distinct sequence numbers, and Selective Repeat needs $2W$.",
+          "tex": "\\eta = \\min\\!\\left(1,\\ \\frac{W\\,T_t}{T_t + 2T_p + T_{ack}}\\right) \\qquad W \\ge 1 + 2a \\qquad k_{\\mathrm{GBN}} = \\lceil \\log_2 (W+1) \\rceil \\qquad k_{\\mathrm{SR}} = \\lceil \\log_2 2W \\rceil"
+        },
+        "limits": "Full efficiency needs $W \\ge (T_t + 2T_p + T_{ack})/T_t$; the form $1+2a$ assumes negligible acknowledgement time. The window can be smaller than the numbering allows, never larger: with $k$ bits Go-Back-N caps at $2^k-1$ and Selective Repeat at $2^{k-1}$. If bytes are numbered, the numbers must also not wrap within the packet lifetime: $2^k \\ge$ rate $\\times$ lifetime.",
+        "example": {
+          "problem": "Frames take 2 ms to transmit and the one-way propagation delay is 9 ms. Find the window for full efficiency and the sequence bits for Go-Back-N and Selective Repeat.",
+          "steps": [
+            "$a = 9/2 = 4.5$, so $W = 1 + 2a = 10$.",
+            "Go-Back-N needs $W+1 = 11$ numbers, so $\\lceil \\log_2 11 \\rceil = 4$ bits.",
+            "Selective Repeat needs $2W = 20$ numbers, so $\\lceil \\log_2 20 \\rceil = 5$ bits."
+          ],
+          "result": "$W=10$, with 4 bits for Go-Back-N and 5 bits for Selective Repeat."
+        },
+        "misconceptions": [
+          "Go-Back-N with $k$ bits allows a window of $2^k-1$, not $2^k$; a full $2^k$ window makes a repeated frame look new.",
+          "Selective Repeat needs about twice as many sequence numbers as its window, because the receiver window also has to fit."
+        ],
+        "recall": [
+          {
+            "q": "What window gives 100% efficiency?",
+            "a": "$W = 1 + 2a$, where $a = T_p/T_t$, rounded up."
+          },
+          {
+            "q": "What is the largest Selective Repeat window with $k$ sequence bits?",
+            "a": "$2^{k-1}$."
+          },
+          {
+            "q": "What is the largest Go-Back-N window with $k$ sequence bits?",
+            "a": "$2^k - 1$."
+          },
+          {
+            "q": "What efficiency does a window $W$ give when it is smaller than a full cycle?",
+            "a": "$\\eta = W\\,T_t/(T_t + 2T_p + T_{ack})$; the window needed for a target $\\eta$ is $\\eta$ times the cycle time divided by $T_t$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sliding window link has frame time 2 ms, one-way propagation delay 10 ms and acknowledgement time 2 ms. What is the smallest window that gives 25% efficiency?",
+          "answer": 3,
+          "explanation": "The cycle is $2 + 2\\cdot 10 + 2 = 24$ ms, so efficiency is $2W/24$. Setting it to $0.25$ gives $W = 3$. The tempting answer 11 comes from $1+2a$ with $a=5$, which is the window for 100% efficiency and ignores the acknowledgement time."
+        },
+        "summary": "Efficiency is $\\min(1, W T_t/(T_t+2T_p+T_{ack}))$, so full use needs $W \\ge 1+2a$; Go-Back-N then needs $\\lceil\\log_2(W+1)\\rceil$ bits and Selective Repeat $\\lceil\\log_2 2W\\rceil$."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.aloha",
+      "title": "Pure and slotted ALOHA",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        632,
+        633,
+        635
+      ],
+      "points": [
+        "Pure ALOHA: a station transmits whenever it has a frame and, after a collision, retries after a random wait. A frame collides with any other frame that starts within one frame time before or after it, a vulnerable period of 2·T_fr.",
+        "With offered load G frames per frame time, pure ALOHA delivers $S = G e^{-2G}$, at most 1/(2e) ≈ 0.184 at G = 0.5.",
+        "Slotted ALOHA allows transmissions only at slot boundaries, which halves the vulnerable period to one slot: $S = G e^{-G}$, at most 1/e ≈ 0.368 at G = 1, twice the pure figure.",
+        "With N stations each sending in a slot with probability p, a slot succeeds when exactly one transmits: N·p·(1 − p)^(N − 1); with different probabilities, sum pᵢ × Π(1 − pⱼ) over the station i that sends alone.",
+        "Example: 200-bit frames on a 200 kbps channel last 1 ms. Offering 500 frames/s to pure ALOHA is G = 0.5, so S ≈ 0.184 frames per frame time: about 184 of the 500 frames/s succeed, since each succeeds with probability e^(−2G) ≈ 0.368."
+      ],
+      "keyTerms": [
+        "offered load G",
+        "vulnerable period",
+        "slot"
+      ],
+      "lesson": {
+        "why": "ALOHA questions ask for throughput from an offered load, using one of two formulas. Choosing the right one for pure or slotted is the whole question.",
+        "intro": "In ALOHA, stations share a channel with no coordination. A station sends whenever it has a frame. If two frames overlap in time, both are lost and each station tries again after a random wait. Throughput is the fraction of time the channel carries a frame that arrives intact. The offered load $G$ is the average number of frame attempts, new and repeated, per frame time.",
+        "prerequisites": [
+          "cn-data-link-layer.dll-services"
+        ],
+        "definitions": [
+          {
+            "term": "Frame time",
+            "meaning": "The time to transmit one frame, frame size divided by bandwidth."
+          },
+          {
+            "term": "Vulnerable period",
+            "meaning": "The window during which another transmission would collide with a given frame."
+          }
+        ],
+        "principle": {
+          "text": "Pure ALOHA frames are vulnerable for two frame times, since a collision can come from a frame starting just before or just after. Slotted ALOHA restricts starts to slot boundaries, so the vulnerable period is one slot.",
+          "tex": "S_{\\text{pure}} = G\\,e^{-2G} \\qquad S_{\\text{slotted}} = G\\,e^{-G}"
+        },
+        "limits": "Both formulas assume attempts follow a Poisson process with rate $G$ per frame time. They count attempts, so a question that gives only new-frame arrivals needs the retransmissions included in $G$ first.",
+        "example": {
+          "problem": "Slotted ALOHA with 1 ms frames receives 400 attempts per second in total. How many frames per second succeed?",
+          "steps": [
+            "Frame time is 1 ms, so $G = 400 \\times 0.001 = 0.4$.",
+            "$S = G e^{-G} = 0.4 e^{-0.4} \\approx 0.268$ per frame time.",
+            "Per second this is $0.268 \\times 1000 = 268$ frames."
+          ],
+          "result": "About 268 frames per second."
+        },
+        "misconceptions": [
+          "The maximum is not at $G=1$ for pure ALOHA: it peaks at $G=0.5$ with $S\\approx 0.184$, while slotted peaks at $G=1$ with $S\\approx 0.368$.",
+          "Throughput is not the offered load; a part of the attempts collide, so $S<G$."
+        ],
+        "recall": [
+          {
+            "q": "What is the pure ALOHA throughput formula?",
+            "a": "$S = Ge^{-2G}$, with a maximum of about 0.184 at $G=0.5$."
+          },
+          {
+            "q": "Why does slotted ALOHA double the maximum throughput?",
+            "a": "Starts only at slot boundaries halve the vulnerable period from two frame times to one."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Pure ALOHA frames last 2 ms. The channel sees 250 attempts per second in total. How many frames per second succeed, rounded to the nearest integer?",
+          "answer": 92,
+          "explanation": "$G = 250 \\times 0.002 = 0.5$. Success probability per attempt is $e^{-2G} = e^{-1} \\approx 0.368$, so the rate is $250 \\times 0.368 \\approx 92$. Using the slotted formula gives $250e^{-0.5}\\approx 152$, which tempts because it is the more familiar one."
+        },
+        "summary": "Compute $G$ from attempts per frame time, then $S=Ge^{-2G}$ for pure ALOHA or $S=Ge^{-G}$ for slotted."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.csma",
+      "title": "CSMA persistence strategies and CSMA/CA",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        631,
+        632,
+        634
+      ],
+      "points": [
+        "Carrier sense multiple access listens before transmitting, but collisions still happen because a station cannot yet hear a transmission that began less than one propagation delay ago; the vulnerable period is T_p.",
+        "1-persistent: if the channel is busy, keep sensing and send the instant it goes idle (many collisions when several stations are waiting). Non-persistent: if busy, wait a random time and sense again (fewer collisions, more idle time).",
+        "p-persistent (slotted channels): when the channel is idle, send with probability p; otherwise wait for the next slot and repeat.",
+        "CSMA/CA (802.11 Wi-Fi) avoids collisions instead of detecting them, because a radio cannot hear while it transmits and hidden stations may not hear each other. It waits an interframe space plus a random backoff, may exchange RTS/CTS first, and needs an ACK for every data frame."
+      ],
+      "keyTerms": [
+        "carrier sense",
+        "1-persistent",
+        "non-persistent",
+        "p-persistent",
+        "hidden terminal",
+        "RTS/CTS"
+      ],
+      "lesson": {
+        "why": "CSMA questions test the sensing rule and why collisions still happen, often through a distance or time calculation and a comparison of persistence types.",
+        "intro": "CSMA stands for carrier sense multiple access. Before sending, a station listens to the channel and sends only if it is quiet. This cuts collisions compared with ALOHA, but not to zero. A signal takes time to travel, so a station may find the channel quiet just after another has started and not yet been heard. Two stations that decide in that gap both transmit and their frames collide.",
+        "prerequisites": [
+          "cn-data-link-layer.aloha"
+        ],
+        "definitions": [
+          {
+            "term": "1-persistent",
+            "meaning": "Keep listening while busy and transmit the instant the channel turns idle."
+          },
+          {
+            "term": "Non-persistent",
+            "meaning": "If busy, wait a random time before listening again."
+          },
+          {
+            "term": "p-persistent",
+            "meaning": "When idle, transmit with probability $p$, otherwise wait one slot and check again."
+          }
+        ],
+        "principle": {
+          "text": "Collisions can only come from transmissions that began less than one propagation delay earlier, so the vulnerable period of CSMA is $T_p$. A station sensing for time $t_s$ can hear a transmitter within a distance equal to signal speed times $t_s$.",
+          "tex": "d_{\\max} = v \\cdot t_s"
+        },
+        "limits": "Persistence rules differ in how they behave when the channel is busy, not in whether the first attempt collides. Wireless networks use CSMA/CA, which avoids collisions with a random backoff, because a radio cannot listen while it transmits.",
+        "example": {
+          "problem": "Two stations are 2000 m apart and the signal travels at $2\\times 10^8$ m/s. What is the vulnerable period?",
+          "steps": [
+            "The vulnerable period is the one-way propagation delay.",
+            "$T_p = 2000 / (2\\times 10^8) = 10^{-5}$ s."
+          ],
+          "result": "The vulnerable period is 10 microseconds."
+        },
+        "misconceptions": [
+          "Carrier sensing does not make collisions impossible; the gap before a signal arrives is exactly where they occur.",
+          "1-persistent is not the same as p-persistent with $p=0.5$; 1-persistent always transmits as soon as the channel is idle, which is $p=1$."
+        ],
+        "recall": [
+          {
+            "q": "What is the vulnerable period in CSMA?",
+            "a": "One propagation delay $T_p$."
+          },
+          {
+            "q": "What does a non-persistent station do on a busy channel?",
+            "a": "It waits a random time and then senses again, instead of listening continuously."
+          },
+          {
+            "q": "What does a 1-persistent station do when the channel turns idle?",
+            "a": "It transmits at once with probability 1, so two waiting stations collide for certain."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Signals travel at $2\\times 10^8$ m/s and a station senses the channel for 3 microseconds before deciding it is idle. What is the largest distance, in metres, at which an ongoing transmission is still certain to be detected?",
+          "answer": 600,
+          "explanation": "A transmission is detected if its signal arrives within the sensing time, so $d_{\\max} = v \\cdot t_s = 2\\times10^8 \\cdot 3\\times10^{-6} = 600$ m. Answering 300 tempts by halving for a round trip, but sensing needs only the one-way signal."
+        },
+        "summary": "CSMA senses before sending but still collides within one propagation delay; 1-persistent sends at once when idle, non-persistent waits a random time."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.csma-cd",
+      "title": "CSMA/CD, minimum frame size and binary exponential backoff",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        632,
+        634,
+        635
+      ],
+      "points": [
+        "CSMA/CD senses the carrier, transmits and keeps listening; when it detects a collision it aborts, sends a jam signal so every station notices, and backs off.",
+        "A sender detects a collision only while it is still transmitting, and in the worst case news of the collision takes 2·T_p to come back. So T_t ≥ 2·T_p, giving the minimum frame L_min = 2·T_p·R = 2·d·R/v.",
+        "Classic 10 Mbps Ethernet: a one-way delay of 25.6 µs gives L_min = 2 × 25.6 µs × 10⁷ bit/s = 512 bits = 64 bytes. The same rule caps the cable length for a given frame size and rate.",
+        "Binary exponential backoff: after the n-th collision of the same frame, pick K uniformly from {0, 1, …, 2ⁿ − 1} (n capped at 10) and wait K slot times of 512 bit times; the frame is dropped after 16 attempts.",
+        "The station that has just succeeded starts its next frame with a fresh collision count, so it tends to beat a station that has collided several times (the capture effect)."
+      ],
+      "keyTerms": [
+        "collision detection",
+        "jam signal",
+        "slot time",
+        "binary exponential backoff",
+        "capture effect"
+      ],
+      "lesson": {
+        "why": "CSMA/CD questions turn on one calculation, the minimum frame size from the round-trip delay, and on how backoff widens after each collision.",
+        "intro": "On a shared cable two stations can start sending at nearly the same moment, and their frames collide. A station using CSMA/CD keeps listening while it sends. If it hears another signal on top of its own, it stops, sends a short jam signal so everyone notices, and waits a random time before trying again. The catch is that the sender can only notice a collision while it is still sending, and the news can take a whole round trip to arrive. A frame that ends sooner than that would be lost without the sender ever knowing.",
+        "prerequisites": [
+          "cn-data-link-layer.csma"
+        ],
+        "definitions": [
+          {
+            "term": "Jam signal",
+            "meaning": "A short burst sent after a collision is detected so that every station on the cable knows the frame is damaged."
+          },
+          {
+            "term": "Slot time",
+            "meaning": "The unit of waiting in backoff, the time to send 512 bits, which covers the worst-case round trip."
+          },
+          {
+            "term": "Binary exponential backoff",
+            "meaning": "After the n-th collision of one frame, wait a random number of slots drawn from a range that doubles each time."
+          }
+        ],
+        "principle": {
+          "text": "In the worst case the collision signal needs a full round trip, $2T_p$, to reach the sender, so the frame must take at least that long to transmit. The minimum frame length is the number of bits sent in $2T_p$. Here $T_t$ is the frame transmission time, $T_p=d/v$ is the one-way propagation delay over the longest cable of length $d$ at signal speed $v$, and $R$ is the bit rate. After the $n$-th collision the station picks $K$ uniformly from $0$ to $2^n-1$.",
+          "tex": "T_t \\ge 2T_p ;\\Rightarrow L_{\\min} = 2T_p \\cdot R = \\frac{2dR}{v}"
+        },
+        "limits": "The rule needs the cable length $d$ in the formula to be the longest path between two stations. Switched full-duplex Ethernet has no collisions, so CSMA/CD and backoff are not used there, although the 64-byte minimum frame is kept. The range $2^n$ stops growing at $n=10$ and a frame is dropped after 16 attempts.",
+        "example": {
+          "problem": "A shared cable is 1000 m long, signals travel at $2\\times10^8$ m/s and the bit rate is $10^7$ bit/s. Find the minimum frame size, and the backoff range after the third collision.",
+          "steps": [
+            "One-way delay: $T_p = 1000 / (2\\times10^8) = 5\\ \\mu s$, so the round trip is $2T_p = 10\\ \\mu s$.",
+            "The frame must last at least $10\\ \\mu s$, so $L_{\\min} = 10\\times10^{-6} \\times 10^7 = 100$ bits.",
+            "After the third collision, $K$ is drawn from $0$ to $2^3-1 = 7$, which is 8 equally likely values."
+          ],
+          "result": "The minimum frame is 100 bits, and the station waits 0 to 7 slots after the third collision."
+        },
+        "misconceptions": [
+          "Using $T_p$ instead of $2T_p$ halves the answer. The sender must hear the collision come back, so the whole round trip counts.",
+          "After $n$ collisions the range is $0$ to $2^n-1$, not $0$ to $2^n$, and it has $2^n$ values, not $n$.",
+          "Collision detection does not mean a lost frame is resent by the link layer. The station only retries the frame it aborted; damaged frames that are not collisions are left to higher layers."
+        ],
+        "recall": [
+          {
+            "q": "Why must an Ethernet frame have a minimum length?",
+            "a": "The sender can detect a collision only while still transmitting, and the news may take $2T_p$ to return, so the frame must last at least that long."
+          },
+          {
+            "q": "What is the formula for the minimum frame size?",
+            "a": "$L_{\\min} = 2T_p \\cdot R = 2dR/v$, the bits sent during one round-trip delay."
+          },
+          {
+            "q": "How is the wait chosen after the n-th collision?",
+            "a": "A random whole number of slots from $0$ to $2^n-1$, with $n$ capped at 10."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A shared cable is 1600 m long, signals travel at $2\\times10^8$ m/s and the bit rate is $10^7$ bit/s. What is the minimum frame size, in bits, for collisions to be detected?",
+          "answer": 160,
+          "explanation": "The one-way delay is $1600/(2\\times10^8) = 8\\ \\mu s$ and the round trip is $16\\ \\mu s$, so $L_{\\min} = 16\\times10^{-6}\\times10^7 = 160$ bits. Answering 80 tempts by using only the one-way delay, but the collision signal must travel back."
+        },
+        "summary": "A CSMA/CD sender listens while sending, so the frame must last at least one round trip, giving $L_{\\min}=2T_pR$; after the n-th collision it waits 0 to $2^n-1$ slots."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.token-passing",
+      "title": "Token passing",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        56
+      ],
+      "points": [
+        "A special frame, the token, circulates around a logical ring; only the station holding it may transmit, so there are no collisions and the wait for access is bounded (deterministic).",
+        "Each station holds the token for at most a token-holding time and then passes it on, so a station waits at most one full rotation of the token before its turn.",
+        "Let a = ring latency / frame transmission time and N = number of stations. If a station releases the token as soon as it finishes sending (early release), efficiency is 1/(1 + a/N), since handing the token to the next station takes a/N.",
+        "If the token is released only after the station's own frame has gone all the way round (delayed release), each turn costs T_t plus the ring latency plus the hand-over, and efficiency is 1/(1 + a(N + 1)/N).",
+        "Token passing is efficient under heavy load but wastes time circulating the token when few stations have data, and a lost token must be regenerated."
+      ],
+      "keyTerms": [
+        "token",
+        "token-holding time",
+        "ring latency",
+        "early token release"
+      ],
+      "lesson": {
+        "why": "Token passing questions ask for the efficiency of a ring under early or delayed token release, a direct use of two formulas.",
+        "intro": "In a ring network only the station that holds a special small frame, the token, may transmit. When it finishes, it passes the token to the next station. No two stations ever transmit together, so there are no collisions, and a station waits at most one trip of the token around the ring. The cost is the time the token spends travelling when nobody has data.",
+        "prerequisites": [
+          "cn-data-link-layer.csma-cd"
+        ],
+        "definitions": [
+          {
+            "term": "Ring latency",
+            "meaning": "The time a signal needs to travel once around the ring."
+          },
+          {
+            "term": "a",
+            "meaning": "Ring latency divided by the frame transmission time."
+          },
+          {
+            "term": "Early token release",
+            "meaning": "The station passes the token on as soon as it has finished sending its frame."
+          },
+          {
+            "term": "Delayed token release",
+            "meaning": "The station passes the token only after its own frame has gone all the way round the ring."
+          }
+        ],
+        "principle": {
+          "text": "With $N$ stations and $a$ equal to ring latency over frame time, passing the token to the next station costs $a/N$ in frame times. Early release gives the first efficiency below; delayed release adds the whole ring latency to each turn and gives the second.",
+          "tex": "\\eta_{\\text{early}} = \\frac{1}{1 + a/N}, \\qquad \\eta_{\\text{delayed}} = \\frac{1}{1 + a(N+1)/N}"
+        },
+        "limits": "The formulas assume every station always has a frame to send. At light load the token mostly circulates empty, and a lost token must be regenerated.",
+        "example": {
+          "problem": "A ring has $N=10$ stations and $a=2$. Find the efficiency under early release and under delayed release.",
+          "steps": [
+            "Early release: $\\eta = 1/(1 + a/N) = 1/(1 + 0.2) = 1/1.2$, about 0.8333.",
+            "Delayed release: $\\eta = 1/(1 + a(N+1)/N) = 1/(1 + 2 \\times 1.1) = 1/3.2 = 0.3125$.",
+            "Delaying the release is far worse here because each turn now includes the whole ring latency."
+          ],
+          "result": "About 83.3 percent with early release and 31.25 percent with delayed release."
+        },
+        "misconceptions": [
+          "Token passing is not inefficient under heavy load; it is at its best there, because the token is always used.",
+          "Early and delayed release are not interchangeable. Delayed release adds a full ring latency to every turn, so the second formula always gives lower efficiency."
+        ],
+        "recall": [
+          {
+            "q": "Why are there no collisions in token passing?",
+            "a": "Only the station holding the token may transmit."
+          },
+          {
+            "q": "What is the efficiency under early token release?",
+            "a": "1 / (1 + a/N), with a = ring latency / frame time."
+          },
+          {
+            "q": "What makes delayed release slower?",
+            "a": "The token is held until the frame has circled the ring, adding the ring latency to every turn."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A token ring has N = 4 stations and a = 0.5, with delayed token release. What is the efficiency as a percentage, rounded to the nearest integer?",
+          "answer": 62,
+          "explanation": "Efficiency = 1 / (1 + a(N+1)/N) = 1 / (1 + 0.5 x 5/4) = 1/1.625 = 0.6154, which is 62 percent. Using the early-release formula gives 1/(1 + 0.125) = 89 percent, which tempts when the release rule is overlooked."
+        },
+        "summary": "A token removes collisions and bounds the wait; efficiency is 1/(1 + a/N) with early release and 1/(1 + a(N+1)/N) with delayed release."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.ethernet",
+      "title": "Ethernet (IEEE 802.3) frame format and addressing",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        631,
+        632,
+        634
+      ],
+      "points": [
+        "Frame layout: 7-byte preamble and 1-byte start delimiter (clock synchronisation, not counted in the frame size), 6-byte destination address, 6-byte source address, 2-byte type/length, 46–1500 bytes of payload and a 4-byte CRC-32 frame check sequence.",
+        "Frames run from 64 to 1518 bytes: 64 = 18 bytes of addresses, type and FCS plus the 46-byte minimum payload, and shorter data is padded up to 46 bytes.",
+        "MAC addresses are 48 bits and the first 24 bits are the manufacturer's OUI. FF:FF:FF:FF:FF:FF is the broadcast address; an address whose first byte has its least significant bit set is a multicast group.",
+        "Classic shared Ethernet ran CSMA/CD with binary exponential backoff; switched full-duplex Ethernet has no collisions but keeps the 64-byte minimum. Speeds run from 10 Mbps to 100 Gbps and beyond.",
+        "A receiver drops any frame whose FCS check fails; Ethernet sends no ACKs or NAKs, so recovery is left to higher layers such as TCP."
+      ],
+      "keyTerms": [
+        "preamble",
+        "MAC address",
+        "OUI",
+        "FCS",
+        "padding",
+        "broadcast address"
+      ],
+      "lesson": {
+        "why": "Ethernet questions test which header fields change at each hop, and the frame size limits that follow from the layout.",
+        "intro": "Ethernet is the link-layer format used on most wired LANs. Every network card has a 48-bit hardware address, called the MAC address, burned in by its maker. A frame carries a destination and a source MAC address, a type field, the data, and a 4-byte check value at the end. The MAC address says which card on this one cable or switch should take the frame. It is separate from the IP address, which names the final machine and is meant to stay the same on the whole journey.",
+        "prerequisites": [
+          "cn-data-link-layer.csma-cd",
+          "cn-data-link-layer.crc"
+        ],
+        "definitions": [
+          {
+            "term": "MAC address",
+            "meaning": "A 48-bit address of a network card, valid only on the current link; the first 24 bits identify the manufacturer."
+          },
+          {
+            "term": "Padding",
+            "meaning": "Extra bytes added when the data is under 46 bytes so that the frame reaches the 64-byte minimum."
+          },
+          {
+            "term": "Broadcast address",
+            "meaning": "FF:FF:FF:FF:FF:FF, a destination that every card on the LAN accepts."
+          }
+        ],
+        "principle": {
+          "text": "The frame body holds 6 bytes of destination address, 6 of source address, 2 of type or length, 46 to 1500 bytes of data and a 4-byte frame check sequence, so frames run from 64 to 1518 bytes. The IP addresses are end to end, while a router replaces the MAC addresses on every link.",
+          "tex": "6+6+2+(46\\ \\text{to}\\ 1500)+4 = 64\\ \\text{to}\\ 1518\\ \\text{bytes}"
+        },
+        "limits": "The preamble and start delimiter are sent before the frame but are not counted in its size. Ethernet does not acknowledge frames: a receiver silently drops a frame whose check fails and leaves recovery to higher layers. The MAC rewrite applies to routers; a switch forwards a frame without changing its addresses.",
+        "example": {
+          "problem": "Host A sends an IP packet to host C. A router R sits between them, and A and R share one Ethernet. R and C share a second one. What are the destination IP and destination MAC on the frame as it leaves A, and on the frame R sends to C?",
+          "steps": [
+            "A knows C is not on its own LAN, so it sends the frame to its router. On A's link the destination MAC is R's card on that side.",
+            "The destination IP is C's address, because the IP destination does not change between hops.",
+            "R removes the old frame, looks up C on the second LAN and builds a new frame. The destination MAC is now C's, the source MAC is R's other card, and the destination IP is still C's."
+          ],
+          "result": "The destination IP is C's in both frames; the destination MAC is R's on the first link and C's on the second."
+        },
+        "misconceptions": [
+          "The destination MAC is not the final host's MAC when a router is on the path. It names only the next device on the current link.",
+          "A switch is never the destination of a frame. It forwards by MAC address and does not appear in the address fields.",
+          "The 64-byte minimum includes the 4-byte check sequence but not the 8-byte preamble and delimiter."
+        ],
+        "recall": [
+          {
+            "q": "Which address stays the same from source host to destination host?",
+            "a": "The destination IP address; the MAC addresses are replaced at each router."
+          },
+          {
+            "q": "What are the minimum and maximum Ethernet frame sizes?",
+            "a": "64 and 1518 bytes, counting addresses, type, data and the 4-byte check sequence."
+          },
+          {
+            "q": "What happens to data shorter than 46 bytes?",
+            "a": "It is padded up to 46 bytes so that the frame is at least 64 bytes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A host places 12 bytes of data in an Ethernet frame. How many bytes of padding are added so the frame meets the minimum size?",
+          "answer": 34,
+          "explanation": "The data field must be at least 46 bytes, so the padding is $46-12 = 34$ bytes and the frame is 64 bytes. Answering 52 tempts by subtracting from 64 as if the header and check bytes were data, but those 18 bytes are already counted separately."
+        },
+        "summary": "An Ethernet frame is 64 to 1518 bytes with 46 to 1500 bytes of data; IP addresses are end to end while MAC addresses change at every router hop."
+      }
+    },
+    {
+      "id": "cn-data-link-layer.learning-bridges",
+      "title": "Learning bridges, switches and spanning tree",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        631,
+        632,
+        634,
+        635
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "A learning bridge or switch records the source MAC address and arrival port of every frame in its forwarding table (self-learning).",
+        "A frame for a known destination goes out only on that port, and is dropped if that is the port it came in on; a frame for an unknown destination, or a broadcast, is flooded on every port except the incoming one.",
+        "Redundant bridges create loops in which broadcast frames circulate for ever; the Spanning Tree Protocol elects a root bridge and blocks ports until the active topology is a tree."
+      ],
+      "keyTerms": [
+        "self-learning",
+        "flooding",
+        "spanning tree protocol"
+      ],
+      "lesson": {
+        "why": "Switch questions test how a forwarding table is learned and how switches are chained, including counting how many ports are left for machines.",
+        "intro": "A switch joins several machines into one LAN. It has numbered ports, and each port has one cable. At first the switch does not know which machine is on which port. Whenever a frame arrives, the switch notes the sender's address and the port it came in on. Later, a frame for that sender is sent out of that port only. A frame for an address the switch has not seen yet is copied out of every other port, which is called flooding.",
+        "prerequisites": [
+          "cn-data-link-layer.ethernet"
+        ],
+        "principle": {
+          "text": "On each frame the switch records source address and incoming port. If the destination is known it forwards on that port only, or drops the frame if it is the incoming port. If the destination is unknown or broadcast it floods all ports except the incoming one. With $p$ ports per switch, linking $n$ switches in a loop-free tree needs $n-1$ cables and each cable uses 2 ports, leaving $pn-2(n-1)$ for machines.",
+          "tex": "\\text{machine ports} = pn - 2(n-1)"
+        },
+        "limits": "Loops between switches make frames circulate for ever, so the Spanning Tree Protocol blocks some ports until the active links form a tree. Table entries expire after a while, and the port count formula assumes a tree with no uplink ports and every machine on its own port.",
+        "example": {
+          "problem": "A 4-port switch has an empty table. Host A is on port 1, B on port 2 and C on port 3. A sends a frame to B, then B sends one to A. What does the switch do each time?",
+          "steps": [
+            "A to B: the switch records A on port 1. B is not in the table, so it floods the frame out of ports 2, 3 and 4.",
+            "B to A: the switch records B on port 2. A is known on port 1, so the frame goes out of port 1 only and C sees nothing.",
+            "The table now holds A on port 1 and B on port 2."
+          ],
+          "result": "The first frame is flooded, the reply is sent on port 1 only, and the table learns A and B."
+        },
+        "misconceptions": [
+          "A switch does not learn from the destination address; it learns only from the source address of arriving frames.",
+          "Machines can use all the ports of a switch only when there is one switch. Each link between two switches costs a port on each side.",
+          "Flooding does not send the frame back out of the port it arrived on."
+        ],
+        "recall": [
+          {
+            "q": "How does a switch learn where a host is?",
+            "a": "It records the source MAC address of each arriving frame against the port it arrived on."
+          },
+          {
+            "q": "What does a switch do with a frame for an unknown destination?",
+            "a": "It floods the frame out of every port except the one it arrived on."
+          },
+          {
+            "q": "How many ports do $n$ connected switches lose to links?",
+            "a": "A loop-free tree has $n-1$ links and each link uses two ports, so $2(n-1)$ ports."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Ten machines are to be connected in a LAN using 4-port Ethernet switches with no separate uplink ports. What is the minimum number of switches needed?",
+          "answer": 4,
+          "explanation": "For $n$ switches in a tree, machine ports are $4n-2(n-1)=2n+2$. This is 8 for $n=3$, which is too few, and 10 for $n=4$. Answering 3 tempts by dividing 10 by 4 and rounding up, which forgets that links consume ports."
+        },
+        "summary": "A switch learns source addresses by port, forwards known destinations on one port and floods unknown ones; in a tree of $n$ switches, $2(n-1)$ ports go to links."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cn-data-link-layer.distance-capability",
+      "name": "Detection and correction capability of a code",
+      "tex": "d_{\\min} \\ge s + 1 \\;\\text{(detect } s\\text{)}, \\qquad d_{\\min} \\ge 2t + 1 \\;\\text{(correct } t\\text{)}",
+      "text": "d_min ≥ s + 1 to detect s errors; d_min ≥ 2t + 1 to correct t errors",
+      "note": "So distance d detects d − 1 errors and corrects ⌊(d − 1)/2⌋. Correcting t and also detecting s > t errors needs d ≥ s + t + 1.",
+      "topic": "cn-data-link-layer.hamming",
+      "origin": "source",
+      "pages": [
+        629,
+        632
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.hamming-check-bits",
+      "name": "Check bits for a single-error-correcting Hamming code",
+      "tex": "2^{r} \\ge m + r + 1",
+      "text": "2^r ≥ m + r + 1",
+      "where": [
+        [
+          "m",
+          "data bits"
+        ],
+        [
+          "r",
+          "check (parity) bits"
+        ]
+      ],
+      "note": "Take the smallest such r: m = 4 needs 3, m = 11 needs 4, m = 12 needs 5. SECDED adds one more bit.",
+      "topic": "cn-data-link-layer.hamming",
+      "origin": "source",
+      "pages": [
+        55,
+        629
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.crc-codeword",
+      "name": "CRC frame construction",
+      "tex": "T(x) = x^{r} M(x) + \\big(x^{r} M(x) \\bmod G(x)\\big)",
+      "text": "T(x) = x^r·M(x) + (x^r·M(x) mod G(x))",
+      "where": [
+        [
+          "M(x)",
+          "data polynomial"
+        ],
+        [
+          "G(x)",
+          "generator polynomial of degree r"
+        ],
+        [
+          "T(x)",
+          "transmitted frame, divisible by G(x)"
+        ]
+      ],
+      "note": "Arithmetic is modulo 2: addition and subtraction are both XOR, so appending the remainder is the same as subtracting it.",
+      "topic": "cn-data-link-layer.crc",
+      "origin": "source",
+      "pages": [
+        55,
+        629
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.crc-undetected",
+      "name": "When a CRC misses an error",
+      "tex": "E(x) \\text{ is undetected} \\iff G(x) \\mid E(x)",
+      "text": "error pattern E(x) is undetected exactly when G(x) divides E(x)",
+      "note": "Use it to test claims: a single-bit error xⁱ is caught if G has two or more terms; odd-weight errors are caught if (x + 1) divides G.",
+      "topic": "cn-data-link-layer.crc",
+      "origin": "curated",
+      "pages": [
+        629
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.stop-and-wait-efficiency",
+      "name": "Stop-and-wait efficiency",
+      "tex": "\\eta = \\frac{T_t}{T_t + 2T_p} = \\frac{1}{1 + 2a}, \\qquad a = \\frac{T_p}{T_t}",
+      "text": "η = T_t / (T_t + 2·T_p) = 1 / (1 + 2a), with a = T_p / T_t",
+      "where": [
+        [
+          "T_t",
+          "frame transmission time L/R"
+        ],
+        [
+          "T_p",
+          "one-way propagation delay d/v"
+        ]
+      ],
+      "note": "ACK transmission and processing are ignored; when given, add them to the denominator.",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "origin": "source",
+      "pages": [
+        56,
+        629,
+        63
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.arq-throughput",
+      "name": "Throughput of an ARQ protocol",
+      "tex": "\\text{throughput} = \\eta \\times R",
+      "text": "throughput = η × R",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.window-efficiency",
+      "name": "Sliding-window efficiency",
+      "tex": "\\eta = \\min\\left(1, \\frac{W}{1 + 2a}\\right)",
+      "text": "η = min(1, W / (1 + 2a))",
+      "where": [
+        [
+          "W",
+          "sender window in frames"
+        ]
+      ],
+      "note": "Applies to Go-Back-N and Selective Repeat on an error-free link.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        63
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.window-to-fill-link",
+      "name": "Window needed for full utilisation",
+      "tex": "W \\ge 1 + 2a",
+      "text": "W ≥ 1 + 2a",
+      "note": "One frame's transmission plus the round trip before its ACK returns; round up to a whole number of frames.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        63
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.gbn-window-bound",
+      "name": "Go-Back-N window bound",
+      "tex": "W_{\\text{GBN}} \\le 2^{k} - 1",
+      "text": "W_GBN ≤ 2^k − 1",
+      "where": [
+        [
+          "k",
+          "bits in the sequence-number field"
+        ]
+      ],
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        56,
+        630
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.sr-window-bound",
+      "name": "Selective Repeat window bound",
+      "tex": "W_{\\text{SR}} \\le 2^{k-1}",
+      "text": "W_SR ≤ 2^(k−1)",
+      "note": "For equal sender and receiver windows; in general W_s + W_r ≤ 2^k.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        56,
+        630
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.sequence-bits",
+      "name": "Sequence-number bits for given windows",
+      "tex": "k \\ge \\left\\lceil \\log_2 (W_s + W_r) \\right\\rceil",
+      "text": "k ≥ ⌈log₂(W_s + W_r)⌉",
+      "note": "GBN has W_r = 1, so k = ⌈log₂(W + 1)⌉; SR has W_r = W_s, so k = ⌈log₂(2W)⌉.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.pure-aloha",
+      "name": "Pure ALOHA throughput",
+      "tex": "S = G\\,e^{-2G}, \\qquad S_{\\max} = \\frac{1}{2e} \\approx 0.184 \\text{ at } G = 0.5",
+      "text": "S = G·e^(−2G); maximum 1/(2e) ≈ 0.184 at G = 0.5",
+      "where": [
+        [
+          "G",
+          "offered load in frames per frame time"
+        ],
+        [
+          "S",
+          "successful frames per frame time"
+        ]
+      ],
+      "topic": "cn-data-link-layer.aloha",
+      "origin": "curated",
+      "pages": [
+        630
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.slotted-aloha",
+      "name": "Slotted ALOHA throughput",
+      "tex": "S = G\\,e^{-G}, \\qquad S_{\\max} = \\frac{1}{e} \\approx 0.368 \\text{ at } G = 1",
+      "text": "S = G·e^(−G); maximum 1/e ≈ 0.368 at G = 1",
+      "topic": "cn-data-link-layer.aloha",
+      "origin": "curated",
+      "pages": [
+        630
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.slot-success",
+      "name": "Success probability of a slot with N stations",
+      "tex": "P_{\\text{success}} = N p (1 - p)^{N-1}",
+      "text": "P_success = N·p·(1 − p)^(N−1)",
+      "where": [
+        [
+          "N",
+          "stations"
+        ],
+        [
+          "p",
+          "probability that a station transmits in the slot"
+        ]
+      ],
+      "note": "Largest at p = 1/N and tends to 1/e as N grows. With unequal probabilities, add pᵢ·Π(1 − pⱼ) over each station i.",
+      "topic": "cn-data-link-layer.aloha",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.csma-cd-min-frame",
+      "name": "CSMA/CD minimum frame size",
+      "tex": "L_{\\min} = 2\\,T_p\\,R = \\frac{2\\,d\\,R}{v}",
+      "text": "L_min = 2·T_p·R = 2·d·R / v",
+      "where": [
+        [
+          "d",
+          "distance between the two farthest stations"
+        ],
+        [
+          "v",
+          "signal speed"
+        ],
+        [
+          "R",
+          "data rate"
+        ]
+      ],
+      "note": "The same as T_t ≥ 2·T_p. Solve for d to get the longest cable allowed for a given frame size and rate.",
+      "topic": "cn-data-link-layer.csma-cd",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.exponential-backoff",
+      "name": "Binary exponential backoff",
+      "tex": "K \\in \\{0, 1, \\dots, 2^{\\min(n, 10)} - 1\\}, \\qquad \\text{wait} = K \\times \\text{slot time}",
+      "text": "K ∈ {0, 1, …, 2^min(n,10) − 1}; wait K × slot time",
+      "where": [
+        [
+          "n",
+          "collisions so far for this frame"
+        ]
+      ],
+      "note": "Slot time is 512 bit times in classic Ethernet, and the frame is abandoned after 16 attempts. Equal K values collide again.",
+      "topic": "cn-data-link-layer.csma-cd",
+      "origin": "source",
+      "pages": [
+        56
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.token-early-release",
+      "name": "Token ring efficiency, early token release",
+      "tex": "\\eta = \\frac{1}{1 + a/N}",
+      "text": "η = 1 / (1 + a/N)",
+      "where": [
+        [
+          "a",
+          "ring latency / frame transmission time"
+        ],
+        [
+          "N",
+          "stations on the ring"
+        ]
+      ],
+      "topic": "cn-data-link-layer.token-passing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.token-delayed-release",
+      "name": "Token ring efficiency, delayed token release",
+      "tex": "\\eta = \\frac{1}{1 + a\\,(N + 1)/N}",
+      "text": "η = 1 / (1 + a(N + 1)/N)",
+      "note": "The token is released only after the station's own frame has returned around the ring.",
+      "topic": "cn-data-link-layer.token-passing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.ethernet-frame-size",
+      "name": "Ethernet frame and payload limits",
+      "tex": "64 \\le \\text{frame} \\le 1518 \\text{ bytes}, \\qquad 46 \\le \\text{payload} \\le 1500 \\text{ bytes}",
+      "text": "64 ≤ frame ≤ 1518 bytes; 46 ≤ payload ≤ 1500 bytes",
+      "note": "Addresses, type and FCS take 18 bytes; the 8 bytes of preamble and start delimiter are not counted.",
+      "topic": "cn-data-link-layer.ethernet",
+      "origin": "source",
+      "pages": [
+        631,
+        632
+      ]
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cn-data-link-layer.crc-computation",
+      "title": "CRC remainder and transmitted frame",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Write the generator as r + 1 bits; its degree r is the number of check bits.",
+        "Append r zeros to the data and do modulo-2 long division: XOR the generator under every leading 1, with no borrows or carries.",
+        "The last r bits are the remainder; the frame sent is the data followed by the remainder.",
+        "To check a received frame, divide it as it stands (no zeros appended): a zero remainder means no error was detected."
+      ],
+      "trap": "Appending r + 1 zeros instead of r, or doing ordinary subtraction instead of XOR.",
+      "topic": "cn-data-link-layer.crc",
+      "origin": "source",
+      "pages": [
+        629,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.hamming-capability",
+      "title": "Hamming distance and check-bit counts",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "For a given code, find the minimum distance d: the fewest 1s in the XOR of any two codewords.",
+        "It detects up to d − 1 errors and corrects up to ⌊(d − 1)/2⌋.",
+        "For a Hamming code, try r = 1, 2, 3, … until 2ʳ ≥ m + r + 1."
+      ],
+      "trap": "Testing 2ʳ ≥ m + 1 and forgetting that the check bits can be the ones in error.",
+      "topic": "cn-data-link-layer.hamming",
+      "origin": "source",
+      "pages": [
+        629,
+        633,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.checksum-computation",
+      "title": "One's complement checksum",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Add the words in binary; whenever a carry leaves the top bit, add it back into the lowest bit.",
+        "Complement the final sum to get the checksum.",
+        "Receiver check: the sum of all the words plus the checksum must be all 1s."
+      ],
+      "trap": "Dropping the carry instead of wrapping it, or forgetting the final complement.",
+      "topic": "cn-data-link-layer.checksum",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.arq-efficiency",
+      "title": "Stop-and-wait or sliding-window efficiency and throughput",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Compute T_t = L/R and T_p = d/v, then a = T_p/T_t.",
+        "Stop-and-wait: η = 1/(1 + 2a). Window W: η = min(1, W/(1 + 2a)).",
+        "Throughput = η × R; add ACK transmission or processing time to the cycle only if the question gives it."
+      ],
+      "trap": "Using a round trip of T_p instead of 2T_p, or forgetting to cap the efficiency at 1.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        56,
+        629,
+        630,
+        634,
+        635,
+        63
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.window-sequence-bits",
+      "title": "Window size and sequence-number bits",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find the window that fills the link, W = ⌈1 + 2a⌉, or read the given window.",
+        "GBN needs 2ᵏ ≥ W + 1 and SR needs 2ᵏ ≥ 2W; take the smallest such k.",
+        "Conversely, k bits allow windows of at most 2ᵏ − 1 (GBN) and 2ᵏ⁻¹ (SR)."
+      ],
+      "trap": "Using 2ᵏ as the GBN window, or applying the GBN bound to Selective Repeat.",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        633,
+        634,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.retransmission-count",
+      "title": "Counting transmissions under Go-Back-N or Selective Repeat",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Fix the conventions: window size, which transmissions are lost, whether ACKs can be lost, and that the timeout exceeds the round trip.",
+        "GBN: a lost frame is resent together with every later frame still outstanding, usually W frames in all.",
+        "SR: only the lost frame is resent.",
+        "Trace the transmissions explicitly when a loss falls near the end of the data, where fewer frames are outstanding."
+      ],
+      "trap": "Forgetting that new frames keep going out as earlier ACKs arrive, so the window is full when the timer expires.",
+      "topic": "cn-data-link-layer.gbn-sr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.aloha-throughput",
+      "title": "ALOHA throughput and slot success probability",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Express the offered load G in frames per frame time (or per slot).",
+        "Pure ALOHA S = G·e^(−2G), slotted S = G·e^(−G); the maxima are 1/(2e) and 1/e.",
+        "For stations with given transmit probabilities, success = probability that exactly one of them transmits."
+      ],
+      "trap": "Multiplying the offered frame rate by S instead of by the per-frame success probability e^(−2G) or e^(−G).",
+      "topic": "cn-data-link-layer.aloha",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.csma-cd-frame",
+      "title": "CSMA/CD minimum frame size or maximum cable length",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Take the worst-case one-way delay between the two farthest stations, including repeater delays if given.",
+        "Minimum frame: L_min = 2·T_p·R bits; divide by 8 for bytes.",
+        "For the maximum distance, solve 2·d/v ≤ L/R for d."
+      ],
+      "trap": "Using T_p instead of 2·T_p.",
+      "topic": "cn-data-link-layer.csma-cd",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        635
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "cn-data-link-layer.q-crc-remainder",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The data bits 1101 are protected by a CRC with generator 1011 (x³ + x + 1). What is the CRC remainder appended to the data?",
+      "options": [
+        "110",
+        "011",
+        "001",
+        "101"
+      ],
+      "answer": 2,
+      "explanation": "Append 3 zeros to get 1101000 and divide modulo 2 by 1011. 1101 XOR 1011 = 0110; bring down 0 to get 1100, XOR 1011 = 0111; bring down 0 to get 1110, XOR 1011 = 0101; bring down 0 to get 1010, XOR 1011 = 0001. The remainder is 001 and the frame sent is 1101001. As a check, x⁶ + x⁵ + x³ mod (x³ + x + 1) = 1.",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.crc",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — CRC",
+      "pages": [
+        629,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-crc-guarantees",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A CRC uses the generator G(x) = x⁴ + x + 1 (bits 10011). Which of these error patterns is it guaranteed to detect?",
+      "options": [
+        "Every single-bit error",
+        "Every error that flips an odd number of bits",
+        "Every burst error of length 4 or less",
+        "Every burst error of length 5"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "An error E(x) is missed only when G(x) divides E(x). G has more than one term, so no single xⁱ is divisible by it: every single-bit error is caught. G has degree 4 and a constant term, so every burst of length 4 or less is caught. G(1) = 1 + 1 + 1 = 1, so x + 1 is not a factor and odd-weight errors are not guaranteed: E(x) = G(x) itself flips 3 bits and is missed. That same pattern 10011 is a burst of length 5, so not every 5-bit burst is caught (1 of the 8 possible 5-bit burst patterns slips through).",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.crc",
+      "origin": "curated",
+      "pages": [
+        629
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-hamming-distance",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A block code has minimum Hamming distance 5. How many bit errors per codeword can it always detect, and how many can it always correct?",
+      "options": [
+        "Detect 2, correct 4",
+        "Detect 4, correct 3",
+        "Detect 5, correct 2",
+        "Detect 4, correct 2"
+      ],
+      "answer": 3,
+      "explanation": "Up to d − 1 = 4 flipped bits cannot turn one codeword into another, so 4 errors are always detected. Correction picks the nearest codeword, which is unambiguous for up to ⌊(d − 1)/2⌋ = 2 errors.",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.hamming",
+      "origin": "source",
+      "pages": [
+        629,
+        632,
+        633
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-hamming-check-bits",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many check bits does a single-error-correcting Hamming code need for 12 data bits?",
+      "answer": 5,
+      "explanation": "Find the smallest r with 2ʳ ≥ m + r + 1. r = 4 fails, since 16 < 12 + 4 + 1 = 17. r = 5 works, since 32 ≥ 18, so 5 check bits give a 17-bit codeword. Eleven data bits would need only 4 (16 ≥ 16).",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.hamming",
+      "origin": "curated",
+      "pages": [
+        629,
+        633
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-checksum",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A sender computes an 8-bit one's complement checksum over the three bytes 10110011, 11001010 and 01101100. What checksum does it send?",
+      "options": [
+        "11101010",
+        "00010101",
+        "00010110",
+        "11101001"
+      ],
+      "answer": 1,
+      "explanation": "10110011 + 11001010 = 1 01111101; the carry wraps around to give 01111110. Adding 01101100 gives 11101010 with no carry. The checksum is its complement, 00010101, and the receiver's check 11101010 + 00010101 = 11111111 confirms it. 11101010 is the sum without the final complement, and 11101001 or 00010110 come from discarding the carry instead of wrapping it.",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.checksum",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-stop-and-wait",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Under stop-and-wait ARQ, a frame takes 1 ms to transmit and the one-way propagation delay is 5 ms. ACK transmission and processing times are negligible. What is the link efficiency?",
+      "options": [
+        "8.33%",
+        "9.09%",
+        "10%",
+        "16.67%"
+      ],
+      "answer": 1,
+      "explanation": "a = T_p/T_t = 5, so η = 1/(1 + 2a) = 1/11 ≈ 9.09%: of each 11 ms cycle (1 ms sending plus a 10 ms round trip), only 1 ms carries data. 16.67% forgets that the ACK must travel back, 10% leaves the transmission time out of the cycle, and 8.33% counts it twice.",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Stop-and-wait",
+      "pages": [
+        629,
+        634
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-window-bounds",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A sliding-window protocol uses 3-bit sequence numbers. What are the largest sender windows that work correctly under Go-Back-N and under Selective Repeat?",
+      "options": [
+        "GBN 8, SR 4",
+        "GBN 7, SR 3",
+        "GBN 8, SR 7",
+        "GBN 7, SR 4"
+      ],
+      "answer": 3,
+      "explanation": "There are 2³ = 8 sequence numbers. GBN needs W + 1 ≤ 8, so W ≤ 7; SR needs 2W ≤ 8, so W ≤ 4. With a GBN window of 8, or an SR window of 5, losing every ACK of a window makes the sender retransmit an old frame whose number the receiver now expects for new data, and it is wrongly accepted.",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — GBN",
+      "pages": [
+        630,
+        633,
+        634,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-sr-sequence-bits",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 1 Mbps link has a one-way propagation delay of 20 ms and carries 1000-bit frames; ACKs are negligibly short. Selective Repeat is used with equal sender and receiver windows, and the sender window is the smallest that keeps the link fully busy. What is the minimum number of bits in the sequence-number field?",
+      "answer": 7,
+      "explanation": "T_t = 1000 / 10⁶ s = 1 ms, so a = T_p/T_t = 20 and full utilisation needs W ≥ 1 + 2a = 41 frames. Selective Repeat needs 2W ≤ 2ᵏ, i.e. 2ᵏ ≥ 82, so k = 7 (128 numbers). Go-Back-N would need only 2ᵏ ≥ 42, i.e. 6 bits.",
+      "difficulty": "hard",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-sr-throughput",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Selective Repeat with 4-bit sequence numbers uses the largest window it allows. The link runs at 1 Mbps, frames are 1000 bits, the one-way propagation delay is 15.5 ms, ACKs are negligibly short and no frames are lost. What is the throughput in kbps?",
+      "answer": 250,
+      "explanation": "The largest SR window with k = 4 is 2³ = 8 frames. T_t = 1 ms and a = 15.5, so 1 + 2a = 32 and η = min(1, 8/32) = 0.25. Throughput = 0.25 × 1000 kbps = 250 kbps: the sender sends 8 frames in 8 ms and then waits until the first ACK returns at 32 ms.",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.window-bounds",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-gbn-transmissions",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A sender transmits frames 1 to 10 using Go-Back-N with a window of 4. Frames 3 and 7 are lost the first time they are sent; every other transmission and every ACK gets through. The receiver sends cumulative ACKs and discards out-of-order frames. The sender sends a new frame whenever an ACK opens space in its window, and its timeout is longer than the round-trip time. How many frame transmissions does it make in total?",
+      "answer": 18,
+      "explanation": "Frames 1–4 go out, and ACKs 1 and 2 release frames 5 and 6. Frame 3 was lost, so 4, 5 and 6 are discarded, and when frame 3's timer expires the sender resends 3, 4, 5 and 6. Their ACKs release 7, 8, 9 and 10; frame 7 is lost, so 8–10 are discarded, and on the timeout 7, 8, 9 and 10 are resent. Total: 10 first transmissions + 4 + 4 = 18. Selective Repeat would need only 10 + 2 = 12.",
+      "difficulty": "hard",
+      "topic": "cn-data-link-layer.gbn-sr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-slot-success",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Three stations share a slotted channel. In a given slot they transmit independently with probabilities 0.2, 0.3 and 0.5, and the slot is successful when exactly one station transmits. What is the probability that the slot is successful?",
+      "answer": 0.47,
+      "tolerance": 0.005,
+      "explanation": "Add up the cases where one station sends alone: 0.2 × 0.7 × 0.5 = 0.07, 0.8 × 0.3 × 0.5 = 0.12 and 0.8 × 0.7 × 0.5 = 0.28, a total of 0.47. The remaining outcomes are an idle slot (0.8 × 0.7 × 0.5 = 0.28) and a collision (0.25).",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.aloha",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-mac-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about medium access control are true?",
+      "options": [
+        "In 1-persistent CSMA, a station that finds the channel busy waits a random time before sensing it again.",
+        "The maximum throughput of slotted ALOHA is twice that of pure ALOHA.",
+        "In token passing, collisions cannot occur because only the station holding the token may transmit.",
+        "802.11 uses CSMA/CA instead of CSMA/CD because a wireless station cannot reliably detect a collision while it is transmitting."
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "explanation": "Slotted ALOHA's 1/e ≈ 0.368 is twice pure ALOHA's 1/(2e) ≈ 0.184, because slotting halves the vulnerable period. Only the token holder may send, so token passing has no collisions. A radio's own signal drowns what it receives, and hidden stations may not hear each other, so Wi-Fi avoids collisions instead of detecting them. The statement about 1-persistent CSMA describes non-persistent CSMA; a 1-persistent station keeps sensing and sends the moment the channel goes idle.",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.csma",
+      "origin": "source",
+      "pages": [
+        56,
+        630,
+        631,
+        632
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-csma-cd-min-frame",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A CSMA/CD network runs at 10 Mbps, and the maximum one-way propagation delay between two stations is 25.6 µs. What is the minimum frame size that lets a sender detect every collision before it finishes transmitting?",
+      "options": [
+        "32 bytes",
+        "64 bytes",
+        "128 bytes",
+        "512 bytes"
+      ],
+      "answer": 1,
+      "explanation": "The sender must still be transmitting when news of a collision at the far end comes back, so T_t ≥ 2T_p. L_min = 2 × 25.6 × 10⁻⁶ s × 10⁷ bit/s = 512 bits = 64 bytes. 32 bytes uses T_p instead of 2T_p, and 512 bytes reads the bit count as bytes.",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.csma-cd",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Min frame",
+      "pages": [
+        630,
+        635
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-backoff-race",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Stations A and B are the only stations on a classic Ethernet, and both always have frames to send. After the n-th collision of a frame, a station picks K uniformly from {0, …, 2ⁿ − 1} and waits K slot times; the station with the strictly smaller K wins the race, and equal values collide again. A and B collide and A wins. A's next frame then collides with B's still-waiting frame, and A wins again. A's third frame now collides with B's frame. What is the probability that A wins this third race?",
+      "options": [
+        "0.625",
+        "0.75",
+        "0.8125",
+        "0.9375"
+      ],
+      "answer": 2,
+      "explanation": "A's third frame has collided once, so A picks K from {0, 1}. B's frame has now collided three times, so B picks from {0, …, 7}. A wins if K_A < K_B: with K_A = 0, B must pick 1–7 (probability 7/8); with K_A = 1, B must pick 2–7 (6/8). So P = ½(7/8 + 6/8) = 13/16 = 0.8125. 0.625 is the answer for the second race, when B picks from {0, …, 3}, and 0.9375 wrongly counts ties as wins for A.",
+      "difficulty": "hard",
+      "topic": "cn-data-link-layer.csma-cd",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-data-link-layer.q-ethernet-padding",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An Ethernet frame has a 6-byte destination address, a 6-byte source address, a 2-byte type field and a 4-byte FCS, and the minimum frame is 64 bytes (preamble not counted). A 30-byte IP packet is handed to Ethernet for sending. How many bytes of padding are added?",
+      "options": [
+        "16",
+        "34",
+        "46",
+        "0"
+      ],
+      "answer": 0,
+      "explanation": "Addresses, type and FCS take 6 + 6 + 2 + 4 = 18 bytes, so the payload must be at least 64 − 18 = 46 bytes. A 30-byte packet is padded with 46 − 30 = 16 bytes. 34 comes from 64 − 30, which forgets the header, and 46 is the minimum payload, not the padding.",
+      "difficulty": "easy",
+      "topic": "cn-data-link-layer.ethernet",
+      "origin": "curated",
+      "pages": [
+        631
+      ]
+    },
+    {
+      "id": "cn-data-link-layer.q-ethernet-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about Ethernet (IEEE 802.3) are true?",
+      "options": [
+        "A MAC address is 48 bits long, and its first 24 bits identify the manufacturer (OUI).",
+        "The 4-byte FCS is a CRC that lets the receiver correct any single-bit error in the frame.",
+        "The 64-byte minimum frame size makes sure a sender is still transmitting when a collision at the far end of the network reaches it.",
+        "A frame sent to FF:FF:FF:FF:FF:FF is received by every station on the LAN."
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "MAC addresses are 48 bits with a 24-bit OUI, and FF:FF:FF:FF:FF:FF is the broadcast address. The minimum frame size comes from the CSMA/CD rule T_t ≥ 2T_p. The FCS is a CRC-32 used only for detection: a frame that fails the check is discarded, not repaired, and any recovery is left to higher layers.",
+      "difficulty": "medium",
+      "topic": "cn-data-link-layer.ethernet",
+      "origin": "source",
+      "pages": [
+        631,
+        632,
+        634
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Go-Back-N allows a window of 2ᵏ − 1 but Selective Repeat only 2ᵏ⁻¹; using 2ᵏ for either breaks duplicate detection.",
+      "origin": "source",
+      "pages": [
+        635
+      ]
+    },
+    {
+      "text": "Stop-and-wait efficiency is 1/(1 + 2a), and it collapses when propagation dominates. The 2 is the round trip: forgetting it, or dropping the frame's own transmission time from the cycle, gives a wrong answer.",
+      "origin": "source",
+      "pages": [
+        635
+      ]
+    },
+    {
+      "text": "The CSMA/CD minimum frame uses 2·T_p, the round trip, not T_p: news of the collision must reach the sender before it stops transmitting.",
+      "origin": "source",
+      "pages": [
+        635
+      ]
+    },
+    {
+      "text": "CRC only detects errors; it never corrects them. A Hamming code is what corrects a single-bit error.",
+      "origin": "source",
+      "pages": [
+        635
+      ]
+    },
+    {
+      "text": "In CRC division append r zeros, where r is the generator's degree (one less than its number of bits), and subtract with XOR, never with borrows.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A factor x + 1 in the generator guarantees detection of every odd-weight error, not of every double-bit error.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "For a Hamming code test 2ʳ ≥ m + r + 1, not 2ʳ ≥ m: 12 data bits need 5 check bits, not 4.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "ALOHA's S counts successful frames per frame time; the share of offered frames that succeed is e^(−2G) for pure and e^(−G) for slotted ALOHA, not S itself.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Error detection",
+      "lines": [
+        "Parity: catches any odd number of flipped bits",
+        "Distance d: detect d − 1, correct ⌊(d − 1)/2⌋",
+        "Hamming: smallest r with 2ʳ ≥ m + r + 1",
+        "CRC: append r zeros, XOR-divide, send remainder; catches all bursts ≤ r",
+        "Checksum: one's complement sum with end-around carry, then complement"
+      ],
+      "origin": "source",
+      "pages": [
+        629,
+        636
+      ]
+    },
+    {
+      "heading": "Flow control",
+      "lines": [
+        "Stop-and-wait: η = 1/(1 + 2a), a = T_p/T_t",
+        "Window W: η = min(1, W/(1 + 2a)); full link needs W ≥ 1 + 2a",
+        "GBN window ≤ 2ᵏ − 1; SR window ≤ 2ᵏ⁻¹",
+        "One loss: GBN resends about W frames, SR resends 1"
+      ],
+      "origin": "source",
+      "pages": [
+        630,
+        636
+      ]
+    },
+    {
+      "heading": "MAC and Ethernet",
+      "lines": [
+        "Pure ALOHA max 1/(2e) ≈ 18.4%; slotted 1/e ≈ 36.8%",
+        "CSMA/CD: L_min = 2·T_p·R; backoff K from {0, …, 2ⁿ − 1}",
+        "CSMA/CA (Wi-Fi): RTS/CTS, an ACK for every frame",
+        "Ethernet: 64–1518 B frames, 46–1500 B payload, 48-bit MAC, CRC-32"
+      ],
+      "origin": "source",
+      "pages": [
+        56,
+        631,
+        636
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 635,
+      "claim": "PYQ-4: data 1101 with generator 1011 gives the CRC remainder 110.",
+      "correction": "The remainder is 001: dividing 1101000 by 1011 modulo 2 leaves 001 (equivalently x⁶ + x⁵ + x³ mod (x³ + x + 1) = 1), so the frame sent is 1101001. Appending 110 would give 1101110, which leaves remainder 111 at the receiver and would be rejected."
+    },
+    {
+      "page": 629,
+      "claim": "CRC properties: all double-bit errors are detected if G(x) has the factor (x + 1). The voice note on page 632 repeats this.",
+      "correction": "A factor x + 1 guarantees detection of every error with an odd number of flipped bits, as Practice Q18 on page 634 says. A double-bit error xⁱ + xʲ = xʲ(xⁱ⁻ʲ + 1) is always caught only if G(x) divides no xᵏ + 1 for k up to the frame length; x + 1 itself divides every xᵏ + 1, so it gives no such guarantee."
+    },
+    {
+      "page": 632,
+      "claim": "Voice note: with k-bit sequence numbers, selective repeat is limited to a window of 'two-to-the-k minus one over two'.",
+      "correction": "The bound is 2ᵏ⁻¹ = 2ᵏ/2 (4 for k = 3), as written on page 630, not (2ᵏ − 1)/2."
+    },
+    {
+      "page": 630,
+      "claim": "Bandwidth-delay product: the optimal window size is BDP / packet size.",
+      "correction": "With BDP = R × RTT = 2·T_p·R this gives 2a frames, one short of the 1 + 2a needed (page 63): the window must also cover the first frame's own transmission time, so W = (T_t + 2T_p)/T_t = 1 + 2a. For T_t = 1 ms and T_p = 20 ms that is 41 frames, not 40."
+    },
+    {
+      "page": 628,
+      "claim": "Framing methods: flag bytes with byte stuffing (HDLC).",
+      "correction": "Byte stuffing with an escape byte is the method of byte-oriented protocols such as PPP, whose framing is only HDLC-like. Standard HDLC is bit-oriented: it uses the flag 01111110 with bit stuffing (a 0 after five consecutive 1s), as page 55 states."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cn-error-detection",
+      "status": "covered",
+      "topics": [
+        "cn-data-link-layer.parity",
+        "cn-data-link-layer.hamming",
+        "cn-data-link-layer.checksum",
+        "cn-data-link-layer.crc"
+      ]
+    },
+    {
+      "item": "cn-medium-access-control",
+      "status": "covered",
+      "topics": [
+        "cn-data-link-layer.aloha",
+        "cn-data-link-layer.csma",
+        "cn-data-link-layer.csma-cd",
+        "cn-data-link-layer.token-passing"
+      ]
+    },
+    {
+      "item": "cn-ethernet",
+      "status": "covered",
+      "topics": [
+        "cn-data-link-layer.ethernet",
+        "cn-data-link-layer.csma-cd"
+      ]
+    }
+  ]
+}

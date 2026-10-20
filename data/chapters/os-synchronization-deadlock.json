@@ -1,0 +1,2076 @@
+{
+  "id": "os-synchronization-deadlock",
+  "summary": "Concurrent processes that share data need coordination, or the result depends on how their steps interleave. This chapter builds the toolkit in layers: the three requirements of a critical-section solution, software protocols such as Peterson's algorithm, hardware instructions such as test-and-set, then semaphores and monitors applied to producer-consumer, readers-writers and dining philosophers. The second half covers deadlock: the four Coffman conditions, prevention by breaking one of them, avoidance with the Banker's algorithm, and detection and recovery.",
+  "highYield": [
+    "Banker's algorithm: compute Need = Max − Allocation, run the safety algorithm to test a state or a proposed sequence, and decide whether a request can be granted.",
+    "Minimum resources for deadlock freedom: with claims m₁ … mₙ on one resource type, Σ(mᵢ − 1) + 1 units guarantee that no deadlock can occur.",
+    "Semaphore code analysis: final values and blocked counts, lost updates under a counting semaphore, and deadlocks caused by the order of wait() calls.",
+    "Two-process entry protocols: decide which of mutual exclusion, progress and bounded waiting hold by searching for one bad interleaving.",
+    "Coffman conditions: all four are necessary; prevention breaks one, resource ordering breaks circular wait, and a cycle means deadlock only with single-instance resources."
+  ],
+  "topics": [
+    {
+      "id": "os-synchronization-deadlock.critical-section",
+      "title": "Race conditions and the critical-section problem",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        45,
+        474,
+        475,
+        479
+      ],
+      "points": [
+        "A race condition occurs when the result of concurrent access to shared data depends on how the steps interleave. x = x + 1 is really load, add, store, so two concurrent increments can lose an update.",
+        "A critical section is the code that touches the shared data. Each process wraps it in an entry section and an exit section; the rest of its code is the remainder section.",
+        "A correct solution needs mutual exclusion (at most one process inside), progress (when the section is free, only processes trying to enter decide who goes next, and not forever) and bounded waiting (a limit on how often others may enter after a process asks).",
+        "Mutual exclusion is the safety property; progress rules out deadlock and needless blocking; bounded waiting rules out starvation of a particular process.",
+        "Two threads that each run x = x + 1 five times on a shared x = 0 without locking can end with any value from 2 to 10."
+      ],
+      "keyTerms": [
+        "race condition",
+        "entry section",
+        "mutual exclusion",
+        "progress",
+        "bounded waiting"
+      ],
+      "lesson": {
+        "why": "Questions ask which final values a shared variable can reach, and the answer depends on knowing that one line of code is several machine steps that other threads can interleave with.",
+        "intro": "Two threads share a variable x. The statement x = x + 1 looks like one step, but the machine does three: load x into a register, add 1 to the register, store the register back into x. A thread can be paused between any two of these steps. If both threads load the same old value, both store the same new value, and one increment is lost. The code that touches shared data is called the critical section, and a correct design must stop two threads from being inside it together.",
+        "definitions": [
+          {
+            "term": "Race condition",
+            "meaning": "The final result depends on the order in which the steps of concurrent threads interleave."
+          },
+          {
+            "term": "Critical section",
+            "meaning": "The code that reads or writes shared data and so must not run in two threads at once."
+          }
+        ],
+        "principle": {
+          "text": "A correct critical-section solution needs mutual exclusion (at most one thread inside), progress (a free section is not kept closed, and only threads trying to enter decide who goes next) and bounded waiting (a limit on how many times others enter after a thread has asked).",
+          "tex": "\\text{mutual exclusion} \\wedge \\text{progress} \\wedge \\text{bounded waiting}"
+        },
+        "limits": "These three requirements describe a solution; they do not say how to build one. Without a lock, any interleaving of the load, add and store steps is allowed, and only the steps within a single machine instruction are atomic.",
+        "example": {
+          "problem": "Shared x = 0. Thread A and thread B each run x = x + 1 once, as load, add, store. Which final values of x can occur?",
+          "steps": [
+            "If A finishes all three steps and then B runs, B loads 1 and stores 2, so x = 2.",
+            "Let A load 0, then B load 0. Both add 1 to get 1 in their registers.",
+            "A stores 1, then B stores 1. The second store overwrites the first, so one increment is lost and x = 1."
+          ],
+          "result": "x can be 1 or 2; enumerating every interleaving gives exactly these two values."
+        },
+        "misconceptions": [
+          "Writing x = x + 1 on one line does not make it atomic; it still compiles to a load, an add and a store that can be interleaved.",
+          "A race does not always show up: some interleavings give the correct answer, so a program can pass many test runs and still be wrong."
+        ],
+        "recall": [
+          {
+            "q": "Which three machine steps make up x = x + 1?",
+            "a": "Load x into a register, add 1 in the register, then store the register back into x."
+          },
+          {
+            "q": "What does the progress requirement forbid?",
+            "a": "Keeping a free critical section closed, or letting threads that are outside the section influence who enters next."
+          },
+          {
+            "q": "Which requirement prevents one particular thread from being starved?",
+            "a": "Bounded waiting, which limits how many times others may enter after that thread has asked."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four threads each run x = x + 1 exactly once on a shared x = 0, where each increment is a load, an add and a store. If the largest possible final value is Y and the smallest is X, what is Y - X?",
+          "answer": 3,
+          "explanation": "With no overlap every increment counts and x = 4, so Y = 4. If all four threads load 0 before any stores, each stores 1 and x = 1, so X = 1. Y - X = 3. The tempting answer 4 comes from thinking the smallest value is 0, but every thread stores at least 1."
+        },
+        "summary": "x = x + 1 is three interleavable steps, so unsynchronised threads can lose updates; a correct entry and exit protocol gives mutual exclusion, progress and bounded waiting."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.two-process-attempts",
+      "title": "Analysing two-process entry protocols",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Strict alternation with a turn variable gives mutual exclusion but violates progress: if it is P0's turn and P0 stays in its remainder section, P1 cannot enter although the section is free.",
+        "Each process sets its own flag and then waits while the other's flag is set: mutual exclusion holds, but if both set their flags together, both wait forever.",
+        "Testing the other's flag first and setting one's own afterwards fails mutual exclusion: both can test, see false and enter together.",
+        "To judge a protocol, hunt for one bad interleaving: both inside (no mutual exclusion), both stuck or one blocked by an idle partner (no progress), or one overtaken without limit (no bounded waiting).",
+        "Peterson's algorithm combines the intent flags with a turn variable: the process that writes turn last defers, which yields all three properties for two processes."
+      ],
+      "keyTerms": [
+        "strict alternation",
+        "busy waiting"
+      ],
+      "lesson": {
+        "why": "Exam questions hand you a small entry protocol and ask which of mutual exclusion, progress and bounded waiting it breaks. The method is always the same: find one bad interleaving.",
+        "intro": "A critical-section protocol is the code a process runs before it enters the section (entry) and after it leaves (exit). The simplest attempts use shared variables: a turn variable that says whose go it is, or a flag per process that says I want in. Each attempt looks sensible, yet each fails in a specific way. To judge one, do not read it for plausibility. Look for a single schedule of steps that leads to a bad outcome: both processes inside, both stuck, or one process blocked while the section is free.",
+        "prerequisites": [
+          "os-synchronization-deadlock.critical-section"
+        ],
+        "definitions": [
+          {
+            "term": "Strict alternation",
+            "meaning": "Processes enter in fixed turns using a shared turn variable, each handing the turn to the other on exit."
+          },
+          {
+            "term": "Busy waiting",
+            "meaning": "Looping on a test of a shared variable, using the CPU, until the condition changes."
+          }
+        ],
+        "principle": {
+          "text": "A protocol is wrong if one interleaving violates a requirement. Both processes inside breaks mutual exclusion. A process blocked from a free section by an idle partner, or both blocked for ever, breaks progress. One process overtaken without limit breaks bounded waiting.",
+          "tex": "\\exists\\ \\text{schedule}:\\ \\text{both inside}\\ \\lor\\ \\text{free section but nobody enters}\\ \\lor\\ \\text{unbounded overtaking}"
+        },
+        "limits": "These attempts are for exactly two processes. A protocol that survives every interleaving you try is not thereby correct: you must argue over all schedules, which is what Peterson's algorithm does with its flags plus turn.",
+        "example": {
+          "problem": "Strict alternation: P0 enters only when turn == 0 and sets turn = 1 on exit, and P1 enters only when turn == 1 and sets turn = 0 on exit. Initially turn = 1, and P0 stays in its remainder section for good while P1 wants to enter repeatedly. Which requirement fails?",
+          "steps": [
+            "Since turn = 1, P1 enters, uses the section and on exit sets turn = 0.",
+            "P1 wants to enter again but the test turn == 1 is now false, and only P0 can set turn back to 1.",
+            "P0 is outside the critical section and never tries to enter, so turn stays 0. The section is free and P1 waits for ever."
+          ],
+          "result": "Mutual exclusion holds, but progress fails: P1 completed 1 entry and was then blocked by a process that is not even trying."
+        },
+        "misconceptions": [
+          "Setting your own flag and then waiting while the other's flag is set is not safe just because exclusion holds: if both set their flags together, both wait for ever.",
+          "Testing the other's flag before setting your own does not exclude: both can test, both see false, and both enter before either has set a flag."
+        ],
+        "recall": [
+          {
+            "q": "Why does strict alternation violate progress?",
+            "a": "A process whose turn it is may stay in its remainder section, and the other process then cannot enter although the critical section is free."
+          },
+          {
+            "q": "What is the bad schedule for set-own-flag-then-wait-for-other?",
+            "a": "Both set their flags before either tests; each sees the other's flag set and both wait for ever."
+          },
+          {
+            "q": "How does Peterson's algorithm avoid that deadlock?",
+            "a": "It adds a turn variable; the process that writes turn last defers, so one of the two always proceeds."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Each process i, with j the other, runs: while (flag[j]) ; flag[i] = true; critical section; flag[i] = false. Both flags start false. Which requirement does this protocol violate?",
+          "options": [
+            "Mutual exclusion",
+            "Progress, because both can wait for ever",
+            "Bounded waiting only",
+            "None; it is a correct protocol"
+          ],
+          "answer": 0,
+          "explanation": "P0 and P1 can both pass the while test while both flags are still false, then each sets its own flag and enters, so both are inside together. A model check over all interleavings finds that state and no stuck state. The second option tempts because it describes the set-flag-first variant, where the order of the two lines is swapped."
+        },
+        "summary": "Judge an entry protocol by hunting one bad schedule: strict alternation breaks progress, flag-first-then-wait can deadlock, test-then-set breaks mutual exclusion, and Peterson's turn variable repairs them."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.peterson-bakery",
+      "title": "Peterson's algorithm and the bakery algorithm",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        45,
+        475,
+        479
+      ],
+      "points": [
+        "Process i runs flag[i] = true; turn = j; while (flag[j] && turn == j) wait; then its critical section, then flag[i] = false.",
+        "If both try at once, both flags are true and turn holds whichever value was written last, so the last writer of turn waits and the other enters.",
+        "It satisfies mutual exclusion, progress and bounded waiting (a waiting process gets in after at most one entry by the other), but only for two processes and with busy waiting.",
+        "Modern CPUs can reorder loads and stores, so Peterson's algorithm needs memory fences or atomic variables to stay correct.",
+        "Lamport's bakery algorithm extends the idea to n processes: each takes a ticket one higher than the largest it sees, and the smallest (ticket, process id) pair enters first."
+      ],
+      "keyTerms": [
+        "turn variable",
+        "memory fence",
+        "bakery algorithm"
+      ],
+      "lesson": {
+        "why": "Peterson's algorithm is the standard correct two-process software lock, and the bakery algorithm is its n-process version. Questions test who waits when both try at once and how tickets order entry.",
+        "intro": "Two simple ideas each fail alone. A flag per process says I want in, but both can wait for ever. A turn variable says whose go it is, but forces strict alternation. Peterson's algorithm uses both. A process raises its flag, then writes the other process's number into turn, politely giving the other the move. It waits only while the other also wants in and turn still holds the other's number. If both arrive together, both write turn, and whoever writes last is the one that waits.",
+        "prerequisites": [
+          "os-synchronization-deadlock.two-process-attempts"
+        ],
+        "definitions": [
+          {
+            "term": "Memory fence",
+            "meaning": "An instruction that stops the CPU reordering loads and stores across it, needed to keep Peterson's algorithm correct on modern hardware."
+          },
+          {
+            "term": "Bakery algorithm",
+            "meaning": "Lamport's n-process lock: each process takes a ticket one above the largest it sees, and the smallest (ticket, id) pair enters first."
+          }
+        ],
+        "principle": {
+          "text": "For process i with other process j: set flag[i] = true, set turn = j, then wait while flag[j] and turn == j. Mutual exclusion, progress and bounded waiting all hold, because turn takes only one value at a time, so at most one process can see turn == j and wait on the other's behalf, and only while that other wants in.",
+          "tex": "\\text{wait while}\\ \\mathrm{flag}[j]\\ \\wedge\\ \\mathrm{turn}=j"
+        },
+        "limits": "Peterson's algorithm is for two processes only and uses busy waiting. On modern CPUs that reorder memory operations it is wrong without fences or atomic variables. The bakery algorithm handles n processes, but it still busy-waits.",
+        "example": {
+          "problem": "P0 and P1 both run Peterson's entry at once. P0 writes turn = 1, then P1 writes turn = 0, after both have set their flags. Who enters first?",
+          "steps": [
+            "Both flags are true, so each process's wait test depends on turn.",
+            "P1 wrote turn last, so turn = 0. P0 tests flag[1] && turn == 1, which is false, so P0 does not wait.",
+            "P1 tests flag[0] && turn == 0, which is true, so P1 waits until P0 exits and clears flag[0]."
+          ],
+          "result": "P0 enters first. The process that writes turn last (P1) is the one that waits."
+        },
+        "misconceptions": [
+          "It is not the first writer of turn that waits; the last writer waits, because its write is the one that survives.",
+          "Peterson's algorithm is not correct for any number of processes, and it is not safe on reordering hardware without fences."
+        ],
+        "recall": [
+          {
+            "q": "What does a process write into turn in Peterson's entry code?",
+            "a": "It writes the other process's id, offering the other the move."
+          },
+          {
+            "q": "When does process i wait in Peterson's algorithm?",
+            "a": "While the other process's flag is true and turn equals the other's id."
+          },
+          {
+            "q": "In the bakery algorithm, how is entry order decided?",
+            "a": "The smallest (ticket, process id) pair goes first, with the id breaking ties between equal tickets."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four processes P0 to P3 compete in the bakery algorithm and hold tickets P0 = 4, P1 = 2, P2 = 4, P3 = 2. Entry follows the smallest (ticket, id) pair. In which position, counting from 1, does P2 enter?",
+          "answer": 4,
+          "explanation": "Sorting by (ticket, id) gives (2,P1), (2,P3), (4,P0), (4,P2), so P2 is 4th. Choosing 3 is tempting if the id tie-break is ignored for the equal tickets 4, but P0 has the smaller id and goes before P2."
+        },
+        "summary": "Peterson's algorithm raises a flag, gives the turn to the other, and waits while the other wants in and holds the turn; the last writer of turn waits. The bakery algorithm generalises it with tickets."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.hardware-locks",
+      "title": "Hardware support: test-and-set, swap, compare-and-swap, interrupts",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        475,
+        476,
+        479
+      ],
+      "points": [
+        "TestAndSet atomically returns the old value of a lock word and sets it to true. The loop while (TestAndSet(&lock)); with lock = false on exit gives mutual exclusion.",
+        "Swap(&a, &b) atomically exchanges two words. With shared lock initially false and a local key per process, entry is key = true; while (key) Swap(&lock, &key); and exit is lock = false. Only the process that swaps out false enters, so Swap, like test-and-set, gives mutual exclusion and progress but not bounded waiting.",
+        "Compare-and-swap atomically replaces a word with a new value only if it still holds an expected value; it underlies spinlocks and lock-free data structures.",
+        "A plain test-and-set spinlock satisfies mutual exclusion and progress but not bounded waiting: an unlucky process can lose the race indefinitely. A waiting[] array with cyclic hand-off restores the bound.",
+        "Spinlocks burn CPU while waiting, so they suit short critical sections on multiprocessors.",
+        "Disabling interrupts makes a section atomic only on a uniprocessor; other CPUs keep running, and letting user code disable interrupts is unsafe anyway."
+      ],
+      "keyTerms": [
+        "test-and-set",
+        "swap",
+        "compare-and-swap",
+        "spinlock"
+      ],
+      "lesson": {
+        "why": "Hardware instructions give atomic building blocks for locks. Questions ask what test-and-set or swap guarantees, and which of the three requirements a simple spinlock still lacks.",
+        "intro": "Software protocols struggle because a test and a set are separate steps that another process can slip between. Hardware solves this by offering instructions that do a read and a write as one indivisible step. Test-and-set returns the old value of a lock word and sets it to true in the same step. A process that reads back false has taken the lock; one that reads back true found it already held and tries again. Swap exchanges two words atomically, and compare-and-swap writes a new value only if the word still holds an expected one.",
+        "prerequisites": [
+          "os-synchronization-deadlock.critical-section"
+        ],
+        "definitions": [
+          {
+            "term": "Atomic",
+            "meaning": "Executed as one indivisible step that no other processor or process can interleave with."
+          },
+          {
+            "term": "Spinlock",
+            "meaning": "A lock whose waiters loop on an atomic instruction until it succeeds."
+          }
+        ],
+        "principle": {
+          "text": "With lock initially false, the entry loop while (TestAndSet(&lock)); gives mutual exclusion, because only the caller that reads false enters, and progress, because the exit sets lock = false. It does not give bounded waiting, since an unlucky waiter can keep losing the race to take a released lock.",
+          "tex": "\\mathrm{TestAndSet}(\\text{lock}) = \\text{old value}, \\quad \\text{lock} \\leftarrow \\text{true}"
+        },
+        "limits": "Bounded waiting needs extra structure, such as a waiting[] array with cyclic hand-off. Spinlocks waste CPU, so they suit short sections on multiprocessors. Disabling interrupts excludes others only on a uniprocessor and is unsafe in user code.",
+        "example": {
+          "problem": "lock = false. P0, P1 and P2 each call TestAndSet once, in that order, while P0 is still inside its section. Then P0 exits and P1 calls it again. What does each call return?",
+          "steps": [
+            "P0 calls first: it returns false and sets lock = true, so P0 enters.",
+            "P1 and P2 call next: each gets true, since lock is already true, so both keep spinning.",
+            "P0 exits and sets lock = false. P1's next call returns false and sets lock = true again."
+          ],
+          "result": "The returns are false, true, true, then false for P1's second call: P0 entered first, and P1 entered after P0 exited."
+        },
+        "misconceptions": [
+          "A test-and-set spinlock is not starvation-free: nothing forces the release to go to the longest waiter, so bounded waiting can fail.",
+          "Disabling interrupts does not give mutual exclusion on a multiprocessor, because other CPUs keep running."
+        ],
+        "recall": [
+          {
+            "q": "What does TestAndSet return, and what does it leave in the lock?",
+            "a": "It returns the old value of the lock and leaves the lock set to true, in a single atomic step."
+          },
+          {
+            "q": "Which requirement does a plain test-and-set spinlock lack?",
+            "a": "Bounded waiting, since a waiter can lose every race to take the released lock."
+          },
+          {
+            "q": "What does compare-and-swap do?",
+            "a": "It atomically replaces a word with a new value only if the word still holds the expected value."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Processes spin with while (TestAndSet(&lock)); and release with lock = false. P0 keeps releasing and immediately re-acquiring before P1's next attempt, so P1 never gets in. Which statement is correct?",
+          "options": [
+            "Mutual exclusion is violated",
+            "Progress is violated because the section is held",
+            "Bounded waiting is violated; mutual exclusion still holds",
+            "The lock deadlocks, since neither process can ever enter"
+          ],
+          "answer": 2,
+          "explanation": "Only a caller reading false can enter, so at most one process is inside and mutual exclusion holds, while P1 is overtaken without a limit, which is a bounded-waiting failure. Progress is not violated because processes do keep entering. The deadlock option tempts because P1 looks stuck, but P0 is making progress."
+        },
+        "summary": "Atomic instructions like test-and-set, swap and compare-and-swap close the gap between test and set. A simple spinlock gives mutual exclusion and progress but not bounded waiting."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.semaphores",
+      "title": "Semaphores",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        46,
+        476,
+        480,
+        63
+      ],
+      "points": [
+        "A semaphore is an integer used only through two atomic operations: wait (P) blocks while S ≤ 0 and then decrements S; signal (V) increments S (binary caps at 1) and wakes one waiting process, if any.",
+        "A binary semaphore (0 or 1) initialised to 1 gives mutual exclusion; a counting semaphore initialised to k admits up to k processes at once, matching a pool of k identical resources. A signal on a binary semaphore that is already 1 leaves it at 1, so that signal is lost.",
+        "Initialised to 0, a semaphore enforces order: if P1 runs S1; signal(s); and P2 runs wait(s); S2;, then S2 always runs after S1.",
+        "Busy-waiting implementations spin inside wait; blocking ones put the caller on the semaphore's queue. In the blocking form that decrements first, a value of −k means k processes are waiting.",
+        "If no process blocks, a counting semaphore ends at S₀ − p + v after p waits and v signals. When each operation comes from its own process, a never-negative counting semaphore lets exactly min(p, S₀ + v) waits complete and leaves max(0, p − S₀ − v) processes blocked."
+      ],
+      "keyTerms": [
+        "P operation",
+        "V operation",
+        "binary semaphore",
+        "counting semaphore"
+      ],
+      "lesson": {
+        "why": "Semaphore questions ask what a program can print, how many threads end up blocked, or whether it deadlocks, and all of them reduce to tracking one integer through wait and signal.",
+        "intro": "A semaphore is an integer that threads change only through two atomic operations. wait (also called P) checks the value: if it is above 0 it subtracts 1 and goes on, otherwise the thread blocks until the value rises. signal (also called V) adds 1 and lets one blocked thread continue. The starting value decides the use: 1 gives a lock, 0 makes one thread wait for another, and k lets up to k threads in together.",
+        "analogy": {
+          "text": "A semaphore with value k is a rack of k keys. A thread must take a key to proceed and puts it back when done; with no key on the rack it waits.",
+          "breaksWhen": "A semaphore can be signalled by a thread that never took a key, so signals can create tokens from nothing, which physical keys cannot."
+        },
+        "definitions": [
+          {
+            "term": "Binary semaphore",
+            "meaning": "A semaphore whose value is only 0 or 1; extra signals do not push it above 1."
+          },
+          {
+            "term": "Counting semaphore",
+            "meaning": "A semaphore that can hold any non-negative count, used for a pool of identical resources."
+          },
+          {
+            "term": "Negative count",
+            "meaning": "A convention in some implementations: wait always subtracts 1, so a value of -k means k threads are blocked. The rest of this lesson keeps the value at 0 and counts blocked threads separately."
+          }
+        ],
+        "principle": {
+          "text": "Starting at S0, a semaphore that sees p waits and v signals ends at S0 - p + v if nothing blocks. When each operation comes from its own thread, exactly min(p, S0 + v) waits complete and max(0, p - S0 - v) threads stay blocked.",
+          "tex": "\\text{blocked} = \\max(0,\\; p - S_0 - v)"
+        },
+        "limits": "The counting formula assumes the signals come from threads that are not themselves stuck behind those waits. If a signal sits after a wait in the same thread, that signal may never run, and the program can deadlock instead. The formula also assumes each thread makes one wait. If every thread waits twice on a pool, all of them can pass the first wait, drain the pool and block on the second, a deadlock the formula does not predict.",
+        "example": {
+          "problem": "A counting semaphore starts at 2. Five threads each call wait once, and one other thread calls signal once. How many threads finish their wait, and how many stay blocked?",
+          "steps": [
+            "The initial value 2 lets two waits through at once, leaving the value at 0.",
+            "The remaining three waits block. The one signal wakes one of them, so three waits complete in total.",
+            "Check with the formula: min(5, 2 + 1) = 3 complete, and 5 - 2 - 1 = 2 are still blocked."
+          ],
+          "result": "Three waits complete and two threads stay blocked."
+        },
+        "misconceptions": [
+          "A signal on a binary semaphore that is already 1 does not store a second token; the value stays 1, so that signal is lost.",
+          "A semaphore initialised to 0 is not broken or stuck; it is the usual way to force one thread to run only after another has signalled.",
+          "A counting semaphore above 1 does not give mutual exclusion: with value k, up to k threads are inside the section together, so unsynchronised updates inside it can still be lost."
+        ],
+        "recall": [
+          {
+            "q": "What initial value makes a semaphore act as a mutual-exclusion lock?",
+            "a": "1, so the first thread passes wait and every other thread blocks until the holder signals."
+          },
+          {
+            "q": "How do you force statement S2 in one thread to run after S1 in another?",
+            "a": "Initialise a semaphore to 0, signal it after S1 and wait on it before S2."
+          },
+          {
+            "q": "In the blocking implementation, what does a value of -k mean?",
+            "a": "Exactly k threads are blocked on the semaphore."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A counting semaphore starts at 3. Eight different threads each call wait once, and two other threads each call signal once. How many of the eight threads stay blocked?",
+          "answer": 3,
+          "explanation": "The initial 3 and the 2 signals supply 5 passes, so 5 waits complete and 8 - 3 - 2 = 3 stay blocked. Answering 5 forgets the signals (8 - 3), and answering 6 forgets the initial value (8 - 2)."
+        },
+        "summary": "A semaphore is an integer moved by wait and signal; start at 1 for a lock, 0 for ordering, k for a pool, and count blocked threads as max(0, p - S0 - v)."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.producer-consumer",
+      "title": "Producer-consumer (bounded buffer)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        480,
+        483
+      ],
+      "points": [
+        "Three semaphores: empty = N counts free slots, full = 0 counts filled slots, and mutex = 1 protects the buffer and its indices.",
+        "Producer: wait(empty); wait(mutex); add item; signal(mutex); signal(full). Consumer: wait(full); wait(mutex); remove item; signal(mutex); signal(empty).",
+        "The order of the waits matters: a consumer that does wait(mutex) before wait(full) on an empty buffer sleeps holding mutex, and the producer can never get in to add an item, so both are deadlocked.",
+        "The order of the signals does not matter for correctness: signal never blocks, so swapping signal(mutex) and signal(full) only changes who wakes first."
+      ],
+      "keyTerms": [
+        "bounded buffer",
+        "empty",
+        "full",
+        "mutex"
+      ],
+      "lesson": {
+        "why": "A bounded buffer is the standard test of semaphore skill: questions ask which semaphore goes where, or what breaks when two lines swap.",
+        "prerequisites": [
+          "os-synchronization-deadlock.semaphores"
+        ],
+        "intro": "A producer thread puts items into a buffer with N slots and a consumer thread takes them out. Two rules must hold: the producer must stop when every slot is full, and the consumer must stop when every slot is empty. Two counting semaphores enforce them. One counts free slots and starts at N; the other counts filled slots and starts at 0. A third semaphore, a lock starting at 1, keeps the two threads from changing the buffer at the same moment.",
+        "definitions": [
+          {
+            "term": "Bounded buffer",
+            "meaning": "A shared store of fixed size N that producers fill and consumers empty."
+          },
+          {
+            "term": "Counting semaphore for slots",
+            "meaning": "One semaphore holds the number of free slots, the other the number of items; each wait takes one and each signal gives one back."
+          }
+        ],
+        "principle": {
+          "text": "The producer waits on the free-slot count, then the lock, adds, releases the lock and signals the item count. The consumer waits on the item count, then the lock, removes, releases the lock and signals the free-slot count. Each thread waits on the counter it consumes and signals the counter it creates. Always wait on the counter before the lock; the signals may come in either order.",
+          "tex": "\\text{free}+\\text{items}=N \\quad\\text{(outside the critical section)}"
+        },
+        "limits": "The pattern assumes the counters start at N free and 0 items. If a question renames them, as GATE does, follow what each name counts and not the textbook name. Taking the lock before the counter is wrong: a consumer holding the lock on an empty buffer sleeps there and no producer can enter to add an item, which is a deadlock.",
+        "example": {
+          "problem": "A buffer has N = 3 slots, free starts at 3, items at 0. Five producer calls run first with no consumer, then one consumer call runs. How many producers block, and what happens at the consumer call?",
+          "steps": [
+            "Each producer waits on free, so free goes 3, 2, 1, 0 and the first three producers add items. Items becomes 3.",
+            "The fourth and fifth producers find free = 0 and block, so two producers are blocked.",
+            "The consumer waits on items (3 to 2), removes an item and signals free. That signal wakes one blocked producer, which adds its item, so items returns to 3 and one producer is still blocked."
+          ],
+          "result": "Two producers block at first; the consumer call frees one slot and wakes one of them, leaving one still blocked and 3 items in the buffer."
+        },
+        "misconceptions": [
+          "Swapping the two signals at the end is harmless; swapping the two waits is what causes deadlock, because wait can block while holding the lock.",
+          "The lock does not replace the two counters: it prevents simultaneous access but cannot make a producer wait for space or a consumer wait for an item.",
+          "The counter names are not fixed by convention in an exam; a semaphore called empty may count items, so read its initial value and the stated meaning."
+        ],
+        "recall": [
+          {
+            "q": "What are the initial values of the free-slot, item and lock semaphores?",
+            "a": "N for free slots, 0 for items and 1 for the lock."
+          },
+          {
+            "q": "Why must wait on the counter come before wait on the lock?",
+            "a": "A thread that blocks on the counter while holding the lock stops the other side from ever entering, so neither can proceed."
+          },
+          {
+            "q": "Does the order of the two signals at the end matter?",
+            "a": "No. Signal never blocks, so swapping them only changes which thread wakes first."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A bounded buffer has 4 slots, free starts at 4 and items at 0, with a correct producer and consumer. Six producer calls run to completion or block, then three consumer calls run. How many items are in the buffer at the end?",
+          "answer": 3,
+          "explanation": "Four producers fill the buffer and two block. The three consumers each remove one item and signal free, and the first two signals wake the two blocked producers, who add their items. Items = 4 + 2 - 3 = 3. Answering 1 forgets that the blocked producers still add items after waking; answering 4 forgets the consumers removed items."
+        },
+        "summary": "Wait on free then lock to produce, wait on items then lock to consume; free starts at N, items at 0, lock at 1, and swapping the waits deadlocks."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.readers-writers",
+      "title": "Readers-writers",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        480,
+        483
+      ],
+      "points": [
+        "Any number of readers may read together, but a writer needs exclusive access.",
+        "First readers-writers (reader preference): read_count counts active readers, mutex protects read_count, and rw_mutex, the write lock, is held by one writer or by the readers as a group.",
+        "A reader increments read_count and, if it is now 1, waits on rw_mutex; leaving, it decrements read_count and, if it is now 0, signals rw_mutex. The first reader locks writers out and the last lets them in.",
+        "With reader preference a steady stream of readers can starve writers; writer-preference variants make new readers wait once a writer is waiting, which can starve readers instead."
+      ],
+      "keyTerms": [
+        "read_count",
+        "rw_mutex",
+        "writer starvation"
+      ],
+      "lesson": {
+        "why": "Readers-writers questions ask who may be inside together and who can starve. The reader-preference solution is short, so you are expected to trace it.",
+        "intro": "Several processes read shared data and a few write it. Readers do not disturb one another, so any number may read at once. A writer changes the data, so it needs the data to itself. The solution uses a counter read_count of readers inside, a small mutex that protects the counter, and a lock rw_mutex that stands for the right to use the data. The first reader to arrive takes rw_mutex on behalf of every reader, and the last one to leave gives it back.",
+        "prerequisites": [
+          "os-synchronization-deadlock.semaphores"
+        ],
+        "definitions": [
+          {
+            "term": "read_count",
+            "meaning": "The number of readers currently inside, updated under its own mutex."
+          },
+          {
+            "term": "rw_mutex",
+            "meaning": "The lock held by one writer, or by the readers as a group."
+          }
+        ],
+        "principle": {
+          "text": "A reader increments read_count and, if it is now 1, waits on rw_mutex. On leaving it decrements read_count and, if it is now 0, signals rw_mutex. A writer waits on rw_mutex for its whole write. Readers share the lock while writers hold it alone.",
+          "tex": "\\text{first reader: } \\mathrm{read\\_count}=1 \\Rightarrow \\text{wait}(\\mathrm{rw\\_mutex}); \\quad \\text{last reader: } \\mathrm{read\\_count}=0 \\Rightarrow \\text{signal}(\\mathrm{rw\\_mutex})"
+        },
+        "limits": "This is the first (reader-preference) version. A steady stream of readers can starve a writer. Writer-preference variants stop new readers once a writer waits, which can starve readers instead.",
+        "example": {
+          "problem": "Nothing is inside. Arrivals in order: reader R1, reader R2, writer W, reader R3. No one leaves yet. Who is inside and what is read_count?",
+          "steps": [
+            "R1 arrives: read_count becomes 1, so R1 takes rw_mutex and enters.",
+            "R2 arrives: read_count becomes 2, not 1, so R2 does not touch rw_mutex and enters.",
+            "W arrives and waits on rw_mutex, which the readers hold. R3 arrives: read_count becomes 3 and R3 enters, overtaking W."
+          ],
+          "result": "R1, R2 and R3 are inside, read_count = 3, and W waits."
+        },
+        "misconceptions": [
+          "A waiting writer does not stop new readers in the first solution; readers keep entering while read_count is above 0.",
+          "Not every reader executes wait on rw_mutex; only the one that makes read_count equal 1, and likewise only the last one signals it."
+        ],
+        "recall": [
+          {
+            "q": "Which reader waits on rw_mutex?",
+            "a": "Only the first reader, the one that makes read_count equal 1; later readers just enter."
+          },
+          {
+            "q": "Who may be inside together in readers-writers?",
+            "a": "Any number of readers at once, but a writer must be alone."
+          },
+          {
+            "q": "Who can starve under reader preference?",
+            "a": "A writer, because new readers keep entering while read_count stays above 0."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Under the first (reader-preference) solution nothing is inside and no one leaves. Arrivals in order: reader, reader, writer, reader, reader. How many readers are inside at the end?",
+          "answer": 4,
+          "explanation": "The first reader takes rw_mutex for the group, the other three readers enter by incrementing read_count (final value 4), and the writer waits. The answer 2 is the tempting count if the writer is assumed to block later readers, which only a writer-preference version does."
+        },
+        "summary": "Readers share rw_mutex through read_count: the first in locks writers out and the last out lets them in. Reader preference can starve writers."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.dining-philosophers",
+      "title": "Dining philosophers",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        480,
+        483
+      ],
+      "points": [
+        "Five philosophers sit round a table with one chopstick between each neighbouring pair, and a philosopher needs both adjacent chopsticks to eat.",
+        "If every philosopher picks up the left chopstick and then the right, all five can hold one and wait for the other: a circular wait, hence deadlock.",
+        "Fixes: seat at most N − 1 = 4 philosophers at once; pick up the lower-numbered chopstick first; let one philosopher (or every odd one) pick up the right chopstick first; or pick up both inside a critical section.",
+        "Breaking the cycle removes deadlock but not necessarily starvation: a philosopher can keep losing to both neighbours.",
+        "At most ⌊N/2⌋ philosophers can eat at the same time, which is 2 when N = 5."
+      ],
+      "keyTerms": [
+        "circular wait",
+        "resource ordering",
+        "asymmetric solution"
+      ],
+      "lesson": {
+        "why": "This is the standard picture for circular wait. Questions ask why the naive solution deadlocks, which fixes work, and how many can eat at once.",
+        "intro": "Five philosophers sit round a table, with one chopstick between each neighbouring pair. A philosopher must hold both adjacent chopsticks to eat. The obvious rule is: pick up the left chopstick, then the right. If all five pick up their left chopstick at the same moment, each holds one and waits for the one held by the neighbour. Nobody can proceed, because each is waiting for a resource another waiting process holds. That is deadlock.",
+        "prerequisites": [
+          "os-synchronization-deadlock.deadlock-conditions"
+        ],
+        "definitions": [
+          {
+            "term": "Circular wait",
+            "meaning": "A cycle of processes, each waiting for a resource held by the next."
+          },
+          {
+            "term": "Asymmetric solution",
+            "meaning": "Some philosophers pick up the right chopstick first, which breaks the cycle."
+          }
+        ],
+        "principle": {
+          "text": "Deadlock needs all four conditions; this table supplies a circular wait. Break it by seating at most N - 1 philosophers, ordering the chopsticks and taking the lower-numbered one first, making one or every odd philosopher take the right one first, or taking both inside a critical section. At most the floor of N/2 philosophers can eat together, since no two neighbours can.",
+          "tex": "\\text{eaters at once} \\le \\left\\lfloor \\tfrac{N}{2} \\right\\rfloor"
+        },
+        "limits": "Removing the deadlock does not guarantee fairness: a philosopher can still lose to both neighbours again and again, which is starvation.",
+        "example": {
+          "problem": "Five philosophers P0 to P4 each pick up their left chopstick, with chopstick i on the left of Pi and chopstick (i+1) mod 5 on the right. Show that the table deadlocks.",
+          "steps": [
+            "Each Pi holds chopstick i and now needs chopstick (i+1) mod 5.",
+            "P0 needs chopstick 1, held by P1; P1 needs 2, held by P2; P2 needs 3; P3 needs 4; P4 needs 0, held by P0.",
+            "Every needed chopstick is held by a philosopher who is also waiting, so the waits form a cycle."
+          ],
+          "result": "All 5 philosophers wait for ever: a circular wait, hence deadlock."
+        },
+        "misconceptions": [
+          "Letting at most N - 1 philosophers sit removes the deadlock, but it does not by itself guarantee that no philosopher starves.",
+          "Five philosophers do not allow three eating together: two neighbours share a chopstick, so the maximum for 5 is 2."
+        ],
+        "recall": [
+          {
+            "q": "Why does everyone picking up the left chopstick first deadlock?",
+            "a": "Each holds one chopstick and waits for the neighbour's, forming a circular wait."
+          },
+          {
+            "q": "Name two ways to break the cycle.",
+            "a": "Seat at most N - 1 philosophers, or have one philosopher pick up the right chopstick first (or pick lower-numbered first)."
+          },
+          {
+            "q": "How many can eat at once with N philosophers?",
+            "a": "At most the floor of N/2, because no two neighbours can eat together."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Nine philosophers sit round a table with one chopstick between each neighbouring pair, and each needs both adjacent chopsticks to eat. What is the maximum number who can eat at the same time?",
+          "answer": 4,
+          "explanation": "No two neighbours can eat together, so the answer is the floor of 9/2 = 4; an enumeration of all subsets of 9 seats with no two adjacent confirms 4. The answer 5 is tempting from rounding up, but 5 eaters on 9 seats would force two neighbours."
+        },
+        "summary": "Left-then-right pickup creates a circular wait and deadlock. Break the cycle by limiting seats, ordering the chopsticks or using an asymmetric rule; at most floor(N/2) can eat at once."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.monitors",
+      "title": "Monitors and condition variables",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        480,
+        483
+      ],
+      "points": [
+        "A monitor bundles shared data with the procedures that use it, and only one process can be active inside at a time, so mutual exclusion is automatic.",
+        "A condition variable c offers wait(c), which releases the monitor and sleeps, and signal(c), which wakes one sleeper. A signal with no waiter is lost, unlike a counting semaphore's V, which is remembered in the count.",
+        "Hoare semantics: the signaller suspends and the woken process runs at once, so its condition still holds. Mesa semantics: the signaller continues and the woken process runs later, so it must re-check its condition in a while loop.",
+        "Java's synchronized methods use each object's built-in monitor, with Mesa-style wait and notify."
+      ],
+      "keyTerms": [
+        "condition variable",
+        "Hoare semantics",
+        "Mesa semantics"
+      ],
+      "lesson": {
+        "why": "Monitor questions test how wait and signal differ from semaphore operations, and why Mesa-style code needs a while loop.",
+        "intro": "A monitor is a package: shared data plus the procedures that use it, with a rule that only one process may be active inside at a time. The compiler supplies that mutual exclusion, so you do not write lock calls. When a process inside cannot continue, because a buffer is empty for example, it calls wait on a condition variable. That releases the monitor and puts the process to sleep. Another process later calls signal on the same condition variable to wake one sleeper.",
+        "prerequisites": [
+          "os-synchronization-deadlock.semaphores"
+        ],
+        "definitions": [
+          {
+            "term": "Condition variable",
+            "meaning": "A queue of processes sleeping inside a monitor until some condition is signalled."
+          },
+          {
+            "term": "Hoare semantics",
+            "meaning": "The signaller suspends and the woken process runs at once, so the condition it waited for still holds."
+          },
+          {
+            "term": "Mesa semantics",
+            "meaning": "The signaller keeps running and the woken process resumes later, so it must test its condition again."
+          }
+        ],
+        "principle": {
+          "text": "wait(c) releases the monitor and sleeps; signal(c) wakes one waiter, and is lost if no one waits. Under Mesa semantics the condition may have changed before the woken process runs, so the test is a loop: while (not condition) wait(c). Under Hoare semantics an if is enough.",
+          "tex": "\\text{while}\\ (\\lnot \\text{condition})\\ \\text{wait}(c)"
+        },
+        "limits": "A lost signal differs from a semaphore, whose V is remembered in its count. Java's synchronized, wait and notify follow Mesa-style semantics, so always re-check in a loop.",
+        "example": {
+          "problem": "A monitor guards a buffer with count = 0. Consumer C1 waits for an item. A producer adds one and signals (Mesa), then leaves; before C1 resumes, consumer C2 enters and takes the item. What is count when C1 resumes, and why must C1 use while?",
+          "steps": [
+            "The producer sets count = 1 and signals; C1 becomes ready but does not run yet.",
+            "C2 enters the free monitor, sees count = 1 and takes the item, so count = 0.",
+            "C1 now resumes with count = 0. With if, it would take from an empty buffer; with while it tests again and waits."
+          ],
+          "result": "count is 0 when C1 resumes, so C1 needs a while loop under Mesa semantics."
+        },
+        "misconceptions": [
+          "A signal with no waiter is not saved. A later wait still sleeps, unlike a semaphore V followed by P.",
+          "Waking up is not proof that the condition holds: under Mesa semantics it only means the condition was signalled at some point."
+        ],
+        "recall": [
+          {
+            "q": "What does wait(c) do to the monitor?",
+            "a": "It releases the monitor and puts the caller to sleep on c, letting another process enter."
+          },
+          {
+            "q": "What happens to signal(c) when no process is waiting?",
+            "a": "It is lost and has no effect on later waits."
+          },
+          {
+            "q": "Which semantics needs the while loop, and why?",
+            "a": "Mesa, since the woken process runs later and another process may have falsified the condition."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A monitor procedure calls signal(c) when no process waits on c. Later another process calls wait(c). What happens?",
+          "options": [
+            "The wait returns at once, as a semaphore's remembered V would allow",
+            "The caller sleeps until some later signal(c), since the earlier one was lost",
+            "A runtime error is raised, as signal needs a waiting process",
+            "The caller wakes only under Hoare semantics, not Mesa"
+          ],
+          "answer": 1,
+          "explanation": "A condition variable keeps no count, so an unmatched signal is discarded and the later wait sleeps until another signal. The first option tempts because a counting semaphore does remember the V. Hoare and Mesa differ in who runs after a signal that wakes someone, not in whether a signal is stored."
+        },
+        "summary": "A monitor gives built-in mutual exclusion, and condition variables wait and signal. Signals are not remembered, and under Mesa semantics the waiter re-checks its condition in a while loop."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.deadlock-conditions",
+      "title": "Deadlock and the Coffman conditions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        480,
+        482
+      ],
+      "points": [
+        "A set of processes is deadlocked when each is waiting for an event, typically the release of a resource, that only another member of the set can cause.",
+        "Four conditions must hold at once: mutual exclusion (a resource is held non-shareably), hold and wait, no preemption, and circular wait.",
+        "The conditions are necessary, not sufficient: with several instances per resource type there can be a cycle of waits and still no deadlock.",
+        "Starvation differs from deadlock: a starving process waits indefinitely while others keep making progress. In livelock, processes keep changing state in response to each other without progressing."
+      ],
+      "keyTerms": [
+        "Coffman conditions",
+        "starvation",
+        "livelock"
+      ],
+      "lesson": {
+        "why": "Statements about deadlock are a regular multiple-select question, and each option turns on exactly which condition is necessary, which is sufficient, and how deadlock differs from starvation.",
+        "intro": "A group of threads is deadlocked when every one of them waits for something that only another thread in the group can provide, so none of them ever moves. The standard example is two threads and two locks: one holds A and wants B, the other holds B and wants A. Four conditions must all hold for this to happen, and removing any one makes deadlock impossible.",
+        "definitions": [
+          {
+            "term": "Hold and wait",
+            "meaning": "A thread holds at least one resource while waiting to get another."
+          },
+          {
+            "term": "Circular wait",
+            "meaning": "A closed chain of threads exists in which each waits for a resource held by the next."
+          }
+        ],
+        "principle": {
+          "text": "Deadlock needs mutual exclusion, hold and wait, no preemption and circular wait all at once. These are necessary, not sufficient: with several instances per resource a circular wait can exist without deadlock."
+        },
+        "limits": "Starvation is different: one thread waits forever while others keep running. In livelock the threads keep changing state in response to each other but still make no progress. With a single instance of each resource, a circular wait does mean deadlock.",
+        "example": {
+          "problem": "Thread T1 locks A then B. Thread T2 locks B then A. Can they deadlock, and what changes if T2 also locks A first?",
+          "steps": [
+            "Let T1 lock A and T2 lock B before either continues. T1 now waits for B held by T2, and T2 waits for A held by T1.",
+            "All four conditions hold: locks are exclusive, each holds one while waiting for another, nothing is taken away, and the waits form a cycle.",
+            "If T2 also locks A first, the thread that gets A proceeds to B and the other waits only for A, so no cycle can form."
+          ],
+          "result": "Opposite lock orders can deadlock; the same order cannot. Enumerating all interleavings confirms it."
+        },
+        "misconceptions": [
+          "A cycle of waits does not always mean deadlock: when a resource has several instances, a thread outside the cycle may release one and unblock it.",
+          "A thread that waits a very long time is not necessarily deadlocked; if other threads still progress, that is starvation.",
+          "Deadlock does not need two threads: a thread that re-acquires a non-reentrant lock it already holds blocks on itself forever, so one thread and one lock are enough."
+        ],
+        "recall": [
+          {
+            "q": "Name the four conditions needed for deadlock.",
+            "a": "Mutual exclusion, hold and wait, no preemption and circular wait."
+          },
+          {
+            "q": "Are the four conditions sufficient for deadlock?",
+            "a": "No, they are necessary only; with multiple instances per resource a cycle may still resolve."
+          },
+          {
+            "q": "How do livelock and deadlock differ?",
+            "a": "In livelock the threads keep changing state without progress, while in deadlock they are all blocked and idle."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A system lets a thread request a new lock only while it holds no locks. Which deadlock condition does this remove?",
+          "options": [
+            "Mutual exclusion",
+            "Hold and wait",
+            "No preemption",
+            "Circular wait"
+          ],
+          "answer": 1,
+          "explanation": "A thread that holds nothing when it asks for a lock never holds one resource while waiting for another, which is exactly hold and wait. Mutual exclusion still holds because locks remain exclusive. No preemption is tempting because the thread must give locks up first, but it chooses to; the system never takes a lock away from a waiting thread."
+        },
+        "summary": "Deadlock needs four simultaneous conditions, necessary but not sufficient; opposite lock orders create the cycle, and starvation and livelock are different failures."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.resource-allocation-graph",
+      "title": "Resource-allocation graph and wait-for graph",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        479,
+        480
+      ],
+      "points": [
+        "A resource-allocation graph has process nodes and resource nodes with one dot per instance; a request edge runs P → R and an assignment edge R → P.",
+        "If every resource type has a single instance, a cycle means deadlock and no cycle means no deadlock.",
+        "With multiple instances a cycle is necessary but not sufficient: a process outside the cycle may release an instance and break it. No cycle still means no deadlock.",
+        "For single-instance resources, collapse the graph into a wait-for graph (Pᵢ → Pⱼ when Pᵢ waits for a resource held by Pⱼ); detection is then cycle detection on the process nodes."
+      ],
+      "keyTerms": [
+        "request edge",
+        "assignment edge",
+        "wait-for graph"
+      ],
+      "lesson": {
+        "why": "Graph questions ask whether a drawn system is deadlocked or which process to abort, and the answer depends on whether each resource has one instance or several.",
+        "intro": "A resource-allocation graph draws the system as a picture. Each process is a circle and each resource type is a box, with one dot in the box per instance. An arrow from a process to a resource means the process is requesting it. An arrow from a resource dot to a process means that instance is assigned to the process. Reading the picture tells whether threads are stuck waiting on each other.",
+        "definitions": [
+          {
+            "term": "Request edge",
+            "meaning": "An edge from a process to a resource type that the process is waiting for."
+          },
+          {
+            "term": "Assignment edge",
+            "meaning": "An edge from a resource instance to the process that currently holds it."
+          }
+        ],
+        "principle": {
+          "text": "With one instance per resource, a cycle means deadlock and no cycle means none. With several instances, no cycle still means no deadlock, but a cycle only means deadlock is possible; reduce the graph by letting any process that can get all its requests finish and release what it holds."
+        },
+        "limits": "The rule that a cycle means deadlock holds only when every resource type has a single instance. When a graph has multi-instance resources you must run the reduction, and a deadlock exists only if some processes can never finish.",
+        "example": {
+          "problem": "Resource R1 and R2 each have one instance. P1 holds R1 and requests R2. P2 holds R2 and requests R1. Is the system deadlocked?",
+          "steps": [
+            "Draw the edges: R1 to P1, P1 to R2, R2 to P2, P2 to R1.",
+            "Follow them: P1 waits for R2, whose holder is P2, and P2 waits for R1, whose holder is P1. That closes a cycle.",
+            "Each resource has one instance, so a cycle is enough to conclude deadlock; a reduction also fails, since neither process can get its request."
+          ],
+          "result": "Deadlocked. Neither P1 nor P2 can ever finish."
+        },
+        "misconceptions": [
+          "An assignment edge runs from the resource to the process, not the other way; reversing it is the usual trap in true-or-false options.",
+          "Seeing a cycle and declaring deadlock is wrong when a resource has two or more instances, because a process outside the cycle can release one.",
+          "With several cycles, aborting a process on just one cycle is not enough. Find a process that lies on every cycle: if two cycles share P2, aborting P2 breaks both, while aborting a process on only one cycle leaves the other."
+        ],
+        "recall": [
+          {
+            "q": "Which way do request and assignment edges point?",
+            "a": "A request edge goes from process to resource; an assignment edge goes from resource to process."
+          },
+          {
+            "q": "What does a graph with no cycle tell you?",
+            "a": "No deadlock exists, whatever the number of instances per resource."
+          },
+          {
+            "q": "What is a wait-for graph?",
+            "a": "A graph on processes only, with an edge from Pi to Pj when Pi waits for a resource held by Pj, used when each resource has one instance."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R1 has two instances held by P1 and P3, and R2 has one instance held by P2. P1 requests R2 and P2 requests R1. P3 requests nothing. Which statement is correct?",
+          "options": [
+            "Deadlock, because P1, R2, P2, R1 form a cycle",
+            "Deadlock, because P3 holds a resource",
+            "No deadlock, because P3 can finish and free an instance of R1",
+            "No deadlock, because R2 has only one instance"
+          ],
+          "answer": 2,
+          "explanation": "A cycle exists, but R1 has two instances. P3 is not waiting, so it finishes and releases its R1 instance. P2 then gets it, finishes and frees R2, and P1 follows. The first option is tempting because it applies the single-instance rule to a multi-instance graph."
+        },
+        "summary": "Edges run process to resource for requests and resource to process for assignments; a cycle is deadlock only for single instances, otherwise reduce the graph."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.deadlock-prevention",
+      "title": "Deadlock prevention",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        480
+      ],
+      "points": [
+        "Prevention makes one Coffman condition impossible by design, so deadlock can never arise.",
+        "Mutual exclusion: make resources shareable, which is rarely possible; read-only files can be shared, a printer cannot.",
+        "Hold and wait: request every resource at the start, or release everything before asking for more. Both waste resources and can starve processes that need several popular resources.",
+        "No preemption: take resources back from a process that must wait. This works for state that can be saved and restored, such as CPU registers or memory, but not for printers or half-updated data.",
+        "Circular wait: number the resource types and make every process request them in increasing order. Every wait then points to a higher-numbered resource, so no cycle can form."
+      ],
+      "keyTerms": [
+        "resource ordering",
+        "hold and wait"
+      ],
+      "lesson": {
+        "why": "Prevention questions ask which Coffman condition a scheme removes and what it costs, so you need to match each rule to the one condition it breaks.",
+        "intro": "Prevention designs the system so that one of the four deadlock conditions can never be true. Since deadlock needs all four, removing one is enough. Each choice has a price: some schemes waste resources, some cannot be applied to resources like printers, and requesting everything at the start can starve a process that needs several popular resources.",
+        "definitions": [
+          {
+            "term": "Resource ordering",
+            "meaning": "A fixed numbering of resource types, with every process required to request them in increasing order."
+          }
+        ],
+        "principle": {
+          "text": "Break one condition. Requesting everything at once, or requesting only while holding nothing, removes hold and wait. Taking resources away from a process whose request cannot be met removes no preemption. Requesting resource types in increasing number removes circular wait, because every wait points to a higher number and no cycle can close."
+        },
+        "limits": "Mutual exclusion usually cannot be removed, since a printer or a lock is non-shareable by nature. Preempting only suits state that can be saved and restored. Requesting everything at the start wastes resources and can starve a process that needs several popular ones.",
+        "example": {
+          "problem": "Locks are numbered L1 < L2. Every thread must take locks in increasing number. T1 needs both locks and T2 needs both locks. Can they deadlock?",
+          "steps": [
+            "Each thread takes L1 before L2, so whoever holds L2 must already have held L1.",
+            "Suppose T1 holds L1 and waits for L2. Then T2 holds L2, so T2 already held L1, but T1 holds L1. This is a contradiction.",
+            "So no thread can hold the higher lock while the other holds the lower, and no cycle of waits is possible."
+          ],
+          "result": "No deadlock. Enumerating all interleavings of the same-order case finds none."
+        },
+        "misconceptions": [
+          "Requesting all resources at the start does prevent hold and wait, but it is not free: resources sit idle and a process needing several popular ones can starve.",
+          "Resource ordering does not remove hold and wait; threads still hold one lock while waiting for another, and it only stops the waits from forming a cycle."
+        ],
+        "recall": [
+          {
+            "q": "Which condition does numbering resources and requesting in increasing order remove?",
+            "a": "Circular wait."
+          },
+          {
+            "q": "Why is it rarely possible to remove mutual exclusion?",
+            "a": "Resources such as printers and write locks are non-shareable by nature."
+          },
+          {
+            "q": "What is the drawback of requesting all resources at the start?",
+            "a": "Resources sit idle while held, and a process needing several popular resources can starve."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Resource types are numbered and a process must request them in increasing order. A process holds resources 3 and 7 and now asks for resource 5. What happens under the rule?",
+          "options": [
+            "The request is allowed because 5 lies between 3 and 7",
+            "The request is refused, since a number lower than the highest held is requested; the process must release 7 first",
+            "The request is allowed because the process already holds 3",
+            "The rule only restricts the first request of a process"
+          ],
+          "answer": 1,
+          "explanation": "The rule compares each new request with the highest-numbered resource the process holds. Resource 7 is held and 5 is lower, so the request breaks the order and is refused. The first option is tempting because 5 is between the two held numbers, but only the maximum matters."
+        },
+        "summary": "Prevention removes one of the four conditions; ordering resources kills circular wait, while requesting everything at the start wastes resources and can starve processes."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "title": "Deadlock avoidance and the Banker's algorithm",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        479,
+        480
+      ],
+      "points": [
+        "Avoidance needs each process's maximum claim in advance and grants a request only if the resulting state is safe: some order exists in which every process can obtain its remaining need and finish.",
+        "A safe state cannot deadlock, but an unsafe state is not necessarily deadlocked; it only means the system can no longer guarantee that every process will finish.",
+        "Data structures for n processes and m resource types: Available[m], Max[n][m], Allocation[n][m] and Need = Max − Allocation.",
+        "Safety algorithm: Work = Available; repeatedly pick an unfinished process with Need ≤ Work, add its Allocation to Work and mark it finished. The state is safe if every process finishes.",
+        "Resource-request algorithm: a request above Need is an error and one above Available must wait; otherwise allocate tentatively, run the safety algorithm and roll back if the state is unsafe."
+      ],
+      "keyTerms": [
+        "safe state",
+        "safe sequence",
+        "Need matrix"
+      ],
+      "lesson": {
+        "why": "Banker's algorithm questions give a table and ask whether the state is safe or how many safe sequences exist, a mechanical calculation that is easy once Need and Work are tracked correctly.",
+        "intro": "Avoidance lets deadlock be possible in principle but never lets the system enter a dangerous state. Each process declares in advance the most it will ever need. A state is safe if the processes can be ordered so that each, in turn, can get everything it still needs from what is free, finish and give its resources back. The system grants a request only if the state after granting it is still safe.",
+        "definitions": [
+          {
+            "term": "Need",
+            "meaning": "What a process may still ask for: its declared maximum minus what it already holds."
+          },
+          {
+            "term": "Safe sequence",
+            "meaning": "An order of all processes in which each one's Need fits in the free amount plus what earlier processes released."
+          }
+        ],
+        "principle": {
+          "text": "Compute Need = Max - Allocation. Start with Work = Available. Repeatedly pick an unfinished process whose Need is at most Work, add its Allocation to Work and mark it finished. The state is safe if every process finishes.",
+          "tex": "\\text{Need}_i = \\text{Max}_i - \\text{Alloc}_i,\\qquad \\text{pick } i \\text{ with } \\text{Need}_i \\le \\text{Work}"
+        },
+        "limits": "An unsafe state is not necessarily deadlocked; it only means safety can no longer be guaranteed. Safety is judged on Need, never on Max, and for several resource types the comparison must hold for every type.",
+        "example": {
+          "problem": "One resource type has 10 units. P0, P1 and P2 hold 3, 2 and 2 units and have maximums 9, 4 and 7. Is the state safe?",
+          "steps": [
+            "Available = 10 - 7 = 3. Needs are 9-3 = 6, 4-2 = 2 and 7-2 = 5.",
+            "Only P1 fits (2 is at most 3). It finishes and Work becomes 3 + 2 = 5.",
+            "P2 needs 5, which fits, so Work becomes 7. P0 needs 6, which fits, and the order is complete."
+          ],
+          "result": "Safe, with the single safe sequence P1, P2, P0 (a script that tries every order confirms there is only one)."
+        },
+        "misconceptions": [
+          "Comparing Max with Available is wrong; a process already holds part of its maximum, so only Need must fit.",
+          "An unsafe state does not mean deadlock has happened; it means the system cannot promise that all processes will finish."
+        ],
+        "recall": [
+          {
+            "q": "How is the Need matrix computed?",
+            "a": "Need = Max - Allocation for each process and each resource type."
+          },
+          {
+            "q": "What does the safety algorithm check for?",
+            "a": "Whether some order lets every process obtain its Need from Work, finish and release its allocation."
+          },
+          {
+            "q": "Does an unsafe state always lead to deadlock?",
+            "a": "No, deadlock is only possible; the system just lacks a guarantee that all processes finish."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A system has 12 units of one resource. P0, P1 and P2 hold 1, 4 and 3 units and have maximum requirements 5, 8 and 9. How many different safe sequences exist?",
+          "answer": 3,
+          "explanation": "Available is 12 - 8 = 4 and the Needs are 4, 4 and 6. P2 cannot go first. Starting with P0 gives Work 5, so only P1 fits next, then P2: sequence P0, P1, P2. Starting with P1 gives Work 8, and either P0 or P2 fits, giving P1, P0, P2 and P1, P2, P0. That makes 3. Counting 6 permutations ignores that Need must fit Work."
+        },
+        "summary": "Compute Need = Max - Allocation and run the safety algorithm on Work; a state is safe when some order finishes everyone, and unsafe does not mean deadlocked."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.deadlock-detection-recovery",
+      "title": "Deadlock detection and recovery",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        47,
+        479,
+        480
+      ],
+      "points": [
+        "Detection lets deadlocks happen and looks for them periodically, or when CPU utilisation drops.",
+        "With multiple instances, run the safety loop with each process's current Request in place of Need. Processes holding nothing start finished, and any process still unfinished at the end is deadlocked.",
+        "Recovery by termination: abort all deadlocked processes, or abort them one at a time, rerunning detection after each, until the deadlock is gone.",
+        "Recovery by preemption: take resources from a victim and roll it back to a checkpoint. Choose victims by cost (priority, work done, resources held) and make sure the same process is not picked every time.",
+        "Many general-purpose systems simply ignore deadlock (the ostrich approach) and leave it to applications."
+      ],
+      "keyTerms": [
+        "Request matrix",
+        "victim selection",
+        "rollback",
+        "ostrich algorithm"
+      ],
+      "lesson": {
+        "why": "Detection and recovery is the strategy that lets deadlock happen and then repairs it, and the exam asks you to run the detection loop by hand and to say which processes end up deadlocked.",
+        "intro": "Some systems do not stop deadlock in advance. They let processes request resources freely, check the system from time to time, and repair it if a deadlock has formed. The check works on tables. One table says what each process holds now (Allocation), another says what each process is waiting for right now (Request), and a vector says what is free (Available). The check pretends processes finish one by one: a process whose current Request fits in the free resources can finish and hand back everything it holds. Any process that can never finish this way is deadlocked.",
+        "prerequisites": [
+          "os-synchronization-deadlock.deadlock-conditions",
+          "os-synchronization-deadlock.deadlock-avoidance-bankers"
+        ],
+        "definitions": [
+          {
+            "term": "Request matrix",
+            "meaning": "For each process, the resources it is waiting for at this moment, not its worst-case future claim."
+          },
+          {
+            "term": "Victim",
+            "meaning": "The process chosen to lose its resources or be aborted so that the others can continue."
+          },
+          {
+            "term": "Rollback",
+            "meaning": "Returning a victim to a saved checkpoint so that it can restart after its resources were taken."
+          }
+        ],
+        "principle": {
+          "text": "Set Work to Available. A process that holds nothing starts finished. Repeatedly pick an unfinished process whose Request is at most Work, add its Allocation to Work and mark it finished. When no pick remains, every unfinished process is deadlocked.",
+          "tex": "\\mathrm{Request}_i \\le \\mathrm{Work} \\;\\Rightarrow\\; \\mathrm{Work} \\leftarrow \\mathrm{Work} + \\mathrm{Allocation}_i,\\;\\; \\mathrm{Finish}_i \\leftarrow \\text{true}"
+        },
+        "limits": "This is the safety loop with Request in place of Need, so it reports only deadlock that exists now and says nothing about future requests. With single-instance resources a cycle in the wait-for graph gives the same answer. Recovery has costs of its own: an aborted process loses its work, and a victim picked every time can starve.",
+        "example": {
+          "problem": "Resources A and B. Available is (0,0). P0 holds (0,1) and requests (0,0). P1 holds (1,0) and requests (0,2). P2 holds (1,1) and requests (1,0). Which processes are deadlocked?",
+          "steps": [
+            "Work starts at (0,0). P0 requests nothing, so its Request (0,0) fits. P0 finishes and Work becomes (0,0) + (0,1) = (0,1).",
+            "P1 requests (0,2), which does not fit in (0,1) because it needs two units of B and only one is free.",
+            "P2 requests (1,0), which does not fit because no unit of A is free. No further process can be picked.",
+            "P1 and P2 stay unfinished: P1 waits for a unit of B that P2 holds, and P2 waits for a unit of A that P1 holds."
+          ],
+          "result": "P1 and P2 are deadlocked; P0 is not."
+        },
+        "misconceptions": [
+          "Using Max or Need in place of Request. Detection looks only at what a process is waiting for now, so a process that may ask for more later is still not counted as blocked.",
+          "Assuming a process that holds nothing could be deadlocked. It starts finished, and a process whose Request is all zeros can finish without any help.",
+          "Thinking recovery is finished once one process is aborted. Abort one at a time and rerun detection after each, because the deadlock may need more than one victim, or fewer than all."
+        ],
+        "recall": [
+          {
+            "q": "How does the detection loop differ from the Banker's safety loop?",
+            "a": "It compares each process's current Request with Work instead of its Need, so it finds deadlock that exists now."
+          },
+          {
+            "q": "What does an unfinished process at the end of the detection loop mean?",
+            "a": "It is deadlocked: even after every process that could finish has returned its resources, its Request still cannot be met."
+          },
+          {
+            "q": "Name two ways to recover from a deadlock.",
+            "a": "Abort deadlocked processes, all at once or one by one, or preempt resources from a victim and roll it back to a checkpoint."
+          },
+          {
+            "q": "Why must victim selection avoid picking the same process every time?",
+            "a": "That process could be rolled back forever and never complete, which is starvation."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Resources A and B, Available (0,0). P0 holds (1,0) and requests (0,1). P1 holds (0,1) and requests (1,0). P2 holds nothing and requests nothing. Which processes are deadlocked?",
+          "options": [
+            "None of them",
+            "P0 and P1 only",
+            "P0, P1 and P2",
+            "P2 only"
+          ],
+          "answer": 1,
+          "explanation": "P2 holds nothing and requests nothing, so it finishes at once, but it returns no resources and Work stays (0,0). P0 needs a unit of B, which only P1 holds, and P1 needs a unit of A, which only P0 holds, so neither can proceed. Choosing all three is tempting because three processes are present, yet P2 is not waiting for anything."
+        },
+        "summary": "Detection runs the safety loop with Request in place of Need, and the processes left unfinished are the deadlocked ones. Recovery aborts processes or preempts resources from a victim chosen by cost, taking care not to starve it."
+      }
+    },
+    {
+      "id": "os-synchronization-deadlock.min-resources",
+      "title": "Minimum resources that rule out deadlock",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "n processes share R identical units, process i may hold up to mᵢ units, and units are requested one at a time. The worst case has every process holding mᵢ − 1 units and waiting for one more.",
+        "One unit more than that lets some process finish and release its units, and the rest follow, so R ≥ Σ(mᵢ − 1) + 1 guarantees freedom from deadlock.",
+        "With equal claims k this reads n(k − 1) + 1 ≤ R, so the largest safe claim is k = ⌊(R − 1)/n⌋ + 1 and the largest safe number of processes is ⌊(R − 1)/(k − 1)⌋.",
+        "Example: claims of 3, 4 and 5 need 2 + 3 + 4 + 1 = 10 units; with 9 units the processes can hold 2, 3 and 4 and wait forever.",
+        "The largest number of units that can still deadlock is Σ(mᵢ − 1); questions usually ask for the minimum safe number, which is one more."
+      ],
+      "keyTerms": [
+        "maximum claim"
+      ],
+      "lesson": {
+        "why": "A recurring numeric question asks for the fewest units, or the most processes or largest claim, that guarantees no deadlock.",
+        "prerequisites": [
+          "os-synchronization-deadlock.deadlock-conditions"
+        ],
+        "intro": "Several processes share a pool of identical units, such as 9 tape drives. Each process asks for units one at a time, keeps what it holds while it waits for more, and returns everything only when it finishes. A deadlock means every unfinished process is waiting and no unit is free. To guarantee it cannot happen, find the largest number of units that could be stuck in such a state and supply one more.",
+        "principle": {
+          "text": "A process holding its full claim finishes, so a deadlock needs every process to hold at most one unit less than its claim. The most units that can be held in a deadlock is the sum of (claim - 1). Any pool larger than that is deadlock-free, so the minimum safe pool is that sum plus one.",
+          "tex": "R_{\\min}=\\sum_{i=1}^{n}(m_i-1)+1"
+        },
+        "limits": "This holds when units are identical, requested one at a time and held until the process finishes. It says nothing about processes that release units early, ask for several at once, or need different resource types; for those use the safe-sequence check.",
+        "example": {
+          "problem": "Four processes each need at most 3 units of one resource. What is the smallest pool that can never deadlock?",
+          "steps": [
+            "Each process can be stuck holding 3 - 1 = 2 units, so four stuck processes hold 4 x 2 = 8 units.",
+            "With 8 units, all are held and every process wants a third, so a deadlock is possible.",
+            "With 9 units, at most 8 can be held by stuck processes, so one unit is free; whoever takes it reaches 3, finishes and releases enough for the rest."
+          ],
+          "result": "9 units. An exhaustive search over all request orders found a deadlock at 8 units and none at 9."
+        },
+        "misconceptions": [
+          "The safe pool is not the sum of the claims; that is far more than needed, since the sum of (claim - 1) plus one already suffices.",
+          "Forgetting the plus one gives the largest pool that can still deadlock, not the smallest safe one.",
+          "The rule does not say deadlock will happen below the minimum, only that some order of requests can cause it."
+        ],
+        "recall": [
+          {
+            "q": "What is the minimum number of units that guarantees no deadlock for claims m1 to mn?",
+            "a": "The sum of (mi - 1) over all processes, plus one."
+          },
+          {
+            "q": "With n processes each claiming k units, what is the largest k that is safe for R units?",
+            "a": "k = floor((R - 1) / n) + 1."
+          },
+          {
+            "q": "Why does one extra unit beyond the sum of (mi - 1) prevent deadlock?",
+            "a": "Stuck processes can hold only that sum, so a unit stays free; the process that gets it finishes and releases its units for the others."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Six processes share identical units of one resource. Each may need at most 4 units, requested one at a time and held until the process finishes. What is the minimum number of units that guarantees freedom from deadlock?",
+          "answer": 19,
+          "explanation": "Each process can be stuck holding 4 - 1 = 3 units, so 6 x 3 = 18 units can be held in a deadlock, and 18 + 1 = 19 is safe. Answering 18 gives the largest pool that can still deadlock, and answering 24 adds the full claims, which is more than needed."
+        },
+        "summary": "Add up (claim - 1) over all processes and add one: that many identical units can never deadlock, and one fewer can."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "os-synchronization-deadlock.need-matrix",
+      "name": "Need matrix",
+      "tex": "\\mathrm{Need}[i][j] = \\mathrm{Max}[i][j] - \\mathrm{Allocation}[i][j]",
+      "text": "Need[i][j] = Max[i][j] − Allocation[i][j]",
+      "where": [
+        [
+          "Need[i][j]",
+          "further units of type j that Pᵢ may still request"
+        ]
+      ],
+      "note": "Work out the whole Need matrix first; the Banker's algorithm compares Need, never Max, with Work.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        482
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.safety-step",
+      "name": "Safety-algorithm step",
+      "tex": "\\mathrm{Need}_i \\le \\mathrm{Work} \\;\\Rightarrow\\; \\mathrm{Work} \\leftarrow \\mathrm{Work} + \\mathrm{Allocation}_i,\\;\\; \\mathrm{Finish}_i \\leftarrow \\text{true}",
+      "text": "if Needᵢ ≤ Work: Work ← Work + Allocationᵢ and Finishᵢ ← true",
+      "where": [
+        [
+          "Work",
+          "starts equal to Available"
+        ],
+        [
+          "≤",
+          "componentwise, over every resource type"
+        ]
+      ],
+      "note": "The state is safe if every Finishᵢ becomes true. Work only grows, so the order in which eligible processes are picked never changes the verdict.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        478
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.total-resources",
+      "name": "Total instances of a resource type",
+      "tex": "\\mathrm{Total}_j = \\mathrm{Available}_j + \\sum_{i=1}^{n} \\mathrm{Allocation}[i][j]",
+      "text": "Totalⱼ = Availableⱼ + Σᵢ Allocation[i][j]",
+      "where": [
+        [
+          "Totalⱼ",
+          "instances of resource type j in the system"
+        ]
+      ],
+      "note": "Use it to recover Available when only totals are given, and as a check: at the end of a safe run, Work equals the total.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.request-grant",
+      "name": "Conditions for granting a request",
+      "tex": "\\mathrm{Request}_i \\le \\mathrm{Need}_i \\;\\wedge\\; \\mathrm{Request}_i \\le \\mathrm{Available} \\;\\wedge\\; \\text{resulting state safe}",
+      "text": "Requestᵢ ≤ Needᵢ and Requestᵢ ≤ Available and the resulting state is safe",
+      "where": [
+        [
+          "Requestᵢ",
+          "the vector Pᵢ asks for now"
+        ]
+      ],
+      "note": "Tentative state: Available − Request, Allocationᵢ + Request, Needᵢ − Request. Exceeding Need is an error, exceeding Available means wait, and an unsafe result means roll back and wait.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        479
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.min-resources-bound",
+      "name": "Minimum units for guaranteed deadlock freedom",
+      "tex": "R_{\\min} = \\sum_{i=1}^{n} (m_i - 1) + 1",
+      "text": "R_min = Σ(mᵢ − 1) + 1",
+      "where": [
+        [
+          "mᵢ",
+          "maximum units process i can hold at once"
+        ],
+        [
+          "n",
+          "number of processes"
+        ]
+      ],
+      "note": "Assumes one resource type, requests of one unit at a time, and a finishing process releasing all it holds. With R_min − 1 units deadlock is possible.",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.equal-claims",
+      "name": "Deadlock-free condition for equal claims",
+      "tex": "n(k - 1) + 1 \\le R",
+      "text": "n(k − 1) + 1 ≤ R",
+      "where": [
+        [
+          "k",
+          "maximum claim of each process"
+        ],
+        [
+          "R",
+          "units in the system"
+        ]
+      ],
+      "note": "Largest safe claim k = ⌊(R − 1)/n⌋ + 1; largest safe number of processes n = ⌊(R − 1)/(k − 1)⌋ for k ≥ 2.",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.semaphore-final-value",
+      "name": "Semaphore value after the operations",
+      "tex": "S = S_0 - p + v",
+      "text": "S = S₀ − p + v",
+      "where": [
+        [
+          "S₀",
+          "initial value"
+        ],
+        [
+          "p, v",
+          "wait (P) and signal (V) operations performed"
+        ]
+      ],
+      "note": "Counting semaphores only: a binary semaphore signalled at 1 stays at 1 and loses that signal. For a never-negative semaphore this needs every wait to have completed. In the decrement-first blocking form it holds with p counting every wait issued, blocked ones included.",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.semaphore-blocked",
+      "name": "Waits left blocked on a never-negative counting semaphore",
+      "tex": "B = \\max\\bigl(0,\\; p - (S_0 + v)\\bigr)",
+      "text": "B = max(0, p − (S₀ + v))",
+      "where": [
+        [
+          "B",
+          "wait operations still blocked once every signal has run"
+        ]
+      ],
+      "note": "Holds for a counting semaphore when each wait and each signal is issued by its own process. Signals never block, so all v run, and each completed wait uses one unit of S₀ + v; some wait stays blocked exactly when S₀ + v < p. A signal stuck behind a blocked wait in the same process never runs.",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.negative-semaphore",
+      "name": "Waiting processes from a negative semaphore value",
+      "tex": "S < 0 \\;\\Rightarrow\\; \\text{waiting processes} = |S|",
+      "text": "S < 0 ⇒ waiting processes = |S|",
+      "where": [
+        [
+          "S",
+          "current value under the decrement-then-block implementation"
+        ]
+      ],
+      "note": "Holds only when wait decrements before testing. Under the definition where wait blocks while S ≤ 0, S never goes below 0 and the number of waiters is not visible in S.",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "origin": "source",
+      "pages": [
+        63
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.dining-max-eat",
+      "name": "Philosophers eating at once",
+      "tex": "E_{\\max} = \\left\\lfloor \\frac{N}{2} \\right\\rfloor",
+      "text": "E_max = ⌊N/2⌋",
+      "where": [
+        [
+          "N",
+          "philosophers, and chopsticks, round the table"
+        ]
+      ],
+      "note": "Each eater holds two of the N chopsticks and neighbours cannot eat together; N = 5 gives 2.",
+      "topic": "os-synchronization-deadlock.dining-philosophers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.bakery-ticket",
+      "name": "Bakery algorithm ticket and entry order",
+      "tex": "\\mathit{num}[i] = 1 + \\max_{j} \\mathit{num}[j], \\qquad (\\mathit{num}[a], a) < (\\mathit{num}[b], b) \\;\\Rightarrow\\; a \\text{ enters first}",
+      "text": "num[i] = 1 + max over j of num[j]; the smaller (num, id) pair enters first",
+      "where": [
+        [
+          "num[i]",
+          "ticket of process i, 0 while it is not trying"
+        ]
+      ],
+      "note": "Taking a ticket is not atomic, so two processes can draw the same number; the process id breaks the tie.",
+      "topic": "os-synchronization-deadlock.peterson-bakery",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "os-synchronization-deadlock.bankers-safety-cost",
+      "name": "Banker's safety algorithm",
+      "worst": "O(m · n²)",
+      "space": "O(m · n)",
+      "notes": "Up to n passes over n processes, each comparing m-element vectors; space for the Max, Allocation and Need matrices.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.resource-request-cost",
+      "name": "Banker's resource-request check",
+      "worst": "O(m · n²)",
+      "notes": "Testing and applying the tentative grant costs O(m); the safety run dominates.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        479
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.detection-cost",
+      "name": "Multi-instance deadlock detection",
+      "worst": "O(m · n²)",
+      "notes": "The same loop as the safety algorithm, with Request in place of Need.",
+      "topic": "os-synchronization-deadlock.deadlock-detection-recovery",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.wait-for-cycle-cost",
+      "name": "Cycle detection in a wait-for graph",
+      "worst": "O(n²)",
+      "notes": "Depth-first search over n process nodes: O(n + e) with adjacency lists, O(n²) with an adjacency matrix or a dense graph.",
+      "topic": "os-synchronization-deadlock.resource-allocation-graph",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "os-synchronization-deadlock.bankers-safety",
+      "title": "Is the state safe, and which sequences are safe?",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Compute Need = Max − Allocation for every process, and Available if only totals are given.",
+        "Set Work = Available and repeatedly finish any process whose Need ≤ Work, adding its Allocation to Work.",
+        "To test a proposed sequence, run the processes in exactly that order and stop at the first whose Need exceeds Work."
+      ],
+      "trap": "Comparing Max instead of Need with Work, or forgetting to add a finished process's Allocation back into Work.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        482
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.bankers-request",
+      "title": "Can a resource request be granted at once?",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Check Request ≤ Need (otherwise an error) and Request ≤ Available (otherwise the process waits).",
+        "Apply the request tentatively: Available − Request, Allocation + Request, Need − Request.",
+        "Run the safety algorithm on the tentative state; grant only if it is safe, otherwise roll back."
+      ],
+      "trap": "Evaluating a second request on top of the first when the question treats them as independent alternatives.",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "pages": [
+        47,
+        479
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.min-resources-count",
+      "title": "Minimum resources so that deadlock cannot occur",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Let every process hold one unit fewer than its maximum claim: Σ(mᵢ − 1) units in total.",
+        "Add one unit: with that many some process can always finish, so R_min = Σ(mᵢ − 1) + 1.",
+        "For equal claims, solve n(k − 1) + 1 ≤ R for whichever of n, k or R is unknown."
+      ],
+      "trap": "Answering Σ(mᵢ − 1), the largest number of units that can still deadlock, when the minimum safe number is asked.",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.semaphore-arithmetic",
+      "title": "Semaphore values and blocked counts",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Fix the semaphore model first: never-negative (wait blocks while S ≤ 0) or decrement-first (S may go negative).",
+        "If no wait blocks, a counting semaphore ends at S₀ − p + v.",
+        "When each wait and each signal comes from its own process, a never-negative counting semaphore lets min(p, S₀ + v) waits complete and leaves max(0, p − S₀ − v) blocked; a signal stuck behind a blocked wait never runs."
+      ],
+      "trap": "Assuming the operations run in the order listed when the question allows any interleaving.",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.interleaving-values",
+      "title": "Possible final values of shared variables under interleaving",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Split each update into load, compute and store, since only those steps are atomic.",
+        "To push the result one way, let the updates you want lost read a stale value early and store before a later overwrite, and let the useful updates run back to back.",
+        "Respect any semaphore: with S = k, at most k processes can be between their wait and signal at once."
+      ],
+      "trap": "Treating x = x + 1 as atomic, or forgetting that a counting semaphore above 1 still lets updates race.",
+      "topic": "os-synchronization-deadlock.critical-section",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.cs-solution-properties",
+      "title": "Which critical-section properties a protocol satisfies",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Mutual exclusion: look for an interleaving that puts both processes inside at once.",
+        "Progress: look for a state where the section is free and a process wants in, yet it cannot enter because the other is idle or both wait for each other.",
+        "Bounded waiting: look for a schedule in which one waiting process is overtaken again and again."
+      ],
+      "trap": "Calling strict alternation correct because it is mutually exclusive: it fails progress when the other process stays in its remainder section.",
+      "topic": "os-synchronization-deadlock.two-process-attempts",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.semaphore-deadlock-order",
+      "title": "Spotting deadlocks from the order of wait() calls",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For each process, list the semaphores it already holds when it waits on another.",
+        "Look for a schedule in which every process holds one semaphore and waits for one held by another; such a cycle means the code can deadlock.",
+        "If every semaphore is a lock (initial value 1, released by the process that took it) and every process takes its locks in increasing order of one global ranking, no deadlock can occur. A semaphore that another process signals, such as full or empty, breaks this guarantee."
+      ],
+      "trap": "Missing a cycle that needs three processes, or a consumer that waits on an empty-buffer count while holding the buffer lock.",
+      "topic": "os-synchronization-deadlock.deadlock-prevention",
+      "origin": "source",
+      "pages": [
+        478,
+        483
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.deadlock-detection",
+      "title": "Which processes are deadlocked?",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Set Work = Available and mark every process that holds nothing as finished.",
+        "Repeatedly finish a process whose current Request ≤ Work, adding its Allocation to Work.",
+        "Every process left unfinished is deadlocked; count or list them as asked."
+      ],
+      "trap": "Using Need (Max − Allocation) as in the Banker's algorithm: that tests safety, and an unsafe state is not the same as a deadlock.",
+      "topic": "os-synchronization-deadlock.deadlock-detection-recovery",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "os-synchronization-deadlock.q-semaphore-blocked",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Twenty processes each perform one wait(S) and twelve other processes each perform one signal(S), in some order. S is a counting semaphore that never goes negative: wait blocks while S = 0, and signal wakes a blocked process if there is one. What is the largest initial value of S for which at least one process remains blocked once every operation that can complete has completed?",
+      "answer": 7,
+      "explanation": "Signals never block, so all 12 run, and each completed wait uses one unit taken from the initial value or from a signal. A blocked wait is woken whenever a unit is available, so exactly min(20, S₀ + 12) waits complete and max(0, 8 − S₀) stay blocked. At least one stays blocked when 8 − S₀ ≥ 1, that is S₀ ≤ 7.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-shared-x-max",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Shared variable x starts at 0 and counting semaphore S starts at 2. Processes W and X each run: wait(S); load x into a register; add 1; store the register to x; signal(S). Processes Y and Z run the same code but subtract 2 instead of adding 1. Each process runs once, and only individual loads and stores are atomic. What is the maximum possible final value of x?",
+      "answer": 2,
+      "explanation": "S = 2 lets two processes be inside at once, so updates can be lost. To maximise x, lose both subtractions: W loads 0; Y then loads 0 and stores −2, and Z loads −2 and stores −4, both while W holds its stale 0. W stores 1, overwriting −4, and finally X loads 1 and stores 2. Only two additions of 1 exist, so x can never exceed 2.",
+      "difficulty": "hard",
+      "topic": "os-synchronization-deadlock.critical-section",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-min-resources-units",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Three processes share identical units of one resource type and request them one unit at a time. Their maximum claims are 3, 4 and 5 units, and a process releases all its units when it finishes. What is the minimum number of units that guarantees deadlock can never occur?",
+      "answer": 10,
+      "explanation": "In the worst case each process holds one unit less than its claim, 2 + 3 + 4 = 9 units, and waits for one more; with 9 units that is a deadlock. One more unit lets some process complete and release its units, after which the others can finish, so 9 + 1 = 10 units suffice.",
+      "difficulty": "easy",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-detection-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A system has resource types A, B and C, and Available = (0, 0, 0). Allocations are P0 (0, 1, 0), P1 (2, 0, 0), P2 (3, 0, 3), P3 (2, 1, 1) and P4 (0, 0, 2). Outstanding requests are P0 (0, 0, 0), P1 (2, 0, 2), P2 (0, 0, 1), P3 (1, 0, 0) and P4 (0, 0, 2). How many processes are deadlocked?",
+      "answer": 4,
+      "explanation": "Run detection with each Request in place of Need. With Work = (0, 0, 0), only P0, whose request is (0, 0, 0), can finish; it returns (0, 1, 0), so Work = (0, 1, 0). P1 still needs (2, 0, 2), P2 (0, 0, 1), P3 (1, 0, 0) and P4 (0, 0, 2), and none fits in Work. P1, P2, P3 and P4 are deadlocked: 4 processes.",
+      "difficulty": "hard",
+      "topic": "os-synchronization-deadlock.deadlock-detection-recovery",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-bankers-safe-sequences",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Five processes share resource types A, B and C, with Available = (3, 3, 2). Allocation: P0 (0, 1, 0), P1 (2, 0, 0), P2 (3, 0, 2), P3 (2, 1, 1), P4 (0, 0, 2). Max: P0 (7, 5, 3), P1 (3, 2, 2), P2 (9, 0, 2), P3 (2, 2, 2), P4 (4, 3, 3). Which of the following are safe sequences?",
+      "options": [
+        "P1, P3, P4, P0, P2",
+        "P1, P2, P3, P4, P0",
+        "P3, P1, P4, P2, P0",
+        "P4, P1, P3, P0, P2"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "Need = Max − Allocation: P0 (7, 4, 3), P1 (1, 2, 2), P2 (6, 0, 0), P3 (0, 1, 1), P4 (4, 3, 1). P1, P3, P4, P0, P2 takes Work (3, 3, 2) → (5, 3, 2) → (7, 4, 3) → (7, 4, 5) → (7, 5, 5) → (10, 5, 7): safe. P3, P1, P4, P2, P0 gives (5, 4, 3) → (7, 4, 3) → (7, 4, 5) → (10, 4, 7) → (10, 5, 7): safe. P1, P2, … fails at P2, whose Need (6, 0, 0) exceeds Work (5, 3, 2). P4, … fails at once: P4 needs (4, 3, 1) but only (3, 3, 2) is available.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2017) — Banker's",
+      "pages": [
+        482
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-bankers-request",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Resource types X, Y and Z have Available = (3, 2, 2). Allocation: P0 (0, 0, 1), P1 (3, 2, 0), P2 (2, 1, 1). Max: P0 (8, 4, 3), P1 (6, 2, 0), P2 (3, 3, 3). Two requests are considered independently, each from this same state: REQ1, P0 asks for (0, 0, 2); REQ2, P1 asks for (2, 0, 0). Under the Banker's algorithm, which requests can be granted immediately?",
+      "options": [
+        "Only REQ1",
+        "Only REQ2",
+        "Both REQ1 and REQ2",
+        "Neither REQ1 nor REQ2"
+      ],
+      "answer": 1,
+      "explanation": "Need: P0 (8, 4, 2), P1 (3, 0, 0), P2 (1, 2, 2). Granting REQ1 leaves Available = (3, 2, 0): P1 can finish (Work (6, 4, 0)), but then P0 needs (8, 4, 0) and P2 needs (1, 2, 2), neither fits, and the state is unsafe. Granting REQ2 leaves Available = (1, 2, 2) and P1's Need (1, 0, 0): P1 finishes (Work (6, 4, 2)), then P2 (Work (8, 5, 3)), then P0 with Need (8, 4, 2). The state is safe, so only REQ2 is granted.",
+      "difficulty": "hard",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-strict-alternation",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Two processes share Boolean variables S1 and S2, initialised to arbitrary values. Whenever P1 wants its critical section, it busy-waits while S1 == S2, runs the critical section, then executes S1 = S2. Whenever P2 wants its critical section, it busy-waits while S1 != S2, runs the critical section, then executes S2 = !S1. Between attempts, either process may stay in its remainder section for any length of time. Which statement is true?",
+      "options": [
+        "Mutual exclusion is guaranteed, but progress is not.",
+        "Progress is guaranteed, but mutual exclusion is not.",
+        "Neither mutual exclusion nor progress is guaranteed.",
+        "Both mutual exclusion and progress are guaranteed."
+      ],
+      "answer": 0,
+      "explanation": "P1 may enter only when S1 ≠ S2 and P2 only when S1 = S2, and neither variable changes while a process is inside, so both can never be inside together. Each exit hands the turn to the other process (P1 makes S1 = S2, P2 makes S1 ≠ S2), so the processes must strictly alternate. If P1 stays in its remainder section, P2 can enter at most once more and is then locked out of a free section, which violates progress.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.two-process-attempts",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-peterson-turn",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In Peterson's algorithm, P0 and P1 both want to enter, and each has already set its flag to true. P0 executes turn = 1, and only after that does P1 execute turn = 0. Neither has tested its while condition yet. What happens next?",
+      "options": [
+        "P0 enters the critical section; P1 waits until P0 resets its flag.",
+        "P1 enters the critical section; P0 waits until P1 resets its flag.",
+        "Both wait forever, because each sees the other's flag set.",
+        "Both may enter, because each of them wrote turn."
+      ],
+      "answer": 0,
+      "explanation": "The final value of turn is 0, written last by P1. P0 waits only while flag[1] && turn == 1, which is false, so P0 enters. P1 waits while flag[0] && turn == 0, which is true, so it spins until P0 leaves and sets flag[0] = false. The process that writes turn last defers to the other.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.peterson-bakery",
+      "origin": "source",
+      "pages": [
+        45,
+        475
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-tas-bounded-waiting",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Processes guard a critical section with a spinlock: the entry code is while (TestAndSet(&lock)); and the exit code is lock = false, where TestAndSet is atomic and lock starts false. Which requirement of a critical-section solution can this lock fail to meet?",
+      "options": [
+        "Mutual exclusion",
+        "Progress",
+        "Bounded waiting",
+        "None; it meets all three"
+      ],
+      "answer": 2,
+      "explanation": "Only one TestAndSet can see false and take the lock, so mutual exclusion holds, and when the lock is free some spinning process succeeds, so progress holds. Nothing decides who wins after a release, though: a process can release the lock and take it again before a particular waiter tests it, any number of times, so that waiter's wait has no bound.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.hardware-locks",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-consumer-wrong-order",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A producer and a consumer share an unbounded buffer, with semaphores n = 0 (items in the buffer) and s = 1 (buffer lock). The producer loops: produce; wait(s); add item; signal(s); signal(n). The consumer loops: wait(s); wait(n); remove item; signal(s); consume. Which statement is true?",
+      "options": [
+        "The code is correct: the consumer never removes from an empty buffer and nothing deadlocks.",
+        "The consumer may remove an item from an empty buffer.",
+        "Deadlock is possible: the consumer can block on n while holding s, so the producer can never add an item.",
+        "The producer may block forever in wait(n)."
+      ],
+      "answer": 2,
+      "explanation": "If the consumer runs when the buffer is empty, it takes s and then blocks in wait(n) while still holding s. The producer then blocks in wait(s) and can never add the item that would release the consumer, so both are stuck. The consumer cannot remove from an empty buffer because wait(n) guards removal, and the producer never waits on n. Swapping the consumer's two waits fixes the code.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.producer-consumer",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        483
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-reader-first",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In the first readers-writers solution, readers share read_count, protected by mutex, and writers use the semaphore rw_mutex. What does a reader do when its increment makes read_count equal to 1?",
+      "options": [
+        "It performs wait(rw_mutex), locking writers out on behalf of all readers.",
+        "It performs signal(rw_mutex), letting a waiting writer start.",
+        "It performs wait(mutex) a second time to keep other readers out.",
+        "Nothing extra; only writers ever touch rw_mutex."
+      ],
+      "answer": 0,
+      "explanation": "The first reader to arrive must make sure no writer is active and keep writers out while any reader remains, so it waits on rw_mutex. Later readers only increment read_count and go in. The last reader to leave, the one that brings read_count back to 0, performs signal(rw_mutex).",
+      "difficulty": "easy",
+      "topic": "os-synchronization-deadlock.readers-writers",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Reader-writer",
+      "pages": [
+        46,
+        477,
+        483
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-monitor-mesa",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which statement about monitors with condition variables is correct?",
+      "options": [
+        "A signal(c) on a condition with no waiting process is remembered and wakes the next process that calls wait(c).",
+        "Under Mesa semantics, a woken process must re-test its condition in a while loop before going on.",
+        "Two processes may run monitor procedures at once if they wait on different condition variables.",
+        "Under Hoare semantics, the signalling process keeps running and the woken process waits for the monitor to become free."
+      ],
+      "answer": 1,
+      "explanation": "Under Mesa semantics the signaller keeps the monitor and the woken process runs only later, by which time another process may have changed the state, so it must re-check its condition in a loop. A signal with no waiter is lost, a monitor admits one active process whatever the conditions, and under Hoare semantics it is the signaller that suspends.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.monitors",
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        480
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-dining-fixes",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Five philosophers share five chopsticks, one between each neighbouring pair, and each needs both adjacent chopsticks to eat. Which of these rules guarantee that deadlock cannot occur?",
+      "options": [
+        "At most four philosophers may sit at the table at any time.",
+        "Every philosopher picks up the left chopstick first, then the right one.",
+        "Chopsticks are numbered 0–4 and every philosopher picks up the lower-numbered of the two first.",
+        "Philosopher 0 picks up the right chopstick first; all the others pick up the left one first."
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "With four philosophers seated and five chopsticks, at least one of them can get both. Taking the lower-numbered chopstick first is a global resource order, so no circular wait can form, and one philosopher taking the right chopstick first breaks the cycle in the same way. Left then right for everyone lets all five hold their left chopstick and wait forever for the right.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.dining-philosophers",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Dining",
+      "pages": [
+        46,
+        477,
+        483
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-rag-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about resource-allocation graphs and deadlock are true?",
+      "options": [
+        "If every resource type has a single instance, a cycle in the graph means the processes on it are deadlocked.",
+        "If resource types have several instances, a cycle in the graph means the processes on it are deadlocked.",
+        "If the graph has no cycle, no process is deadlocked.",
+        "A system in an unsafe state is already deadlocked."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "With single instances a cycle is both necessary and sufficient for deadlock. With several instances a process outside the cycle may release an instance and break it, so a cycle is necessary but not sufficient. No cycle means no circular wait, hence no deadlock. An unsafe state only means deadlock can no longer be ruled out; the processes may still all finish.",
+      "difficulty": "medium",
+      "topic": "os-synchronization-deadlock.resource-allocation-graph",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Detection",
+      "pages": [
+        47,
+        479,
+        482,
+        483
+      ]
+    },
+    {
+      "id": "os-synchronization-deadlock.q-lock-order",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Binary semaphores a, b, c and d all start at 1. Processes X, Y and Z each perform wait() on three of them in the order shown, run a critical section, then signal all three. Which choice of orders can never deadlock?",
+      "options": [
+        "X: a, b, c; Y: b, c, d; Z: c, d, a",
+        "X: b, a, c; Y: b, c, d; Z: a, c, d",
+        "X: b, a, c; Y: c, b, d; Z: a, c, d",
+        "X: a, b, c; Y: c, b, d; Z: c, d, a"
+      ],
+      "answer": 1,
+      "explanation": "With X: b, a, c, Y: b, c, d and Z: a, c, d, every process waits in an order consistent with the single ranking b < a < c < d, so no cycle of waits can form. Each other choice has a cycle. In the first, X holds a and waits for b, Y holds b and waits for c, and Z holds c and d and waits for a. In the third, X holds b and waits for a, Z holds a and waits for c, and Y holds c and waits for b. In the fourth, X holds a and b and waits for c while Y holds c and waits for b.",
+      "difficulty": "hard",
+      "topic": "os-synchronization-deadlock.deadlock-prevention",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-synchronization-deadlock.q-coffman-ordering",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A system numbers its resource types and requires every process to request resources only in increasing order of their numbers. Which necessary condition for deadlock does this rule deny?",
+      "options": [
+        "Mutual exclusion",
+        "Hold and wait",
+        "No preemption",
+        "Circular wait"
+      ],
+      "answer": 3,
+      "explanation": "A process holding resource i can wait only for a resource numbered above i, so any chain of waits climbs strictly in number and can never close into a cycle. Processes still hold resources exclusively, still hold while waiting, and still cannot be preempted; only circular wait is ruled out.",
+      "difficulty": "easy",
+      "topic": "os-synchronization-deadlock.deadlock-conditions",
+      "origin": "source",
+      "pages": [
+        47,
+        478
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The four Coffman conditions are necessary, not sufficient: with multi-instance resources a cycle can exist without a deadlock.",
+      "origin": "source",
+      "pages": [
+        478,
+        483
+      ]
+    },
+    {
+      "text": "In producer-consumer, wait(full) or wait(empty) must come before wait(mutex); reversing them can put a process to sleep while it holds the buffer lock.",
+      "origin": "source",
+      "pages": [
+        483
+      ]
+    },
+    {
+      "text": "An unsafe state is not a deadlock: it only means the system can no longer guarantee that every process will finish.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Detection compares each process's current Request with Work; Banker's avoidance compares Need = Max − Allocation. Swapping them gives wrong answers.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "The Banker's algorithm must be run on every request before it is granted, not once at start-up.",
+      "origin": "source",
+      "pages": [
+        483
+      ]
+    },
+    {
+      "text": "A counting semaphore initialised to k > 1 lets k processes into a section together, so updates to shared data can still be lost.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Peterson's algorithm is a two-process solution, and on modern hardware it needs memory fences to stay correct.",
+      "origin": "source",
+      "pages": [
+        45
+      ]
+    },
+    {
+      "text": "A monitor's signal(c) with no waiting process is lost, whereas a counting semaphore's signal is remembered in its count; a binary semaphore already at 1 loses it too.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Critical section",
+      "lines": [
+        "Requirements: mutual exclusion, progress, bounded waiting",
+        "Peterson: flag[i] = true; turn = j; wait while flag[j] && turn == j",
+        "Last writer of turn waits; two processes only; needs fences",
+        "TestAndSet / Swap / CAS spinlock: no bounded waiting without a hand-off",
+        "Disabling interrupts works only on one CPU"
+      ],
+      "origin": "source",
+      "pages": [
+        45,
+        475,
+        476,
+        484
+      ]
+    },
+    {
+      "heading": "Semaphores and classic problems",
+      "lines": [
+        "wait(S): block while S ≤ 0, then S = S − 1; signal(S): S = S + 1 (binary caps at 1), wake one",
+        "S = 1 for mutual exclusion, S = 0 for ordering",
+        "Producer-consumer: empty = N, full = 0, mutex = 1; counting wait before mutex",
+        "Readers-writers: first reader waits on rw_mutex, last reader signals it",
+        "Dining: at most 4 seated, ordered pickup, or one philosopher right-first",
+        "Monitor: implicit mutex; under Mesa, re-check in a while loop"
+      ],
+      "origin": "source",
+      "pages": [
+        46,
+        477,
+        484
+      ]
+    },
+    {
+      "heading": "Deadlock",
+      "lines": [
+        "Coffman: mutual exclusion, hold and wait, no preemption, circular wait",
+        "Prevent: break one condition; ordered requests break circular wait",
+        "Avoid: Banker's, Need = Max − Allocation, grant only if still safe",
+        "Detect: single instance → wait-for-graph cycle; multiple → Request-based algorithm",
+        "Recover: kill, preempt, roll back",
+        "Minimum safe units: Σ(mᵢ − 1) + 1"
+      ],
+      "origin": "source",
+      "pages": [
+        47,
+        478,
+        484
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 47,
+      "claim": "Deadlock detection uses the wait-for graph, and a cycle means deadlock.",
+      "correction": "A wait-for graph works only when every resource type has a single instance. With multiple instances a cycle is necessary but not sufficient, so detection must run the matrix algorithm on Available, Allocation and the current Request of each process."
+    },
+    {
+      "page": 479,
+      "claim": "With multiple instances, detection runs the safety algorithm, and the deadlocked processes are those left with Finish = false.",
+      "correction": "Detection compares each process's current Request, not its Need (Max − Allocation), with Work, and processes that hold no resources start with Finish = true. Run on Need, the loop only tests safety, and an unsafe state is not necessarily a deadlock."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "os-concurrency-synchronization",
+      "status": "covered",
+      "topics": [
+        "os-synchronization-deadlock.critical-section",
+        "os-synchronization-deadlock.two-process-attempts",
+        "os-synchronization-deadlock.peterson-bakery",
+        "os-synchronization-deadlock.hardware-locks",
+        "os-synchronization-deadlock.semaphores",
+        "os-synchronization-deadlock.producer-consumer",
+        "os-synchronization-deadlock.readers-writers",
+        "os-synchronization-deadlock.dining-philosophers",
+        "os-synchronization-deadlock.monitors"
+      ]
+    },
+    {
+      "item": "os-deadlock",
+      "status": "covered",
+      "topics": [
+        "os-synchronization-deadlock.deadlock-conditions",
+        "os-synchronization-deadlock.resource-allocation-graph",
+        "os-synchronization-deadlock.deadlock-prevention",
+        "os-synchronization-deadlock.deadlock-avoidance-bankers",
+        "os-synchronization-deadlock.deadlock-detection-recovery",
+        "os-synchronization-deadlock.min-resources"
+      ]
+    }
+  ]
+}

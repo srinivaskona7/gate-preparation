@@ -1,0 +1,2435 @@
+{
+  "id": "db-normalization",
+  "summary": "Functional dependencies state which attributes determine which others; normalization uses them to split a relation so every fact lives in one place. Almost every GATE question here is mechanical once the attribute-closure algorithm is fluent: compute X⁺, find every candidate key, read off the highest normal form from the FDs, then test a decomposition for lossless join and dependency preservation. The rest is knowing the 3NF/BCNF trade-off, canonical covers, and where MVDs and 4NF fit.",
+  "highYield": [
+    "Find all candidate keys (or count them) from an FD set: classify attributes, close the mandatory set, then add both-side attributes smallest first.",
+    "Highest normal form of a relation: test every FD for a superkey LHS (BCNF), else a prime RHS (3NF); for 2NF, close K − {b} for every key K and b ∈ K and look for a non-prime attribute.",
+    "Lossless and dependency-preserving checks on a given decomposition: common attributes must be a superkey of one piece; every FD must follow from the projected FDs.",
+    "Canonical cover of an FD set and the number of FDs it keeps; equivalence of two FD sets via closures.",
+    "Counting superkeys by inclusion–exclusion over the candidate keys: one key of k attributes in n gives 2ⁿ⁻ᵏ."
+  ],
+  "topics": [
+    {
+      "id": "db-normalization.anomalies",
+      "title": "Why normalize: insertion, update and deletion anomalies",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        540,
+        560,
+        569
+      ],
+      "points": [
+        "Insertion anomaly: one fact cannot be stored without another, such as a new course that has no enrolled student yet in Enroll(StudentID, StudentName, CourseID, CourseName, Instructor).",
+        "Update anomaly: a fact repeated in many rows must be changed in all of them; a course name stored in 200 enrolment rows needs 200 updates, and missing one leaves the data inconsistent.",
+        "Deletion anomaly: removing the last row about one fact also erases an unrelated fact, such as deleting the only enrolment of a course and losing the course itself.",
+        "The cure is decomposition so each fact is stored once; the price is more joins, which is why practical schemas usually stop at 3NF or BCNF."
+      ],
+      "keyTerms": [
+        "insertion anomaly",
+        "update anomaly",
+        "deletion anomaly",
+        "redundancy"
+      ],
+      "lesson": {
+        "why": "GATE normalization questions rest on the idea that repeated facts cause trouble. Naming the three anomalies tells you what a decomposition is meant to cure and why designers split tables at all.",
+        "intro": "Suppose one table mixes facts about students with facts about courses. Every enrolment row then repeats the course name. Repeated facts cause three kinds of damage, called anomalies. An insertion anomaly means you cannot record one fact without inventing another. An update anomaly means a change must be made in many rows, and missing one leaves the table contradicting itself. A deletion anomaly means removing one row destroys a fact you wanted to keep. All three come from storing several independent facts in one table.",
+        "analogy": {
+          "text": "A phone number written on every page of a notebook: changing it means finding every page, and tearing out one page may lose the only note about something else.",
+          "breaksWhen": "A notebook has no rules to decide which facts belong together, while a table has functional dependencies that say exactly which columns decide which."
+        },
+        "definitions": [
+          {
+            "term": "Redundancy",
+            "meaning": "The same fact stored in more than one row, the root cause of all three anomalies."
+          },
+          {
+            "term": "Decomposition",
+            "meaning": "Splitting a table into smaller tables so that each fact is stored once."
+          }
+        ],
+        "principle": {
+          "text": "When a table holds a determinant that is not a key, the facts it determines repeat once per row sharing that determinant. The cure is to move each such group of facts into its own table, keyed by its determinant, so every fact is stored once."
+        },
+        "limits": "Decomposition removes redundancy but costs joins when you query across the pieces, and a careless split can lose information or lose the ability to check a dependency. That is why practical schemas usually stop at 3NF or BCNF.",
+        "example": {
+          "problem": "Enroll(StudentID, StudentName, CourseID, CourseName) holds the rows (1, Asha, C1, DBMS), (2, Ravi, C1, DBMS), (3, Meena, C1, DBMS), (3, Meena, C2, OS). Show one insertion, one update and one deletion anomaly.",
+          "steps": [
+            "Update: the name of C1 appears in 3 rows. Renaming it to Databases means changing all 3; changing only 2 leaves C1 with two names.",
+            "Insertion: a new course C3 with no student yet cannot be stored, because StudentID is part of the key and cannot be empty.",
+            "Deletion: Meena drops C2, and her only C2 row is the only place C2 and its name appear. Deleting that row deletes the course too.",
+            "Cure: keep Student(StudentID, StudentName), Course(CourseID, CourseName) and Enroll(StudentID, CourseID). Each course name is now stored once."
+          ],
+          "result": "The one table shows all three anomalies; the three-table design removes them."
+        },
+        "misconceptions": [
+          "Anomalies are not caused by a table being large; a small table that repeats a fact still has them.",
+          "Fixing redundancy does not make queries easier. Joins are needed to rebuild the original view, so more tables cost something at read time."
+        ],
+        "recall": [
+          {
+            "q": "What is an update anomaly?",
+            "a": "A repeated fact must be changed in many rows, and missing any one leaves the data inconsistent."
+          },
+          {
+            "q": "What is a deletion anomaly?",
+            "a": "Deleting a row also erases a different fact that was stored only in that row."
+          },
+          {
+            "q": "What is the common cause of all three anomalies?",
+            "a": "Redundancy: several independent facts stored together so some repeat."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A single table stores one row per enrolment, and every course has exactly 25 enrolment rows, each repeating the course name. How many rows must be updated to rename 3 courses? Give the number.",
+          "answer": 75,
+          "explanation": "Each renamed course has 25 rows that carry its name, so 3 courses need 3 x 25 = 75 row updates. A separate Course table needs only 3. Answering 3 is tempting if you picture the decomposed design instead of the single table described."
+        },
+        "summary": "Insertion, update and deletion anomalies all come from storing independent facts together, so some repeat. Decomposition stores each fact once, at the price of joins."
+      }
+    },
+    {
+      "id": "db-normalization.fd-basics",
+      "title": "Functional dependencies: definition and triviality",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        541
+      ],
+      "points": [
+        "X → Y holds on R when any two tuples of every legal instance that agree on X also agree on Y.",
+        "An FD is trivial when Y ⊆ X, so every relation satisfies it; it is non-trivial when Y ⊄ X, and completely non-trivial when X ∩ Y = ∅.",
+        "FDs are constraints asserted by the designer from the meaning of the data; they hold for all legal instances, not just the rows currently stored.",
+        "In Employee(emp_id, name, dept_id, dept_name), emp_id → dept_id and dept_id → dept_name give emp_id → dept_name without stating it.",
+        "GATE assumes no NULLs in FD questions unless the question says otherwise."
+      ],
+      "keyTerms": [
+        "functional dependency",
+        "trivial FD",
+        "non-trivial FD"
+      ],
+      "lesson": {
+        "why": "Every normalization question rests on reading a functional dependency correctly, and counting or classifying them is a mechanical closure computation.",
+        "intro": "A functional dependency says that one group of columns decides another. Write it $X \\to Y$, where $X$ and $Y$ are sets of attributes. It holds when any two rows that have the same values in $X$ must also have the same values in $Y$. So knowing $X$ leaves exactly one possible $Y$. It is a rule about what the data may ever contain, not a description of the rows stored today.",
+        "analogy": {
+          "text": "A roll number decides a student's name: once you know the roll number, there is only one name it can be.",
+          "breaksWhen": "Two different roll numbers may share a name, so the decision runs one way only; $\\text{name} \\to \\text{roll}$ need not hold."
+        },
+        "definitions": [
+          {
+            "term": "Trivial FD",
+            "meaning": "An FD $X \\to Y$ with $Y \\subseteq X$; every relation satisfies it."
+          },
+          {
+            "term": "Completely non-trivial FD",
+            "meaning": "An FD $X \\to Y$ with $X \\cap Y = \\emptyset$, so nothing on the right repeats the left."
+          }
+        ],
+        "principle": {
+          "text": "$X \\to Y$ holds when no two rows agree on $X$ and differ on $Y$. One pair of rows that agree on $X$ and differ on $Y$ breaks it, while no number of agreeing pairs can prove it.",
+          "tex": "t_1[X] = t_2[X] \\;\\Rightarrow\\; t_1[Y] = t_2[Y]"
+        },
+        "limits": "A table can only refute an FD, never establish it: the designer asserts FDs from the meaning of the data. Unless the question says otherwise, assume no NULL values.",
+        "example": {
+          "problem": "A table R(A, B, C) holds the rows (1, x, p), (2, x, q), (3, y, p). Which of $A \\to B$ and $B \\to C$ hold on this table?",
+          "steps": [
+            "For $A \\to B$, no two rows share an $A$ value, so no pair can disagree on $B$. The FD holds.",
+            "For $B \\to C$, rows 1 and 2 both have $B = x$ but their $C$ values are $p$ and $q$.",
+            "That one pair breaks $B \\to C$, so it does not hold."
+          ],
+          "result": "$A \\to B$ holds on this table; $B \\to C$ does not."
+        },
+        "misconceptions": [
+          "If $X \\to Y$ holds, $Y \\to X$ need not: a roll number fixes a name, but a name does not fix a roll number.",
+          "An FD that holds on the rows you can see is not thereby a real FD; it must hold on every legal instance."
+        ],
+        "recall": [
+          {
+            "q": "When does $X \\to Y$ hold on a relation?",
+            "a": "When any two rows that agree on $X$ also agree on $Y$."
+          },
+          {
+            "q": "When is an FD trivial?",
+            "a": "When the right side is a subset of the left side, as in $AB \\to A$."
+          },
+          {
+            "q": "Can a stored table prove an FD?",
+            "a": "No. It can refute one with a single violating pair, but the FD is a constraint the designer asserts."
+          },
+          {
+            "q": "How many completely non-trivial FDs $X \\to Y$ with non-empty sides exist on $n$ attributes?",
+            "a": "Each attribute goes to the left side, the right side or neither, giving $3^n - 2\\cdot2^n + 1$ after removing the empty-side cases."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "On R(A, B, C, D), which FD is non-trivial but not completely non-trivial?",
+          "options": [
+            "$A \\to B$",
+            "$AB \\to B$",
+            "$AB \\to BC$",
+            "$C \\to C$"
+          ],
+          "answer": 2,
+          "explanation": "$AB \\to BC$ has $C$ outside the left side, so it is non-trivial, but $B$ appears on both sides, so it is not completely non-trivial. $A \\to B$ is completely non-trivial, tempting if you only check non-triviality. $AB \\to B$ and $C \\to C$ are trivial."
+        },
+        "summary": "$X \\to Y$ means equal $X$ forces equal $Y$ on every legal instance. It is trivial when $Y \\subseteq X$, completely non-trivial when $X \\cap Y = \\emptyset$, and one violating pair refutes it."
+      }
+    },
+    {
+      "id": "db-normalization.fd-on-instance",
+      "title": "Checking FDs against a relation instance",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "To test X → Y on a given table, group the rows by their X values; the FD is violated as soon as one group contains two different Y values.",
+        "An instance can refute an FD but never prove it: an FD that happens to hold on the rows shown may still be false for the schema.",
+        "If no two rows share an X value, X → Y holds on that instance for every Y, which is why a column with all-distinct values satisfies every FD with it on the left.",
+        "GATE phrases these as which FDs are satisfied by the instance shown; answer strictly from the rows given."
+      ],
+      "lesson": {
+        "why": "GATE sometimes shows a small table and asks which dependencies it satisfies. It is a quick question if you test it by grouping rows, and an easy one to get wrong by eyeballing.",
+        "intro": "To check whether $X \\to Y$ holds on a table, look at the rows that share the same $X$ value. If every such group has only one $Y$ value, the dependency holds on this table. If any group shows two different $Y$ values, the dependency fails. A table can only disprove a dependency this way. Even when no violation is visible, the dependency may still be false for the real schema.",
+        "principle": {
+          "text": "$X \\to Y$ is violated on an instance exactly when two rows agree on $X$ and differ on $Y$. If no two rows agree on $X$, the test cannot fail, so $X \\to Y$ holds for every $Y$.",
+          "tex": "\\exists\\, t_1, t_2:\\; t_1[X] = t_2[X] \\;\\wedge\\; t_1[Y] \\neq t_2[Y] \\;\\Rightarrow; X \\not\\to Y"
+        },
+        "limits": "Answer only from the rows shown, and treat the result as holding for this instance alone. It says nothing about whether the schema enforces the dependency for all future data.",
+        "example": {
+          "problem": "R(A, B, C, D) holds the rows (1, x, p, 10), (2, x, p, 20), (3, y, q, 10), (4, y, q, 20). Which of $A \\to B$, $B \\to C$, $C \\to B$, $B \\to D$ and $D \\to A$ hold?",
+          "steps": [
+            "Column $A$ has all distinct values, so $A \\to B$ cannot fail and holds.",
+            "Group by $B$: the group $x$ has $C = p$ in both rows and the group $y$ has $C = q$ in both, so $B \\to C$ holds. Grouping by $C$ gives the same pairing, so $C \\to B$ holds too.",
+            "Group by $B$: the group $x$ has $D = 10$ and $D = 20$, so $B \\to D$ fails.",
+            "Group by $D$: $D = 10$ appears with $A = 1$ and $A = 3$, so $D \\to A$ fails."
+          ],
+          "result": "$A \\to B$, $B \\to C$ and $C \\to B$ hold; $B \\to D$ and $D \\to A$ do not."
+        },
+        "misconceptions": [
+          "Most rows agreeing is not enough: a single pair that agrees on $X$ and differs on $Y$ breaks the dependency.",
+          "A dependency that holds on the shown rows is not thereby a genuine dependency of the schema; another legal instance may break it."
+        ],
+        "recall": [
+          {
+            "q": "How do you test $X \\to Y$ on a table?",
+            "a": "Group the rows by $X$; it fails if some group has two different $Y$ values."
+          },
+          {
+            "q": "Which FDs hold automatically if a column has all distinct values?",
+            "a": "Every FD with that column on the left, since no two rows agree on it."
+          },
+          {
+            "q": "Can an instance prove an FD for the schema?",
+            "a": "No. It can only refute one; the FD must hold on every legal instance."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(P, Q, R) holds the rows (1, a, u), (2, a, u), (3, b, v), (4, b, u). Which dependency holds on this instance?",
+          "options": [
+            "$Q \\to R$",
+            "$R \\to Q$",
+            "$P \\to Q$",
+            "$R \\to P$"
+          ],
+          "answer": 2,
+          "explanation": "Column $P$ has distinct values, so $P \\to Q$ cannot fail. $Q \\to R$ fails because $b$ appears with both $v$ and $u$. $R \\to Q$ fails because $u$ appears with both $a$ and $b$, a tempting pick since $Q$ and $R$ look paired in the first two rows. $R \\to P$ fails because $u$ appears with $P = 1, 2, 4$."
+        },
+        "summary": "An FD fails on an instance when two rows agree on the left and differ on the right. Group by the left side and compare; a table can refute an FD, never prove it."
+      }
+    },
+    {
+      "id": "db-normalization.armstrong-axioms",
+      "title": "Armstrong's axioms and derived rules",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        52,
+        541,
+        542,
+        543
+      ],
+      "points": [
+        "Reflexivity: if Y ⊆ X then X → Y. Augmentation: if X → Y then XZ → YZ. Transitivity: if X → Y and Y → Z then X → Z.",
+        "The axioms are sound (they derive only valid FDs) and complete (every FD implied by F can be derived from them).",
+        "Derived rules: union (X → Y and X → Z give X → YZ), decomposition (X → YZ gives X → Y), pseudo-transitivity (X → Y and WY → Z give WX → Z), composition (X → Y and W → Z give XW → YZ).",
+        "Extra attributes may be added to the left side alone (X → Y gives XZ → Y), but never to the right side alone: X → Y does not give X → YZ."
+      ],
+      "keyTerms": [
+        "reflexivity",
+        "augmentation",
+        "transitivity",
+        "pseudo-transitivity"
+      ],
+      "lesson": {
+        "why": "Questions ask which FDs follow from a given set, and the three axioms are the only moves allowed when you answer by derivation.",
+        "intro": "Armstrong's axioms are three moves that turn known FDs into new ones. Reflexivity says a set always determines its own subsets. Augmentation says adding the same attributes to both sides of an FD keeps it true. Transitivity chains two FDs: if $X$ decides $Y$ and $Y$ decides $Z$, then $X$ decides $Z$. Every other rule, such as union, is built from these three.",
+        "prerequisites": [
+          "db-normalization.fd-basics"
+        ],
+        "principle": {
+          "text": "The axioms are sound, so they never derive a false FD, and complete, so every FD implied by the given set can be derived with them.",
+          "tex": "Y \\subseteq X \\Rightarrow X \\to Y \\quad\\quad X \\to Y \\Rightarrow XZ \\to YZ \\quad\\quad X \\to Y,\\ Y \\to Z \\Rightarrow X \\to Z"
+        },
+        "limits": "Extra attributes may be added to the left side alone ($X \\to Y$ gives $XZ \\to Y$), but never to the right side alone. Likewise $XY \\to Z$ does not give $X \\to Z$ or $Y \\to Z$.",
+        "example": {
+          "problem": "Given $A \\to B$ and $A \\to C$, derive $A \\to BC$ using only the three axioms.",
+          "steps": [
+            "Augment $A \\to B$ with $A$ to get $A \\to AB$.",
+            "Augment $A \\to C$ with $B$ to get $AB \\to BC$.",
+            "Apply transitivity to $A \\to AB$ and $AB \\to BC$ to get $A \\to BC$."
+          ],
+          "result": "$A \\to BC$ follows, using augmentation twice and transitivity once; this is the union rule. Reflexivity is not needed."
+        },
+        "misconceptions": [
+          "Decomposition ($X \\to YZ$ gives $X \\to Y$) is valid, but the reverse direction for a left side is not: $XY \\to Z$ does not give $X \\to Z$.",
+          "Two FDs with different left sides do not merge onto one of them: $A \\to B$ and $C \\to D$ give $AC \\to BD$, not $A \\to BD$."
+        ],
+        "recall": [
+          {
+            "q": "What does augmentation allow?",
+            "a": "From $X \\to Y$ you may conclude $XZ \\to YZ$ for any attribute set $Z$."
+          },
+          {
+            "q": "What do soundness and completeness of the axioms mean?",
+            "a": "Soundness: they derive only FDs that really hold. Completeness: they derive every FD that the given set implies."
+          },
+          {
+            "q": "What is pseudo-transitivity, and which axioms give it?",
+            "a": "From $XY \\to Z$ and $W \\to Y$ conclude $XW \\to Z$: augment $W \\to Y$ with $X$, then apply transitivity."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Given only $A \\to B$ and $C \\to D$ on R(A, B, C, D), which FD must hold?",
+          "options": [
+            "$A \\to BD$",
+            "$B \\to A$",
+            "$AD \\to C$",
+            "$AC \\to BD$"
+          ],
+          "answer": 3,
+          "explanation": "Augment $A \\to B$ with $C$ and $C \\to D$ with $B$, giving $AC \\to BC$ and $BC \\to BD$, then chain them to get $AC \\to BD$. $A \\to BD$ tempts because $D$ looks reachable, but nothing links $A$ to $C$. The other two have no derivation, since the closure of $B$ is $B$ and the closure of $AD$ is $ABD$."
+        },
+        "summary": "Reflexivity, augmentation and transitivity derive every implied FD and nothing false. Union and decomposition come from them; extra attributes may join the left side only."
+      }
+    },
+    {
+      "id": "db-normalization.attribute-closure",
+      "title": "Attribute closure X⁺",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        543,
+        544,
+        545
+      ],
+      "points": [
+        "X⁺ is the set of all attributes A such that F implies X → A.",
+        "Algorithm: start with X; whenever some FD L → M has L inside the current set, add M; stop when a full pass adds nothing. The result does not depend on the order of FDs.",
+        "X → Y is implied by F exactly when Y ⊆ X⁺; X is a superkey exactly when X⁺ contains every attribute of R.",
+        "With F = {A → B, B → C, CD → E, E → F, F → A}: (A)⁺ = {A, B, C} but (AD)⁺ = {A, B, C, D, E, F}, so AD is a superkey of R(A, …, F).",
+        "Sanity checks: X ⊆ X⁺ always and (X⁺)⁺ = X⁺."
+      ],
+      "keyTerms": [
+        "attribute closure",
+        "superkey test"
+      ],
+      "lesson": {
+        "why": "Closure is the engine behind key finding, implication tests and normal-form checks, so it appears inside many GATE questions even when not asked by name.",
+        "intro": "The closure of a set $X$ is everything that $X$ can determine. Start with $X$ itself. Look at each FD: if its left side is already inside your set, add its right side. Keep going until a full pass adds nothing new. What is left is $X^+$. Once you have it, you can answer whether $X$ determines some attribute, or whether $X$ is a superkey, meaning a set that determines every attribute of the relation.",
+        "prerequisites": [
+          "db-normalization.fd-basics",
+          "db-normalization.armstrong-axioms"
+        ],
+        "principle": {
+          "text": "$X \\to Y$ is implied by the FD set exactly when $Y \\subseteq X^+$, and $X$ is a superkey exactly when $X^+$ holds every attribute of the relation.",
+          "tex": "X \\to Y \\iff Y \\subseteq X^{+} \\qquad X \\text{ superkey} \\iff X^{+} = R"
+        },
+        "limits": "An FD fires only when its whole left side is inside the current set; having part of it is not enough. The order in which you apply FDs changes the steps but never the final result.",
+        "example": {
+          "problem": "R(A, B, C, D, E) has $F = \\{A \\to B,\\ BC \\to D,\\ D \\to E\\}$. Compute $(AC)^+$ and $A^+$.",
+          "steps": [
+            "Start with $\\{A, C\\}$. $A \\to B$ fires because $A$ is present, giving $\\{A, B, C\\}$.",
+            "$BC \\to D$ now fires, giving $\\{A, B, C, D\\}$, then $D \\to E$ gives $\\{A, B, C, D, E\\}$.",
+            "For $A^+$, start with $\\{A\\}$: $A \\to B$ gives $\\{A, B\\}$, and $BC \\to D$ cannot fire because $C$ is missing."
+          ],
+          "result": "$(AC)^+ = \\{A, B, C, D, E\\}$, so $AC$ is a superkey; $A^+ = \\{A, B\\}$."
+        },
+        "misconceptions": [
+          "Applying $BC \\to D$ when only $B$ is present is wrong; the entire left side must be inside the set.",
+          "The closure is not the set of FDs, it is a set of attributes; it always contains $X$ itself."
+        ],
+        "recall": [
+          {
+            "q": "What stops the closure algorithm?",
+            "a": "A full pass over the FDs that adds no new attribute."
+          },
+          {
+            "q": "How do you test whether $X$ is a superkey?",
+            "a": "Compute $X^+$ and check that it contains every attribute of the relation."
+          },
+          {
+            "q": "How do you test whether $X \\to Y$ is implied?",
+            "a": "Compute $X^+$ and check that $Y \\subseteq X^+$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B, C, D, E, F) has FDs $\\Sigma = \\{A \\to B,\\ C \\to D,\\ BD \\to E,\\ E \\to A\\}$. How many attributes are in $(AC)^+$?",
+          "answer": 5,
+          "explanation": "From $\\{A, C\\}$: $A \\to B$ adds $B$, $C \\to D$ adds $D$, $BD \\to E$ adds $E$, and $E \\to A$ adds nothing new. The closure is $\\{A, B, C, D, E\\}$, so the answer is 5. Counting 6 is tempting, but no FD in $\\Sigma$ ever produces the attribute $F$, so $AC$ is not a superkey."
+        },
+        "summary": "Grow $X$ by firing every FD whose left side is inside it until nothing changes. The result $X^+$ decides implication and superkey tests.",
+        "definitions": [
+          {
+            "term": "Superkey",
+            "meaning": "A set of attributes whose closure is every attribute of the relation."
+          }
+        ]
+      }
+    },
+    {
+      "id": "db-normalization.fd-set-closure",
+      "title": "Closure of an FD set and equivalence of FD sets",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        545,
+        567
+      ],
+      "points": [
+        "F⁺ is the set of all FDs implied by F. It is finite for a finite schema but exponentially large, so single FDs are tested with attribute closure instead.",
+        "F and G are equivalent when F⁺ = G⁺: check that every FD of F follows from G (by closures under G) and every FD of G follows from F.",
+        "F covers G when every FD of G is implied by F; equivalence is coverage in both directions.",
+        "Counting F⁺: for a fixed left side X, X → Y holds exactly for the 2^|X⁺| subsets Y of X⁺, so |F⁺| is the sum of 2^|X⁺| over the left sides X allowed."
+      ],
+      "keyTerms": [
+        "F⁺",
+        "equivalent FD sets",
+        "cover"
+      ],
+      "lesson": {
+        "why": "GATE asks whether two sets of FDs say the same thing, and sometimes how many FDs a set implies. Both reduce to attribute closure, once you know what the closure of a set means.",
+        "intro": "A set $F$ of dependencies implies others. If $A \\to B$ and $B \\to C$ are in $F$, then $A \\to C$ follows even though it is not written. The set of every dependency that follows from $F$ is called its closure, written $F^{+}$. You almost never build it, because it is huge. Instead, two sets are compared by asking, for each dependency in one, whether the other implies it, using attribute closure.",
+        "definitions": [
+          {
+            "term": "Closure F+",
+            "meaning": "The set of all FDs implied by $F$, including trivial ones."
+          },
+          {
+            "term": "Covers",
+            "meaning": "$F$ covers $G$ when every FD of $G$ is implied by $F$."
+          },
+          {
+            "term": "Equivalent",
+            "meaning": "$F$ and $G$ are equivalent when each covers the other, so $F^{+} = G^{+}$."
+          }
+        ],
+        "prerequisites": [
+          "db-normalization.attribute-closure"
+        ],
+        "principle": {
+          "text": "$F$ and $G$ are equivalent exactly when every FD of $F$ follows from $G$ and every FD of $G$ follows from $F$. To count $F^{+}$, note that for a fixed left side $X$, the FD $X \\to Y$ holds for each subset $Y$ of $X^{+}$.",
+          "tex": "|F^{+}| = \\sum_{X \\subseteq R} 2^{|X^{+}|}"
+        },
+        "limits": "The count formula includes trivial FDs and the empty set on either side. If a question excludes empty sides, count $2^{|X^{+}|} - 1$ for each non-empty $X$ instead.",
+        "example": {
+          "problem": "Are $F = \\{A \\to B,\\; B \\to C\\}$ and $G = \\{A \\to B,\\; A \\to C,\\; B \\to C\\}$ equivalent?",
+          "steps": [
+            "Test each FD of $G$ against $F$. $A \\to B$ and $B \\to C$ are in $F$. For $A \\to C$: $A^{+}$ under $F$ is $\\{A, B, C\\}$, which contains $C$.",
+            "Test each FD of $F$ against $G$. Both $A \\to B$ and $B \\to C$ are in $G$ itself.",
+            "Each set implies every FD of the other."
+          ],
+          "result": "$F$ and $G$ are equivalent."
+        },
+        "misconceptions": [
+          "Equivalent sets need not share any written FD; they only need the same closure.",
+          "Checking one direction is not enough: $F$ covering $G$ does not make them equivalent unless $G$ also covers $F$."
+        ],
+        "recall": [
+          {
+            "q": "What is $F^{+}$?",
+            "a": "The set of all FDs that follow from $F$."
+          },
+          {
+            "q": "How do you test that $F$ implies $X \\to Y$ without building $F^{+}$?",
+            "a": "Compute $X^{+}$ under $F$ and check that $Y$ is inside it."
+          },
+          {
+            "q": "When are two FD sets equivalent?",
+            "a": "When each set implies every FD of the other, tested both ways by closure."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B, C) has $F = \\{A \\to B\\}$. How many FDs $X \\to Y$ are in $F^{+}$, counting trivial ones and allowing empty sides?",
+          "answer": 33,
+          "explanation": "Sum $2^{|X^{+}|}$ over all 8 subsets $X$. The empty set gives 1; $A$ gives $2^2 = 4$; $B$ and $C$ give 2 each; $AB$ gives 4; $AC$ gives $2^3 = 8$; $BC$ gives 4; $ABC$ gives 8. The total is 33. Forgetting that $A^{+}$ also contains $A$ itself gives a smaller count."
+        },
+        "summary": "F+ is every FD that F implies. Two FD sets are equivalent when each implies the other, tested by attribute closure, and the size of F+ is the sum of 2^|X+| over all left sides."
+      }
+    },
+    {
+      "id": "db-normalization.candidate-keys",
+      "title": "Candidate keys and prime attributes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        545,
+        546,
+        547,
+        557,
+        558
+      ],
+      "points": [
+        "A candidate key K satisfies K⁺ = R and no proper subset of K has closure R; a superkey needs only the first condition.",
+        "Classify attributes: those appearing on no right side (left-only or absent from F) are in every key; those appearing only on right sides are in no key; those on both sides may or may not be.",
+        "Close the mandatory set first. If it already gives R, it is the only key; otherwise add both-side attributes in subsets of size 1, 2, …, skipping supersets of keys found.",
+        "R(A, B, C, D, E) with AB → CD, D → E, E → A: B is mandatory and B⁺ = {B}; AB, BD and BE each close to R, so there are three keys.",
+        "A prime attribute belongs to at least one candidate key. No candidate key is a subset of another, so the keys form an antichain."
+      ],
+      "keyTerms": [
+        "candidate key",
+        "superkey",
+        "prime attribute",
+        "non-prime attribute"
+      ],
+      "lesson": {
+        "why": "Almost every normal-form question starts by finding the candidate keys, and GATE also asks directly how many keys a relation has. A missed key changes the verdict.",
+        "intro": "A key is a set of attributes that identifies every row. Using attribute closure, a set $K$ is a superkey when its closure is the whole relation $R$. A candidate key is a superkey with nothing to spare: remove any attribute and the closure no longer covers $R$. A relation can have several candidate keys. An attribute that belongs to at least one of them is called prime.",
+        "prerequisites": [
+          "db-normalization.attribute-closure"
+        ],
+        "definitions": [
+          {
+            "term": "Prime attribute",
+            "meaning": "An attribute that belongs to at least one candidate key."
+          },
+          {
+            "term": "Non-prime attribute",
+            "meaning": "An attribute that belongs to no candidate key."
+          }
+        ],
+        "principle": {
+          "text": "Attributes that never appear on a right side must be in every key. Attributes that appear only on right sides are in no key. Start from the mandatory attributes, test their closure, and add attributes that appear on both sides one, two, then more at a time, skipping supersets of keys already found.",
+          "tex": "K \\text{ key} \\iff K^{+} = R \\;\\wedge\\; \\forall K' \\subsetneq K:\\; (K')^{+} \\neq R"
+        },
+        "limits": "This search works for any FD set but can grow when many attributes appear on both sides. Keys form an antichain, so no key contains another, and a relation with cyclic FDs often has several.",
+        "example": {
+          "problem": "R(A, B, C, D) has $F = \\{AB \\to C,\\; C \\to D,\\; D \\to A\\}$. Find all candidate keys.",
+          "steps": [
+            "Every attribute is on some right side except $B$, which appears only on a left side. So $B$ is in every key.",
+            "$B^{+} = \\{B\\}$, not $R$. Try adding one attribute. $AB$ gives $C$, then $D$, so $AB^{+} = R$ and $AB$ is a key.",
+            "$BC$: $C \\to D$ then $D \\to A$ gives $A$, so $BC^{+} = R$ and $BC$ is a key. $BD$: $D \\to A$ then $AB \\to C$, so $BD^{+} = R$ and $BD$ is a key.",
+            "Each key is minimal, since $B$ alone does not close to $R$."
+          ],
+          "result": "The candidate keys are AB, BC, BD; the prime attributes are $A$, $B$, $C$ and $D$."
+        },
+        "misconceptions": [
+          "Stopping at the first key found misses others; cyclic FDs such as $C \\to D$, $D \\to A$ usually give several keys.",
+          "A superkey is not necessarily a candidate key; $ABC$ closes to $R$ here, but it contains the smaller key $AB$."
+        ],
+        "recall": [
+          {
+            "q": "When is a set $K$ a candidate key?",
+            "a": "When $K^{+} = R$ and no proper subset of $K$ has closure $R$."
+          },
+          {
+            "q": "Which attributes are in every candidate key?",
+            "a": "Those that never appear on the right side of any FD."
+          },
+          {
+            "q": "What is a prime attribute?",
+            "a": "One that belongs to at least one candidate key."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(P, Q, R, S, T) has $F = \\{PQ \\to R,\\; R \\to S,\\; S \\to P\\}$. How many candidate keys does R have?",
+          "answer": 3,
+          "explanation": "$Q$ and $T$ appear on no right side, so every key contains $QT$. $QT^{+} = \\{Q, T\\}$ is not $R$. Adding $P$, $R$ or $S$ each closes to everything: $PQT$ gives $R$ then $S$; $QRT$ gives $S$ then $P$; $QST$ gives $P$ then $R$. That is 3 keys. Counting only $PQT$ is tempting because the FD $PQ \\to R$ is the one written with a pair on the left."
+        },
+        "summary": "A candidate key is a minimal set whose closure is R. Attributes on no right side are in every key, and attributes only on right sides are in none; grow from the mandatory set and check minimality."
+      }
+    },
+    {
+      "id": "db-normalization.superkey-count",
+      "title": "Counting superkeys and candidate keys",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A superkey is any superset of a candidate key, so with one key of k attributes in an n-attribute relation there are 2ⁿ⁻ᵏ superkeys.",
+        "With several keys, count by inclusion–exclusion: supersets of K₁ or K₂ number 2^(n−|K₁|) + 2^(n−|K₂|) − 2^(n−|K₁ ∪ K₂|).",
+        "Example: R(A, B, C, D, E, F) with keys {A} and {B, C} has 32 + 16 − 8 = 40 superkeys.",
+        "An n-attribute relation has at most C(n, ⌊n/2⌋) candidate keys, reached when every ⌊n/2⌋-subset is a key."
+      ],
+      "lesson": {
+        "why": "GATE asks for the number of superkeys directly, and the count follows from a short inclusion-exclusion once the candidate keys are known.",
+        "intro": "A superkey is any set of attributes that determines the whole relation. A candidate key is a superkey with no removable attribute, a minimal superkey. Any set that contains a candidate key is a superkey, since extra attributes do no harm. So counting superkeys means counting the sets that contain at least one candidate key. With one key, you simply choose freely whether to include each of the other attributes. With several keys, the same set can contain more than one key, so it must not be counted twice.",
+        "prerequisites": [
+          "db-normalization.attribute-closure"
+        ],
+        "principle": {
+          "text": "With $n$ attributes and a candidate key of size $k$, there are $2^{n-k}$ supersets of it. For several keys, add the superset counts of the keys, subtract those of every pair's union, add back every triple's, and so on.",
+          "tex": "\\left|\\bigcup_i S_i\\right| = \\sum_i |S_i| - \\sum_{i<j} |S_i \\cap S_j| + \\sum_{i<j<l} |S_i \\cap S_j \\cap S_l| - \\cdots"
+        },
+        "limits": "The formula needs the complete list of candidate keys, so find the keys with closures first. The sets that contain both $K_1$ and $K_2$ are exactly the supersets of $K_1 \\cup K_2$.",
+        "example": {
+          "problem": "R(A, B, C, D) has $F = \\{A \\to B,\\ B \\to C,\\ CD \\to A\\}$. How many superkeys does it have?",
+          "steps": [
+            "$D$ never appears on a right side, so every key contains $D$.",
+            "Compute $AD^+ = \\{A, D, B, C\\}$, $BD^+ = \\{B, D, C, A\\}$ and $CD^+ = \\{C, D, A, B\\}$, each all of R. Neither $D^+ = \\{D\\}$ nor any other single attribute reaches R, so $AD$, $BD$ and $CD$ are minimal: the candidate keys.",
+            "Each key has size 2, so each has $2^{4-2} = 4$ supersets, giving $4 + 4 + 4 = 12$.",
+            "Any two keys have a union of size 3, such as $ABD$, with $2^{1} = 2$ supersets; three pairs subtract $3 \\times 2 = 6$.",
+            "The union of all three keys is $ABCD$, with 1 superset, which is added back."
+          ],
+          "result": "$12 - 6 + 1 = 7$ superkeys."
+        },
+        "misconceptions": [
+          "Adding the superset counts of all keys without subtracting overlaps counts sets such as $ABD$ three times.",
+          "The number of superkeys is not $2^n - 1$ unless every single attribute is a key."
+        ],
+        "recall": [
+          {
+            "q": "How many superkeys does a relation with $n$ attributes and one key of size $k$ have?",
+            "a": "$2^{n-k}$, since each non-key attribute is freely in or out."
+          },
+          {
+            "q": "Why is inclusion-exclusion needed with several candidate keys?",
+            "a": "A superkey may contain more than one key, so plain addition counts it more than once."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B, C, D, E) has $F = \\{A \\to BC,\\ C \\to A\\}$. How many superkeys does R have?",
+          "answer": 6,
+          "explanation": "$D$ and $E$ never appear on a right side, so every key contains them. $A^+ = \\{A, B, C\\}$ and $C^+ = \\{C, A, B\\}$, so the keys are $ADE$ and $CDE$. Each has $2^{2} = 4$ supersets and their union $ACDE$ has $2^{1} = 2$, giving $4 + 4 - 2 = 6$. The sum 8 is the tempting wrong answer, from forgetting the overlap."
+        },
+        "summary": "Find all candidate keys with closures, then count their supersets with inclusion-exclusion: $2^{n-k}$ for each key, minus overlaps through unions of keys.",
+        "definitions": [
+          {
+            "term": "Candidate key",
+            "meaning": "A superkey with no removable attribute: dropping any attribute stops it determining the whole relation (a minimal superkey)."
+          }
+        ]
+      }
+    },
+    {
+      "id": "db-normalization.first-nf",
+      "title": "First normal form",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        52,
+        547
+      ],
+      "points": [
+        "1NF requires every attribute value to be atomic: no sets, lists, nested relations or composite values in a cell.",
+        "A Phones column holding {9999, 8888} violates 1NF; the fix is one row per phone or a separate (StudentID, Phone) relation.",
+        "Every relation in the formal relational model is in 1NF by definition, so GATE questions almost always start from 1NF."
+      ],
+      "lesson": {
+        "why": "First normal form is the entry condition for every higher normal form, and GATE tests which table designs break it.",
+        "intro": "A relation is in first normal form when every cell holds one indivisible value. A cell that holds a list, such as two phone numbers in one column, breaks this. So does a cell that packs several parts together, such as a full address with street and city in one value that is treated as parts. The cure is to give each value its own row or its own table, so that each cell is a single plain value.",
+        "principle": {
+          "text": "1NF requires every attribute to have an atomic domain: each cell holds a single value that the database does not split into parts.",
+          "tex": "\\forall\\, t \\in R,\\ \\forall\\, A:\\ t[A] \\text{ is atomic}"
+        },
+        "limits": "1NF says nothing about keys or dependencies, so a 1NF table can still repeat data and suffer anomalies. A composite attribute stored as a structured cell, such as an address with street and city as parts, breaks 1NF. A date is accepted as atomic only when the schema treats it as one value.",
+        "example": {
+          "problem": "Student(Roll, Skills) has the rows (1, 'SQL, Java') and (2, 'C'). Rewrite it in 1NF.",
+          "steps": [
+            "Row 1 holds two skills in one cell, so it breaks atomicity.",
+            "Give each skill its own row: (1, SQL), (1, Java), (2, C).",
+            "The key is now (Roll, Skill), because Roll alone repeats."
+          ],
+          "result": "Three atomic rows, with the composite key (Roll, Skill)."
+        },
+        "misconceptions": [
+          "A multi-attribute key does not violate 1NF; only non-atomic cell values do.",
+          "A relation in 1NF can still have several candidate keys and foreign keys; those are unrelated to atomicity."
+        ],
+        "recall": [
+          {
+            "q": "What does 1NF require of each cell?",
+            "a": "It must hold a single atomic value, not a list, set or nested relation."
+          },
+          {
+            "q": "Does 1NF guarantee freedom from redundancy?",
+            "a": "No. It only fixes the shape of values; redundancy is handled by 2NF, 3NF and BCNF."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Course(Code, Teachers) stores the Teachers cell as a comma-separated list. Which change puts it in 1NF while keeping every fact?",
+          "options": [
+            "Delete the Teachers column",
+            "Add a second Teachers column named Teachers2",
+            "Make one row per (Code, Teacher) pair",
+            "Make Teachers the primary key"
+          ],
+          "answer": 2,
+          "explanation": "One row per (Code, Teacher) pair makes each cell atomic and keeps every fact. A second column such as Teachers2 only caps the list at two and still repeats the same kind of value. Deleting the column loses information, and making Teachers the key does not change that its cells hold lists."
+        },
+        "summary": "1NF means every cell holds one atomic value. Repeating groups are fixed by giving each value its own row; keys and dependencies are not part of 1NF.",
+        "definitions": [
+          {
+            "term": "Composite attribute",
+            "meaning": "An attribute made of named parts, such as an address with street and city; it must be flattened or stored as one atomic value for 1NF."
+          }
+        ]
+      }
+    },
+    {
+      "id": "db-normalization.second-nf",
+      "title": "Second normal form and partial dependencies",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        548
+      ],
+      "points": [
+        "2NF: every non-prime attribute is fully dependent on every candidate key, so no non-prime attribute depends on a proper subset of a key.",
+        "In R(StudentID, CourseID, StudentName, CourseName, Grade) with key {StudentID, CourseID}, StudentID → StudentName is a partial dependency.",
+        "Fix by decomposition: Student(StudentID, StudentName), Course(CourseID, CourseName), Enrollment(StudentID, CourseID, Grade).",
+        "If every candidate key is a single attribute, no partial dependency can exist and the relation is automatically in 2NF."
+      ],
+      "keyTerms": [
+        "partial dependency",
+        "full functional dependency"
+      ],
+      "lesson": {
+        "why": "Highest-normal-form questions test 2NF first, because a partial dependency stops a relation from reaching 2NF and everything above it. The check is quick once you know what to look for.",
+        "intro": "Suppose a table has a key made of two attributes. Some other attribute might depend on only one of them, not on the pair. That is a partial dependency: the attribute is tied to part of the key. Second normal form forbids it for non-prime attributes, those that are in no candidate key. A relation is in 2NF when every non-prime attribute depends on the whole of every candidate key.",
+        "prerequisites": [
+          "db-normalization.candidate-keys"
+        ],
+        "definitions": [
+          {
+            "term": "Partial dependency",
+            "meaning": "A non-prime attribute that depends on a proper subset of a candidate key."
+          },
+          {
+            "term": "Full functional dependency",
+            "meaning": "$X \\to A$ where no proper subset of $X$ determines $A$."
+          }
+        ],
+        "principle": {
+          "text": "A relation is in 2NF when no non-prime attribute is determined by a proper subset of any candidate key. If every candidate key is a single attribute, a partial dependency cannot exist, so the relation is automatically in 2NF.",
+          "tex": "\\forall \\text{ key } K,\\; \\forall K_0 \\subsetneq K:\\; K_0^{+} \\text{ has no non-prime attribute}"
+        },
+        "limits": "The test applies to non-prime attributes only. A dependency from part of a key to a prime attribute does not break 2NF. Check closures of the key parts rather than only the FDs as written, since a partial dependency can be implied rather than listed.",
+        "example": {
+          "problem": "R(E, P, N, H, L) has $F = \\{E \\to N,\\; P \\to L,\\; EP \\to H\\}$, where $E$ is an employee, $P$ a project, $N$ the employee name, $H$ hours and $L$ the project location. Is R in 2NF?",
+          "steps": [
+            "The only candidate key is EP: $E$ and $P$ appear on no right side, and $EP^{+}$ is everything.",
+            "The non-prime attributes are $N$, $H$ and $L$.",
+            "Take the key parts. $E^{+} = \\{E, N\\}$ contains the non-prime $N$, and $P^{+} = \\{P, L\\}$ contains the non-prime $L$.",
+            "Both are partial dependencies, so R is not in 2NF. Splitting into $(E, N)$, $(P, L)$ and $(E, P, H)$ removes them."
+          ],
+          "result": "R is not in 2NF; $E \\to N$ and $P \\to L$ are partial dependencies."
+        },
+        "misconceptions": [
+          "A partial dependency onto a prime attribute is allowed in 2NF; only non-prime attributes matter.",
+          "Not every relation with a composite key violates 2NF; it does only when a non-prime attribute depends on part of a key."
+        ],
+        "recall": [
+          {
+            "q": "What is a partial dependency?",
+            "a": "A non-prime attribute determined by a proper subset of a candidate key."
+          },
+          {
+            "q": "When is a relation in 2NF?",
+            "a": "When no non-prime attribute depends on a proper subset of any candidate key."
+          },
+          {
+            "q": "Why is a relation with only single-attribute keys always in 2NF?",
+            "a": "A single-attribute key has no proper non-empty subset to depend on."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D, E) has $F = \\{AB \\to C,\\; A \\to D,\\; C \\to E\\}$. Which statement is correct?",
+          "options": [
+            "R is in 2NF because $AB$ determines every attribute",
+            "R is not in 2NF because $A \\to D$ is a partial dependency",
+            "R is not in 2NF because $C \\to E$ is a partial dependency",
+            "R is in 2NF because $B$ determines nothing"
+          ],
+          "answer": 1,
+          "explanation": "The only candidate key is AB, and $D$ and $E$ are non-prime. $A^{+} = \\{A, D\\}$ contains $D$, a non-prime attribute, so $A \\to D$ is a partial dependency and 2NF fails. The first option is tempting because $AB$ is a key, but that does not rule out a part of the key determining something. $C \\to E$ is a dependency between non-prime attributes, a 3NF issue, not a partial dependency."
+        },
+        "summary": "2NF forbids a non-prime attribute depending on part of a candidate key. Compute the closure of each proper subset of every key and look for non-prime attributes; single-attribute keys make 2NF automatic."
+      }
+    },
+    {
+      "id": "db-normalization.third-nf",
+      "title": "Third normal form and transitive dependencies",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        548,
+        549
+      ],
+      "points": [
+        "3NF: for every non-trivial FD X → A, either X is a superkey or A is a prime attribute.",
+        "Equivalently, the relation is in 2NF and no non-prime attribute is transitively dependent on a candidate key through a non-superkey.",
+        "R(EmpID, EmpName, DeptID, DeptName) with EmpID → DeptID and DeptID → DeptName violates 3NF: DeptID is not a superkey and DeptName is non-prime.",
+        "Every relation has a 3NF decomposition that is both lossless and dependency-preserving."
+      ],
+      "keyTerms": [
+        "transitive dependency",
+        "Bernstein's condition"
+      ],
+      "lesson": {
+        "why": "Deciding whether a schema is in 3NF, and which FD breaks it, is a standard task in the normalization chapter.",
+        "intro": "Third normal form checks every FD against a single test. An attribute is prime if it belongs to some candidate key. For each non-trivial FD $X \\to A$, either $X$ must be a superkey, or $A$ must be prime. An FD that fails both is a violation: a non-key set of attributes decides a non-prime attribute. That is the transitive dependency of a non-key attribute on the key.",
+        "prerequisites": [
+          "db-normalization.attribute-closure",
+          "db-normalization.superkey-count"
+        ],
+        "definitions": [
+          {
+            "term": "Candidate key",
+            "meaning": "A superkey with no removable attribute: dropping any attribute stops it determining the whole relation (a minimal superkey)."
+          },
+          {
+            "term": "Prime attribute",
+            "meaning": "An attribute that is a member of at least one candidate key."
+          }
+        ],
+        "principle": {
+          "text": "A relation is in 3NF when every non-trivial FD $X \\to A$ has $X$ a superkey or $A$ prime. BCNF is stricter: it drops the prime exception.",
+          "tex": "X \\to A \\text{ non-trivial} \\Rightarrow X \\text{ is a superkey} \\ \\lor\\ A \\text{ is prime}"
+        },
+        "limits": "The test needs all candidate keys, since one missed key changes which attributes are prime. Check every FD, with right sides split into single attributes.",
+        "example": {
+          "problem": "R(A, B, C, D) has $F = \\{A \\to B,\\ B \\to C,\\ C \\to D\\}$. Is R in 3NF?",
+          "steps": [
+            "$A^+ = \\{A, B, C, D\\}$, so $A$ is the only candidate key and the only prime attribute.",
+            "$A \\to B$ is fine since $A$ is a superkey.",
+            "$B \\to C$ fails: $B$ is not a superkey ($B^+ = \\{B, C, D\\}$) and $C$ is not prime."
+          ],
+          "result": "R is not in 3NF; $B \\to C$ is a violation (as is $C \\to D$)."
+        },
+        "misconceptions": [
+          "Testing only whether the left side is a key and forgetting to test whether the right side is prime; also not splitting a right side like $A \\to BC$ into $A \\to B$ and $A \\to C$ before testing.",
+          "3NF does not forbid all non-key determinants: a non-superkey may decide a prime attribute."
+        ],
+        "recall": [
+          {
+            "q": "State the 3NF condition for a non-trivial FD $X \\to A$.",
+            "a": "$X$ is a superkey, or $A$ is a prime attribute."
+          },
+          {
+            "q": "What is a prime attribute?",
+            "a": "An attribute that belongs to at least one candidate key."
+          },
+          {
+            "q": "How does BCNF differ from 3NF?",
+            "a": "BCNF requires $X$ to be a superkey in every non-trivial FD, with no prime exception."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C) has $F = \\{AB \\to C,\\ C \\to B\\}$. Which statement is correct?",
+          "options": [
+            "R is in BCNF",
+            "R is in 3NF but not in BCNF",
+            "R is not in 3NF",
+            "R has only one candidate key"
+          ],
+          "answer": 1,
+          "explanation": "$AB^+$ and $AC^+$ both cover R, so the candidate keys are $AB$ and $AC$, and every attribute is prime. $C \\to B$ has a non-superkey left side, so R is not in BCNF, but $B$ is prime, so 3NF holds. Choosing 'not in 3NF' tempts if you forget the prime exception, and there are two keys, not one."
+        },
+        "summary": "3NF: for every non-trivial $X \\to A$, $X$ is a superkey or $A$ is prime. Find all candidate keys first; the prime exception is what separates 3NF from BCNF."
+      }
+    },
+    {
+      "id": "db-normalization.bcnf",
+      "title": "Boyce–Codd normal form",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        549,
+        550
+      ],
+      "points": [
+        "BCNF: for every non-trivial FD X → A, X is a superkey. It drops the prime-attribute exception of 3NF.",
+        "BCNF implies 3NF, which implies 2NF, which implies 1NF.",
+        "R(City, Pincode, Street) with Pincode → City and City Street → Pincode has keys {City, Street} and {Pincode, Street}; every attribute is prime, so it is in 3NF, but Pincode → City breaks BCNF.",
+        "Every relation with exactly two attributes is in BCNF, and a relation whose only non-trivial FDs have superkey left sides is in BCNF."
+      ],
+      "lesson": {
+        "why": "BCNF is the strictest of the FD-based normal forms, so exam questions ask where it differs from 3NF and which small relations are always in it.",
+        "intro": "A relation is in Boyce-Codd normal form when every FD that says something real has a key on its left side. A key (more exactly a superkey) is a set of attributes whose closure is every attribute of the relation. An FD is trivial when its right side is already inside its left side, so it says nothing. So the test is one question per FD: if I know the left side, do I know the whole row? If not, that left side repeats values for no reason and the schema stores the same fact many times.",
+        "prerequisites": [
+          "db-normalization.attribute-closure",
+          "db-normalization.superkey-count",
+          "db-normalization.third-nf"
+        ],
+        "definitions": [
+          {
+            "term": "Superkey",
+            "meaning": "A set of attributes whose closure is all attributes of the relation."
+          },
+          {
+            "term": "Trivial FD",
+            "meaning": "An FD $X \\to Y$ with $Y \\subseteq X$; it holds in every relation and is ignored by the normal-form tests."
+          }
+        ],
+        "principle": {
+          "text": "R is in BCNF when, for every non-trivial FD $X \\to Y$ that holds on R, $X$ is a superkey of R. Unlike 3NF, there is no exception for a prime right side.",
+          "tex": "X \\to Y \\text{ non-trivial} \\Rightarrow X^+ = R"
+        },
+        "limits": "The test uses the FDs that hold on R, including implied ones, so a relation inside a decomposition must be checked against the projected FDs, not only the listed ones. Having only prime attributes does not make a relation BCNF.",
+        "example": {
+          "problem": "R(S, C, T) records which teacher T takes student S in course C, with $F = \\{SC \\to T,\\ T \\to C\\}$. Is R in BCNF?",
+          "steps": [
+            "$SC^+ = \\{S, C, T\\}$ and $ST^+ = \\{S, T, C\\}$, so the candidate keys are $SC$ and $ST$.",
+            "$SC \\to T$ passes: $SC$ is a superkey.",
+            "$T \\to C$ is non-trivial and $T^+ = \\{T, C\\}$ does not contain S, so $T$ is not a superkey. The FD breaks BCNF."
+          ],
+          "result": "R is not in BCNF because of $T \\to C$. It is still in 3NF, since C is prime."
+        },
+        "misconceptions": [
+          "Concluding that a relation with only prime attributes is in BCNF. That is the 3NF escape clause; BCNF still rejects a non-superkey determinant of a prime attribute.",
+          "Thinking a BCNF test needs a non-prime attribute to fail. A violation can have a prime right side, as in $T \\to C$ above."
+        ],
+        "recall": [
+          {
+            "q": "State the BCNF condition for a non-trivial FD $X \\to Y$.",
+            "a": "$X$ must be a superkey of the relation."
+          },
+          {
+            "q": "Which relations are always in BCNF?",
+            "a": "Every relation with only two attributes, since any non-trivial FD on it has a left side that determines the other attribute."
+          },
+          {
+            "q": "If R is in 3NF but not in BCNF, what does the violating FD look like?",
+            "a": "Its left side is not a superkey and its right side is a prime attribute."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D) has $F = \\{A \\to B,\\ B \\to C,\\ C \\to D,\\ D \\to A\\}$. Which statement is correct?",
+          "options": [
+            "R is not in BCNF because $B \\to C$ has a left side that is not a key",
+            "R is in BCNF and has four candidate keys",
+            "R is in BCNF and has exactly one candidate key",
+            "R is in 3NF but not in BCNF"
+          ],
+          "answer": 1,
+          "explanation": "Each single attribute reaches the other three around the cycle, so $A$, $B$, $C$ and $D$ are all candidate keys. Every FD therefore has a superkey on its left and R is in BCNF. The first option tempts if you read $B$ as a non-key because it is not the attribute you started from; the third counts only $A$."
+        },
+        "summary": "BCNF: every non-trivial FD $X \\to Y$ has $X$ a superkey. It is 3NF without the prime exception, and any two-attribute relation passes."
+      }
+    },
+    {
+      "id": "db-normalization.highest-nf",
+      "title": "Finding the highest normal form",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        550,
+        570
+      ],
+      "points": [
+        "Find all candidate keys and the prime attributes first; nothing else can be judged without them.",
+        "Split right sides into single attributes, then classify each FD X → A: X superkey is fine for BCNF; otherwise A prime gives 3NF only; otherwise X a proper subset of a key breaks 2NF; otherwise it breaks 3NF.",
+        "The relation's normal form is the weakest verdict over all FDs. The per-FD check is exact for BCNF and 3NF, but a partial dependency can hold only in F⁺, so before answering 2NF compute (K − {b})⁺ for every key K and every b ∈ K: any non-prime attribute in it is a partial dependency.",
+        "R(A, B, C, D) with B → C, C → B, BC → D has keys AB and AC, so D is the only non-prime attribute. BC → D looks transitive, but (AB − {A})⁺ = B⁺ = {B, C, D} contains D: B → D is a partial dependency and R is in 1NF only, not 2NF.",
+        "R(A, B, C, D) with AB → CD, D → A has keys AB and BD; D → A has a non-superkey left side but a prime right side, so the relation is in 3NF and not BCNF."
+      ],
+      "lesson": {
+        "why": "Naming the highest normal form of a schema is a standard GATE question, and the answer depends on carrying out the tests in the right order.",
+        "intro": "The normal forms are nested: BCNF is the strictest, then 3NF, then 2NF, then 1NF. The highest normal form of a relation is the strongest one it satisfies, which is set by the worst FD in it. To find it, first list the candidate keys, since an attribute that lies in some key is prime and every other attribute is non-prime. Then look at each FD and ask what kind of left side it has: a whole key, part of a key, or something that is not a key at all.",
+        "prerequisites": [
+          "db-normalization.candidate-keys",
+          "db-normalization.second-nf",
+          "db-normalization.third-nf",
+          "db-normalization.bcnf"
+        ],
+        "principle": {
+          "text": "For each non-trivial $X \\to A$: if $X$ is a superkey it is harmless. Otherwise a prime $A$ caps the relation at 3NF; a non-prime $A$ with $X$ a proper subset of a key caps it at 1NF; a non-prime $A$ with any other $X$ caps it at 2NF. The relation gets the lowest cap over all FDs.",
+          "tex": "\\text{NF}(R) = \\min_{X \\to A} \\text{cap}(X \\to A)"
+        },
+        "limits": "Partial dependencies can hold only in $F^+$ and not be written in F, so the 2NF verdict also needs $(K - \\{b\\})^+$ for every key K and every attribute b in K. This assumes all cells are atomic, otherwise the relation is not even in 1NF.",
+        "example": {
+          "problem": "R(A, B, C, D, E) has $F = \\{AB \\to C,\\ B \\to D,\\ C \\to E\\}$. What is its highest normal form?",
+          "steps": [
+            "$AB^+ = \\{A, B, C, D, E\\}$, and neither $A^+ = \\{A\\}$ nor $B^+ = \\{B, D\\}$ covers R, so $AB$ is the only candidate key. A and B are prime; C, D, E are not.",
+            "$B \\to D$: B is a proper subset of the key and D is non-prime, a partial dependency. That already rules out 2NF.",
+            "The remaining FD $C \\to E$ would only break 3NF, which is weaker evidence than the partial dependency."
+          ],
+          "result": "The highest normal form is 1NF."
+        },
+        "misconceptions": [
+          "Stopping at the first violation found and naming the form just below it. The verdict is the minimum over all FDs, so a partial dependency further down the list still lowers it.",
+          "Treating every non-key left side as a 3NF-only failure. If that left side is a proper subset of a key and the right side is non-prime, the relation fails 2NF as well."
+        ],
+        "recall": [
+          {
+            "q": "What must you compute before judging any normal form?",
+            "a": "All candidate keys, which give the prime attributes."
+          },
+          {
+            "q": "An FD has a non-superkey left side and a prime right side. What does it cap the relation at?",
+            "a": "3NF: it breaks BCNF but is allowed by 3NF."
+          },
+          {
+            "q": "Why can a written FD list hide a 2NF violation?",
+            "a": "A partial dependency may only be implied, so check $(K - \\{b\\})^+$ for each key K and each b in K."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D) has $F = \\{AB \\to C,\\ C \\to D\\}$. What is the highest normal form of R?",
+          "options": [
+            "1NF",
+            "2NF",
+            "3NF",
+            "BCNF"
+          ],
+          "answer": 1,
+          "explanation": "$AB^+ = \\{A, B, C, D\\}$ while $A^+ = \\{A\\}$ and $B^+ = \\{B\\}$, so $AB$ is the only key and no non-prime attribute depends on part of it: R is in 2NF. But $C \\to D$ has a non-key left side and a non-prime right side, so 3NF fails. Choosing 1NF tempts if you count any non-key determinant as a partial dependency; choosing 3NF or BCNF skips the $C \\to D$ check."
+        },
+        "summary": "Find the keys, classify each FD by its left side and by whether its right side is prime, and take the weakest verdict. Check $(K - \\{b\\})^+$ for implied partial dependencies."
+      }
+    },
+    {
+      "id": "db-normalization.mvd-4nf",
+      "title": "Multivalued dependencies, 4NF and 5NF",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        52,
+        550,
+        551,
+        562,
+        563
+      ],
+      "points": [
+        "X →→ Y holds when, for tuples agreeing on X, the Y values and the values of the remaining attributes Z = R − X − Y combine freely: swapping their Y parts yields tuples that are also in R.",
+        "X →→ Y is trivial when Y ⊆ X or X ∪ Y = R. Every FD is also an MVD, and X →→ Y implies X →→ R − X − Y.",
+        "4NF: for every non-trivial MVD X →→ Y, X is a superkey. 4NF implies BCNF.",
+        "R(Course, Instructor, Textbook) with independent instructor and textbook sets is all-key, so it is in BCNF, but Course →→ Instructor breaks 4NF; split into (Course, Instructor) and (Course, Textbook).",
+        "5NF (project-join normal form) requires every non-trivial join dependency to follow from the candidate keys; it rarely appears in GATE."
+      ],
+      "keyTerms": [
+        "multivalued dependency",
+        "4NF",
+        "join dependency",
+        "5NF"
+      ],
+      "lesson": {
+        "why": "GATE asks whether a relation is in 4NF, and a relation can be in BCNF yet fail 4NF. Seeing how independent lists inside one table cause redundancy that FDs cannot describe explains the gap.",
+        "intro": "Suppose a course has several instructors and several textbooks, and the two lists are unrelated. A table with one row per (instructor, textbook) pair repeats every instructor with every book. No functional dependency is violated, because no single instructor determines a single book. The repeated pairing is described by a multivalued dependency, written $X \\twoheadrightarrow Y$: for a fixed $X$, the set of $Y$ values is independent of the remaining attributes.",
+        "definitions": [
+          {
+            "term": "Multivalued dependency",
+            "meaning": "$X \\twoheadrightarrow Y$ holds when rows agreeing on $X$ can swap their $Y$ parts and the swapped rows are also present."
+          },
+          {
+            "term": "Trivial MVD",
+            "meaning": "$X \\twoheadrightarrow Y$ with $Y \\subseteq X$ or $X \\cup Y = R$."
+          }
+        ],
+        "principle": {
+          "text": "A relation is in 4NF when, for every non-trivial MVD $X \\twoheadrightarrow Y$, the set $X$ is a superkey. Every FD is also an MVD, and $X \\twoheadrightarrow Y$ implies $X \\twoheadrightarrow R - X - Y$. 4NF implies BCNF.",
+          "tex": "X \\twoheadrightarrow Y \\text{ non-trivial} \\Rightarrow X \\text{ is a superkey}"
+        },
+        "limits": "A relation with only FDs and no non-trivial MVDs beyond them is in 4NF exactly when it is in BCNF. 5NF concerns join dependencies and rarely appears in GATE.",
+        "example": {
+          "problem": "R(Course, Instructor, Textbook) holds the rows (C1, Ann, DB), (C1, Ann, OS), (C1, Bob, DB), (C1, Bob, OS). Is R in 4NF?",
+          "steps": [
+            "The key is all three attributes, since no FD holds beyond trivial ones. With no non-trivial FD, R is in BCNF.",
+            "Course $\\twoheadrightarrow$ Instructor holds: the instructors Ann and Bob pair with every textbook of C1. Removing the row (C1, Bob, OS) would break it.",
+            "Course is not a superkey, so a non-trivial MVD violates 4NF.",
+            "Split into (Course, Instructor) and (Course, Textbook)."
+          ],
+          "result": "R is in BCNF but not in 4NF; the split removes the repeated pairings."
+        },
+        "misconceptions": [
+          "BCNF does not imply 4NF; a relation whose only key is the whole attribute set and which has no non-trivial FDs is in BCNF, yet can have a non-trivial MVD.",
+          "An MVD does not make $X \\to Y$ true; Course $\\twoheadrightarrow$ Instructor does not mean a course has one instructor."
+        ],
+        "recall": [
+          {
+            "q": "What does $X \\twoheadrightarrow Y$ mean?",
+            "a": "Rows agreeing on $X$ can swap their $Y$ parts, and the swapped rows must also be in the relation."
+          },
+          {
+            "q": "When is an MVD trivial?",
+            "a": "When $Y \\subseteq X$ or $X \\cup Y = R$."
+          },
+          {
+            "q": "What is the 4NF condition?",
+            "a": "For every non-trivial MVD $X \\twoheadrightarrow Y$, $X$ is a superkey."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A course has 3 instructors and 4 textbooks, chosen independently. R(Course, Instructor, Textbook) must satisfy Course $\\twoheadrightarrow$ Instructor. How many rows does R hold for this course?",
+          "answer": 12,
+          "explanation": "The MVD forces every instructor to pair with every textbook, so there are 3 x 4 = 12 rows. Answering 7, the number of facts, is tempting; that is the size after splitting into (Course, Instructor) and (Course, Textbook)."
+        },
+        "summary": "An MVD means independent lists share a key value, forcing a cross-product of rows. 4NF requires the left side of every non-trivial MVD to be a superkey; BCNF alone does not ensure it."
+      }
+    },
+    {
+      "id": "db-normalization.lossless-join",
+      "title": "Lossless-join decomposition and the chase test",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        552,
+        553,
+        560
+      ],
+      "points": [
+        "A decomposition of R into R₁, …, Rₙ is lossless when joining the projections of every legal instance gives back exactly that instance; a lossy one creates spurious tuples.",
+        "Two pieces: the decomposition is lossless when R₁ ∩ R₂ → R₁ or R₁ ∩ R₂ → R₂, that is, the common attributes are a superkey of one piece.",
+        "R(A, B, C, D), F = {A → B, B → C}: (A, B) and (B, C, D) is lossy because B⁺ = {B, C} covers neither piece; (A, B, C) and (A, D) is lossless because A⁺ ⊇ {A, B, C}.",
+        "Chase test for n pieces: a tableau row per piece with distinguished symbols in that piece's columns; apply each FD to equate symbols; lossless when some row becomes fully distinguished.",
+        "Disjoint pieces always give a lossy decomposition, since their join is a Cartesian product."
+      ],
+      "keyTerms": [
+        "lossless join",
+        "spurious tuples",
+        "Heath's theorem",
+        "chase"
+      ],
+      "lesson": {
+        "why": "Deciding whether a decomposition is lossless appears with both two-piece and multi-piece schemes, and the same check is built into every decomposition algorithm.",
+        "intro": "Splitting a relation into smaller ones and joining them back should return exactly the original rows. A split is lossless when it does, and lossy when the join also produces extra rows that were never in the table. Those extra rows are called spurious tuples. Whether this happens depends on the FDs, not on the data you happen to hold. When two pieces are joined they match on the attributes they share, so the join is safe only if those shared attributes pin down a row in at least one piece.",
+        "prerequisites": [
+          "db-normalization.attribute-closure",
+          "db-normalization.candidate-keys"
+        ],
+        "definitions": [
+          {
+            "term": "Spurious tuple",
+            "meaning": "A row that appears in the join of the pieces but was not in the original relation."
+          },
+          {
+            "term": "Chase",
+            "meaning": "A table method that applies the FDs to rows, one per piece, and checks whether some row becomes fully known."
+          }
+        ],
+        "principle": {
+          "text": "A split of R into $R_1$ and $R_2$ is lossless exactly when the shared attributes determine all of one piece. For more than two pieces, build a table with one row per piece, mark each row's own attributes, apply the FDs to equate marks, and check whether some row ends up with every attribute marked.",
+          "tex": "(R_1 \\cap R_2) \\to R_1 \\ \\ \\text{or}\\ \\ (R_1 \\cap R_2) \\to R_2"
+        },
+        "limits": "The two-piece test is exact only for two pieces; use the chase for three or more. Losslessness says nothing about whether the FDs can still be checked in the pieces, which is dependency preservation, a separate property.",
+        "example": {
+          "problem": "R(A, B, C, D, E) has $F = \\{C \\to D,\\ D \\to E\\}$. Is the split $R_1(A, B, C)$, $R_2(C, D, E)$ lossless? Is $R_1(A, B, C)$, $R_2(A, D, E)$? Is the three-piece split $(A, B, C)$, $(C, D)$, $(D, E)$ lossless?",
+          "steps": [
+            "First split: the shared attribute is C, and $C^+ = \\{C, D, E\\}$ contains all of $R_2$, so the join is lossless.",
+            "Second split: the shared attribute is A, and $A^+ = \\{A\\}$ covers neither piece, so A does not pin down a row.",
+            "Rows of $R_1$ with equal A would pair with every $R_2$ row sharing that A, so spurious tuples can appear.",
+            "Three pieces: build one row per piece, marking its own attributes. Rows $(A,B,C)$ and $(C,D)$ agree on C, so $C \\to D$ marks D in the first row. Now all three rows agree on D, so $D \\to E$ marks E in the first row. That row has every attribute marked."
+          ],
+          "result": "The first split is lossless, the second is lossy, and the three-piece split is lossless by the chase."
+        },
+        "misconceptions": [
+          "Requiring the shared attributes to be a key of the whole relation R. They only need to determine one of the two pieces.",
+          "Believing that a lossless decomposition also keeps every FD checkable. The two properties are independent."
+        ],
+        "recall": [
+          {
+            "q": "What condition makes a two-piece split of R lossless?",
+            "a": "The attributes the two pieces share determine all of one of the pieces."
+          },
+          {
+            "q": "How does the chase show that a decomposition is lossless?",
+            "a": "After applying the FDs to the tableau, some row has every attribute marked as known."
+          },
+          {
+            "q": "What is a spurious tuple?",
+            "a": "A row in the join of the pieces that was not in the original relation."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D) has $F = \\{A \\to B,\\ C \\to D\\}$. Which decomposition is lossless?",
+          "options": [
+            "$(A, B)$ and $(C, D)$",
+            "$(A, B)$, $(B, C)$ and $(C, D)$",
+            "$(A, B, C)$ and $(A, C, D)$",
+            "$(A, B)$ and $(B, C, D)$"
+          ],
+          "answer": 2,
+          "explanation": "Run the chase on each option. For $(A, B, C)$ and $(A, C, D)$ the shared attributes are $AC$, and $AC^+ = \\{A, B, C, D\\}$ determines both pieces, so the join is lossless. The first option has no shared attributes, so it is a Cartesian product. For $(A, B)$, $(B, C)$, $(C, D)$ the rows for $(B, C)$ and $(C, D)$ agree on C, so $C \\to D$ marks D in the middle row, but $A \\to B$ never fires because no two rows agree on A. No row becomes fully marked, so it is lossy; it tempts because it looks like a chain, but a chain is lossless only if the FDs run along it. The fourth shares only B, and $B^+ = \\{B\\}$ determines neither piece."
+        },
+        "summary": "A two-piece split is lossless when the shared attributes determine one piece. For several pieces, run the chase and look for an all-known row."
+      }
+    },
+    {
+      "id": "db-normalization.dependency-preservation",
+      "title": "Dependency preservation",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        553
+      ],
+      "points": [
+        "A decomposition preserves F when the union of the projections Fᵢ of F⁺ onto each Rᵢ is equivalent to F, so every FD can be enforced without joining tables.",
+        "An FD whose attributes all lie in one piece is preserved trivially; an FD that spans pieces may still be preserved if it follows from the projected FDs.",
+        "Test X → Y without computing projections: repeat result := result ∪ ((result ∩ Rᵢ)⁺ ∩ Rᵢ) over all pieces until stable; preserved exactly when Y ⊆ result.",
+        "Losslessness and dependency preservation are independent: either can hold without the other."
+      ],
+      "lesson": {
+        "why": "Preservation decides whether every rule in F can still be enforced after a table is split. GATE asks it together with losslessness for a given decomposition, and the two verdicts often differ.",
+        "intro": "When a relation is split into smaller tables, each functional dependency (FD) must still be checkable. If an FD uses attributes that now live in different tables, checking it means joining those tables first, which is slow and defeats the purpose of splitting. A decomposition is dependency preserving when no join is ever needed to check an FD. The test is not 'does some table hold all the attributes of the FD'. An FD can span tables and still be enforced, because the FDs that hold inside the tables can imply it together.",
+        "prerequisites": [
+          "db-normalization.attribute-closure",
+          "db-normalization.fd-set-closure",
+          "db-normalization.lossless-join"
+        ],
+        "definitions": [
+          {
+            "term": "Projection of F onto Rᵢ",
+            "meaning": "The FDs implied by F whose attributes all lie in the piece Rᵢ; written Fᵢ."
+          },
+          {
+            "term": "Dependency preserving",
+            "meaning": "The union of all Fᵢ implies every FD of F, so no FD needs a join to be checked."
+          }
+        ],
+        "principle": {
+          "text": "Let the pieces be $R_1,\\dots,R_n$ and $F_i$ the projection of $F$ onto $R_i$. The decomposition preserves F when the union of the $F_i$ is equivalent to F. To test one FD $X \\to Y$ without building the projections, start with result $= X$ and repeat, for every piece, result $:=$ result $\\cup\\ ((\\text{result} \\cap R_i)^+ \\cap R_i)$ until nothing changes. The FD is preserved exactly when $Y \\subseteq$ result. Every FD of F must pass.",
+          "tex": "\\left(F_1 \\cup F_2 \\cup \\cdots \\cup F_n\\right)^{+} = F^{+}"
+        },
+        "limits": "The loop tests FDs of F only, which is enough because F generates F⁺. Preservation says nothing about losslessness, which is a separate property: a split can have either one without the other. The closures inside the loop are taken under the full F, not only under what a single piece holds.",
+        "example": {
+          "problem": "R(A, B, C, D) has $F = \\{A \\to B,\\ B \\to C,\\ C \\to D,\\ D \\to A\\}$ and is split into $R_1(A, B)$, $R_2(B, C)$, $R_3(C, D)$. Is the split dependency preserving?",
+          "steps": [
+            "$A \\to B$, $B \\to C$ and $C \\to D$ each lie inside one piece, so they are preserved at once.",
+            "$D \\to A$ lies in no piece, so run the loop with result $= \\{D\\}$.",
+            "Piece $R_3$: $\\{D\\} \\cap R_3 = \\{D\\}$ and $D^+ = \\{A, B, C, D\\}$, so add $D^+ \\cap R_3 = \\{C, D\\}$. Result is $\\{C, D\\}$.",
+            "Piece $R_2$: $\\{C\\} \\cap R_2 = \\{C\\}$ and $C^+ = \\{A, B, C, D\\}$, so add $\\{B, C\\}$. Result is $\\{B, C, D\\}$.",
+            "Piece $R_1$: $\\{B\\} \\cap R_1 = \\{B\\}$ and $B^+ = \\{A, B, C, D\\}$, so add $\\{A, B\\}$. Result now contains A, the right side of $D \\to A$."
+          ],
+          "result": "All four FDs are preserved. D → A is enforced through the chain D → C → B → A, held in three different pieces."
+        },
+        "misconceptions": [
+          "Calling an FD lost because no single piece contains all its attributes. It is lost only if the loop fails to reach its right side.",
+          "Using the closure of the intersection computed with only the FDs written inside that piece. The closure is taken under the whole F and then cut down to the piece.",
+          "Assuming a lossless decomposition is dependency preserving, or the reverse. Each property must be tested on its own."
+        ],
+        "recall": [
+          {
+            "q": "When is a decomposition dependency preserving?",
+            "a": "When the union of the projected FDs of all pieces is equivalent to F, so every FD of F can be checked without a join."
+          },
+          {
+            "q": "How do you test one FD X → Y across several pieces?",
+            "a": "Start with result = X and repeatedly add (result ∩ Rᵢ)⁺ ∩ Rᵢ for each piece until stable; Y must end up inside result."
+          },
+          {
+            "q": "Does an FD that fits in no single piece have to be lost?",
+            "a": "No. It is preserved if the FDs inside the pieces imply it, as when a chain of FDs spread over several pieces reaches its right side."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D) has $F = \\{A \\to B,\\ B \\to C,\\ C \\to D\\}$. Which decomposition is dependency preserving?",
+          "options": [
+            "$(A, B)$ and $(A, C, D)$",
+            "$(A, B)$, $(C, D)$ and $(A, D)$",
+            "$(A, B, D)$ and $(B, C)$",
+            "$(A, B)$ and $(B, C, D)$"
+          ],
+          "answer": 3,
+          "explanation": "For $(A, B)$ and $(B, C, D)$, $A \\to B$ sits in the first piece, and $B \\to C$ and $C \\to D$ sit in the second, so all three are preserved. In the first option $B \\to C$ fails: B never appears with C, and from B the loop reaches only B. It tempts because $A \\to C$ is implied in the second piece, but that does not give back $B \\to C$. In the second option the same $B \\to C$ is lost. In the third, $C \\to D$ fails: from C the loop gets only C, because $C^+ \\cap \\{B, C\\} = \\{C\\}$; D sits in the other piece, which C is not part of."
+        },
+        "summary": "A decomposition preserves F when the projected FDs of its pieces imply every FD of F. Test each spanning FD with the closure loop over the pieces, and judge losslessness separately."
+      }
+    },
+    {
+      "id": "db-normalization.canonical-cover",
+      "title": "Canonical (minimal) cover",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        52,
+        554,
+        555
+      ],
+      "points": [
+        "A canonical cover is equivalent to F, has single-attribute right sides, no extraneous left-side attribute and no redundant FD.",
+        "Step 1: split every right side. Step 2: for each X → A and each B ∈ X, drop B if A ∈ (X − B)⁺ under the current set. Step 3: drop X → A if A ∈ X⁺ computed without that FD.",
+        "Do step 2 before step 3; reversing them can leave a redundant FD in the result.",
+        "F = {A → BC, B → C, A → B, AB → C} reduces to {A → B, B → C}: AB → C becomes B → C, then A → C is implied by A → B → C.",
+        "Canonical covers need not be unique when choices exist, but all of them are equivalent to F."
+      ],
+      "keyTerms": [
+        "canonical cover",
+        "minimal cover",
+        "extraneous attribute"
+      ],
+      "lesson": {
+        "why": "Reducing an FD set to its canonical cover is a mechanical task GATE asks directly, and it is also the first step of 3NF synthesis.",
+        "intro": "Two sets of FDs are equivalent when each one implies every FD of the other. A canonical cover is a reduced set equivalent to F with no removable part, having three properties: every right side is a single attribute, no left side carries an attribute that could be removed, and no FD can be removed because the rest already imply it. An attribute on a left side is extraneous if the rest of the left side already determines the same right side. An FD is redundant if its right side follows from the other FDs.",
+        "prerequisites": [
+          "db-normalization.attribute-closure",
+          "db-normalization.fd-set-closure"
+        ],
+        "definitions": [
+          {
+            "term": "Extraneous attribute",
+            "meaning": "An attribute on the left side of an FD that can be dropped without changing what the set implies."
+          },
+          {
+            "term": "Redundant FD",
+            "meaning": "An FD that follows from the other FDs of the set."
+          }
+        ],
+        "principle": {
+          "text": "Split right sides into single attributes. Then for each FD $X \\to A$ and each $B \\in X$, drop B if $A \\in (X - \\{B\\})^+$ under the current set. Finally drop each $X \\to A$ for which $A \\in X^+$ computed without that FD.",
+          "tex": "A \\in (X - \\{B\\})^+ \\Rightarrow B \\text{ is extraneous in } X \\to A"
+        },
+        "limits": "Do the left-side reduction before the redundancy removal, or a redundant FD can survive. A canonical cover is not unique when several reductions are possible, but every choice is equivalent to F.",
+        "example": {
+          "problem": "Find a canonical cover of $F = \\{A \\to BC,\\ B \\to C,\\ AB \\to D\\}$.",
+          "steps": [
+            "Split the right sides: $A \\to B$, $A \\to C$, $B \\to C$, $AB \\to D$.",
+            "In $AB \\to D$: $A^+ = \\{A, B, C, D\\}$ contains D, so B is extraneous and the FD becomes $A \\to D$. Dropping A instead fails since $B^+ = \\{B, C\\}$.",
+            "$A \\to C$ is redundant, because without it $A \\to B$ and $B \\to C$ give $A^+ \\ni C$."
+          ],
+          "result": "A canonical cover is $\\{A \\to B,\\ B \\to C,\\ A \\to D\\}$."
+        },
+        "misconceptions": [
+          "Removing redundant FDs first and reducing left sides afterwards. A reduction can create a new redundancy or remove one, so the order matters.",
+          "Expecting a unique answer. Different but equivalent covers are valid; verify an option by checking equivalence with closures."
+        ],
+        "recall": [
+          {
+            "q": "What three properties define a canonical cover?",
+            "a": "Single-attribute right sides, no extraneous left-side attribute, and no redundant FD."
+          },
+          {
+            "q": "When is B extraneous in $X \\to A$ with $B \\in X$?",
+            "a": "When $A \\in (X - \\{B\\})^+$ under the current FD set."
+          },
+          {
+            "q": "How do you test that a candidate cover is equivalent to F?",
+            "a": "Check that every FD of each set follows from the other set, using attribute closure."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Let $F = \\{A \\to B,\\ B \\to C,\\ A \\to C,\\ AB \\to C\\}$. How many FDs does a canonical cover of F contain?",
+          "answer": 2,
+          "explanation": "$AB \\to C$ has B extraneous since $A^+ \\ni C$, giving $A \\to C$, which duplicates an FD already present. $A \\to C$ is then redundant because $A \\to B$ and $B \\to C$ imply it. What remains is $\\{A \\to B,\\ B \\to C\\}$. Answering 4 or 3 tempts if you only split or only remove duplicates and skip the implication check."
+        },
+        "summary": "Split right sides, drop extraneous left-side attributes, then drop redundant FDs, using attribute closures for each test."
+      }
+    },
+    {
+      "id": "db-normalization.third-nf-synthesis",
+      "title": "3NF synthesis algorithm",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        555,
+        556,
+        559,
+        567,
+        568
+      ],
+      "points": [
+        "Compute a canonical cover, then create one relation per left side X holding X and all attributes it determines in the cover.",
+        "If no relation contains a candidate key of R, add one relation that is a candidate key; then drop any relation contained in another.",
+        "The result is in 3NF, preserves every FD (each cover FD lives in its own relation) and is lossless (the key relation anchors the chase).",
+        "R(A, B, C, D, E, F) with cover {A → B, BC → D, AC → E, F → A} gives (A, B), (B, C, D), (A, C, E), (F, A) plus the key relation (C, F)."
+      ],
+      "lesson": {
+        "why": "The synthesis algorithm is the reason a dependency-preserving, lossless 3NF decomposition always exists, and GATE tests both the algorithm and that guarantee.",
+        "intro": "Decomposing a relation can lose FDs, meaning an FD can no longer be checked inside any single piece. The synthesis algorithm builds the pieces so that this cannot happen. It starts from a canonical cover, which is a tidy equivalent FD set, and turns the FDs into relations, one per group of FDs sharing a left side. Each relation then holds an FD completely. One extra step makes sure the join can rebuild the original rows.",
+        "prerequisites": [
+          "db-normalization.canonical-cover",
+          "db-normalization.candidate-keys",
+          "db-normalization.third-nf"
+        ],
+        "principle": {
+          "text": "Take a canonical cover. For each distinct left side $X$ make a relation of X together with all attributes it determines in the cover. If no relation contains a candidate key of R, add a relation made of a candidate key. Remove any relation contained in another.",
+          "tex": "R_i = X_i \\cup \\{A : X_i \\to A \\in F_c\\}"
+        },
+        "limits": "Attributes that appear in no FD end up in the key relation, so they are not lost. The result is in 3NF, not necessarily BCNF; for BCNF, preserving every FD cannot always be guaranteed.",
+        "example": {
+          "problem": "Synthesise a 3NF decomposition of R(A, B, C, D) with $F = \\{A \\to B,\\ C \\to D\\}$.",
+          "steps": [
+            "F is already a canonical cover. The left sides are A and C, giving $R_1(A, B)$ and $R_2(C, D)$.",
+            "The only candidate key is $AC$, because $AC^+ = \\{A, B, C, D\\}$ and neither A nor C alone reaches everything.",
+            "Neither relation contains $AC$, so add $R_3(A, C)$."
+          ],
+          "result": "The decomposition is $(A, B)$, $(C, D)$, $(A, C)$: three relations."
+        },
+        "misconceptions": [
+          "Skipping the key relation. Without it the join of the FD relations can be lossy, as $(A, B)$ with $(C, D)$ shows.",
+          "Making a separate relation for each FD even when several share a left side. $A \\to B$ and $A \\to C$ give one relation $(A, B, C)$."
+        ],
+        "recall": [
+          {
+            "q": "What does the algorithm start from?",
+            "a": "A canonical cover of the FD set."
+          },
+          {
+            "q": "When must a key relation be added?",
+            "a": "When no relation produced from the FDs contains a candidate key of R."
+          },
+          {
+            "q": "Which guarantees does the output have?",
+            "a": "It is in 3NF, lossless and dependency preserving."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B, C, D, E) has the canonical cover $\\{A \\to B,\\ A \\to C,\\ C \\to D,\\ E \\to A\\}$. How many relations does 3NF synthesis produce?",
+          "answer": 3,
+          "explanation": "Grouping by left side gives $(A, B, C)$, $(C, D)$ and $(E, A)$. The only candidate key is $E$, since $E^+ = \\{E, A, B, C, D\\}$, and $(E, A)$ contains it, so no key relation is added. None of the three is contained in another. Answering 4 tempts if you make one relation per FD or add an unnecessary key relation."
+        },
+        "summary": "Group the canonical cover by left side, add a key relation if none holds a key, and drop contained relations. The output is lossless, dependency preserving and in 3NF."
+      }
+    },
+    {
+      "id": "db-normalization.bcnf-decomposition",
+      "title": "BCNF decomposition algorithm",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        556,
+        557,
+        559,
+        560
+      ],
+      "points": [
+        "While some piece Rᵢ has an FD X → Y with X not a superkey of Rᵢ, replace Rᵢ by (X ∪ Y) and (Rᵢ − (Y − X)).",
+        "Each split is lossless because the two parts share X and X is a superkey of X ∪ Y, so the final decomposition is always lossless.",
+        "Dependency preservation can fail: R(A, B, C) with AB → C, C → B splits on C → B into (C, B) and (A, C), and AB → C can no longer be checked inside one relation.",
+        "The final schema depends on which violating FD is chosen first, so different runs can give different BCNF decompositions."
+      ],
+      "lesson": {
+        "why": "GATE asks for the BCNF pieces of a schema and whether the split keeps its FDs, so the algorithm and its one weakness both matter.",
+        "intro": "When a relation violates BCNF, some FD $X \\to Y$ has a left side that is not a key. The fix is to pull that FD out into its own relation and leave the rest behind. The two new relations share X, and X is a key of the one that holds $X \\cup Y$, so rebuilding the original by join loses nothing. Repeat on whichever piece still violates BCNF until none does.",
+        "prerequisites": [
+          "db-normalization.bcnf",
+          "db-normalization.lossless-join",
+          "db-normalization.dependency-preservation"
+        ],
+        "principle": {
+          "text": "While some piece $R_i$ has a non-trivial FD $X \\to Y$ (taken from the FDs projected on $R_i$) with $X$ not a superkey of $R_i$, replace $R_i$ by $X \\cup Y$ and $R_i - (Y - X)$. The final decomposition is in BCNF and lossless. The FDs projected on $R_i$ are, for each subset $S$ of $R_i$, the FD $S \\to (S^+ \\cap R_i)$.",
+          "tex": "R_i \\to (X \\cup Y),\\ \\ (R_i - (Y - X))"
+        },
+        "limits": "The result can lose dependencies, so it is not always dependency preserving. It also depends on which violating FD is chosen first, so different runs can give different answers. Violations must be checked against projected FDs, which include implied ones.",
+        "example": {
+          "problem": "Decompose R(A, B, C, D) with $F = \\{A \\to B,\\ B \\to C\\}$ into BCNF.",
+          "steps": [
+            "$AD^+ = \\{A, B, C, D\\}$, so $AD$ is the only key. $B \\to C$ violates BCNF since $B^+ = \\{B, C\\}$. Split into $(B, C)$ and $(A, B, D)$.",
+            "Project the FDs onto $(A, B, D)$: for each subset $S$, take $S \\to (S^+ \\cap \\{A, B, D\\})$. This gives $A \\to B$ since $A^+ \\cap \\{A, B, D\\} = \\{A, B\\}$, and nothing else non-trivial. A is not a key of the piece, whose key is $AD$. Split into $(A, B)$ and $(A, D)$.",
+            "All three pieces $(B, C)$, $(A, B)$, $(A, D)$ have only key-led FDs."
+          ],
+          "result": "The BCNF decomposition is $(B, C)$, $(A, B)$, $(A, D)$, and both FDs are preserved."
+        },
+        "misconceptions": [
+          "Checking only the FDs as listed. After the first split the second violation, $A \\to B$ in the piece $(A, B, D)$, still has to be found in the remaining piece.",
+          "Assuming BCNF decomposition always preserves FDs. With $AB \\to C$ and $C \\to B$ the split on $C \\to B$ loses $AB \\to C$."
+        ],
+        "recall": [
+          {
+            "q": "How is a relation $R_i$ split on a violating FD $X \\to Y$?",
+            "a": "Into $X \\cup Y$ and $R_i - (Y - X)$."
+          },
+          {
+            "q": "Why is every split in the algorithm lossless?",
+            "a": "The pieces share X, which is a key of the piece $X \\cup Y$."
+          },
+          {
+            "q": "What can the algorithm fail to guarantee?",
+            "a": "Dependency preservation."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R(A, B, C, D) has $F = \\{A \\to B,\\ C \\to D\\}$. Which decomposition is lossless and has every piece in BCNF?",
+          "options": [
+            "$(A, B)$ and $(C, D)$",
+            "$(A, B)$ and $(A, C, D)$",
+            "$(A, B)$, $(C, D)$ and $(A, C)$",
+            "$(A, B, C)$ and $(C, D)$"
+          ],
+          "answer": 2,
+          "explanation": "The key of R is $AC$. In the third option the pieces are in BCNF and the chase finds a fully known row, so it is lossless. The first option shares nothing and is lossy. The second leaves $C \\to D$ inside $(A, C, D)$, where C is not a key. The fourth leaves $A \\to B$ inside $(A, B, C)$ in the same way. The first tempts because both pieces look clean on their own."
+        },
+        "summary": "Split a violating piece on $X \\to Y$ into $X \\cup Y$ and the rest, repeat until BCNF, and note that the result is lossless but may lose FDs."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "db-normalization.fd-definition",
+      "name": "Functional dependency",
+      "tex": "X \\to Y \\iff \\forall t_1, t_2 \\in r:\\; t_1[X] = t_2[X] \\Rightarrow t_1[Y] = t_2[Y]",
+      "text": "X → Y iff for all tuples t1, t2: t1[X] = t2[X] ⇒ t1[Y] = t2[Y]",
+      "note": "Must hold for every legal instance r; one instance can only disprove an FD.",
+      "topic": "db-normalization.fd-basics",
+      "origin": "source",
+      "pages": [
+        541
+      ]
+    },
+    {
+      "id": "db-normalization.reflexivity",
+      "name": "Reflexivity axiom",
+      "tex": "Y \\subseteq X \\Rightarrow X \\to Y",
+      "text": "Y ⊆ X ⇒ X → Y",
+      "note": "Generates exactly the trivial FDs.",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        52,
+        542
+      ]
+    },
+    {
+      "id": "db-normalization.augmentation",
+      "name": "Augmentation axiom",
+      "tex": "X \\to Y \\Rightarrow XZ \\to YZ",
+      "text": "X → Y ⇒ XZ → YZ",
+      "note": "Z is added to both sides. Adding to the left alone is also valid; adding to the right alone is not.",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        52,
+        542
+      ]
+    },
+    {
+      "id": "db-normalization.transitivity",
+      "name": "Transitivity axiom",
+      "tex": "X \\to Y,\\; Y \\to Z \\Rightarrow X \\to Z",
+      "text": "X → Y, Y → Z ⇒ X → Z",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        52,
+        542
+      ]
+    },
+    {
+      "id": "db-normalization.union-decomposition",
+      "name": "Union and decomposition rules",
+      "tex": "X \\to Y \\;\\land\\; X \\to Z \\iff X \\to YZ",
+      "text": "X → Y and X → Z ⇔ X → YZ",
+      "note": "Splits only the right side. XY → Z does not give X → Z.",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        542,
+        543
+      ]
+    },
+    {
+      "id": "db-normalization.pseudo-transitivity",
+      "name": "Pseudo-transitivity rule",
+      "tex": "X \\to Y,\\; WY \\to Z \\Rightarrow WX \\to Z",
+      "text": "X → Y, WY → Z ⇒ WX → Z",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        543
+      ]
+    },
+    {
+      "id": "db-normalization.closure-test",
+      "name": "FD implication test",
+      "tex": "F \\models X \\to Y \\iff Y \\subseteq X^{+}_{F}",
+      "text": "F implies X → Y ⇔ Y ⊆ X⁺ (closure under F)",
+      "note": "Compute X⁺ under the given F; there is no need to build F⁺ first.",
+      "topic": "db-normalization.attribute-closure",
+      "origin": "source",
+      "pages": [
+        543,
+        569
+      ]
+    },
+    {
+      "id": "db-normalization.superkey-test",
+      "name": "Superkey and candidate key tests",
+      "tex": "X \\text{ superkey} \\iff X^{+} = R; \\quad K \\text{ key} \\iff K^{+} = R \\land \\forall K' \\subsetneq K:\\, K'^{+} \\neq R",
+      "text": "X superkey ⇔ X⁺ = R; K candidate key ⇔ K⁺ = R and no proper subset of K has closure R",
+      "note": "Checking only the subsets obtained by removing one attribute suffices for minimality.",
+      "topic": "db-normalization.candidate-keys",
+      "origin": "source",
+      "pages": [
+        52,
+        543,
+        545
+      ]
+    },
+    {
+      "id": "db-normalization.fd-equivalence",
+      "name": "Equivalence of FD sets",
+      "tex": "F \\equiv G \\iff F \\subseteq G^{+} \\land G \\subseteq F^{+}",
+      "text": "F ≡ G ⇔ every FD of F is implied by G and every FD of G is implied by F",
+      "note": "Test each FD X → Y of F by computing X⁺ under G, and vice versa.",
+      "topic": "db-normalization.fd-set-closure",
+      "origin": "source",
+      "pages": [
+        545
+      ]
+    },
+    {
+      "id": "db-normalization.fplus-count",
+      "name": "Size of F⁺",
+      "tex": "|F^{+}| = \\sum_{X \\subseteq R} 2^{|X^{+}|}",
+      "text": "|F⁺| = Σ over X ⊆ R of 2^|X⁺|",
+      "where": [
+        [
+          "X⁺",
+          "closure of the left side X under F"
+        ]
+      ],
+      "note": "Counts trivial FDs and the empty set on either side. Excluding empty sides gives Σ over non-empty X of (2^|X⁺| − 1).",
+      "topic": "db-normalization.fd-set-closure",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.superkeys-one-key",
+      "name": "Superkeys with a single candidate key",
+      "tex": "S = 2^{\\,n-k}",
+      "text": "S = 2^(n − k)",
+      "where": [
+        [
+          "n",
+          "number of attributes of R"
+        ],
+        [
+          "k",
+          "number of attributes in the candidate key"
+        ]
+      ],
+      "topic": "db-normalization.superkey-count",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.superkeys-two-keys",
+      "name": "Superkeys with two candidate keys",
+      "tex": "S = 2^{\\,n-|K_1|} + 2^{\\,n-|K_2|} - 2^{\\,n-|K_1 \\cup K_2|}",
+      "text": "S = 2^(n − |K1|) + 2^(n − |K2|) − 2^(n − |K1 ∪ K2|)",
+      "where": [
+        [
+          "K₁, K₂",
+          "the candidate keys"
+        ]
+      ],
+      "note": "Subtract supersets of both keys, which contain K₁ ∪ K₂. Extend by full inclusion–exclusion for three or more keys.",
+      "topic": "db-normalization.superkey-count",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.max-candidate-keys",
+      "name": "Maximum number of candidate keys",
+      "tex": "\\#\\text{keys} \\le \\binom{n}{\\lfloor n/2 \\rfloor}",
+      "text": "number of candidate keys ≤ C(n, ⌊n/2⌋)",
+      "note": "Keys form an antichain under ⊆, so Sperner's theorem bounds them; 4 attributes allow at most 6 keys.",
+      "topic": "db-normalization.superkey-count",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.third-nf-condition",
+      "name": "3NF condition",
+      "tex": "\\forall\\, X \\to A \\text{ non-trivial}:\\; X \\text{ is a superkey} \\;\\lor\\; A \\text{ is prime}",
+      "text": "every non-trivial X → A: X superkey or A prime",
+      "note": "Apply to FDs with single-attribute right sides; X → AB is fine only if each of X → A and X → B is.",
+      "topic": "db-normalization.third-nf",
+      "origin": "source",
+      "pages": [
+        52,
+        548,
+        549,
+        571
+      ]
+    },
+    {
+      "id": "db-normalization.bcnf-condition",
+      "name": "BCNF condition",
+      "tex": "\\forall\\, X \\to A \\text{ non-trivial}:\\; X \\text{ is a superkey}",
+      "text": "every non-trivial X → A: X superkey",
+      "note": "On R itself, checking the given FDs suffices; on a decomposed piece, check the FDs projected onto it.",
+      "topic": "db-normalization.bcnf",
+      "origin": "source",
+      "pages": [
+        52,
+        549,
+        571
+      ]
+    },
+    {
+      "id": "db-normalization.lossless-two-way",
+      "name": "Two-way lossless-join test",
+      "tex": "(R_1 \\cap R_2) \\to R_1 \\;\\lor\\; (R_1 \\cap R_2) \\to R_2",
+      "text": "(R1 ∩ R2) → R1 or (R1 ∩ R2) → R2",
+      "note": "Also check R1 ∪ R2 = R. An empty intersection means lossy unless F forces R1 or R2 constant (never in GATE).",
+      "topic": "db-normalization.lossless-join",
+      "origin": "source",
+      "pages": [
+        52,
+        552,
+        571
+      ]
+    },
+    {
+      "id": "db-normalization.dependency-preserving",
+      "name": "Dependency preservation",
+      "tex": "\\left(F_1 \\cup F_2 \\cup \\cdots \\cup F_n\\right)^{+} = F^{+}",
+      "text": "(F1 ∪ F2 ∪ … ∪ Fn)⁺ = F⁺",
+      "where": [
+        [
+          "Fᵢ",
+          "FDs of F⁺ whose attributes all lie in Rᵢ"
+        ]
+      ],
+      "topic": "db-normalization.dependency-preservation",
+      "origin": "source",
+      "pages": [
+        553
+      ]
+    },
+    {
+      "id": "db-normalization.trivial-mvd",
+      "name": "Trivial MVD",
+      "tex": "X \\twoheadrightarrow Y \\text{ trivial} \\iff Y \\subseteq X \\;\\lor\\; X \\cup Y = R",
+      "text": "X →→ Y trivial ⇔ Y ⊆ X or X ∪ Y = R",
+      "topic": "db-normalization.mvd-4nf",
+      "origin": "source",
+      "pages": [
+        550,
+        566
+      ]
+    },
+    {
+      "id": "db-normalization.mvd-complement",
+      "name": "MVD complementation and FD promotion",
+      "tex": "X \\twoheadrightarrow Y \\Rightarrow X \\twoheadrightarrow R - X - Y; \\qquad X \\to Y \\Rightarrow X \\twoheadrightarrow Y",
+      "text": "X →→ Y ⇒ X →→ R − X − Y; X → Y ⇒ X →→ Y",
+      "note": "The converse of the second rule fails: Course →→ Instructor does not give Course → Instructor.",
+      "topic": "db-normalization.mvd-4nf",
+      "origin": "curated",
+      "pages": [
+        551
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "db-normalization.closure-cost",
+      "name": "Attribute closure X⁺ (iterative passes)",
+      "worst": "O(|F|² · |R|)",
+      "notes": "One pass over F costs O(|F|·|R|) and each productive pass fires at least one new FD; a counter-based version runs in time linear in the size of F.",
+      "topic": "db-normalization.attribute-closure",
+      "origin": "source",
+      "pages": [
+        544
+      ]
+    },
+    {
+      "id": "db-normalization.all-keys-cost",
+      "name": "Enumerating all candidate keys",
+      "worst": "O(2^b · closure)",
+      "notes": "b is the number of attributes appearing on both sides; the number of keys itself can be exponential, so no method is polynomial in general.",
+      "topic": "db-normalization.candidate-keys",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.canonical-cover-cost",
+      "name": "Canonical cover",
+      "worst": "polynomial in |F| and |R|",
+      "notes": "One closure per left-side attribute tested and one per FD tested for redundancy.",
+      "topic": "db-normalization.canonical-cover",
+      "origin": "source",
+      "pages": [
+        555
+      ]
+    },
+    {
+      "id": "db-normalization.nf-test-cost",
+      "name": "Testing BCNF vs 3NF of R under F",
+      "worst": "BCNF: polynomial; 3NF: NP-complete",
+      "notes": "BCNF needs one closure per FD of F. 3NF needs to know which attributes are prime, and deciding primality is NP-complete.",
+      "topic": "db-normalization.highest-nf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.chase-cost",
+      "name": "Chase test for lossless join",
+      "worst": "polynomial in n, |R| and |F|",
+      "notes": "n rows by |R| columns; each FD application merges symbols, and the number of merges is bounded by the tableau size.",
+      "topic": "db-normalization.lossless-join",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "db-normalization.pt-closure",
+      "title": "Attribute closure and FD implication",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Start the result with X itself.",
+        "Scan every FD; when its left side is inside the result, add its right side.",
+        "Repeat full passes until one adds nothing, then compare with Y or with R."
+      ],
+      "trap": "Stopping after one pass: an FD skipped early can fire once a later FD adds its missing attribute.",
+      "topic": "db-normalization.attribute-closure",
+      "origin": "source",
+      "pages": [
+        544,
+        566,
+        569,
+        570
+      ]
+    },
+    {
+      "id": "db-normalization.pt-all-keys",
+      "title": "Find or count all candidate keys",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Mark attributes absent from every right side: they are in every key. Mark right-only attributes: they are in no key.",
+        "Close the mandatory set; if it gives R, it is the unique key.",
+        "Otherwise add both-side attributes one at a time, then in pairs, testing closure and skipping supersets of keys already found.",
+        "Check the final list is an antichain: no key contains another."
+      ],
+      "trap": "Stopping at the first key found; relations with cyclic FDs such as A → B, B → A usually have several keys.",
+      "topic": "db-normalization.candidate-keys",
+      "origin": "source",
+      "pages": [
+        545,
+        546,
+        557,
+        558,
+        566
+      ]
+    },
+    {
+      "id": "db-normalization.pt-highest-nf",
+      "title": "Highest normal form of a relation",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Find every candidate key and list the prime attributes.",
+        "Split each FD to single-attribute right sides and drop trivial ones.",
+        "For each FD X → A: X superkey passes BCNF; else A prime passes 3NF only; else X inside a key fails 2NF; else it fails 3NF.",
+        "Before reporting 2NF, compute (K − {b})⁺ for every key K and every b ∈ K; any non-prime attribute in that closure is a partial dependency that the given FDs may hide.",
+        "Report the weakest verdict across all checks."
+      ],
+      "trap": "Calling a relation 2NF-violating because an FD has a partial-key left side when its right side is prime; prime right sides never break 2NF or 3NF.",
+      "topic": "db-normalization.highest-nf",
+      "origin": "source",
+      "pages": [
+        550,
+        567,
+        570
+      ]
+    },
+    {
+      "id": "db-normalization.pt-decomposition",
+      "title": "Lossless join and dependency preservation of a given decomposition",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Lossless, two pieces: compute (R₁ ∩ R₂)⁺ and see whether it contains R₁ or R₂.",
+        "Lossless, more pieces: merge two pieces that pass the test, repeat, or run the chase tableau.",
+        "Preservation: an FD inside one piece is kept; for one that spans pieces run the projected-closure loop and check the right side appears."
+      ],
+      "trap": "Assuming a lossless decomposition is dependency-preserving, or calling an FD lost just because no single piece contains all its attributes.",
+      "topic": "db-normalization.lossless-join",
+      "origin": "source",
+      "pages": [
+        552,
+        553,
+        559,
+        567,
+        568
+      ]
+    },
+    {
+      "id": "db-normalization.pt-canonical-cover",
+      "title": "Canonical cover or equivalence of FD sets",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Split right sides into single attributes and remove duplicates.",
+        "For each multi-attribute left side, drop an attribute B when the right side is in (X − B)⁺.",
+        "Drop each FD whose right side is still derivable from the others.",
+        "For equivalence, test every FD of one set by closure under the other, both ways."
+      ],
+      "trap": "Removing redundant FDs before shrinking left sides, which can leave a redundant FD behind.",
+      "topic": "db-normalization.canonical-cover",
+      "origin": "source",
+      "pages": [
+        554,
+        555,
+        559,
+        567
+      ]
+    },
+    {
+      "id": "db-normalization.pt-superkey-count",
+      "title": "Count superkeys from the candidate keys",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find every candidate key first.",
+        "Each key K contributes 2^(n − |K|) supersets.",
+        "Subtract the overlaps by inclusion–exclusion on the unions of keys."
+      ],
+      "trap": "Adding the per-key counts without subtracting superkeys that contain two keys at once.",
+      "topic": "db-normalization.superkey-count",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.pt-synthesis",
+      "title": "3NF synthesis or BCNF decomposition result",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "3NF: take a canonical cover, make one relation per left side, add a candidate-key relation if none contains a key.",
+        "BCNF: pick a violating X → Y, split into X ∪ Y and R − (Y − X), and recurse on each piece.",
+        "State which properties hold: 3NF synthesis is lossless and preserving; BCNF splitting is lossless only."
+      ],
+      "trap": "Forgetting the key relation in 3NF synthesis, which leaves the decomposition lossy.",
+      "topic": "db-normalization.third-nf-synthesis",
+      "origin": "source",
+      "pages": [
+        555,
+        556,
+        557,
+        567,
+        568
+      ]
+    },
+    {
+      "id": "db-normalization.pt-instance",
+      "title": "Which FDs does a given instance satisfy",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "For each candidate FD X → Y, group rows by their X values.",
+        "The FD fails if any group shows two different Y values; otherwise it holds on this instance."
+      ],
+      "trap": "Treating an FD as satisfied because most rows agree; a single conflicting pair breaks it.",
+      "topic": "db-normalization.fd-on-instance",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "db-normalization.q-closure-cf",
+      "type": "nat",
+      "marks": 1,
+      "stem": "R(A, B, C, D, E, F, G) has the FDs AB → CD, AF → D, DE → F, C → G, F → E, G → A. How many attributes does the closure (CF)⁺ contain?",
+      "answer": 6,
+      "explanation": "Start with {C, F}. C → G adds G; G → A adds A; F → E adds E; AF → D now fires and adds D. DE → F adds nothing new, and AB → CD never fires because B is never added. (CF)⁺ = {A, C, D, E, F, G}: 6 attributes, so CF is not a superkey.",
+      "difficulty": "easy",
+      "topic": "db-normalization.attribute-closure",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Closure",
+      "pages": [
+        566
+      ]
+    },
+    {
+      "id": "db-normalization.q-keys-abcdeh",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "R(A, B, C, D, E, H) has the FDs A → BC, E → HA, BC → D, D → E. What are all the candidate keys of R?",
+      "options": [
+        "{A} and {E} only",
+        "{A}, {D}, {E} and {B, C}",
+        "{A}, {B, C} and {E, H}",
+        "{A}, {D}, {E}, {B, C} and {B, H}"
+      ],
+      "answer": 1,
+      "explanation": "H appears only on a right side, so it is in no key. A⁺: A → BC, BC → D, D → E, E → HA gives all six. E⁺ = {E, H, A} then B, C, D: all. D⁺ = {D, E} then H, A, B, C: all. (BC)⁺ = {B, C, D, E, H, A}: all, and B⁺ = {B}, C⁺ = {C}, so BC is minimal. Any other key must avoid A, D, E and the pair BC, leaving only subsets of {B, H} or {C, H}; (BH)⁺ = {B, H} and (CH)⁺ = {C, H}. So the keys are exactly {A}, {D}, {E}, {B, C}.",
+      "difficulty": "medium",
+      "topic": "db-normalization.candidate-keys",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — All CKs",
+      "pages": [
+        566
+      ]
+    },
+    {
+      "id": "db-normalization.q-count-keys",
+      "type": "nat",
+      "marks": 2,
+      "stem": "R(A, B, C, D, E) has the FDs AB → CD, D → E, E → A. How many candidate keys does R have?",
+      "answer": 3,
+      "explanation": "B is on no right side, so it is in every key; C is only on a right side, so it is in no key. B⁺ = {B}. Adding one both-side attribute: (AB)⁺ = {A, B, C, D} then E; (BD)⁺ = {B, D, E, A} then C; (BE)⁺ = {B, E, A} then C, D. All three equal R and none contains another. Any larger candidate would contain one of them. So there are 3 keys: AB, BD, BE.",
+      "difficulty": "medium",
+      "topic": "db-normalization.candidate-keys",
+      "origin": "source",
+      "pages": [
+        557,
+        558
+      ]
+    },
+    {
+      "id": "db-normalization.q-highest-nf-3nf",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "R(A, B, C, D) has the FDs AB → CD and D → A. What is the highest normal form R satisfies?",
+      "options": [
+        "1NF",
+        "2NF",
+        "3NF",
+        "BCNF"
+      ],
+      "answer": 2,
+      "explanation": "B is on no right side. (AB)⁺ = {A, B, C, D} and (BD)⁺ = {B, D, A, C}, while B⁺ = {B}, so the keys are AB and BD; prime attributes are A, B, D. AB → CD has a key on the left. D → A has a non-superkey left side (D⁺ = {D, A}), so BCNF fails, but A is prime, so 3NF holds. Highest normal form: 3NF.",
+      "difficulty": "medium",
+      "topic": "db-normalization.highest-nf",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Highest NF",
+      "pages": [
+        567
+      ]
+    },
+    {
+      "id": "db-normalization.q-highest-nf-1nf",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(A, B, C, D) has the FDs AB → C and B → D. What is the highest normal form R satisfies?",
+      "options": [
+        "1NF",
+        "2NF",
+        "3NF",
+        "BCNF"
+      ],
+      "answer": 0,
+      "explanation": "A and B appear on no right side, and (AB)⁺ = {A, B, C, D}, so AB is the only key and C, D are non-prime. B → D makes the non-prime D depend on B, a proper subset of the key: a partial dependency. R is in 1NF but not 2NF.",
+      "difficulty": "easy",
+      "topic": "db-normalization.second-nf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-bcnf-split-loses-fd",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(A, B, C) has the FDs AB → C and C → B. It is decomposed on C → B into R₁(C, B) and R₂(A, C). Which statement is true?",
+      "options": [
+        "The decomposition is lossless and dependency-preserving",
+        "The decomposition is lossless but not dependency-preserving",
+        "The decomposition is dependency-preserving but lossy",
+        "The decomposition is neither lossless nor dependency-preserving"
+      ],
+      "answer": 1,
+      "explanation": "R₁ ∩ R₂ = {C} and C⁺ = {C, B} = R₁, so the join is lossless. Projected FDs: C → B on R₁ and nothing non-trivial on R₂ (A⁺ = {A}, C⁺ ∩ {A, C} = {C}). From C → B alone, (AB)⁺ = {A, B}, so AB → C is lost and needs a join to enforce. This is the standard case where BCNF costs dependency preservation.",
+      "difficulty": "easy",
+      "topic": "db-normalization.bcnf-decomposition",
+      "origin": "source",
+      "pages": [
+        559,
+        560
+      ]
+    },
+    {
+      "id": "db-normalization.q-which-lossless",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "R(A, B, C, D, E) has the FDs AB → C, C → D, B → E. Which decomposition of R is lossless?",
+      "options": [
+        "(A, B, C), (C, D), (B, E)",
+        "(A, B), (C, D, E)",
+        "(A, C, D), (B, C, E)",
+        "(A, B, D), (B, C, E)"
+      ],
+      "answer": 0,
+      "explanation": "Option 1: (A, B, C) ∩ (C, D) = {C} and C → D makes C a key of (C, D), so they join losslessly into (A, B, C, D); that ∩ (B, E) = {B} and B → E makes B a key of (B, E): lossless. Option 2 has an empty intersection. Option 3 shares C, but C⁺ = {C, D} contains neither {A, C, D} nor {B, C, E}. Option 4 shares B, but B⁺ = {B, E} contains neither piece.",
+      "difficulty": "medium",
+      "topic": "db-normalization.lossless-join",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-star-decomposition",
+      "type": "msq",
+      "marks": 2,
+      "stem": "R(A, B, C, D) has the FDs A → B, B → C, C → D. It is decomposed into R₁(A, B), R₂(A, C) and R₃(A, D). Which statements are true?",
+      "options": [
+        "The decomposition is lossless",
+        "The decomposition preserves every FD of F",
+        "Each of R₁, R₂ and R₃ is in BCNF",
+        "B → C can be enforced inside a single relation of the decomposition"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "A⁺ = {A, B, C, D}, so A is a key of every piece. R₁ ∩ R₂ = {A} determines R₁, so R₁ ⋈ R₂ is lossless; its intersection with R₃ is again {A}: lossless. The projected FDs are A → B, A → C and A → D only, since B⁺ ∩ {A, B} = {B} and so on. Under these, B⁺ = {B}, so B → C and C → D are lost, and no piece contains both B and C. Every two-attribute relation is in BCNF.",
+      "difficulty": "medium",
+      "topic": "db-normalization.dependency-preservation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-canonical-cover-size",
+      "type": "nat",
+      "marks": 2,
+      "stem": "F = {A → BC, B → C, AB → D, AC → D, D → B} over R(A, B, C, D). How many FDs does a canonical cover of F contain?",
+      "answer": 3,
+      "explanation": "Split: A → B, A → C, B → C, AB → D, AC → D, D → B. Left sides: A⁺ = {A, B, C, D}, so AB → D and AC → D both shrink to A → D (B⁺ = {B, C} and C⁺ = {C} do not reach D). Now {A → B, A → C, B → C, A → D, D → B}. Drop A → B: A → D → B still gives B. Drop A → C: A → D → B → C still gives C. A → D, D → B and B → C are each needed (A⁺, D⁺, B⁺ shrink without them). The cover {A → D, D → B, B → C} has 3 FDs, and every order of removals reaches this same cover.",
+      "difficulty": "hard",
+      "topic": "db-normalization.canonical-cover",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-superkey-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "R(A, B, C, D, E, F) has the FDs A → BCDEF and BC → A. How many superkeys does R have?",
+      "answer": 40,
+      "explanation": "D, E and F appear only on right sides. A⁺ = R, and (BC)⁺ = {B, C, A, D, E, F} = R while B⁺ = {B}, C⁺ = {C}; any key without A needs both B and C, so the keys are {A} and {B, C}. Supersets of A: 2⁵ = 32. Supersets of BC: 2⁴ = 16. Supersets of both, i.e. of ABC: 2³ = 8. Superkeys = 32 + 16 − 8 = 40.",
+      "difficulty": "medium",
+      "topic": "db-normalization.superkey-count",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-instance-fds",
+      "type": "msq",
+      "marks": 1,
+      "stem": "An instance of r(A, B, C) has exactly four tuples: (1, p, x), (1, p, y), (2, q, x), (3, q, x). Which FDs does this instance satisfy?",
+      "options": [
+        "A → B",
+        "C → B",
+        "AC → B",
+        "B → C"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "A → B: the only repeated A value is 1, and both rows have B = p, so it holds. C → B: C = x appears with B = p and B = q, so it fails. AC → B: the AC pairs (1, x), (1, y), (2, x), (3, x) are all distinct, so it holds trivially on this instance. B → C: B = p appears with C = x and C = y, so it fails.",
+      "difficulty": "easy",
+      "topic": "db-normalization.fd-on-instance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-normalization.q-armstrong-invalid",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Only X → Y is given, for arbitrary attribute sets X, Y and Z. Which FD can NOT be inferred from it?",
+      "options": [
+        "XZ → Y",
+        "XZ → YZ",
+        "X → XY",
+        "X → YZ"
+      ],
+      "answer": 3,
+      "explanation": "XZ → YZ is augmentation by Z, and decomposing it gives XZ → Y. Augmenting X → Y by X gives X → XY. X → YZ would need X → Z, which is not given: two tuples equal on X and Y but different on Z satisfy X → Y and violate X → YZ.",
+      "difficulty": "easy",
+      "topic": "db-normalization.armstrong-axioms",
+      "origin": "source",
+      "pages": [
+        542,
+        543
+      ]
+    },
+    {
+      "id": "db-normalization.q-mvd-4nf",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(Course, Instructor, Textbook) records, for each course, every combination of its instructors and its textbooks; the instructors and textbooks of a course are independent of each other, and no FD other than trivial ones holds. Which statement is true?",
+      "options": [
+        "R violates BCNF because Course → Instructor holds",
+        "R is in BCNF but not in 4NF",
+        "R is in 4NF because every attribute is prime",
+        "R is not in 3NF"
+      ],
+      "answer": 1,
+      "explanation": "With only trivial FDs, the single key is all three attributes and R is in BCNF (hence 3NF). Course →→ Instructor is a non-trivial MVD (Instructor ⊄ Course and Course ∪ Instructor ≠ R) whose left side is not a superkey, so 4NF fails. Course → Instructor does not hold, since a course has several instructors. Decompose into (Course, Instructor) and (Course, Textbook).",
+      "difficulty": "easy",
+      "topic": "db-normalization.mvd-4nf",
+      "origin": "source",
+      "sourceLabel": "PYQ-12 (GATE 2018) — Multi-valued dependency",
+      "pages": [
+        551,
+        568
+      ]
+    },
+    {
+      "id": "db-normalization.q-fplus-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "R(A, B, C) has F = {A → B, B → C, A → C}. Count the FDs X → Y in F⁺ where X and Y are both non-empty subsets of {A, B, C}, trivial FDs included.",
+      "answer": 35,
+      "explanation": "For a fixed non-empty X, X → Y is in F⁺ exactly when Y is a non-empty subset of X⁺, giving 2^|X⁺| − 1 choices. A⁺ = {A, B, C}: 7. B⁺ = {B, C}: 3. C⁺ = {C}: 1. AB⁺, AC⁺ and ABC⁺ are all of R: 7 each. BC⁺ = {B, C}: 3. Total 7 + 3 + 1 + 7 + 7 + 3 + 7 = 35.",
+      "difficulty": "hard",
+      "topic": "db-normalization.fd-set-closure",
+      "origin": "curated",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Number of FDs in F⁺",
+      "pages": [
+        567
+      ]
+    },
+    {
+      "id": "db-normalization.q-3nf-synthesis",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "R(A, B, C, D, E, F) has the canonical cover {A → B, BC → D, AC → E, F → A}. Which schema does the 3NF synthesis algorithm produce?",
+      "options": [
+        "(A, B), (B, C, D), (A, C, E), (F, A)",
+        "(A, B), (B, C, D), (A, C, E), (F, A), (C, F)",
+        "(A, B, E), (B, C, D), (F, A), (C, F)",
+        "(A, B, F), (B, C, D), (A, C, E)"
+      ],
+      "answer": 1,
+      "explanation": "One relation per left side: (A, B), (B, C, D), (A, C, E), (F, A). C and F are on no right side, so every key contains both; (CF)⁺ = {C, F} → A → B, then BC → D and AC → E give all of R, so CF is the only key. No relation contains both C and F, so (C, F) is added. Without it the schema is lossy; merging A → B with AC → E is wrong because the left sides differ.",
+      "difficulty": "medium",
+      "topic": "db-normalization.third-nf-synthesis",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — 3NF synthesis",
+      "pages": [
+        567,
+        568
+      ]
+    },
+    {
+      "id": "db-normalization.q-nf-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements are true?",
+      "options": [
+        "Every relation with exactly two attributes is in BCNF",
+        "The BCNF decomposition algorithm always produces a lossless decomposition",
+        "A relation in which every attribute is prime is always in BCNF",
+        "Every relation in BCNF is also in 3NF"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "With two attributes A, B the only possible non-trivial FDs are A → B and B → A, and either one makes its left side a key, so BCNF holds. Each BCNF split shares X and X is a key of X ∪ Y, so every step is lossless. R(City, Pincode, Street) with Pincode → City and City Street → Pincode has every attribute prime, yet Pincode → City breaks BCNF. BCNF's condition is the 3NF condition without the prime exception, so it implies 3NF.",
+      "difficulty": "easy",
+      "topic": "db-normalization.bcnf",
+      "origin": "source",
+      "pages": [
+        549,
+        550,
+        556
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Augmentation adds the same attributes to both sides. Widening only the left side is also valid, but widening only the right side is not: X → Y never gives X → YZ.",
+      "origin": "source",
+      "pages": [
+        543,
+        569
+      ]
+    },
+    {
+      "text": "A superkey is not a candidate key until minimality is checked: remove each attribute in turn and confirm the closure drops below R.",
+      "origin": "source",
+      "pages": [
+        569,
+        570
+      ]
+    },
+    {
+      "text": "3NF tolerates X → A with a non-superkey X when A is prime; that gap is exactly what separates 3NF from BCNF.",
+      "origin": "source",
+      "pages": [
+        569,
+        570
+      ]
+    },
+    {
+      "text": "Lossless join needs the common attributes to be a superkey of one piece. Some FD among the shared attributes is not enough.",
+      "origin": "source",
+      "pages": [
+        569
+      ]
+    },
+    {
+      "text": "Lossless join and dependency preservation are independent; check both separately for every decomposition.",
+      "origin": "source",
+      "pages": [
+        569
+      ]
+    },
+    {
+      "text": "In 3NF synthesis, add a candidate-key relation only when no synthesized relation already contains a key, and merge FDs that share a left side.",
+      "origin": "source",
+      "pages": [
+        569
+      ]
+    },
+    {
+      "text": "An MVD is not an FD: Course →→ Instructor allows many instructors per course, while Course → Instructor would allow one.",
+      "origin": "source",
+      "pages": [
+        569
+      ]
+    },
+    {
+      "text": "A table instance can disprove an FD but never establish one for the schema; answer instance questions only about the rows shown.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Closure and keys",
+      "lines": [
+        "Axioms: reflexivity, augmentation, transitivity (sound and complete)",
+        "X⁺: keep adding right sides of FDs whose left side is inside",
+        "X → Y implied ⇔ Y ⊆ X⁺; superkey ⇔ X⁺ = R",
+        "Key = minimal superkey; no-RHS attributes in every key, RHS-only in none",
+        "Superkeys: one key of k in n gives 2ⁿ⁻ᵏ; several keys need inclusion–exclusion"
+      ],
+      "origin": "source",
+      "pages": [
+        571
+      ]
+    },
+    {
+      "heading": "Normal forms (each non-trivial X → A)",
+      "lines": [
+        "1NF: atomic values",
+        "2NF: no non-prime A depends on part of a key",
+        "3NF: X superkey OR A prime",
+        "BCNF: X superkey",
+        "4NF: every non-trivial MVD has a superkey left side",
+        "BCNF ⇒ 3NF ⇒ 2NF ⇒ 1NF; 4NF ⇒ BCNF"
+      ],
+      "origin": "source",
+      "pages": [
+        571,
+        572
+      ]
+    },
+    {
+      "heading": "Decomposition",
+      "lines": [
+        "Lossless: (R₁ ∩ R₂)⁺ ⊇ R₁ or ⊇ R₂; n pieces: chase",
+        "Preserving: every FD follows from the FDs projected onto the pieces",
+        "3NF synthesis: lossless and preserving, always",
+        "BCNF decomposition: lossless always, preserving sometimes"
+      ],
+      "origin": "source",
+      "pages": [
+        571
+      ]
+    },
+    {
+      "heading": "Canonical cover",
+      "lines": [
+        "1. Single-attribute right sides",
+        "2. Remove extraneous left-side attributes",
+        "3. Remove redundant FDs (after step 2, not before)"
+      ],
+      "origin": "source",
+      "pages": [
+        571
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 543,
+      "claim": "Augmentation adds attributes to both sides, never to only one: X → Y does not imply X → YZ or XZ → Y in general.",
+      "correction": "XZ → Y always follows from X → Y: augmentation gives XZ → YZ and decomposition then gives XZ → Y (or XZ → X by reflexivity, then transitivity). Only X → YZ is invalid in general."
+    },
+    {
+      "page": 52,
+      "claim": "X is a key if X⁺ = all attributes; X is a superkey if X⁺ ⊇ all attributes.",
+      "correction": "X⁺ = R is the superkey test. A candidate key additionally needs minimality: no proper subset of X has closure R."
+    },
+    {
+      "page": 52,
+      "claim": "4NF: BCNF + no multi-valued dependency (MVD) except trivial.",
+      "correction": "4NF allows non-trivial MVDs as long as their left side is a superkey: for every non-trivial MVD X →→ Y, X must be a superkey."
+    },
+    {
+      "page": 553,
+      "claim": "Dependency preservation means every original FD can be enforced by checking only one of the decomposed relations.",
+      "correction": "An FD is preserved when it follows from the union of the FDs projected onto the pieces; it need not fit inside one relation. R(A, B, C) with A → B, B → C, A → C split into (A, B), (B, C) preserves A → C through A → B and B → C."
+    },
+    {
+      "page": 556,
+      "claim": "BCNF decomposition on a violating X → Y replaces Rᵢ by X ∪ Y and Rᵢ − Y.",
+      "correction": "The second piece is Rᵢ − (Y − X). If Y overlaps X, subtracting all of Y also removes part of X, and the two pieces no longer share X, so losslessness is no longer guaranteed."
+    },
+    {
+      "page": 567,
+      "claim": "F⁺ for F = {A → B, B → C, A → C} is practically infinite with augmentation; counting it is tedious and no number is given.",
+      "correction": "F⁺ over a finite schema is finite. Over R(A, B, C), with X and Y non-empty and trivial FDs counted, |F⁺| = Σ (2^|X⁺| − 1) = 7 + 3 + 1 + 7 + 7 + 3 + 7 = 35 (43 if empty sides are allowed)."
+    },
+    {
+      "page": 567,
+      "claim": "For F_c = {A → B, BC → D, AC → E, F → A}, the key search starts from F as the only left-only attribute.",
+      "correction": "C is also on no right side, so the mandatory set is {C, F}; its closure is R, which makes CF the unique candidate key with no search needed."
+    },
+    {
+      "page": 566,
+      "claim": "F = {AB → C, A → B} has multiple possible distinct minimal covers, one being {A → B, A → C}.",
+      "correction": "The minimal cover is unique here: B is extraneous in AB → C because A⁺ = {A, B, C}, while A is not (B⁺ = {B}), and neither A → B nor A → C is redundant. Every order of reduction gives {A → B, A → C}."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "db-normal-forms",
+      "status": "covered",
+      "topics": [
+        "db-normalization.first-nf",
+        "db-normalization.second-nf",
+        "db-normalization.third-nf",
+        "db-normalization.bcnf",
+        "db-normalization.mvd-4nf",
+        "db-normalization.highest-nf",
+        "db-normalization.lossless-join",
+        "db-normalization.dependency-preservation"
+      ]
+    }
+  ]
+}

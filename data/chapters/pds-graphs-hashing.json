@@ -1,0 +1,2213 @@
+{
+  "id": "pds-graphs-hashing",
+  "summary": "Graphs are stored as an adjacency matrix (Θ(V²) space, O(1) edge test) or adjacency lists (Θ(V + E) space), and both BFS and DFS run in O(V + E) on lists. BFS gives unweighted shortest paths and bipartiteness; DFS gives discovery and finish times, edge classes, cycle detection and topological order. Hashing maps keys to slots; chaining tolerates any load factor, while open addressing probes linearly, quadratically or by double hashing and needs tombstones for deletion. GATE asks probe traces, valid traversal orders and load-factor numbers.",
+  "highYield": [
+    "Trace insertions into an open-addressing table (linear, quadratic or double hashing) and name the final slot or table: a 2-mark question in most years.",
+    "Decide which sequences are valid BFS or DFS orders of a small graph, or classify an edge from DFS discovery and finish times.",
+    "Representation costs: adjacency matrix Θ(V²) space and Θ(V²) traversal; adjacency lists Θ(V + E) for both.",
+    "Load-factor numbers: chaining 1 + α unsuccessful and 1 + α/2 successful, uniform open addressing 1/(1 − α), linear probing ½(1 + 1/(1 − α)²).",
+    "Probability under uniform hashing: chance that given slots stay empty, expected empty slots, expected colliding pairs."
+  ],
+  "topics": [
+    {
+      "id": "pds-graphs-hashing.terminology",
+      "title": "Graph vocabulary",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        335,
+        336
+      ],
+      "points": [
+        "A graph is G = (V, E); edges are unordered pairs in an undirected graph and ordered pairs in a directed one, and a weighted graph attaches a cost to each edge.",
+        "A simple graph has no self-loops and no parallel edges; a multigraph allows parallel edges. Unless a question says otherwise, GATE graphs are simple.",
+        "An undirected graph is connected when every pair of vertices has a path; a directed graph is strongly connected when every vertex can reach every other along edge directions.",
+        "A tree is a connected acyclic graph, a DAG is a directed graph with no directed cycle, and a graph is bipartite exactly when it is 2-colourable, which is the same as having no odd cycle."
+      ],
+      "keyTerms": [
+        "simple graph",
+        "strongly connected",
+        "DAG",
+        "bipartite"
+      ],
+      "lesson": {
+        "why": "Every graph question assumes this vocabulary, and several options differ only in whether a graph is simple, connected, strongly connected or bipartite.",
+        "intro": "A graph is a set of points, called vertices, together with links between them, called edges. In an undirected graph an edge is just a pair of vertices with no direction. In a directed graph each edge points from one vertex to another. A weighted graph also gives every edge a cost. A path is a walk along edges from one vertex to another. Two plain-language questions then sort most graphs: can you get from anywhere to anywhere, and does the graph contain any loop of edges.",
+        "definitions": [
+          {
+            "term": "Simple graph",
+            "meaning": "A graph with no self-loop (an edge from a vertex to itself) and no two parallel edges between the same pair. GATE graphs are simple unless stated."
+          },
+          {
+            "term": "Connected",
+            "meaning": "An undirected graph in which every pair of vertices is joined by a path."
+          },
+          {
+            "term": "Strongly connected",
+            "meaning": "A directed graph in which every vertex can reach every other vertex by following edge directions."
+          },
+          {
+            "term": "Tree and DAG",
+            "meaning": "A tree is a connected graph with no cycle. A DAG is a directed graph with no directed cycle."
+          },
+          {
+            "term": "Bipartite",
+            "meaning": "A graph whose vertices can be split into two groups so that every edge joins one vertex from each group; equivalently it has no odd cycle."
+          }
+        ],
+        "principle": {
+          "text": "A graph is bipartite exactly when it has no cycle of odd length, and a directed graph is strongly connected exactly when every vertex reaches every other along edge directions.",
+          "tex": "G \\text{ bipartite} \\iff G \\text{ has no odd cycle}"
+        },
+        "limits": "The odd-cycle test is for undirected graphs. A directed graph can be weakly connected, meaning connected once directions are ignored, without being strongly connected, so the two words are not interchangeable.",
+        "example": {
+          "problem": "Directed graph on vertices 1, 2, 3, 4 with edges $1\\to2$, $2\\to3$, $3\\to1$, $3\\to4$. Is it strongly connected? Then take the undirected 5-cycle $1\\text{-}2\\text{-}3\\text{-}4\\text{-}5\\text{-}1$ and decide whether it is bipartite.",
+          "steps": [
+            "From 1 you reach 2, then 3, then 1 again and 4, so 1, 2 and 3 reach everything.",
+            "Vertex 4 has no outgoing edge, so 4 cannot reach 1, 2 or 3. The graph is not strongly connected.",
+            "In the 5-cycle try two groups: put 1 in group A, then 2 in B, 3 in A, 4 in B, 5 in A.",
+            "Edge 5-1 now joins two vertices of group A, so the alternation fails. The cycle has length 5, which is odd."
+          ],
+          "result": "The directed graph is not strongly connected, and the 5-cycle is not bipartite because it is an odd cycle."
+        },
+        "misconceptions": [
+          "A graph that is connected when directions are ignored is not necessarily strongly connected; one vertex with no outgoing edge already breaks it.",
+          "A tree is not just any graph with few edges: it must be connected and acyclic, and a graph with n - 1 edges can still be disconnected if it has a cycle."
+        ],
+        "recall": [
+          {
+            "q": "What makes a graph simple?",
+            "a": "It has no self-loops and no parallel edges."
+          },
+          {
+            "q": "When is a directed graph strongly connected?",
+            "a": "When every vertex can reach every other vertex by following edge directions."
+          },
+          {
+            "q": "What is the cycle test for a bipartite graph?",
+            "a": "It is bipartite exactly when it contains no odd cycle."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which undirected graph is NOT bipartite?",
+          "options": [
+            "A cycle on 6 vertices",
+            "A tree on 7 vertices",
+            "A cycle on 7 vertices",
+            "A path on 5 vertices"
+          ],
+          "answer": 2,
+          "explanation": "A cycle on 7 vertices is an odd cycle, so alternating two groups fails on the last edge. The 6-cycle tempts because it is a cycle, but its length is even and it alternates cleanly. Trees and paths have no cycle at all."
+        },
+        "summary": "A graph is simple when it has no loops or parallel edges, strongly connected when every vertex reaches every other along directions, and bipartite exactly when it has no odd cycle."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.graph-counting",
+      "title": "Degree sums and edge counts",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Handshake lemma: in an undirected graph the degrees sum to 2|E|, so the number of odd-degree vertices is always even.",
+        "In a directed graph the in-degrees and the out-degrees each sum to |E|.",
+        "A simple undirected graph on n vertices has at most n(n − 1)/2 edges; a simple directed graph at most n(n − 1). There are 2^(n(n−1)/2) labelled simple undirected graphs on n vertices.",
+        "A tree on n vertices has n − 1 edges, and a forest with c components has n − c edges, so a graph with n vertices and c components needs at least n − c edges."
+      ],
+      "keyTerms": [
+        "handshake lemma",
+        "forest"
+      ],
+      "lesson": {
+        "why": "Edge and degree counts are one-line questions when you know the handshake lemma, the n(n-1)/2 bound and the tree rule, and slow guesses when you do not.",
+        "intro": "The degree of a vertex is the number of edges that touch it. Add up the degrees of all vertices and each edge has been counted once at each of its two ends, so the total is twice the number of edges. That single fact explains most counting questions. A second family asks how many edges a simple graph can hold at most, or must hold at least to be connected, which comes from counting pairs of vertices and from the fact that a tree on n vertices uses exactly n - 1 edges.",
+        "definitions": [
+          {
+            "term": "Degree",
+            "meaning": "The number of edges incident on a vertex. In a directed graph, in-degree counts edges arriving and out-degree counts edges leaving."
+          },
+          {
+            "term": "Forest",
+            "meaning": "A graph with no cycle. With n vertices and c components it has exactly n - c edges."
+          }
+        ],
+        "principle": {
+          "text": "In an undirected graph the degrees add up to twice the edge count. A simple undirected graph on $n$ vertices has at most $n(n-1)/2$ edges, and a graph with $c$ components needs at least $n-c$ edges.",
+          "tex": "\\sum_{v} \\deg(v) = 2|E|, \\qquad |E| \\le \\binom{n}{2}"
+        },
+        "limits": "The bound n(n-1)/2 is for simple graphs; a multigraph can have any number of edges. The sum 2|E| counts a self-loop twice, so it still holds when loops are allowed, but the n - c rule needs a forest, not a general graph.",
+        "example": {
+          "problem": "A simple undirected graph has 6 vertices with degrees 3, 3, 2, 2, 2, 2. How many edges does it have, and how many edges could a simple graph on 6 vertices have at most?",
+          "steps": [
+            "Add the degrees: $3+3+2+2+2+2 = 14$.",
+            "By the handshake lemma $2|E| = 14$, so $|E| = 7$.",
+            "Count vertex pairs for the maximum: $6\\cdot5/2 = 15$."
+          ],
+          "result": "The graph has 7 edges, and no simple graph on 6 vertices can have more than 15."
+        },
+        "misconceptions": [
+          "The degree sum is 2|E|, not |E|; the value |E| is the sum for in-degrees alone in a directed graph.",
+          "A degree sum that is odd is impossible in an undirected graph, so a claimed graph with an odd number of odd-degree vertices cannot exist."
+        ],
+        "recall": [
+          {
+            "q": "What is the sum of all degrees in an undirected graph?",
+            "a": "Twice the number of edges."
+          },
+          {
+            "q": "How many edges can a simple undirected graph on n vertices have at most?",
+            "a": "$n(n-1)/2$."
+          },
+          {
+            "q": "How many edges does a forest with n vertices and c components have?",
+            "a": "Exactly $n-c$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A simple undirected graph is 3-regular, meaning every vertex has degree 3, and it has 12 edges. How many vertices does it have?",
+          "answer": 8,
+          "explanation": "The degree sum is $2\\cdot12 = 24$, and it equals $3n$, so $n = 8$. Answering 12 tempts because 12 is the number in the question, but that is the edge count, not half the degree total divided by 3."
+        },
+        "summary": "Degrees sum to 2|E|, a simple graph holds at most n(n-1)/2 edges, and a forest with n vertices and c components has n - c edges."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.representations",
+      "title": "Adjacency matrix, adjacency list, incidence matrix",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        26,
+        336
+      ],
+      "points": [
+        "An adjacency matrix is an n × n array with A[i][j] = 1 (or the weight) when edge (i, j) exists: Θ(n²) space, O(1) edge test, Θ(n) to scan one vertex's neighbours.",
+        "An adjacency list keeps one list of neighbours per vertex: Θ(V + E) space, O(deg v) edge test and O(deg v) neighbour scan. An undirected edge appears twice, so the lists hold 2|E| entries.",
+        "An incidence matrix is n × m with rows for vertices and columns for edges; each column of an undirected graph has exactly two 1s.",
+        "Choose a list for sparse graphs (E close to V) and a matrix for dense graphs or when constant-time edge tests dominate. Building a list from an edge list takes O(V + E)."
+      ],
+      "keyTerms": [
+        "adjacency matrix",
+        "adjacency list",
+        "incidence matrix",
+        "sparse",
+        "dense"
+      ],
+      "lesson": {
+        "why": "Choosing between a matrix and a list, and quoting the space and time of each, is a standard short question and underlies every graph algorithm's running time.",
+        "intro": "A program has to store a graph in memory, and there are two common layouts. An adjacency matrix is a square table with one row and one column per vertex; the cell in row i and column j holds 1 when an edge runs from i to j. An adjacency list keeps, for each vertex, a list of the vertices it is linked to. The table answers 'is there an edge from i to j' in one step but always uses a square of cells, while the lists use space only for edges that exist. An incidence matrix is a third option with vertices as rows and edges as columns.",
+        "definitions": [
+          {
+            "term": "Sparse and dense",
+            "meaning": "Sparse means the edge count is close to the vertex count; dense means it is close to the square of the vertex count."
+          },
+          {
+            "term": "Incidence matrix",
+            "meaning": "A table with a row per vertex and a column per edge; each column of an undirected graph has exactly two 1s."
+          }
+        ],
+        "principle": {
+          "text": "A matrix uses $\\Theta(V^2)$ space and tests an edge in $O(1)$; a list uses $\\Theta(V+E)$ space and tests an edge in $O(\\deg v)$. Prefer the list for sparse graphs.",
+          "tex": "S_{\\text{matrix}} = \\Theta(V^2), \\qquad S_{\\text{list}} = \\Theta(V+E)"
+        },
+        "limits": "For a dense graph, where E is close to V squared, the list has no space advantage and the matrix's constant-time edge test wins. An undirected edge appears twice in the lists, which does not change the order of growth.",
+        "example": {
+          "problem": "An undirected graph has 5 vertices and 6 edges. How many cells does its adjacency matrix have, and how many entries do its adjacency lists hold in total?",
+          "steps": [
+            "The matrix is $5\\times5$, so it has $25$ cells whatever the edges are.",
+            "Each undirected edge is stored once in each endpoint's list, so the lists hold $2\\cdot6 = 12$ entries.",
+            "Adding one list per vertex gives space proportional to $V + 2E = 17$ units, below 25."
+          ],
+          "result": "The matrix has 25 cells and the lists hold 12 entries, so the list is smaller here."
+        },
+        "misconceptions": [
+          "An adjacency list does not make an edge test O(1); it must scan the list of one endpoint, which costs O(deg v).",
+          "The lists of an undirected graph hold 2|E| entries, not |E|, because each edge is recorded at both ends."
+        ],
+        "recall": [
+          {
+            "q": "What is the space of an adjacency matrix?",
+            "a": "$\\Theta(V^2)$, whatever the number of edges."
+          },
+          {
+            "q": "What is the space of adjacency lists?",
+            "a": "$\\Theta(V+E)$."
+          },
+          {
+            "q": "When is the matrix the better choice?",
+            "a": "For dense graphs, or when constant-time edge tests dominate."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A graph has $V=1000$ vertices and $E=3000$ edges. Which statement about storing it is correct?",
+          "options": [
+            "The matrix needs 3000 cells",
+            "The lists hold 6000 entries if the graph is undirected",
+            "The matrix needs 6000 cells",
+            "The lists hold 1,000,000 entries"
+          ],
+          "answer": 1,
+          "explanation": "Each undirected edge appears in two lists, so the lists hold $2\\cdot3000 = 6000$ entries. The matrix always has $1000\\times1000 = 1{,}000{,}000$ cells. Option 0 tempts because it confuses the matrix with the edge count."
+        },
+        "summary": "A matrix costs Theta(V squared) space with an O(1) edge test; lists cost Theta(V + E) space and suit sparse graphs, storing each undirected edge twice."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.adjacency-matrix-properties",
+      "title": "Reading facts off the adjacency matrix",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "The matrix of an undirected graph is symmetric with a zero diagonal (no self-loops); row i sums to deg(i). In a directed graph row sums give out-degrees and column sums in-degrees.",
+        "Entry (i, j) of A^k counts the walks of length exactly k from i to j, so the diagonal of A² lists the degrees of an undirected simple graph.",
+        "For an undirected simple graph, trace(A³)/6 is the number of triangles, because each triangle is traversed from 3 starting vertices in 2 directions."
+      ],
+      "keyTerms": [
+        "walk",
+        "trace"
+      ],
+      "lesson": {
+        "why": "A matrix gives degrees, directions, walk counts and triangle counts without drawing the graph, and walk-count questions need no other method.",
+        "intro": "Write the graph as a table where the cell in row i and column j is 1 if there is an edge from i to j, and 0 otherwise. For an undirected graph the cell for i to j equals the cell for j to i, so the table is a mirror image across its main diagonal. Adding a row gives the number of edges at that vertex. Multiplying the table by itself gives something new: the entry in row i and column j of the product counts the ways to walk from i to j in exactly two steps, and the same idea extends to longer walks.",
+        "prerequisites": [
+          "pds-graphs-hashing.representations"
+        ],
+        "definitions": [
+          {
+            "term": "Walk",
+            "meaning": "A route along edges that may repeat vertices and edges; its length is the number of edges used."
+          },
+          {
+            "term": "Trace",
+            "meaning": "The sum of the diagonal entries of a square matrix."
+          }
+        ],
+        "principle": {
+          "text": "Entry $(i,j)$ of $A^k$ counts walks of length exactly $k$ from $i$ to $j$. For a simple undirected graph the diagonal of $A^2$ lists the degrees, and $\\operatorname{trace}(A^3)/6$ is the number of triangles.",
+          "tex": "(A^k)_{ij} = \\#\\{\\text{walks of length } k \\text{ from } i \\text{ to } j\\}"
+        },
+        "limits": "Powers of A count walks, not simple paths, so a walk may go back and forth along one edge. The trace(A^3)/6 rule needs a simple undirected graph; in a directed graph each triangle is counted differently.",
+        "example": {
+          "problem": "Undirected simple graph on vertices 1 to 4 with edges 1-2, 2-3, 3-1, 3-4. Find the diagonal of $A^2$ and the number of triangles.",
+          "steps": [
+            "Degrees are 2, 2, 3, 1 for vertices 1 to 4.",
+            "Computing $A^2$ gives the diagonal $2, 2, 3, 1$, matching the degrees.",
+            "Computing $A^3$ gives the diagonal $2, 2, 2, 0$, so the trace is $6$.",
+            "Triangles equal $6/6 = 1$."
+          ],
+          "result": "The diagonal of $A^2$ is $(2,2,3,1)$ and the graph has exactly one triangle, on vertices 1, 2 and 3."
+        },
+        "misconceptions": [
+          "Entry (i,j) of A^2 counts walks, which may reuse an edge, not distinct paths.",
+          "Dividing trace(A^3) by 3 instead of 6 double counts, since each triangle is traced from 3 starting vertices in 2 directions."
+        ],
+        "recall": [
+          {
+            "q": "What does entry (i,j) of $A^k$ count?",
+            "a": "The walks of length exactly $k$ from vertex i to vertex j."
+          },
+          {
+            "q": "What does the diagonal of $A^2$ give in a simple undirected graph?",
+            "a": "The degrees of the vertices."
+          },
+          {
+            "q": "How many triangles does a simple undirected graph have in terms of A?",
+            "a": "$\\operatorname{trace}(A^3)/6$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The complete graph on 4 vertices has an adjacency matrix $A$ with 0 on the diagonal and 1 elsewhere. How many triangles does it have by $\\operatorname{trace}(A^3)/6$?",
+          "answer": 4,
+          "explanation": "Every diagonal entry of $A^3$ is $6$, so the trace is $24$ and $24/6 = 4$. Answering 24 tempts if the division by 6 is forgotten, and that count includes each triangle once per start vertex and direction."
+        },
+        "summary": "The matrix of an undirected graph is symmetric, row sums give degrees, entry (i,j) of A to the k counts walks of length k, and trace of A cubed over 6 counts triangles."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.bfs",
+      "title": "Breadth-first search",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        336,
+        337
+      ],
+      "points": [
+        "BFS takes vertices from a FIFO queue and marks a vertex visited when it is enqueued, so each vertex enters the queue once.",
+        "With adjacency lists BFS costs O(V + E): every vertex is dequeued once and every list is scanned once. With a matrix each dequeue scans a full row, giving Θ(V²).",
+        "A BFS order is valid only if the neighbours added by an earlier-dequeued vertex all appear before those added by a later one; inside one batch any order is allowed.",
+        "Running BFS from every still-unvisited vertex counts the connected components of an undirected graph."
+      ],
+      "keyTerms": [
+        "queue",
+        "BFS order"
+      ],
+      "lesson": {
+        "why": "BFS is the base of the shortest-path and component questions, and the exam asks for its running time and for which vertex orders it can produce.",
+        "intro": "Breadth-first search explores a graph in rings around a starting vertex. It uses a queue, which hands items back in the order they went in. Start by putting the start vertex in the queue. Repeatedly take the vertex at the front, look at each neighbour, and for every neighbour not yet seen, mark it seen and add it to the back. Marking at the moment of adding means no vertex is ever queued twice. The order in which vertices leave the queue is the BFS order.",
+        "definitions": [
+          {
+            "term": "Queue",
+            "meaning": "A first-in first-out list: items leave in the order they arrived."
+          },
+          {
+            "term": "BFS order",
+            "meaning": "The sequence in which vertices are removed from the queue."
+          }
+        ],
+        "principle": {
+          "text": "BFS marks a vertex when it is queued, so each vertex enters once. With adjacency lists it costs $O(V+E)$; with an adjacency matrix each removal scans a full row, costing $\\Theta(V^2)$.",
+          "tex": "T_{\\text{lists}} = O(V+E), \\qquad T_{\\text{matrix}} = \\Theta(V^2)"
+        },
+        "limits": "BFS from one vertex reaches only its own component. To cover a disconnected graph, start again from each unvisited vertex; the number of restarts equals the number of components.",
+        "example": {
+          "problem": "Undirected graph with edges 1-2, 1-3, 2-4, 3-4, 4-5. Run BFS from 1, taking neighbours in increasing order. Give the BFS order.",
+          "steps": [
+            "Queue: [1]. Remove 1 and add its unseen neighbours 2 and 3: queue [2,3].",
+            "Remove 2. Its neighbours 1 and 4: only 4 is unseen, so queue [3,4].",
+            "Remove 3. Neighbour 4 is already queued, so nothing is added: queue [4].",
+            "Remove 4 and add 5, then remove 5."
+          ],
+          "result": "The BFS order is 1, 2, 3, 4, 5."
+        },
+        "misconceptions": [
+          "Marking a vertex when it is removed, not when it is queued, can put it in the queue several times and breaks the O(V+E) bound.",
+          "A BFS order is not any listing level by level: the neighbours added by an earlier-removed vertex must come before those added by a later one."
+        ],
+        "recall": [
+          {
+            "q": "Which structure does BFS use?",
+            "a": "A FIFO queue."
+          },
+          {
+            "q": "What is BFS's running time with adjacency lists and with a matrix?",
+            "a": "$O(V+E)$ with lists and $\\Theta(V^2)$ with a matrix."
+          },
+          {
+            "q": "How do you count connected components with BFS?",
+            "a": "Run BFS from each still-unvisited vertex; the number of runs is the component count."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A tree has edges 1-2, 1-3, 1-4, 2-5, 3-6, 4-7. Which sequence is a valid BFS order starting at 1?",
+          "options": [
+            "1, 2, 5, 3, 4, 6, 7",
+            "1, 3, 2, 4, 5, 6, 7",
+            "1, 2, 3, 5, 4, 6, 7",
+            "1, 2, 3, 4, 5, 6, 7"
+          ],
+          "answer": 3,
+          "explanation": "Level 1 is {2,3,4} and level 2 is {5,6,7}, with 5 the child of 2, 6 of 3 and 7 of 4. In 1, 2, 3, 4, 5, 6, 7 the parents leave in the order 2, 3, 4 and the children follow as 5, 6, 7. Option 1, 3, 2, 4, 5, 6, 7 tempts, but 3 leaves before 2 so 6 must precede 5. Options 0 and 2 place level-2 vertex 5 before level-1 vertex 3 or 4 has left the queue, which BFS never does."
+        },
+        "summary": "BFS removes vertices from a FIFO queue and marks them when queued, running in O(V + E) with lists and Theta(V squared) with a matrix."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.bfs-levels",
+      "title": "BFS levels, shortest paths and bipartiteness",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        337,
+        341,
+        342,
+        343
+      ],
+      "points": [
+        "BFS discovers vertices in non-decreasing order of distance, so d(v) from the source is the number of edges on a shortest path in an unweighted graph.",
+        "In an undirected graph every edge (u, v) satisfies |d(u) − d(v)| ≤ 1, so a non-tree edge joins the same level or adjacent levels. In a directed graph only d(v) ≤ d(u) + 1 holds.",
+        "A connected graph is bipartite exactly when no edge joins two vertices on the same BFS level; colour the levels alternately to get the bipartition.",
+        "BFS does not give shortest paths with unequal positive weights; that needs Dijkstra. With 0/1 weights a deque version (0-1 BFS) works."
+      ],
+      "keyTerms": [
+        "level",
+        "shortest path",
+        "2-colouring"
+      ],
+      "lesson": {
+        "why": "Shortest distance in an unweighted graph and the bipartite test both come from BFS levels, and the exam asks both directly.",
+        "intro": "Run BFS from a start vertex and record how many edges separate each vertex from the start. The start is at level 0, its neighbours at level 1, their new neighbours at level 2, and so on. Since BFS reaches vertices in rings, the level of a vertex is the fewest edges on any route from the start. Looking at edges against these levels also tells you something about the shape of the graph: whether an edge links two vertices of the same level decides if the graph can be split into two groups.",
+        "prerequisites": [
+          "pds-graphs-hashing.bfs",
+          "pds-graphs-hashing.terminology"
+        ],
+        "definitions": [
+          {
+            "term": "Level",
+            "meaning": "The BFS distance of a vertex from the start, counted in edges."
+          },
+          {
+            "term": "2-colouring",
+            "meaning": "Giving each vertex one of two colours so that no edge joins two vertices of the same colour."
+          }
+        ],
+        "principle": {
+          "text": "In an unweighted graph the BFS level of $v$ is its shortest-path length from the source. An undirected edge joins vertices whose levels differ by at most 1, and a connected graph is bipartite exactly when no edge joins two vertices on the same level.",
+          "tex": "|d(u)-d(v)| \\le 1 \\ \\text{ for every edge } (u,v)"
+        },
+        "limits": "Levels equal shortest paths only when every edge has the same cost. With unequal positive weights, BFS can give a wrong answer and Dijkstra is needed. The same-level test also assumes the graph is connected, or is applied to each component.",
+        "example": {
+          "problem": "Undirected graph with edges 1-2, 1-3, 2-4, 3-5, 4-6, 5-6. BFS from 1: find the levels, and decide whether the graph is bipartite. Then add the edge 2-3 and decide again.",
+          "steps": [
+            "Level 0 is {1}; level 1 is {2,3}; level 2 is {4,5}; level 3 is {6}.",
+            "No edge joins two vertices on the same level, so colour even levels A and odd levels B: A = {1,4,5}, B = {2,3,6}.",
+            "Check edge 4-6: 4 is A and 6 is B, fine. Every edge joins A to B.",
+            "Now add 2-3: vertices 2 and 3 are both on level 1, so this edge joins two vertices of the same colour."
+          ],
+          "result": "The original graph is bipartite with groups {1,4,5} and {2,3,6}; with edge 2-3 added it is not, since 1-2-3 is an odd cycle."
+        },
+        "misconceptions": [
+          "BFS levels are not shortest paths when edges have different weights; they count edges, not total cost.",
+          "An edge between adjacent levels never breaks bipartiteness; only an edge inside one level does."
+        ],
+        "recall": [
+          {
+            "q": "What does a vertex's BFS level mean in an unweighted graph?",
+            "a": "The number of edges on a shortest path from the source to it."
+          },
+          {
+            "q": "How can two ends of an undirected edge differ in level?",
+            "a": "By 0 or 1, never more."
+          },
+          {
+            "q": "How do you test bipartiteness with BFS?",
+            "a": "Check that no edge joins two vertices on the same level; then even and odd levels are the two groups."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An undirected graph has edges 1-2, 2-3, 3-4, 1-5, 5-6, 6-4, 4-7. What is the length of the shortest path from vertex 1 to vertex 7, in edges?",
+          "answer": 4,
+          "explanation": "BFS from 1 gives levels 2 and 5 at level 1, then 3 and 6 at level 2, then 4 at level 3, and 7 at level 4. Reaching 4 needs 3 edges whichever way you go, and 7 hangs one edge beyond it. Answering 3 tempts if you stop when you reach vertex 4."
+        },
+        "summary": "BFS levels are shortest-path lengths in an unweighted graph, edges join levels differing by at most 1, and a connected graph is bipartite exactly when no edge stays inside a level."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.dfs",
+      "title": "Depth-first search",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        337,
+        338,
+        342
+      ],
+      "points": [
+        "DFS follows one unvisited neighbour as far as possible and backtracks only when the current vertex has none left, using recursion or an explicit stack.",
+        "It runs in O(V + E) on adjacency lists and Θ(V²) on a matrix; the recursion can reach depth V − 1 on a path-shaped graph, so the stack is O(V).",
+        "Each vertex gets a discovery time d[v] and a finish time f[v]. Parenthesis theorem: for any two vertices the intervals [d, f] are either disjoint or one nests inside the other.",
+        "In a DFS order, a vertex is followed by an unvisited neighbour of the deepest vertex still on the stack; skipping that vertex makes the order invalid.",
+        "On an undirected graph with n vertices and c components the DFS forest has c trees and n − c tree edges."
+      ],
+      "keyTerms": [
+        "discovery time",
+        "finish time",
+        "parenthesis theorem",
+        "DFS forest"
+      ],
+      "lesson": {
+        "why": "Questions ask whether a given vertex sequence is a legal DFS order, and DFS discovery and finish times feed edge classification and topological sort.",
+        "intro": "Depth-first search explores a graph by going as deep as it can. From the current vertex it steps to any neighbour not yet seen, then continues from there. Only when the current vertex has no unseen neighbour left does it back up to the vertex it came from and try that one's remaining neighbours. Recursion does the backing up for free; an explicit stack does the same job. Stamp each vertex with a clock reading when it is first reached (discovery time) and another when all its neighbours are done (finish time).",
+        "prerequisites": [
+          "pds-graphs-hashing.terminology",
+          "pds-graphs-hashing.representations"
+        ],
+        "definitions": [
+          {
+            "term": "Discovery time d[v]",
+            "meaning": "The clock value when DFS first reaches v."
+          },
+          {
+            "term": "Finish time f[v]",
+            "meaning": "The clock value when DFS has finished every neighbour of v and leaves it."
+          }
+        ],
+        "analogy": {
+          "text": "Exploring a maze with a ball of thread: you keep walking into unexplored corridors and wind the thread back only at a dead end.",
+          "breaksWhen": "A maze has one exit to find, but DFS keeps going until every reachable vertex is visited, and it never marks a corridor as visited twice."
+        },
+        "principle": {
+          "text": "DFS runs in $O(V+E)$ on adjacency lists. For any two vertices the intervals $[d,f]$ are either disjoint or one contains the other. On an undirected graph with $n$ vertices and $c$ components, the DFS forest has $c$ trees and $n-c$ tree edges.",
+          "tex": "d[u]<d[v]<f[v]<f[u]\\ \\text{ or the intervals are disjoint}"
+        },
+        "limits": "Which neighbour is tried first is a free choice, so one graph has many valid DFS orders. On an adjacency matrix the scan of each row makes the cost $\\Theta(V^2)$ instead. The depth of recursion can reach $V-1$ on a path-shaped graph.",
+        "example": {
+          "problem": "Undirected graph with edges 1-2, 1-3, 2-4, 3-4, 4-5. Run DFS from 1, always taking the smallest-numbered unvisited neighbour first. Give the visit order and the discovery and finish times.",
+          "steps": [
+            "Start at 1 (d=1). Its smallest unvisited neighbour is 2 (d=2).",
+            "From 2 the only unvisited neighbour is 4 (d=3). From 4 the smallest unvisited neighbour is 3 (d=4).",
+            "Vertex 3 has no unvisited neighbour (1 and 4 are seen), so it finishes: f[3]=5. Back at 4, the next unvisited neighbour is 5 (d=6), which finishes at f[5]=7.",
+            "Now 4 has nothing left: f[4]=8. Then 2 finishes at 9 and 1 at 10."
+          ],
+          "result": "The order is 1, 2, 4, 3, 5 with intervals 1:[1,10], 2:[2,9], 4:[3,8], 3:[4,5], 5:[6,7], all nested as the parenthesis rule says."
+        },
+        "misconceptions": [
+          "Jumping to a vertex that is not an unvisited neighbour of the deepest vertex still on the stack makes a sequence an invalid DFS order, even if every vertex appears once.",
+          "DFS does not give shortest paths; the first path it finds can be much longer than the best one.",
+          "A graph with several components needs DFS restarted from an unvisited vertex, so the result is a forest rather than a single tree."
+        ],
+        "recall": [
+          {
+            "q": "When does DFS back up to the previous vertex?",
+            "a": "Only when the current vertex has no unvisited neighbour left."
+          },
+          {
+            "q": "What is the running time of DFS on adjacency lists?",
+            "a": "$O(V+E)$."
+          },
+          {
+            "q": "How many tree edges does the DFS forest of an undirected graph with $n$ vertices and $c$ components have?",
+            "a": "$n-c$ tree edges, one fewer than the vertices of each tree."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An undirected graph has 12 vertices and its DFS forest consists of 5 trees. How many tree edges does the forest contain?",
+          "answer": 7,
+          "explanation": "Each tree on $k$ vertices has $k-1$ edges, so the forest has $12-5=7$ tree edges. Answering 5 tempts if you confuse the number of trees with the number of edges; answering 11 treats the graph as one tree."
+        },
+        "summary": "DFS goes deep before wide, stamps discovery and finish times, costs $O(V+E)$ on lists, and its forest has $n-c$ tree edges."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.dfs-edge-classes",
+      "title": "DFS edge classification",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        338,
+        340,
+        343
+      ],
+      "points": [
+        "Directed DFS sorts every edge (u, v) into tree (v first discovered through it), back (v is an ancestor of u), forward (v is a non-child descendant) or cross (neither is an ancestor of the other).",
+        "Times decide the class: d[u] < d[v] < f[v] < f[u] means tree or forward; d[v] < d[u] < f[u] < f[v] means back; d[v] < f[v] < d[u] < f[u] means cross. A cross edge always points to a vertex that finished earlier.",
+        "Undirected DFS produces only tree and back edges: an edge to an already finished vertex would have been explored from that vertex first.",
+        "A directed graph has a cycle exactly when its DFS finds a back edge; the same holds for undirected graphs if the edge to the parent is not counted."
+      ],
+      "keyTerms": [
+        "tree edge",
+        "back edge",
+        "forward edge",
+        "cross edge"
+      ],
+      "lesson": {
+        "why": "Classifying an edge from discovery and finish times is a direct exam question, and the back-edge rule is how DFS detects cycles.",
+        "intro": "After a DFS, every edge of a directed graph falls into one of four kinds, according to how the two ends sit in the DFS forest. A tree edge is one DFS actually walked along to reach a new vertex. A back edge goes from a vertex up to one of its ancestors. A forward edge goes down to a descendant that is not its child. A cross edge joins two vertices where neither is an ancestor of the other. The discovery and finish times of the two ends are enough to tell them apart.",
+        "prerequisites": [
+          "pds-graphs-hashing.dfs"
+        ],
+        "definitions": [
+          {
+            "term": "Ancestor",
+            "meaning": "A vertex on the tree path from the root down to the given vertex."
+          },
+          {
+            "term": "Back edge",
+            "meaning": "A directed edge from a vertex to one of its ancestors; it closes a cycle."
+          }
+        ],
+        "principle": {
+          "text": "For a directed edge $(u,v)$, nesting of the intervals decides the class. $v$ inside $u$ means tree or forward, $u$ inside $v$ means back, and disjoint intervals with $v$ earlier mean cross. A directed graph has a cycle exactly when DFS finds a back edge.",
+          "tex": "\\begin{aligned}\\text{tree/forward: } & d[u]<d[v]<f[v]<f[u]\\\\ \\text{back: } & d[v]<d[u]<f[u]<f[v]\\\\ \\text{cross: } & d[v]<f[v]<d[u]<f[u]\\end{aligned}"
+        },
+        "limits": "Tree and forward edges share the same time pattern; you tell them apart by whether $v$ was discovered through this very edge. In an undirected graph only tree and back edges occur, and the edge to the parent must not be counted as a back edge when testing for a cycle.",
+        "example": {
+          "problem": "Directed graph with edges 1→2, 1→3, 2→3, 3→1, 4→2, 4→3. Run DFS from 1, then from 4, taking smaller neighbours first. Classify every edge.",
+          "steps": [
+            "From 1 go to 2 (d=2), then to 3 (d=3). Vertex 3 sees 1 already open, so 3→1 goes to an ancestor.",
+            "3 finishes at 4, 2 at 5, and 1 at 6 after finding 3 already visited. Restart at 4 (d=7), which finishes at 8.",
+            "Tree edges are 1→2 and 2→3, the edges DFS walked. Edge 1→3 reaches a descendant that is not a child, so it is forward.",
+            "Edge 3→1 reaches an ancestor, so it is back. Edges 4→2 and 4→3 point to vertices that finished earlier in a separate tree, so they are cross."
+          ],
+          "result": "Tree: 1→2, 2→3. Forward: 1→3. Back: 3→1. Cross: 4→2, 4→3. The back edge shows the graph has a cycle."
+        },
+        "misconceptions": [
+          "An undirected graph has no forward or cross edges, so an answer offering them for an undirected graph is wrong.",
+          "A cross edge always points to a vertex that has already finished, never to one still open on the stack.",
+          "Counting the edge back to the parent as a back edge makes every undirected tree look cyclic."
+        ],
+        "recall": [
+          {
+            "q": "Which time pattern identifies a back edge $(u,v)$?",
+            "a": "$d[v]<d[u]<f[u]<f[v]$, so $u$ lies inside $v$."
+          },
+          {
+            "q": "Which edge kinds can undirected DFS produce?",
+            "a": "Only tree edges and back edges."
+          },
+          {
+            "q": "How does DFS show that a directed graph has a cycle?",
+            "a": "It finds at least one back edge."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "During a DFS of a directed graph, an edge $(u,v)$ has $d[u]=7$, $f[u]=8$, $d[v]=1$ and $f[v]=6$. What kind of edge is it?",
+          "options": [
+            "Tree edge",
+            "Back edge",
+            "Forward edge",
+            "Cross edge"
+          ],
+          "answer": 3,
+          "explanation": "The intervals [7,8] and [1,6] do not overlap and $v$'s comes first, so $v$ finished before $u$ began: a cross edge. A back edge would need $u$'s interval inside $v$'s, which tempts if you only notice that $v$ was discovered earlier."
+        },
+        "summary": "Compare the intervals of the two ends: nesting inside gives tree or forward, nesting outside gives back, disjoint with the target earlier gives cross, and a back edge means a cycle."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.dfs-applications",
+      "title": "Topological sort and other DFS applications",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        337,
+        340,
+        343
+      ],
+      "points": [
+        "Listing the vertices of a DAG in decreasing finish time gives a topological order, since every edge (u, v) of a DAG has f[v] < f[u].",
+        "Kahn's algorithm repeatedly removes an in-degree-0 vertex; if vertices remain with none of in-degree 0 the graph has a cycle. Both methods run in O(V + E).",
+        "A DAG can have many topological orders: count them by trying every in-degree-0 vertex at each step. The order is unique exactly when the DAG has a Hamiltonian path.",
+        "DFS also finds strongly connected components (Kosaraju, Tarjan), bridges and articulation points in O(V + E); full treatment sits with graph algorithms."
+      ],
+      "keyTerms": [
+        "topological order",
+        "Kahn's algorithm",
+        "SCC"
+      ],
+      "lesson": {
+        "why": "Topological ordering and counting valid orders of a DAG appear in the exam, and DFS finish times are the quickest way to produce one.",
+        "intro": "Some tasks depend on others, such as courses with prerequisites. Draw each task as a vertex and each dependency as an arrow from the task that must come first. If there is no cycle, the graph is a directed acyclic graph (DAG), and a topological order lists every vertex so that all arrows point forward. Two methods find such an order. One runs DFS and lists vertices by decreasing finish time. The other, Kahn's algorithm, repeatedly takes a vertex that has no incoming arrows and deletes it.",
+        "prerequisites": [
+          "pds-graphs-hashing.dfs",
+          "pds-graphs-hashing.dfs-edge-classes"
+        ],
+        "definitions": [
+          {
+            "term": "Topological order",
+            "meaning": "A listing of all vertices of a DAG in which every edge goes from an earlier vertex to a later one."
+          },
+          {
+            "term": "In-degree",
+            "meaning": "The number of edges that arrive at a vertex."
+          }
+        ],
+        "principle": {
+          "text": "In a DAG every edge $(u,v)$ has $f[v]<f[u]$, so decreasing finish time is a topological order. Kahn's algorithm removes in-degree-0 vertices one at a time; if vertices remain and none has in-degree 0, the graph has a cycle. Both take $O(V+E)$.",
+          "tex": "(u,v)\\in E \\Rightarrow f[v]<f[u]"
+        },
+        "limits": "Only a DAG has a topological order; a cycle makes it impossible. The order is rarely unique, and it is unique exactly when the DAG has a path through all vertices. Finding strongly connected components, bridges and articulation points also uses DFS but needs more machinery than this.",
+        "example": {
+          "problem": "DAG with edges 1→2, 1→3, 2→4, 3→4, 4→5. Use Kahn's algorithm to list the topological orders and say how many there are.",
+          "steps": [
+            "In-degrees are 1:0, 2:1, 3:1, 4:2, 5:1. Only vertex 1 has in-degree 0, so it must come first.",
+            "Remove 1: vertices 2 and 3 now have in-degree 0, and either may come next.",
+            "After both 2 and 3 are removed, vertex 4 has in-degree 0, then 5.",
+            "The only choice is the order of 2 and 3, giving 1,2,3,4,5 and 1,3,2,4,5."
+          ],
+          "result": "There are 2 topological orders."
+        },
+        "misconceptions": [
+          "Listing by increasing finish time gives a reverse order, which puts every arrow backwards.",
+          "A DAG usually has several topological orders, so a single answer must be checked against the edges rather than compared with one memorised sequence.",
+          "Kahn's algorithm stopping early means the graph has a cycle, not that the algorithm failed."
+        ],
+        "recall": [
+          {
+            "q": "How does DFS produce a topological order?",
+            "a": "List the vertices in decreasing order of finish time."
+          },
+          {
+            "q": "How does Kahn's algorithm detect a cycle?",
+            "a": "Vertices remain but none has in-degree 0."
+          },
+          {
+            "q": "When is the topological order of a DAG unique?",
+            "a": "Exactly when the DAG has a path that visits every vertex."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DAG has vertices 1 to 5 and edges 1→3, 2→3, 3→4, 3→5. How many different topological orders does it have?",
+          "answer": 4,
+          "explanation": "Vertices 1 and 2 must precede 3 and can come in either order, giving 2 choices. After 3, vertices 4 and 5 are free in either order, giving 2 more. Together $2\\times 2=4$. Answering 2 tempts if you count only one of the two free pairs."
+        },
+        "summary": "Decreasing DFS finish time or repeated removal of in-degree-0 vertices orders a DAG in $O(V+E)$, and the number of valid orders is counted by the choices left at each step."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.hash-tables",
+      "title": "Hash tables: the idea",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        338
+      ],
+      "points": [
+        "A hash table stores keys in an array of m slots and computes the slot from the key with a hash function h : U → {0, …, m − 1}, giving average O(1) insert, search and delete.",
+        "A collision is two keys hashing to the same slot; since the key universe is far larger than m, collisions are unavoidable and every table needs a resolution policy.",
+        "Hashing gives no ordering: finding the minimum, the successor or a range of keys costs O(n + m), which is where balanced search trees win."
+      ],
+      "keyTerms": [
+        "collision",
+        "hash function"
+      ],
+      "lesson": {
+        "why": "Every hashing question starts from where a key goes and what a collision is, and the solved question here also asks you to read a slot from the bits of a key.",
+        "intro": "A hash table is an array of $m$ slots. To store a key you do not search the array; you feed the key to a formula called the hash function, and the number it returns is the slot to use. To look the key up later you run the same formula and go straight to that slot. Because there are far more possible keys than slots, two different keys sometimes get the same slot. That clash is a collision, and every table needs a plan for it. A table can also read the slot straight from the low bits of the key, and settle a collision by looking at the next bit.",
+        "analogy": {
+          "text": "A coat check with numbered hooks: the ticket number tells you the hook at once, with no walking along the row.",
+          "breaksWhen": "A coat check never gives two coats the same hook, but a hash table must cope with two keys wanting the same slot."
+        },
+        "definitions": [
+          {
+            "term": "Hash function",
+            "meaning": "A fixed rule that turns a key into a slot number between $0$ and $m-1$."
+          },
+          {
+            "term": "Collision",
+            "meaning": "Two different keys that the hash function sends to the same slot."
+          },
+          {
+            "term": "Bit-indexed slot",
+            "meaning": "The slot is the lowest $b$ bits of the key, which equals $k \\bmod 2^b$. Bits count from the right: the 1st is the 1s bit, the 2nd the 2s bit, the 3rd the 4s bit, the 4th the 8s bit."
+          },
+          {
+            "term": "Split on the next bit",
+            "meaning": "When two keys share a slot, the slot becomes a small tree and the next bit sends one key left (0) and one right (1). Keys 6 ($0110$) and 3 ($0011$) take slots 2 and 3 of a 4-slot table. Add 14 ($1110$): it joins 6 in slot 2, and the 4s bit is 1 for both, so the 8s bit splits them, 6 left and 14 right."
+          }
+        ],
+        "principle": {
+          "text": "The slot of key $k$ is $h(k)$, so insert, search and delete jump straight to one slot and cost $O(1)$ on average when keys spread out.",
+          "tex": "h : U \\to \\{0, 1, \\dots, m-1\\}"
+        },
+        "limits": "The $O(1)$ cost is an average and needs keys to spread over the slots. A table keeps no order, so finding the smallest key or a range of keys means scanning the whole table.",
+        "example": {
+          "problem": "A table has $m = 7$ slots and $h(k) = k \\bmod 7$. Where do the keys 14, 27, 9, 35, 21 go?",
+          "steps": [
+            "Take each remainder on division by 7: $14 \\to 0$, $27 \\to 6$, $9 \\to 2$, $35 \\to 0$, $21 \\to 0$.",
+            "Keys 14, 35 and 21 all want slot 0, so they collide.",
+            "Slots 2 and 6 hold one key each, and slots 1, 3, 4 and 5 stay empty."
+          ],
+          "result": "Slot 0 is claimed by three keys, so the table needs a collision rule before it can store them all."
+        },
+        "misconceptions": [
+          "A collision does not mean the table is full; with 7 slots and 5 keys, three keys can still share one slot while four slots sit empty.",
+          "Hashing does not keep keys sorted, so a hash table is a poor choice for finding the minimum or the next larger key."
+        ],
+        "recall": [
+          {
+            "q": "What does a hash function return?",
+            "a": "The slot number, from $0$ to $m-1$, where the key is stored or looked up."
+          },
+          {
+            "q": "Why are collisions unavoidable?",
+            "a": "There are many more possible keys than slots, so some keys must share a slot."
+          },
+          {
+            "q": "Which operation is slow in a hash table?",
+            "a": "Anything that needs order, such as the minimum, the successor or a range, which costs a scan of the whole table."
+          },
+          {
+            "q": "In a table of 4 slots indexed by the 2 least significant bits, how is the slot found, and how is a collision resolved by a split?",
+            "a": "The slot is $k \\bmod 4$. Colliding keys are separated by the next bit up, the 4s bit, and then the 8s bit if they still collide."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A hash table stores $n$ integer keys in $m$ slots with a good hash function. Which operation is NOT supported in $O(1)$ average time?",
+          "options": [
+            "Insert a key",
+            "Search for a given key",
+            "Delete a given key",
+            "Find the smallest key"
+          ],
+          "answer": 3,
+          "explanation": "Insert, search and delete each jump to one slot. The smallest key could be in any slot, so every slot must be examined. Delete tempts because it changes the table, but it still goes straight to one slot."
+        },
+        "summary": "A hash table maps a key to a slot with a hash function, giving average $O(1)$ access, and it needs a collision rule because keys outnumber slots."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.hash-functions",
+      "title": "Hash functions",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        27,
+        338,
+        341,
+        342
+      ],
+      "points": [
+        "A good hash function is deterministic, fast to compute and spreads keys uniformly over the slots.",
+        "Division method h(k) = k mod m: choose m prime and away from a power of 2, because with m = 2^p only the low p bits of the key decide the slot.",
+        "Multiplication method h(k) = ⌊m · (kA mod 1)⌋ with 0 < A < 1, often A = (√5 − 1)/2 ≈ 0.618; here m can be a power of 2.",
+        "Universal hashing picks the function at random from a family where any two distinct keys collide with probability at most 1/m, so no fixed input can force the worst case."
+      ],
+      "keyTerms": [
+        "division method",
+        "multiplication method",
+        "universal hashing"
+      ],
+      "lesson": {
+        "why": "Questions ask which hash function resists bad inputs or spreads keys well, and the answer turns on a few facts about the division, multiplication and universal methods.",
+        "intro": "The hash function decides how well a table works. If it sends most keys to a few slots, the table slows down. The division method takes the remainder of the key divided by $m$. The multiplication method multiplies the key by a constant between 0 and 1, keeps the fractional part, and scales that to $m$ slots. Universal hashing does not fix one function at all: it picks one at random from a family when the program starts.",
+        "prerequisites": [
+          "pds-graphs-hashing.hash-tables"
+        ],
+        "definitions": [
+          {
+            "term": "Division method",
+            "meaning": "The slot is $k \\bmod m$, the remainder when the key is divided by the table size."
+          },
+          {
+            "term": "Universal family",
+            "meaning": "A set of hash functions in which any two different keys collide under at most a $1/m$ fraction of the functions."
+          }
+        ],
+        "principle": {
+          "text": "Division uses $k \\bmod m$ and works best with $m$ prime, since for $m = 2^p$ only the lowest $p$ bits of the key matter. A random choice from a universal family keeps the expected collisions low for any fixed set of keys.",
+          "tex": "h(k) = k \\bmod m \\qquad \\Pr_{h}[h(x) = h(y)] \\le \\frac{1}{m}\\ \\ (x \\ne y)"
+        },
+        "limits": "Any single fixed function, division or multiplication, has some key set that sends every key to one slot. Only choosing the function at random, after the keys are fixed, defends against an adversary who knows the code.",
+        "example": {
+          "problem": "Keys 8, 16, 24, 32 are hashed with $k \\bmod 8$ and then with $k \\bmod 7$. How many distinct slots does each use?",
+          "steps": [
+            "With $m = 8$ the remainders are $0, 0, 0, 0$, because every key is a multiple of 8.",
+            "With $m = 7$ the remainders are $1, 2, 3, 4$.",
+            "The power of two kept only the low bits, which are all zero here, while the prime used the whole number."
+          ],
+          "result": "Division by 8 uses 1 slot and division by 7 uses 4 slots."
+        },
+        "misconceptions": [
+          "Choosing $m$ as a power of 2 is not a harmless speed trick; keys that share their low bits then all collide.",
+          "A well-spread hash function is not safe against an adversary: if the function is fixed and known, keys that collide can be built on purpose."
+        ],
+        "recall": [
+          {
+            "q": "Why is a prime $m$ preferred for the division method?",
+            "a": "A prime avoids the pattern where only a few low bits of the key choose the slot, as happens when $m$ is a power of 2."
+          },
+          {
+            "q": "What makes universal hashing resist an adversary?",
+            "a": "The function is chosen at random after the keys are fixed, so no key set is bad for every function."
+          },
+          {
+            "q": "Can $m$ be a power of 2 in the multiplication method?",
+            "a": "Yes, because the slot comes from the fractional part of $kA$, not from the low bits of $k$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The keys 0, 64, 128, 192, 256 are hashed by $k \\bmod m$. Which table size spreads them over five different slots?",
+          "options": [
+            "$m = 32$",
+            "$m = 64$",
+            "$m = 128$",
+            "$m = 61$"
+          ],
+          "answer": 3,
+          "explanation": "For 61 the remainders are 0, 3, 6, 9, 12, all different. Sizes 32 and 64 divide every key, so all five keys land in slot 0. Size 128 tempts because it is larger, but it is a power of 2 and sends 0, 128 and 256 to slot 0 and keeps only the low bits of the other keys, so 64 and 192 share slot 64."
+        },
+        "summary": "Division works best with a prime $m$, multiplication allows any $m$, and only a randomly chosen universal function defeats an adversary."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.chaining",
+      "title": "Separate chaining",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        338,
+        339,
+        342
+      ],
+      "points": [
+        "Each slot holds a linked list of the keys that hash there; insert at the head is O(1), and search or delete walks one chain.",
+        "With simple uniform hashing a chain has expected length α = n/m, so search costs Θ(1 + α) on average: about 1 + α for an unsuccessful search and 1 + α/2 for a successful one.",
+        "The load factor may exceed 1, because chains just grow. The worst case is all n keys in one chain, giving Θ(n) search.",
+        "Chain-length questions: hash every key, tally each slot, then read off the longest chain, the empty slots and the average n/m."
+      ],
+      "keyTerms": [
+        "chain",
+        "simple uniform hashing"
+      ],
+      "lesson": {
+        "why": "Chaining questions ask for the longest chain, the number of empty slots or the cost of a search, and all of them reduce to counting keys per slot.",
+        "intro": "Separate chaining lets each slot hold a linked list instead of a single key. When a key arrives, you hash it and add it to the list of its slot, so a collision just makes that list longer. To search, you hash the key, go to its slot and walk that one list. The table never runs out of room, because lists can keep growing.",
+        "prerequisites": [
+          "pds-graphs-hashing.hash-tables"
+        ],
+        "definitions": [
+          {
+            "term": "Chain",
+            "meaning": "The linked list of all keys stored in one slot."
+          },
+          {
+            "term": "Load factor",
+            "meaning": "The ratio $\\alpha = n/m$ of keys to slots, which is the average chain length."
+          }
+        ],
+        "principle": {
+          "text": "If keys spread evenly, a chain has $\\alpha = n/m$ keys on average, so an unsuccessful search costs about $1 + \\alpha$ steps. In the worst case all keys share one chain and a search costs $\\Theta(n)$.",
+          "tex": "T_{\\text{unsuccessful}} = \\Theta(1 + \\alpha), \\qquad \\alpha = \\frac{n}{m}"
+        },
+        "limits": "The average cost holds only when the hash function spreads keys evenly. Many keys in one slot give a long list, and the load factor can exceed 1 without any failure.",
+        "example": {
+          "problem": "Insert 25, 13, 40, 7, 19, 31, 52 into a table with $m = 6$ and $h(k) = k \\bmod 6$, using chaining. What is the longest chain?",
+          "steps": [
+            "Remainders mod 6: $25 \\to 1$, $13 \\to 1$, $40 \\to 4$, $7 \\to 1$, $19 \\to 1$, $31 \\to 1$, $52 \\to 4$.",
+            "Slot 1 holds 25, 13, 7, 19, 31, which is 5 keys. Slot 4 holds 40 and 52. Other slots are empty.",
+            "Check: $5 + 2 = 7$, one for each key."
+          ],
+          "result": "The longest chain has 5 keys, while the average chain is $7/6$."
+        },
+        "misconceptions": [
+          "Chaining does not move a colliding key to another slot; the key stays in its own slot's list.",
+          "The load factor above 1 is not an error with chaining, since a slot can hold any number of keys."
+        ],
+        "recall": [
+          {
+            "q": "What does a slot hold under separate chaining?",
+            "a": "A linked list of every key that hashes to that slot."
+          },
+          {
+            "q": "What is the average length of a chain?",
+            "a": "The load factor $\\alpha = n/m$, assuming keys spread evenly."
+          },
+          {
+            "q": "How do you find the longest chain in a question?",
+            "a": "Hash every key, count the keys per slot and take the largest count."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Keys 14, 22, 6, 30, 9, 17, 25 are inserted into a table with $m = 8$ and $h(k) = k \\bmod 8$, using chaining. How many key comparisons does an unsuccessful search for 38 make if it walks the whole chain of its slot?",
+          "answer": 4,
+          "explanation": "Since $38 \\bmod 8 = 6$, the search goes to slot 6, which holds 14, 22, 6 and 30. All 4 are compared and none equals 38. The value 3 tempts if you forget that 30 also gives remainder 6, and 7 tempts if you compare against every key in the table."
+        },
+        "summary": "Chaining stores colliding keys in a list per slot; chain lengths come from counting keys per slot, and the average is $n/m$."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.open-addressing",
+      "title": "Open addressing: probing and deletion",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        27,
+        339,
+        340,
+        343
+      ],
+      "points": [
+        "All keys live in the table itself; on a collision the key follows a probe sequence h(k, 0), h(k, 1), … until it finds a free slot, so n ≤ m always.",
+        "Linear probing h(k, i) = (h(k) + i) mod m forms long occupied runs (primary clustering): a key landing anywhere in a run extends it.",
+        "Quadratic probing (h(k) + c₁i + c₂i²) mod m breaks runs, but keys with the same home slot share one sequence (secondary clustering), and it may miss free slots unless m and the constants are chosen well.",
+        "Double hashing (h₁(k) + i·h₂(k)) mod m gives each key its own step; h₂(k) must be non-zero and coprime to m (m prime, or m a power of 2 with h₂ odd) for the sequence to reach every slot.",
+        "Deleting by emptying a slot would stop later searches early and lose keys stored past it, so the slot is marked deleted (a tombstone): searches skip it and inserts may reuse it. Many tombstones call for a rehash."
+      ],
+      "keyTerms": [
+        "probe sequence",
+        "primary clustering",
+        "secondary clustering",
+        "double hashing",
+        "tombstone"
+      ],
+      "lesson": {
+        "why": "Open addressing questions ask where a key ends up after several insertions, and they are solved by following the probe sequence carefully.",
+        "intro": "In open addressing every key sits in the table itself, one key per slot, and there are no lists. If the slot a key hashes to is taken, the key tries other slots in a fixed order called its probe sequence, and uses the first empty one. Linear probing tries the next slot each time. Double hashing uses a second function to decide the step size, so different keys jump by different amounts. Searching follows the same sequence until it finds the key or reaches an empty slot.",
+        "prerequisites": [
+          "pds-graphs-hashing.hash-tables"
+        ],
+        "definitions": [
+          {
+            "term": "Probe sequence",
+            "meaning": "The ordered list of slots a key tries, ending at the first empty one."
+          },
+          {
+            "term": "Tombstone",
+            "meaning": "A mark left in a deleted slot so that searches keep going past it."
+          }
+        ],
+        "principle": {
+          "text": "Probe $i$ of key $k$ is $h(k,i)$. Linear probing uses $(h(k) + i) \\bmod m$ and double hashing uses $(h_1(k) + i\\,h_2(k)) \\bmod m$. A key takes the first empty slot of its sequence.",
+          "tex": "h(k,i) = (h_1(k) + i\\,h_2(k)) \\bmod m"
+        },
+        "limits": "The table holds at most $m$ keys. Linear probing builds long runs of full slots, and a deleted slot cannot simply be emptied, because a later search would stop early and miss keys stored beyond it.",
+        "example": {
+          "problem": "A table has $m = 7$ slots and uses linear probing with $h(k) = k \\bmod 7$. Insert 10, 17, 3, 24, 4 in this order. Where does 4 land?",
+          "steps": [
+            "10 goes to slot 3. 17 hashes to 3, which is full, so it takes slot 4.",
+            "3 hashes to 3, then tries 4, both full, and takes slot 5. 24 hashes to 3, tries 4 and 5, and takes slot 6.",
+            "4 hashes to 4, then tries 5 and 6, all full, wraps around to slot 0, which is empty."
+          ],
+          "result": "Key 4 lands in slot 0, after wrapping around the end of the table."
+        },
+        "misconceptions": [
+          "Probing wraps around the end of the table, so a key can end up before its home slot.",
+          "Deleting a key by clearing its slot is wrong; later searches stop at the empty slot and wrongly report a stored key as missing."
+        ],
+        "recall": [
+          {
+            "q": "What is a probe sequence?",
+            "a": "The fixed order of slots a key tries, ending at the first empty slot."
+          },
+          {
+            "q": "What is the probe formula for double hashing?",
+            "a": "$(h_1(k) + i\\,h_2(k)) \\bmod m$, for $i = 0, 1, 2, \\dots$."
+          },
+          {
+            "q": "Why are deleted slots marked instead of emptied?",
+            "a": "An empty slot ends a search, so emptying one could hide keys stored further along the sequence."
+          },
+          {
+            "q": "How many keys can open addressing hold?",
+            "a": "At most $m$, since each key needs its own slot."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A table has $m = 11$ slots with linear probing and $h(k) = k \\bmod 11$. Keys 5, 16, 27, 6 are inserted in this order. In which slot is key 6 stored?",
+          "answer": 8,
+          "explanation": "Key 5 takes slot 5, 16 hashes to 5 and takes 6, and 27 hashes to 5 and takes 7. Key 6 hashes to 6, which is full, then tries 7, also full, and takes slot 8. The answer 6 tempts because it is the home slot, but earlier keys moved into it."
+        },
+        "summary": "Open addressing stores keys in the table and follows a probe sequence to the first empty slot; deletions need tombstones so searches do not stop early."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.load-factor",
+      "title": "Load factor and expected probes",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        27,
+        339,
+        340,
+        341,
+        342
+      ],
+      "points": [
+        "The load factor α = n/m drives every cost. Chaining tolerates α > 1; open addressing needs α ≤ 1 and slows sharply as α approaches 1.",
+        "Under uniform hashing, open addressing expects at most 1/(1 − α) probes for an unsuccessful search or insert and (1/α) ln(1/(1 − α)) for a successful search.",
+        "Linear probing (Knuth) expects about ½(1 + 1/(1 − α)) probes for a successful search and ½(1 + 1/(1 − α)²) for an unsuccessful one; at α = 0.5 these are 1.5 and 2.5.",
+        "Tables are resized (typically doubled) and every key rehashed once α crosses a threshold such as 0.75; doubling keeps the amortised insert cost O(1)."
+      ],
+      "keyTerms": [
+        "load factor",
+        "uniform hashing",
+        "rehashing"
+      ],
+      "lesson": {
+        "why": "Numeric questions give a table size and key count and ask for expected probes, so you must know which formula fits which scheme.",
+        "intro": "A hash table with $m$ slots holding $n$ keys has load factor $\\alpha=n/m$, the average number of keys per slot. The fuller the table, the more work each search takes. With chaining, a slot holds a list, so $\\alpha$ can exceed 1. With open addressing, each key takes a slot of its own, so $\\alpha$ cannot exceed 1 and the number of probes grows quickly as the table fills. A search is successful when the key is present and unsuccessful when it is not, and the two cost different amounts.",
+        "prerequisites": [
+          "pds-graphs-hashing.chaining",
+          "pds-graphs-hashing.open-addressing"
+        ],
+        "definitions": [
+          {
+            "term": "Load factor",
+            "meaning": "The ratio $\\alpha=n/m$ of stored keys to slots."
+          },
+          {
+            "term": "Rehashing",
+            "meaning": "Building a larger table and reinserting every key once $\\alpha$ crosses a threshold."
+          }
+        ],
+        "principle": {
+          "text": "Under uniform hashing, open addressing expects at most $1/(1-\\alpha)$ probes for an unsuccessful search and $\\frac1\\alpha\\ln\\frac1{1-\\alpha}$ for a successful one. Linear probing expects about $\\tfrac12\\left(1+\\tfrac1{1-\\alpha}\\right)$ probes for a successful search and $\\tfrac12\\left(1+\\tfrac1{(1-\\alpha)^2}\\right)$ for an unsuccessful one.",
+          "tex": "U\\le\\frac{1}{1-\\alpha},\\qquad S\\le\\frac1\\alpha\\ln\\frac1{1-\\alpha}"
+        },
+        "limits": "The uniform formulas assume each key's probe order is a random permutation, which double hashing approximates and linear probing does not. All the open-addressing formulas need $\\alpha<1$. The linear probing values are approximations, and chaining uses its own $1+\\alpha$ forms.",
+        "example": {
+          "problem": "An open-addressed table has 12 slots holding 9 keys under uniform hashing. Find the expected probes for an unsuccessful search and for a successful search.",
+          "steps": [
+            "The load factor is $\\alpha=9/12=0.75$.",
+            "Unsuccessful: $1/(1-\\alpha)=1/0.25=4$.",
+            "Successful: $\\frac{1}{0.75}\\ln\\frac{1}{0.25}=1.333\\times1.386\\approx1.85$."
+          ],
+          "result": "About 4 probes for an unsuccessful search and about 1.85 for a successful one."
+        },
+        "misconceptions": [
+          "Using the unsuccessful formula for a successful search overstates the cost; a successful search is always the cheaper of the two.",
+          "The uniform-hashing formulas do not apply to linear probing, whose clustering makes it worse, especially for unsuccessful searches.",
+          "Load factor above 1 is allowed with chaining but impossible with open addressing."
+        ],
+        "recall": [
+          {
+            "q": "How is the load factor defined?",
+            "a": "$\\alpha=n/m$, the number of keys divided by the number of slots."
+          },
+          {
+            "q": "Why is a successful search cheaper than an unsuccessful one?",
+            "a": "A successful search stops on finding the key, while an unsuccessful one continues until it hits an empty slot."
+          },
+          {
+            "q": "What happens when $\\alpha$ crosses the resize threshold?",
+            "a": "The table is enlarged, typically doubled, and every key is rehashed."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A table with 25 slots uses linear probing and holds 20 keys. Using the approximation $\\tfrac12\\left(1+\\tfrac1{1-\\alpha}\\right)$, how many probes does a successful search expect?",
+          "answer": 3,
+          "explanation": "Here $\\alpha=20/25=0.8$, so $1/(1-\\alpha)=5$ and the value is $\\tfrac12(1+5)=3$. Answering 13 tempts if you apply the unsuccessful formula $\\tfrac12(1+25)$ by mistake."
+        },
+        "summary": "Compute $\\alpha=n/m$, pick the formula for the scheme and the search kind, and remember that chaining allows $\\alpha>1$ while open addressing does not."
+      }
+    },
+    {
+      "id": "pds-graphs-hashing.hashing-probability",
+      "title": "Probability questions on uniform hashing",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Under simple uniform hashing each key lands in each slot with probability 1/m, independently of the other keys.",
+        "A given slot stays empty after n insertions with probability (1 − 1/m)^n, so the expected number of empty slots is m(1 − 1/m)^n.",
+        "k given slots all stay empty after n chained insertions with probability ((m − k)/m)^n; for 100 slots, 3 slots and 3 keys this is 0.97³ ≈ 0.9127.",
+        "The expected number of colliding pairs among n keys is C(n, 2)/m, by linearity over pairs. The probability of no collision at all is (m/m)·((m − 1)/m)·…·((m − n + 1)/m)."
+      ],
+      "keyTerms": [
+        "linearity of expectation",
+        "birthday bound"
+      ],
+      "lesson": {
+        "why": "A few questions ask for an expected count or a probability under uniform hashing, and the method is always the same: take one slot or one pair of keys and multiply or add.",
+        "intro": "Simple uniform hashing assumes that each key lands in each of the $m$ slots with probability $1/m$, and that keys do not affect each other. With that assumption, questions about chance become short calculations. To find the chance that a particular slot stays empty, ask for each key the chance it misses that slot, then multiply those chances. To find an expected count, add up one-key or one-pair chances instead of listing all outcomes.",
+        "prerequisites": [
+          "pds-graphs-hashing.hash-tables",
+          "pds-graphs-hashing.chaining"
+        ],
+        "definitions": [
+          {
+            "term": "Simple uniform hashing",
+            "meaning": "Each key is equally likely to go to any slot, independently of the other keys."
+          },
+          {
+            "term": "Linearity of expectation",
+            "meaning": "The expected value of a sum is the sum of the expected values, even when the parts depend on each other."
+          }
+        ],
+        "principle": {
+          "text": "A fixed slot misses a key with probability $1 - 1/m$, so it stays empty after $n$ keys with probability $(1 - 1/m)^n$. Each pair of keys collides with probability $1/m$, so the expected number of colliding pairs is $\\binom{n}{2}/m$.",
+          "tex": "\\Pr[\\text{slot empty}] = \\left(1 - \\frac{1}{m}\\right)^{n}, \\qquad E[\\text{colliding pairs}] = \\binom{n}{2}\\frac{1}{m}"
+        },
+        "limits": "These formulas need the uniform and independent assumption. If the hash function favours some slots, or the keys come from a pattern, the probabilities change.",
+        "example": {
+          "problem": "Three keys are hashed into $m = 10$ slots under simple uniform hashing. What is the chance that slot 4 stays empty, and the expected number of empty slots?",
+          "steps": [
+            "Each key misses slot 4 with probability $9/10$.",
+            "The keys are independent, so all three miss it with probability $(9/10)^3 = 0.729$.",
+            "By symmetry every slot is empty with probability 0.729, so the expected number of empty slots is $10 \\times 0.729 = 7.29$."
+          ],
+          "result": "Slot 4 is empty with probability 0.729, and 7.29 slots are empty on average."
+        },
+        "misconceptions": [
+          "The chance a slot is empty is not $(n/m)$ or $1 - n/m$; it is $(1 - 1/m)^n$, because each key is a separate trial.",
+          "Expected colliding pairs do not need the pairs to be independent, since linearity of expectation holds anyway."
+        ],
+        "recall": [
+          {
+            "q": "What is the probability that a given slot is empty after $n$ keys?",
+            "a": "$(1 - 1/m)^n$, since each key independently misses it with probability $1 - 1/m$."
+          },
+          {
+            "q": "What is the expected number of keys in one slot?",
+            "a": "$n/m$, the sum of $1/m$ over the $n$ keys."
+          },
+          {
+            "q": "Which result gives the expected number of colliding pairs?",
+            "a": "Linearity of expectation over the $\\binom{n}{2}$ pairs, each colliding with probability $1/m$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Five keys are hashed into $m = 20$ slots under simple uniform hashing. What is the expected number of pairs of keys that collide?",
+          "answer": 0.5,
+          "explanation": "There are $\\binom{5}{2} = 10$ pairs and each collides with probability $1/20$, so the expectation is $10/20 = 0.5$. The value 0.25 tempts if you use $5/20$ as the number of collisions, which counts keys instead of pairs."
+        },
+        "summary": "Under uniform hashing a slot is empty with probability $(1 - 1/m)^n$ and the expected colliding pairs number $\\binom{n}{2}/m$."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "pds-graphs-hashing.handshake",
+      "name": "Handshake lemma",
+      "tex": "\\sum_{v \\in V} \\deg(v) = 2|E|",
+      "text": "Σ deg(v) = 2|E|",
+      "where": [
+        [
+          "deg(v)",
+          "number of edges incident on v"
+        ]
+      ],
+      "note": "For a directed graph, Σ in-degree = Σ out-degree = |E|. The adjacency lists of an undirected graph hold exactly 2|E| entries.",
+      "topic": "pds-graphs-hashing.graph-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.max-edges",
+      "name": "Maximum edges in a simple graph",
+      "tex": "|E|_{\\max} = \\binom{n}{2} = \\frac{n(n-1)}{2}",
+      "text": "|E| max = C(n, 2) = n(n − 1)/2",
+      "where": [
+        [
+          "n",
+          "number of vertices"
+        ]
+      ],
+      "note": "Directed simple graphs allow n(n − 1). The number of labelled simple undirected graphs is 2 raised to this count.",
+      "topic": "pds-graphs-hashing.graph-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.forest-edges",
+      "name": "Edges of a forest",
+      "tex": "|E_{\\text{forest}}| = n - c",
+      "text": "|E forest| = n − c",
+      "where": [
+        [
+          "n",
+          "vertices"
+        ],
+        [
+          "c",
+          "connected components (trees)"
+        ]
+      ],
+      "note": "The DFS or BFS forest of an undirected graph with c components has exactly n − c tree edges.",
+      "topic": "pds-graphs-hashing.dfs",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.representation-space",
+      "name": "Space of the two representations",
+      "tex": "S_{\\text{matrix}} = \\Theta(V^2), \\qquad S_{\\text{list}} = \\Theta(V + E)",
+      "text": "matrix Θ(V²), list Θ(V + E)",
+      "where": [
+        [
+          "V",
+          "number of vertices"
+        ],
+        [
+          "E",
+          "number of edges"
+        ]
+      ],
+      "note": "The list wins whenever E = o(V²). An undirected list stores each edge twice, which does not change Θ(V + E).",
+      "topic": "pds-graphs-hashing.representations",
+      "origin": "source",
+      "pages": [
+        26,
+        336
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.walk-count",
+      "name": "Walks from matrix powers",
+      "tex": "(A^k)_{ij} = \\#\\{\\text{walks of length } k \\text{ from } i \\text{ to } j\\}",
+      "text": "(A^k)ij = number of walks of length k from i to j",
+      "where": [
+        [
+          "A",
+          "adjacency matrix"
+        ],
+        [
+          "k",
+          "walk length in edges"
+        ]
+      ],
+      "note": "Walks may repeat vertices. Triangles in an undirected simple graph = trace(A³)/6.",
+      "topic": "pds-graphs-hashing.adjacency-matrix-properties",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.division-hash",
+      "name": "Division method",
+      "tex": "h(k) = k \\bmod m",
+      "text": "h(k) = k mod m",
+      "where": [
+        [
+          "m",
+          "table size, ideally a prime away from a power of 2"
+        ]
+      ],
+      "note": "With m = 2^p only the low p bits of k matter, so keys sharing those bits all collide.",
+      "topic": "pds-graphs-hashing.hash-functions",
+      "origin": "source",
+      "pages": [
+        27,
+        338
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.multiplication-hash",
+      "name": "Multiplication method",
+      "tex": "h(k) = \\lfloor m \\,(kA \\bmod 1) \\rfloor",
+      "text": "h(k) = ⌊m · (kA mod 1)⌋",
+      "where": [
+        [
+          "A",
+          "constant in (0, 1), commonly (√5 − 1)/2 ≈ 0.618"
+        ],
+        [
+          "kA mod 1",
+          "fractional part of kA"
+        ]
+      ],
+      "note": "The choice of m is not critical here, so a power of 2 is fine.",
+      "topic": "pds-graphs-hashing.hash-functions",
+      "origin": "source",
+      "pages": [
+        27,
+        338
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.load-factor-def",
+      "name": "Load factor",
+      "tex": "\\alpha = \\frac{n}{m}",
+      "text": "α = n/m",
+      "where": [
+        [
+          "n",
+          "keys stored"
+        ],
+        [
+          "m",
+          "slots"
+        ]
+      ],
+      "note": "Chaining allows α > 1. Open addressing requires α ≤ 1, and its probe counts blow up as α approaches 1.",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.chaining-cost",
+      "name": "Expected comparisons with chaining",
+      "tex": "U = 1 + \\alpha, \\qquad S \\approx 1 + \\frac{\\alpha}{2}",
+      "text": "unsuccessful U = 1 + α, successful S ≈ 1 + α/2",
+      "where": [
+        [
+          "U",
+          "unsuccessful search cost"
+        ],
+        [
+          "S",
+          "successful search cost"
+        ],
+        [
+          "α",
+          "load factor"
+        ]
+      ],
+      "note": "In U the 1 counts computing the hash; in S it counts the comparison with the key found. The exact successful value is 1 + α/2 − α/(2n). Both are Θ(1 + α).",
+      "topic": "pds-graphs-hashing.chaining",
+      "origin": "source",
+      "pages": [
+        339,
+        342,
+        344
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.linear-probe",
+      "name": "Linear probing sequence",
+      "tex": "h(k, i) = (h'(k) + i) \\bmod m",
+      "text": "h(k, i) = (h'(k) + i) mod m",
+      "where": [
+        [
+          "i",
+          "probe number, 0, 1, 2, …"
+        ],
+        [
+          "h'(k)",
+          "home slot"
+        ]
+      ],
+      "note": "Only m distinct sequences exist, one per home slot; this causes primary clustering.",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.quadratic-probe",
+      "name": "Quadratic probing sequence",
+      "tex": "h(k, i) = (h'(k) + c_1 i + c_2 i^2) \\bmod m",
+      "text": "h(k, i) = (h'(k) + c₁i + c₂i²) mod m",
+      "where": [
+        [
+          "c₁, c₂",
+          "constants, c₂ ≠ 0"
+        ]
+      ],
+      "note": "With c₁ = 0, c₂ = 1 and m prime, the first ⌈m/2⌉ probes are distinct, so an insert succeeds while α ≤ 1/2. Keys with the same home share a sequence (secondary clustering).",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.double-hash",
+      "name": "Double hashing sequence",
+      "tex": "h(k, i) = (h_1(k) + i \\cdot h_2(k)) \\bmod m",
+      "text": "h(k, i) = (h₁(k) + i · h₂(k)) mod m",
+      "where": [
+        [
+          "h₂(k)",
+          "step size; must be non-zero and coprime to m"
+        ]
+      ],
+      "note": "If gcd(h₂(k), m) = g > 1 the sequence visits only m/g slots and an insert can fail while slots are free.",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "source",
+      "pages": [
+        27,
+        339,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.uniform-probes",
+      "name": "Expected probes, open addressing with uniform hashing",
+      "tex": "U \\le \\frac{1}{1-\\alpha}, \\qquad S \\le \\frac{1}{\\alpha}\\ln\\frac{1}{1-\\alpha}",
+      "text": "unsuccessful U ≤ 1/(1 − α), successful S ≤ (1/α) ln(1/(1 − α))",
+      "where": [
+        [
+          "α",
+          "load factor, α < 1"
+        ]
+      ],
+      "note": "At α = 0.5: U = 2, S ≈ 1.39. At α = 0.9: U = 10, S ≈ 2.56. Double hashing behaves close to this.",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.linear-probes-knuth",
+      "name": "Expected probes, linear probing",
+      "tex": "S \\approx \\frac{1}{2}\\left(1 + \\frac{1}{1-\\alpha}\\right), \\qquad U \\approx \\frac{1}{2}\\left(1 + \\frac{1}{(1-\\alpha)^2}\\right)",
+      "text": "successful S ≈ ½(1 + 1/(1 − α)), unsuccessful U ≈ ½(1 + 1/(1 − α)²)",
+      "where": [
+        [
+          "α",
+          "load factor, α < 1"
+        ]
+      ],
+      "note": "The squared term is the price of primary clustering. At α = 0.5: S = 1.5, U = 2.5.",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        339,
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.empty-slots",
+      "name": "Expected empty slots",
+      "tex": "E[\\text{empty}] = m\\left(1 - \\frac{1}{m}\\right)^{n}",
+      "text": "E[empty] = m(1 − 1/m)^n",
+      "where": [
+        [
+          "n",
+          "keys inserted with uniform hashing"
+        ],
+        [
+          "m",
+          "slots"
+        ]
+      ],
+      "note": "For n = m this tends to m/e ≈ 0.368m.",
+      "topic": "pds-graphs-hashing.hashing-probability",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.expected-collisions",
+      "name": "Expected colliding pairs",
+      "tex": "E[\\text{collisions}] = \\binom{n}{2}\\frac{1}{m}",
+      "text": "E[collisions] = C(n, 2)/m",
+      "where": [
+        [
+          "n",
+          "keys"
+        ],
+        [
+          "m",
+          "slots"
+        ]
+      ],
+      "note": "Counts unordered pairs that share a slot, by linearity of expectation; universal hashing guarantees the same bound.",
+      "topic": "pds-graphs-hashing.hashing-probability",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "pds-graphs-hashing.edge-test",
+      "name": "Edge test (u, v)",
+      "worst": "O(1) matrix; O(deg u) list",
+      "space": "Θ(V²) matrix; Θ(V + E) list",
+      "topic": "pds-graphs-hashing.representations",
+      "origin": "source",
+      "pages": [
+        26,
+        336
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.neighbour-scan",
+      "name": "Scan all neighbours of v",
+      "worst": "Θ(V) matrix; Θ(deg v) list",
+      "topic": "pds-graphs-hashing.representations",
+      "origin": "source",
+      "pages": [
+        336
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.build-list",
+      "name": "Build adjacency list from an edge list",
+      "worst": "O(V + E)",
+      "space": "Θ(V + E)",
+      "topic": "pds-graphs-hashing.representations",
+      "origin": "source",
+      "pages": [
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.bfs-cost",
+      "name": "BFS",
+      "worst": "O(V + E) list; Θ(V²) matrix",
+      "space": "O(V) queue and visited set",
+      "topic": "pds-graphs-hashing.bfs",
+      "origin": "source",
+      "pages": [
+        27,
+        337
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.dfs-cost",
+      "name": "DFS",
+      "worst": "O(V + E) list; Θ(V²) matrix",
+      "space": "O(V) stack depth",
+      "notes": "Recursion depth reaches V − 1 on a path graph.",
+      "topic": "pds-graphs-hashing.dfs",
+      "origin": "source",
+      "pages": [
+        27,
+        337,
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.topo-sort",
+      "name": "Topological sort (DFS or Kahn)",
+      "worst": "O(V + E)",
+      "space": "O(V)",
+      "topic": "pds-graphs-hashing.dfs-applications",
+      "origin": "source",
+      "pages": [
+        337
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.chain-ops",
+      "name": "Chaining: insert / search / delete",
+      "best": "O(1)",
+      "average": "O(1) insert; Θ(1 + α) search and delete",
+      "worst": "O(n)",
+      "space": "Θ(m + n)",
+      "notes": "Worst case: all keys in one chain. Delete is O(1) given a pointer into a doubly linked chain.",
+      "topic": "pds-graphs-hashing.chaining",
+      "origin": "source",
+      "pages": [
+        339,
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.open-ops",
+      "name": "Open addressing: insert / search",
+      "best": "O(1)",
+      "average": "O(1/(1 − α)) probes",
+      "worst": "O(m)",
+      "space": "Θ(m)",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.rehash",
+      "name": "Rehash into a table of double size",
+      "worst": "Θ(n + m)",
+      "average": "O(1) amortised per insert",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "pds-graphs-hashing.probe-trace",
+      "title": "Fill a hash table with linear, quadratic or double hashing",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Draw the m slots and insert keys strictly in the given order.",
+        "For each key compute the home slot, then step through h(k, 0), h(k, 1), … writing each probed slot down until one is free.",
+        "For double hashing compute h₂(k) once per key; the step stays fixed for that key.",
+        "Read off the asked slot, the final table or the probe count."
+      ],
+      "trap": "Quadratic probing adds i² to the home slot each time, not to the previous probe; and i starts at 0.",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "source",
+      "pages": [
+        341,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.chain-stats",
+      "title": "Chain lengths under a given hash function",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Hash every key and tally the count per slot.",
+        "Longest chain = largest tally, empty slots = zero tallies, average = n/m including empty slots."
+      ],
+      "trap": "The average chain length divides by all m slots, not only the non-empty ones.",
+      "topic": "pds-graphs-hashing.chaining",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.valid-traversal",
+      "title": "Which sequence is a valid BFS or DFS order",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "BFS: group the order into levels by distance from the start; the order must be non-decreasing in distance, and each vertex's children must follow the children of every earlier-dequeued vertex.",
+        "DFS: keep a stack while reading the order; each next vertex must be an unvisited neighbour of the deepest stack vertex that still has one.",
+        "Reject an order at the first vertex that breaks the rule."
+      ],
+      "trap": "A DFS order may jump back up only when every vertex below has no unvisited neighbour left.",
+      "topic": "pds-graphs-hashing.dfs",
+      "origin": "source",
+      "pages": [
+        337,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.edge-class",
+      "title": "Classify DFS edges from discovery and finish times",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Write the intervals [d[u], f[u]] and [d[v], f[v]] for the edge (u, v).",
+        "v nested inside u: tree or forward; u nested inside v: back; disjoint with v earlier: cross."
+      ],
+      "trap": "In an undirected graph forward and cross edges never occur, so an option offering them is wrong.",
+      "topic": "pds-graphs-hashing.dfs-edge-classes",
+      "origin": "source",
+      "pages": [
+        338,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.load-factor-calc",
+      "title": "Expected probes or comparisons for a given load factor",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Compute α = n/m.",
+        "Pick the formula matching the scheme (chaining, uniform open addressing or linear probing) and the search kind (successful or unsuccessful).",
+        "Substitute and round as asked."
+      ],
+      "trap": "Using the unsuccessful formula for a successful search, or the uniform-hashing formula for linear probing.",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        339,
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.hash-probability",
+      "title": "Probability of empty slots or collisions under uniform hashing",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Each key independently picks one of m slots with probability 1/m.",
+        "For “these slots stay empty” multiply the per-key probability of avoiding them over all keys.",
+        "For expected counts, sum indicator probabilities over slots or pairs."
+      ],
+      "trap": "Under chaining keys land independently; the dependence between keys arises only in open addressing.",
+      "topic": "pds-graphs-hashing.hashing-probability",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "pds-graphs-hashing.q-linear-probe-basic",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Keys 12, 22 and 32 are inserted in that order into an empty table of 10 slots with h(k) = k mod 10 and linear probing. Which slots do they occupy?",
+      "options": [
+        "All three share slot 2",
+        "12 → 2, 22 → 4, 32 → 8",
+        "12 → 2, 22 → 3, 32 → 4",
+        "12 → 2, 22 → 3, 32 → 5"
+      ],
+      "answer": 2,
+      "explanation": "All three keys have home slot 2. 12 takes slot 2; 22 probes 2 (full) then 3; 32 probes 2 and 3 (full) then 4. Sharing one slot happens only with chaining.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "sourceLabel": "PYQ-5 (GATE 2016) — Hash function",
+      "origin": "source",
+      "pages": [
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-linear-probe-table",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Keys 12, 18, 13, 2, 3, 23, 5, 15 are inserted in that order into an empty table of size 10 with h(k) = k mod 10 and linear probing. Which is the final content of slots 0 to 9 (– is empty)?",
+      "options": [
+        "15, –, 12, 13, 2, 3, 23, 5, 18, –",
+        "–, –, 12, 13, 2, 3, 23, 5, 18, 15",
+        "–, –, 12, 13, 2, 3, 5, 23, 18, 15",
+        "–, –, 12, 2, 13, 3, 23, 5, 18, 15"
+      ],
+      "answer": 1,
+      "explanation": "12 → 2, 18 → 8, 13 → 3. 2: slots 2, 3 full, lands in 4. 3: slots 3, 4 full, lands in 5. 23: 3, 4, 5 full, lands in 6. 5: 5, 6 full, lands in 7. 15: 5, 6, 7, 8 full, lands in 9. Slots 0 and 1 stay empty.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-quadratic-probe",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Keys 10, 22, 31, 4, 15, 28, 17, 88, 59 are inserted in that order into an empty table of 11 slots (0 to 10) using quadratic probing h(k, i) = (k mod 11 + i²) mod 11 for i = 0, 1, 2, …. In which slot does 59 end up?",
+      "answer": 8,
+      "explanation": "10 → 10, 22 → 0, 31 → 9, 4 → 4. 15: home 4 is full, 4 + 1 = 5. 28 → 6. 17: home 6 full, 7. 88: home 0 full, 1. 59: home 59 mod 11 = 4 (full), 4 + 1 = 5 (full), 4 + 4 = 8 (free). So 59 sits in slot 8 after 3 probes.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-double-hash",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A table of 13 slots uses double hashing with h₁(k) = k mod 13, h₂(k) = 7 − (k mod 7) and probe i at (h₁(k) + i·h₂(k)) mod 13. Keys 18, 41, 22, 44, 59, 32, 31 are inserted in that order. Where does 31 land?",
+      "options": [
+        "Slot 8",
+        "Slot 9",
+        "Slot 10",
+        "Slot 0"
+      ],
+      "answer": 3,
+      "explanation": "18 → 5, 41 → 2, 22 → 9. 44: home 5 full, h₂ = 7 − 2 = 5, next 10. 59 → 7, 32 → 6. 31: home 31 mod 13 = 5 (full); h₂ = 7 − 3 = 4, so probes 9 (full, holds 22) then 13 mod 13 = 0 (free). Slot 8 is what linear probing would give (6 and 7 hold 32 and 59), slot 9 ignores that 22 is there, and slot 10 reuses the step 5 of key 44.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-chain-lengths",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Keys 5, 28, 19, 15, 20, 33, 12, 17, 10 are inserted into a chained hash table of 9 slots with h(k) = k mod 9. What are the maximum, minimum and average chain lengths?",
+      "options": [
+        "3, 0 and 1",
+        "3, 1 and 1.5",
+        "2, 0 and 1",
+        "3, 0 and 1.5"
+      ],
+      "answer": 0,
+      "explanation": "Homes: 5 → 5, 28 → 1, 19 → 1, 15 → 6, 20 → 2, 33 → 6, 12 → 3, 17 → 8, 10 → 1. Slot 1 holds 3 keys, slot 6 holds 2, slots 2, 3, 5, 8 hold 1, slots 0, 4, 7 are empty. Max 3, min 0, average 9/9 = 1. The 1.5 comes from averaging over the 6 non-empty slots only.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.chaining",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-empty-slots-probability",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A hash table has 100 slots, resolves collisions by chaining and satisfies simple uniform hashing. What is the probability that slots 0, 1 and 2 are all empty after the first 3 insertions? (Give 4 decimal places.)",
+      "answer": 0.9127,
+      "tolerance": 0.001,
+      "explanation": "Each key independently avoids the three slots with probability 97/100. For three keys the probability is (0.97)³ = 0.912673 ≈ 0.9127.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.hashing-probability",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-expected-collisions",
+      "type": "nat",
+      "marks": 1,
+      "stem": "20 distinct keys are hashed into a table of 50 slots under simple uniform hashing. What is the expected number of unordered pairs of keys that hash to the same slot?",
+      "answer": 3.8,
+      "tolerance": 0.01,
+      "explanation": "There are C(20, 2) = 190 pairs, and each pair collides with probability 1/50. By linearity of expectation the expected count is 190/50 = 3.8.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.hashing-probability",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-uniform-successful-probes",
+      "type": "nat",
+      "marks": 1,
+      "stem": "An open-addressing table under uniform hashing is 75% full. Using the standard bound, what is the expected number of probes in a successful search? (2 decimals)",
+      "answer": 1.85,
+      "tolerance": 0.01,
+      "explanation": "α = 0.75. Successful search: (1/α) ln(1/(1 − α)) = (1/0.75) · ln 4 = 1.3333 × 1.3863 ≈ 1.85. The unsuccessful bound 1/(1 − α) would give 4.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        27,
+        339
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-linear-probe-unsuccessful",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A linear-probing table has load factor 0.5. What is the expected number of probes for an unsuccessful search?",
+      "options": [
+        "1.5",
+        "2.5",
+        "2",
+        "4"
+      ],
+      "answer": 1,
+      "explanation": "Linear probing: unsuccessful ≈ ½(1 + 1/(1 − α)²) = ½(1 + 4) = 2.5. The successful value ½(1 + 1/(1 − α)) = 1.5, and 2 is the uniform-hashing bound 1/(1 − α).",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.load-factor",
+      "origin": "source",
+      "pages": [
+        339,
+        342
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-hashing-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these statements about hash tables are true?",
+      "options": [
+        "Separate chaining keeps working when the load factor exceeds 1.",
+        "Linear probing suffers from primary clustering.",
+        "In open addressing, deleting a key by marking its slot empty leaves every later search correct.",
+        "With m prime and 1 ≤ h₂(k) ≤ m − 1, double hashing probes every slot before repeating."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Chains simply grow, so α > 1 is fine. Linear probing grows contiguous runs. Emptying a slot breaks the probe chain of any key stored beyond it, so a search for that key stops early and fails; a tombstone is needed. With m prime every h₂ in 1..m − 1 is coprime to m, so the sequence covers all m slots.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.open-addressing",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Hash double",
+      "origin": "source",
+      "pages": [
+        339,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-dfs-orders",
+      "type": "msq",
+      "marks": 2,
+      "stem": "An undirected graph has vertices A–F and edges A–B, A–C, B–D, C–D, C–E, D–F, E–F. Which sequences are valid DFS visit orders starting at A (neighbours may be taken in any order)?",
+      "options": [
+        "A B C D E F",
+        "A B D C E F",
+        "A B D F C E",
+        "A C E F D B"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "explanation": "A B D C E F: A → B → D → C (neighbour of D) → E → F, valid. A C E F D B: A → C → E → F → D → B, valid. A B C D E F fails at C: B still has the unvisited neighbour D, and C is not adjacent to B. A B D F C E fails at C: F still has the unvisited neighbour E, and C is not adjacent to F.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.dfs",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-bfs-order",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "For the same graph (edges A–B, A–C, B–D, C–D, C–E, D–F, E–F), which sequence is NOT a valid BFS order from A?",
+      "options": [
+        "A B C D E F",
+        "A C B D E F",
+        "A C B E D F",
+        "A B C E D F"
+      ],
+      "answer": 3,
+      "explanation": "Levels are {A}, {B, C}, {D, E}, {F}. If B is dequeued before C, B enqueues D before C enqueues E, so D must precede E. A B C E D F puts E first and is invalid. A C B E D F is valid because C (dequeued first) enqueues D and E in any order.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.bfs",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-edge-class-times",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "During DFS of a directed graph, edge (u, v) is examined with d[v] < f[v] < d[u] < f[u]. What kind of edge is it?",
+      "options": [
+        "Back edge",
+        "Forward edge",
+        "Cross edge",
+        "Tree edge"
+      ],
+      "answer": 2,
+      "explanation": "The intervals of u and v are disjoint and v finished before u was discovered, so neither is an ancestor of the other: a cross edge. A back edge needs u nested inside v; tree and forward edges need v nested inside u.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.dfs-edge-classes",
+      "sourceLabel": "PYQ-8 (GATE 2020) — DFS edges",
+      "origin": "source",
+      "pages": [
+        338,
+        343
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-bfs-matrix-cost",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "BFS is run on a graph with V vertices and E edges stored as an adjacency matrix. What is its running time?",
+      "options": [
+        "Θ(V²)",
+        "Θ(V + E)",
+        "Θ(E log V)",
+        "Θ(V · E)"
+      ],
+      "answer": 0,
+      "explanation": "Each of the V dequeued vertices scans its whole matrix row of V entries to find neighbours, so the total is Θ(V²) regardless of E. Θ(V + E) holds only for adjacency lists.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.bfs",
+      "origin": "source",
+      "pages": [
+        336,
+        337
+      ]
+    },
+    {
+      "id": "pds-graphs-hashing.q-list-entries",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A simple undirected graph has 10 vertices and 15 edges and is stored as adjacency lists. How many list nodes do the lists hold in total?",
+      "answer": 30,
+      "explanation": "Each undirected edge {u, v} appears in the list of u and in the list of v, so the total is 2|E| = 30, which is also the degree sum by the handshake lemma.",
+      "difficulty": "easy",
+      "topic": "pds-graphs-hashing.graph-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-graphs-hashing.q-topological-orders",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A DAG has vertices a, b, c, d, e, f and edges a→b, a→c, b→d, c→d, c→e, d→f, e→f. How many distinct topological orders does it have?",
+      "answer": 5,
+      "explanation": "a must come first and f last. The middle four need b before d, c before d and c before e. Listing them: b c d e, b c e d, c b d e, c b e d, c e b d. That is 5 orders.",
+      "difficulty": "medium",
+      "topic": "pds-graphs-hashing.dfs-applications",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "BFS and DFS both cost O(V + E) on lists; only BFS gives shortest paths in an unweighted graph, and only DFS gives finish times for topological order.",
+      "origin": "source",
+      "pages": [
+        337,
+        343
+      ]
+    },
+    {
+      "text": "Traversal cost depends on the representation: on an adjacency matrix BFS and DFS are Θ(V²) even for a sparse graph.",
+      "origin": "source",
+      "pages": [
+        336,
+        343
+      ]
+    },
+    {
+      "text": "Deleting from an open-addressing table by blanking the slot loses every key whose probe sequence passed through it; use a tombstone.",
+      "origin": "source",
+      "pages": [
+        339,
+        343
+      ]
+    },
+    {
+      "text": "Primary clustering belongs to linear probing; quadratic probing removes it but still shows secondary clustering among keys with the same home slot.",
+      "origin": "source",
+      "pages": [
+        339,
+        343
+      ]
+    },
+    {
+      "text": "Quadratic probing computes h(k) + i² from the home slot each time, not by adding i² to the previous probe position.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Average chain length is n/m over all slots; dividing by the non-empty slots only overstates it.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Forward and cross edges never appear in DFS of an undirected graph; an answer that lists them for an undirected graph is wrong.",
+      "origin": "source",
+      "pages": [
+        338
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Representations and traversals",
+      "lines": [
+        "Matrix: Θ(V²) space, O(1) edge test, BFS/DFS Θ(V²)",
+        "List: Θ(V + E) space, O(deg) edge test, BFS/DFS O(V + E)",
+        "BFS: queue, levels = shortest unweighted distance, |d(u) − d(v)| ≤ 1 on an edge",
+        "DFS: stack, d/f times, back edge ⇔ cycle, reverse finish order = topological order"
+      ],
+      "origin": "source",
+      "pages": [
+        336,
+        344
+      ]
+    },
+    {
+      "heading": "DFS edge classes for (u, v)",
+      "lines": [
+        "Tree/forward: d[u] < d[v] < f[v] < f[u]",
+        "Back: d[v] < d[u] < f[u] < f[v]",
+        "Cross: d[v] < f[v] < d[u] < f[u]",
+        "Undirected graphs: tree and back edges only"
+      ],
+      "origin": "source",
+      "pages": [
+        338
+      ]
+    },
+    {
+      "heading": "Hashing",
+      "lines": [
+        "Chaining: α may exceed 1; U = 1 + α, S ≈ 1 + α/2",
+        "Open addressing: α ≤ 1; U ≤ 1/(1 − α), S ≤ (1/α) ln(1/(1 − α))",
+        "Linear: primary clustering; S ≈ ½(1 + 1/(1 − α)), U ≈ ½(1 + 1/(1 − α)²)",
+        "Quadratic: secondary clustering. Double: h₂ coprime to m. Delete with a tombstone"
+      ],
+      "origin": "source",
+      "pages": [
+        339,
+        344
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 343,
+      "claim": "Open addressing must satisfy α < 1 (also stated as “load factor must be < 1”), while the syllabus page gives α ≤ 1.",
+      "correction": "The hard constraint is n ≤ m, that is α ≤ 1: a full table (α = 1) is a legal state in which only further inserts fail. The strict α < 1 is needed only for the expected-probe formulas 1/(1 − α) to be finite, which is why practical tables keep α well below 1."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "pds-graphs",
+      "status": "covered",
+      "topics": [
+        "pds-graphs-hashing.terminology",
+        "pds-graphs-hashing.graph-counting",
+        "pds-graphs-hashing.representations",
+        "pds-graphs-hashing.adjacency-matrix-properties",
+        "pds-graphs-hashing.bfs",
+        "pds-graphs-hashing.bfs-levels",
+        "pds-graphs-hashing.dfs",
+        "pds-graphs-hashing.dfs-edge-classes",
+        "pds-graphs-hashing.dfs-applications"
+      ]
+    },
+    {
+      "item": "algo-hashing",
+      "status": "covered",
+      "topics": [
+        "pds-graphs-hashing.hash-tables",
+        "pds-graphs-hashing.hash-functions",
+        "pds-graphs-hashing.chaining",
+        "pds-graphs-hashing.open-addressing",
+        "pds-graphs-hashing.load-factor",
+        "pds-graphs-hashing.hashing-probability"
+      ]
+    }
+  ]
+}

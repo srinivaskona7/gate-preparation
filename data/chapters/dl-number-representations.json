@@ -1,0 +1,2268 @@
+{
+  "id": "dl-number-representations",
+  "summary": "How a machine stores numbers and computes with them: positional bases and conversions, the four signed-integer encodings with their ranges, two's complement addition with carry and overflow, Booth multiplication and restoring division, fixed-point formats, and IEEE 754 floating point with its bias, hidden bit, denormals and special values. The questions here are bit-level calculations you can finish by hand: decode a pattern, encode a value, find a range, or decide whether a sum overflows.",
+  "highYield": [
+    "Encode a decimal value in IEEE 754 single precision or decode a 32-bit pattern (often given in hex) to its decimal value.",
+    "Ranges and counts: n-bit two's complement −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1, sign-magnitude and 1's complement lose one value to the second zero.",
+    "Signed overflow on addition: same-sign operands with a different-sign result, equivalently carry into MSB ≠ carry out of MSB.",
+    "Unknown-radix equations such as (312)ᵣ / (20)ᵣ = (13.1)ᵣ, solved by expanding both sides as polynomials in r.",
+    "IEEE 754 limits: smallest normal 2⁻¹²⁶, smallest denormal 2⁻¹⁴⁹, largest finite (2 − 2⁻²³) × 2¹²⁷ ≈ 3.4 × 10³⁸.",
+    "Booth recoding of a multiplier and the count of add/subtract operations it needs."
+  ],
+  "topics": [
+    {
+      "id": "dl-number-representations.positional-systems",
+      "title": "Positional number systems",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        234,
+        235
+      ],
+      "points": [
+        "In base r a digit string dₖ…d₁d₀.d₋₁d₋₂… has value Σ dᵢ·rⁱ, with every digit in 0 … r − 1; hexadecimal uses A–F for 10–15.",
+        "Binary (r = 2) is what hardware stores; octal and hexadecimal are compact spellings of binary because 8 = 2³ and 16 = 2⁴.",
+        "A k-digit base-r integer spans 0 to rᵏ − 1, so writing N needs ⌊log_r N⌋ + 1 digits; for example 1000 needs 10 bits since 2⁹ = 512 ≤ 1000 < 1024.",
+        "The largest digit appearing in a numeral bounds the base from below: (43)ₓ forces x ≥ 5."
+      ],
+      "keyTerms": [
+        "radix",
+        "positional weight",
+        "hexadecimal",
+        "octal"
+      ],
+      "lesson": {
+        "why": "Every other question in this chapter starts by reading a numeral in some base, so a slip here ruins the whole answer.",
+        "intro": "A numeral is a row of digits, and each place has a weight. In base $r$ the rightmost place weighs $1$, the next weighs $r$, the next $r^2$, and so on. Places after a radix point weigh $r^{-1}$, $r^{-2}$ and so on, so in binary $0.101$ is $\\tfrac12+\\tfrac18$. The number is the sum of each digit times its place weight. A digit can only be $0$ up to $r-1$, so base 2 uses 0 and 1, and base 16 needs six extra symbols, A to F, for the values 10 to 15.",
+        "definitions": [
+          {
+            "term": "Radix (base)",
+            "meaning": "The number $r$ of distinct digit symbols; each place is worth $r$ times the place to its right."
+          },
+          {
+            "term": "Endianness",
+            "meaning": "The order in which the bytes of a multi-byte number sit in memory: low byte first (little endian) or high byte first (big endian)."
+          }
+        ],
+        "principle": {
+          "text": "The numeral $d_k\\dots d_1d_0.d_{-1}\\dots d_{-m}$ in base $r$ has the value below, where digits right of the point have negative exponents. A $k$-digit numeral covers $0$ to $r^k-1$, so $N$ needs $\\lfloor\\log_r N\\rfloor+1$ digits.",
+          "tex": "\\sum_{i=-m}^{k} d_i\\,r^{i},\\qquad 0\\le d_i\\le r-1"
+        },
+        "limits": "The rule gives the value only when every digit is below the base: the numeral 43 cannot be in base 4 or less. For a multi-byte integer in memory, the byte order decides which byte carries the heavy weight, so the same bytes can mean two different numbers.",
+        "example": {
+          "problem": "Find the value of $(1A3)_{16}$, and the number of bits needed to write the decimal number 300.",
+          "steps": [
+            "The digits are 1, A = 10 and 3, with weights $16^2=256$, $16$ and $1$.",
+            "The value is $1\\cdot256+10\\cdot16+3=256+160+3=419$.",
+            "For 300 find the powers of 2 around it: $2^8=256\\le300<512=2^9$.",
+            "So 300 has its leading 1 in the $2^8$ place, which makes 9 bits."
+          ],
+          "result": "$(1A3)_{16}=419$, and 300 needs 9 bits."
+        },
+        "misconceptions": [
+          "A hexadecimal digit such as A is not a variable: it is the fixed value 10, and in $(1A3)_{16}$ it sits in the $16^1$ place, so it contributes 160.",
+          "The number of bits for $N$ is $\\lfloor\\log_2 N\\rfloor+1$, not $\\log_2 N$ rounded in either direction: exactly 256 needs 9 bits, not 8."
+        ],
+        "recall": [
+          {
+            "q": "What is the largest digit allowed in base $r$?",
+            "a": "The digit $r-1$; for base 16 that is F, which stands for 15."
+          },
+          {
+            "q": "How many digits does $N$ need in base $r$?",
+            "a": "$\\lfloor\\log_r N\\rfloor+1$, the exponent of the largest power of $r$ not above $N$ plus one."
+          },
+          {
+            "q": "A numeral contains the digit 7. What does that say about its base?",
+            "a": "The base is at least 8, because the base must exceed every digit used."
+          },
+          {
+            "q": "Two bytes are stored with $b_0$ at the lower address and $b_1$ at the next one. Which weight does each byte get in the little-endian reading, and which in the big-endian reading?",
+            "a": "Little endian puts the low-address byte in the low place: $256b_1+b_0$. Big endian puts it in the high place: $256b_0+b_1$. The two readings differ by $255(b_1-b_0)$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many digits are needed to write the decimal number 1000 in base 5?",
+          "answer": 5,
+          "explanation": "The powers of 5 are 5, 25, 125, 625 and 3125. Since $625\\le1000<3125$, the leading digit sits in the $5^4$ place, giving 5 digits. Answering 4 is tempting because $5^4=625$ is the largest power below 1000, but the exponent 4 names the place, and the digit count is one more."
+        },
+        "summary": "A numeral's value is the sum of digit times place weight, every digit is below the base, and $N$ needs $\\lfloor\\log_r N\\rfloor+1$ digits in base $r$."
+      }
+    },
+    {
+      "id": "dl-number-representations.base-conversion",
+      "title": "Conversion between bases",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        235,
+        239,
+        240,
+        242
+      ],
+      "points": [
+        "Decimal integer to base r: divide repeatedly by r and read the remainders from last to first; 45 gives 101101₂.",
+        "Decimal fraction to base r: multiply repeatedly by r and read the integer parts in order; 0.625 gives 0.101₂ after three steps.",
+        "A decimal fraction terminates in binary only if its reduced denominator is a power of 2, so 0.1 = 0.000110011…₂ repeats forever and is rounded in any finite format.",
+        "Binary to octal or hex: group bits in threes or fours outward from the radix point, padding with zeros at both ends; 11010110₂ = D6₁₆ = 326₈.",
+        "Octal to hex goes through binary: (1217)₈ = 001 010 001 111 = 0010 1000 1111 = (28F)₁₆ = 655."
+      ],
+      "keyTerms": [
+        "repeated division",
+        "repeated multiplication",
+        "bit grouping"
+      ],
+      "lesson": {
+        "why": "Converting between binary, octal, hexadecimal and decimal is the first step of many floating-point and addressing questions, and it is quick once the method is routine.",
+        "intro": "To change the base of a whole number, divide it by the new base again and again. Each remainder is one digit of the answer, and the first remainder is the rightmost digit. To change a fraction, multiply it by the new base again and again. Each integer part that falls out is one digit, and the first one is the leftmost digit after the point. Between binary, octal and hexadecimal no arithmetic is needed: 8 and 16 are powers of 2, so every octal digit is exactly 3 bits and every hex digit exactly 4 bits. To go from any base to any other, evaluate the numeral to decimal with place weights, then convert that decimal value to the target base. A binary fraction is read the same way with weights $2^{-1}$, $2^{-2}$ and so on.",
+        "prerequisites": [
+          "dl-number-representations.positional-systems"
+        ],
+        "principle": {
+          "text": "For a whole number, repeated division by $r$ yields digits from the least significant end. For a fraction, repeated multiplication by $r$ yields digits from the most significant end. Grouping bits works because one digit of base $2^g$ equals $g$ bits. Between two arbitrary bases, evaluate to decimal by the place-weight sum, then convert out of decimal."
+        },
+        "limits": "A decimal fraction ends in binary only when its reduced denominator is a power of 2; 0.1 repeats forever and is cut off in any finite format. When grouping bits, start from the radix point and pad with zeros at the outer ends, never beside the point on the wrong side.",
+        "example": {
+          "problem": "Write the decimal number 109 in binary and in hexadecimal, then convert $(213)_4$ to base 5 and read $(0.101)_2$ in decimal.",
+          "steps": [
+            "Divide by 2: $109=54\\cdot2+1$, $54=27\\cdot2+0$, $27=13\\cdot2+1$, $13=6\\cdot2+1$, $6=3\\cdot2+0$, $3=1\\cdot2+1$, $1=0\\cdot2+1$.",
+            "The remainders in order are 1, 0, 1, 1, 0, 1, 1. Reading them from last to first gives $1101101$.",
+            "For hex, pad on the left to a multiple of 4 bits: $0110\\ 1101$.",
+            "$0110=6$ and $1101=13=\\text{D}$.",
+            "For $(213)_4$ evaluate to decimal first: $2\\cdot16+1\\cdot4+3=39$.",
+            "Divide 39 by 5: $39=7\\cdot5+4$, $7=1\\cdot5+2$, $1=0\\cdot5+1$, so the digits read last to first are 124.",
+            "For the fraction, weigh the places by $2^{-1}$, $2^{-2}$, $2^{-3}$: $0.101=\\tfrac12+\\tfrac18=0.625$."
+          ],
+          "result": "$109=(1101101)_2=(6D)_{16}$, $(213)_4=(124)_5$ and $(0.101)_2=0.625$."
+        },
+        "misconceptions": [
+          "Reading the remainders in the order they were produced gives the digits reversed: for 109 that would be 1011011, which is 91.",
+          "Grouping bits from the left instead of from the radix point shifts every group: $1101101$ split from the left as 110 | 110 | 1 is wrong, and the correct octal grouping is 1 | 101 | 101."
+        ],
+        "recall": [
+          {
+            "q": "In which order do the remainders of repeated division form the answer?",
+            "a": "The last remainder is the leftmost digit and the first remainder is the rightmost digit."
+          },
+          {
+            "q": "In which order do the integer parts of repeated multiplication form a fraction?",
+            "a": "In the order they appear: the first integer part is the digit right after the point."
+          },
+          {
+            "q": "Why can binary be converted to hex by grouping?",
+            "a": "Because $16=2^4$, so one hex digit is exactly four bits and no arithmetic is needed."
+          },
+          {
+            "q": "How do you convert a numeral between two bases that are neither 10 nor powers of each other?",
+            "a": "Evaluate it to decimal with powers of the source base, then divide that value repeatedly by the target base and read the remainders last to first."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the binary representation of the decimal fraction 0.6875?",
+          "options": [
+            "0.1011",
+            "0.1101",
+            "0.0111",
+            "0.1001"
+          ],
+          "answer": 0,
+          "explanation": "Multiply by 2 repeatedly: $0.6875\\to1.375$ gives digit 1, $0.375\\to0.75$ gives 0, $0.75\\to1.5$ gives 1, $0.5\\to1.0$ gives 1, and the fraction part is now 0. The digits in order are 1, 0, 1, 1. The option 0.1101 is tempting because it is those digits read backwards, which is the rule for whole numbers, not fractions."
+        },
+        "summary": "Divide for whole numbers and read remainders last to first; multiply for fractions and read integer parts first to last; hex and octal group bits in fours and threes from the point. For any other pair of bases, go through decimal."
+      }
+    },
+    {
+      "id": "dl-number-representations.unknown-radix",
+      "title": "Equations with an unknown radix",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Expand every numeral as a polynomial in its base, equate, and solve; then discard roots that are not integers or are not larger than every digit used.",
+        "(312)ᵣ / (20)ᵣ = (13.1)ᵣ becomes (3r² + r + 2) = 2r(r + 3 + 1/r), i.e. r² − 5r = 0, so r = 5.",
+        "With two unknowns, such as (43)ₓ = (y3)₈, the equation 4x + 3 = 8y + 3 gives x = 2y; the digit constraints x ≥ 5 and 1 ≤ y ≤ 7 leave y = 3 … 7, five solutions.",
+        "A numeral 'ends in 0' in base r exactly when r divides the value; questions on trailing zeros reduce to divisibility."
+      ],
+      "keyTerms": [
+        "digit constraint",
+        "polynomial expansion"
+      ],
+      "lesson": {
+        "why": "GATE sets equations whose base is the unknown, and the method is always the same short algebra problem if you expand each numeral first.",
+        "intro": "Sometimes a question writes numbers in a base you are not told, such as $(24)_r+(13)_r=(40)_r$. The letter $r$ only tells you the weights of the places. Rewrite every numeral as digit times power of $r$, add up, and you get an ordinary equation in $r$. Solve it, then check that the answer is a whole number and that it is larger than every digit written in the question.",
+        "prerequisites": [
+          "dl-number-representations.positional-systems"
+        ],
+        "principle": {
+          "text": "Replace each numeral $d_1d_0$ by $d_1 r+d_0$ (and longer ones by their full sum), equate the two sides, solve for $r$, and keep only integer roots with $r>$ the largest digit that appears."
+        },
+        "limits": "The method needs the digits to be fixed numerals. If the equation has several roots, the digit condition can remove some of them. If two unknown bases appear, one equation leaves a family of solutions bounded only by the digit conditions, and you count them.",
+        "example": {
+          "problem": "Find the base $r$ in which $(24)_r+(13)_r=(40)_r$.",
+          "steps": [
+            "Expand each numeral: $(24)_r=2r+4$, $(13)_r=r+3$ and $(40)_r=4r$.",
+            "The equation is $2r+4+r+3=4r$, which is $3r+7=4r$.",
+            "Subtract $3r$ from both sides to get $r=7$.",
+            "Check the digits: the largest digit used is 4, and $7>4$, so the base is allowed."
+          ],
+          "result": "The base is $r=7$."
+        },
+        "misconceptions": [
+          "Solving the equation and stopping skips the digit check: a root of $r=3$ for a numeral containing the digit 4 is not a valid base.",
+          "The digits stay the same under a change of base: $(24)_r$ is not 24 in decimal unless $r=10$, so writing $24+13=40$ directly is wrong."
+        ],
+        "recall": [
+          {
+            "q": "How is $(d_1d_0)_r$ written as an expression?",
+            "a": "As $d_1 r+d_0$, with each digit multiplied by its place weight."
+          },
+          {
+            "q": "After solving for $r$, what two conditions must it meet?",
+            "a": "It must be a whole number, and it must be larger than the largest digit that appears."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For which base $r$ does $(21)_r\\times(3)_r=(103)_r$ hold?",
+          "answer": 6,
+          "explanation": "Expand: $(2r+1)\\cdot3=6r+3$ and $(103)_r=r^2+3$. So $6r+3=r^2+3$, which gives $r^2=6r$, so $r=0$ or $r=6$. The root 0 is not a base, so $r=6$, and the digits 0, 1, 2 and 3 are all below 6. Cancelling $r$ from both sides early would hide the root 0, but it must still be rejected, not overlooked."
+        },
+        "summary": "Expand every numeral in powers of the base, solve the resulting equation, and keep only whole-number bases larger than every digit used."
+      }
+    },
+    {
+      "id": "dl-number-representations.signed-representations",
+      "title": "Sign-magnitude, 1's complement and excess-K",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        235,
+        236,
+        242
+      ],
+      "points": [
+        "Sign-magnitude puts the sign in the MSB and |x| in the other n − 1 bits; range −(2ⁿ⁻¹ − 1) to +(2ⁿ⁻¹ − 1) with two zeros, 000…0 and 100…0.",
+        "1's complement negates by inverting every bit; same range and the same two zeros (000…0 and 111…1), and addition needs an end-around carry.",
+        "Excess-K (biased) stores x + K as an unsigned number, giving range −K to 2ⁿ − 1 − K with a single zero; IEEE 754 exponents use K = 2ᵏ⁻¹ − 1.",
+        "Out of 2ⁿ patterns, two's complement represents 2ⁿ distinct integers while sign-magnitude and 1's complement represent 2ⁿ − 1, because one pattern is a second zero.",
+        "Complements generalize to any base r: the r's complement of an n-digit N is rⁿ − N and the (r − 1)'s complement is rⁿ − 1 − N, so the 10's complement of 0325 is 9675 and its 9's complement 9674.",
+        "In 1's complement addition a carry out of the MSB is added back at the LSB (end-around carry): 0101 + 1100 = 1 0001, and 0001 + 1 = 0010, so 5 + (−3) = 2."
+      ],
+      "keyTerms": [
+        "sign-magnitude",
+        "ones' complement",
+        "end-around carry",
+        "bias"
+      ],
+      "lesson": {
+        "why": "Questions ask for the value of a bit pattern, the range of a format, or the width needed after a subtraction, and each encoding gives a different answer for the same bits.",
+        "intro": "A fixed-width pattern of bits has to carry a sign. Sign-magnitude spends the leftmost bit on the sign and keeps the rest as the size, so the number is plus or minus that size. One's complement negates a number by flipping every bit. Excess-K stores the number plus a fixed bias K as an ordinary unsigned value, so the all-zero pattern means $-K$. Sign-magnitude and one's complement both have two patterns for zero; excess-K has only one.",
+        "prerequisites": [
+          "dl-number-representations.positional-systems"
+        ],
+        "principle": {
+          "text": "With $n$ bits, sign-magnitude and one's complement both span $-(2^{n-1}-1)$ to $2^{n-1}-1$ and waste one pattern on a second zero; excess-K spans $-K$ to $2^n-1-K$ with one zero.",
+          "tex": "\\text{SM, 1's: }[-(2^{n-1}-1),\\,2^{n-1}-1]\\qquad\\text{excess-}K\\text{: }[-K,\\,2^n-1-K]"
+        },
+        "limits": "These encodings differ from two's complement in range, and in how addition works: one's complement needs an end-around carry and sign-magnitude needs a separate sign rule. The IEEE 754 exponent uses excess-K with $K=2^{k-1}-1$, which is the same idea at a smaller scale.",
+        "example": {
+          "problem": "Write $-37$ in 8 bits in sign-magnitude, in one's complement, and in excess-128.",
+          "steps": [
+            "The magnitude is $37=00100101$ in 8 bits.",
+            "Sign-magnitude sets the leftmost bit to 1 and keeps the 7 magnitude bits: $10100101$.",
+            "One's complement flips every bit of $00100101$ to give $11011010$.",
+            "Excess-128 stores $-37+128=91=01011011$."
+          ],
+          "result": "$10100101$ (sign-magnitude), $11011010$ (one's complement), $01011011$ (excess-128)."
+        },
+        "misconceptions": [
+          "Flipping bits alone gives one's complement, not two's complement; a student who flips the bits of 37 and stops has $-37$ in one's complement only.",
+          "Excess-K does not store the sign in the top bit: the pattern $01011011$ looks positive but means $-37$ in excess-128, because the value is the unsigned reading minus 128."
+        ],
+        "recall": [
+          {
+            "q": "What is the range of $n$-bit sign-magnitude?",
+            "a": "$-(2^{n-1}-1)$ to $2^{n-1}-1$, with two patterns for zero."
+          },
+          {
+            "q": "How does excess-K decode a stored unsigned value $u$?",
+            "a": "The number is $u-K$."
+          },
+          {
+            "q": "Why do sign-magnitude and one's complement hold only $2^n-1$ distinct values?",
+            "a": "Both have two zero patterns, so one of the $2^n$ patterns repeats a value."
+          },
+          {
+            "q": "Why can a difference of two $n$-bit sign-magnitude numbers need more than $n$ bits?",
+            "a": "The result can have magnitude up to $2^n-2$, which needs $n$ magnitude bits, and the sign bit is extra, so $n+1$ bits are required."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The 6-bit pattern 110101 is read as a signed number. What is its value if the system uses one's complement?",
+          "options": [
+            "-10",
+            "-11",
+            "-21",
+            "21"
+          ],
+          "answer": 0,
+          "explanation": "A leading 1 means negative. Flipping all bits of 110101 gives 001010, which is 10, so the value is $-10$. The option $-11$ is what two's complement would give, since $53-64=-11$, and $-21$ is the sign-magnitude reading of the same bits. The option 21 forgets that the sign bit is 1."
+        },
+        "summary": "Sign-magnitude and one's complement share a range and a double zero, excess-K shifts the range by K with one zero, and each format reads the same bits differently.",
+        "analogy": {
+          "text": "Excess-K is like numbering building floors so the lowest basement is floor 0: the stored number is the floor label, and the real level is the label minus the offset.",
+          "breaksWhen": "Everyone reading the labels must agree on the offset, and the stored pattern is still an ordinary unsigned number, so nothing in the bits themselves shows that a bias is in use."
+        }
+      }
+    },
+    {
+      "id": "dl-number-representations.twos-complement",
+      "title": "Two's complement and sign extension",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        236,
+        239,
+        240,
+        241,
+        242
+      ],
+      "points": [
+        "An n-bit pattern bₙ₋₁…b₀ has value −bₙ₋₁·2ⁿ⁻¹ + Σ bᵢ·2ⁱ: the MSB carries weight −2ⁿ⁻¹, so 11111111 is −128 + 127 = −1.",
+        "Negate by inverting all bits and adding 1, or by copying bits up to and including the lowest 1 and inverting the rest: −25 is 11100111 in 8 bits.",
+        "Range −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1 with one zero; the most negative value 100…0 is its own negation, so negating it overflows.",
+        "Sign extension to a wider word replicates the MSB: 1011 (−5) becomes 11111011, and 16-bit 1111 1111 1111 0101 is −11.",
+        "A k-bit hex pattern with leading digit 8–F is negative; subtract 16ᵏ for its value, so 0xEE as an 8-bit number is 238 − 256 = −18."
+      ],
+      "keyTerms": [
+        "two's complement",
+        "sign extension",
+        "most negative number"
+      ],
+      "lesson": {
+        "why": "Two's complement is the way integers are stored in nearly every machine, and GATE keeps asking for the value, the negation and the widened form of a pattern.",
+        "intro": "In an $n$-bit two's complement number the leftmost bit counts as $-2^{n-1}$ and every other bit counts as its usual $+2^i$. A leading 0 gives a non-negative number and a leading 1 a negative number. To negate a number, flip every bit and add 1. To store the same number in more bits, copy the leftmost bit into every new place on the left.",
+        "prerequisites": [
+          "dl-number-representations.signed-representations"
+        ],
+        "principle": {
+          "text": "An $n$-bit pattern has the value below, and the range is $-2^{n-1}$ to $2^{n-1}-1$ with one zero. Negation is invert then add one, and sign extension copies the top bit, leaving the value unchanged.",
+          "tex": "v=-b_{n-1}2^{n-1}+\\sum_{i=0}^{n-2}b_i2^i"
+        },
+        "limits": "The most negative value, $100\\dots0$, is its own negation, so negating it overflows. Sign extension is for signed values only: an unsigned value must be extended with zeros, and treating one as the other changes the meaning.",
+        "example": {
+          "problem": "Write $-52$ as an 8-bit two's complement pattern, then extend it to 16 bits.",
+          "steps": [
+            "$52=00110100$ in 8 bits.",
+            "Invert every bit: $11001011$.",
+            "Add 1: $11001011+1=11001100$.",
+            "Check: $-128+64+8+4=-52$.",
+            "Extend to 16 bits by copying the top bit 1 eight times: $1111\\,1111\\,1100\\,1100$."
+          ],
+          "result": "$-52=11001100$ in 8 bits and $1111111111001100$ in 16 bits."
+        },
+        "misconceptions": [
+          "Padding a negative number with zeros on the left makes it positive: $11001100$ extended by zeros is $0000000011001100=204$, not $-52$.",
+          "Inverting without adding 1 gives the wrong negative: $11001011$ is $-53$, one below the intended $-52$."
+        ],
+        "recall": [
+          {
+            "q": "What weight does the leftmost bit carry in $n$-bit two's complement?",
+            "a": "The weight $-2^{n-1}$, which is what makes a leading 1 negative."
+          },
+          {
+            "q": "How do you negate a two's complement number?",
+            "a": "Invert all bits, then add 1."
+          },
+          {
+            "q": "What does sign extension do to the value?",
+            "a": "Nothing: copying the top bit into the new places keeps the same value."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The 8-bit two's complement pattern 10010110 is read as a signed integer. What is its value?",
+          "answer": -106,
+          "explanation": "The leftmost bit weighs $-128$, and the other bits give $16+4+2=22$, so the value is $-128+22=-106$. The unsigned reading is 150, which is the tempting wrong answer; the signed value is $150-256$."
+        },
+        "summary": "The top bit weighs $-2^{n-1}$, negation is invert plus one, and sign extension copies the top bit to keep the value."
+      }
+    },
+    {
+      "id": "dl-number-representations.add-sub-overflow",
+      "title": "Addition, subtraction, carry and overflow",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        236,
+        238,
+        239,
+        240,
+        241,
+        242
+      ],
+      "points": [
+        "Two's complement addition is plain binary addition with the carry out of the MSB dropped; A − B is computed as A + (inverted B) + 1, the +1 entering as the carry-in.",
+        "Signed overflow happens only when both operands have the same sign and the sum has the other sign; operands of opposite signs never overflow.",
+        "Equivalent hardware test: V = cₙ₋₁ ⊕ cₙ, the carry into the MSB XOR the carry out of it; in terms of sign bits V = aₙ₋₁bₙ₋₁s′ₙ₋₁ + a′ₙ₋₁b′ₙ₋₁sₙ₋₁.",
+        "Carry-out signals unsigned overflow and is independent of V: 0x40 + 0xC0 gives carry 1 with no signed overflow, while 0x7F + 0x01 gives V = 1 with carry 0.",
+        "ALU flags after an add: Z (result zero), N (result MSB), C (carry out) and V (signed overflow); after a subtraction, C is the inverted borrow on some machines (ARM) and the borrow itself on others (x86)."
+      ],
+      "keyTerms": [
+        "overflow flag",
+        "carry flag",
+        "carry into MSB"
+      ],
+      "lesson": {
+        "why": "Overflow questions are quick marks once you test the sign rule instead of recomputing the bit patterns.",
+        "intro": "Adding two $n$-bit two's complement numbers with ordinary binary addition and dropping any final carry gives the right pattern, as long as the true sum fits. If the true sum lies outside the range of $n$ bits, the result shows the wrong number: that is signed overflow. Subtraction $A-B$ is done as $A$ plus the inverted bits of $B$ plus 1. Overflow cannot happen when the two operands have different signs, because the sum then lies between them.",
+        "prerequisites": [
+          "dl-number-representations.twos-complement"
+        ],
+        "definitions": [
+          {
+            "term": "Carry out",
+            "meaning": "The bit that leaves the leftmost column during addition; it signals an unsigned overflow."
+          },
+          {
+            "term": "Signed overflow",
+            "meaning": "The true result lies outside $-2^{n-1}$ to $2^{n-1}-1$, so the pattern shows a wrong value."
+          }
+        ],
+        "principle": {
+          "text": "Signed overflow occurs exactly when both operands have the same sign and the sum has the opposite sign. In hardware this is the carry into the leftmost bit XORed with the carry out of it. The carry out alone does not decide it.",
+          "tex": "V=c_{n-1}\\oplus c_{n}"
+        },
+        "limits": "The test is for two's complement. In sign-magnitude, overflow means the magnitude exceeds $2^{n-1}-1$, and the sign-bit rule does not apply. For a subtraction, apply the test to $A$ and the negated $B$, or compute the true difference and compare with the range.",
+        "example": {
+          "problem": "In 8-bit two's complement add $0x64$ and $0x50$. Does signed overflow happen, and what is the carry out?",
+          "steps": [
+            "$0x64=01100100=100$ and $0x50=01010000=80$, both positive.",
+            "The true sum is 180, which is above the maximum 127.",
+            "Adding the bits gives $10110100$ with no carry out of the top column.",
+            "The result has a leading 1 though both operands were positive, which reads as $180-256=-76$."
+          ],
+          "result": "Signed overflow occurs, and the carry out is 0."
+        },
+        "misconceptions": [
+          "A carry out of the top bit does not mean signed overflow: $0x40+0xC0$ has a carry out and the correct sum 0.",
+          "No carry out does not mean the sum is safe: $0x64+0x50$ has no carry out and overflows."
+        ],
+        "recall": [
+          {
+            "q": "When can two's complement addition overflow?",
+            "a": "Only when both operands have the same sign and the result has the opposite sign."
+          },
+          {
+            "q": "How is the overflow flag found from the carries?",
+            "a": "It is the carry into the leftmost bit XOR the carry out of the leftmost bit."
+          },
+          {
+            "q": "How is $A-B$ computed in an adder?",
+            "a": "As $A$ plus the inverted bits of $B$ with a carry-in of 1."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Two 4-bit two's complement numbers are added. Which pair gives signed overflow?",
+          "options": [
+            "0110 and 0001",
+            "1000 and 1111",
+            "1010 and 0101",
+            "0100 and 0011"
+          ],
+          "answer": 1,
+          "explanation": "The pair 1000 and 1111 is $-8$ and $-1$ with a true sum of $-9$, below the 4-bit minimum of $-8$. The pairs 0110 and 0001 (7) and 0100 and 0011 (7) fit, and 1010 and 0101 mix signs, so they cannot overflow. The pair 0110 and 0001 tempts because 7 is the top of the range, but it is still inside."
+        },
+        "summary": "Signed overflow needs same-sign operands and an opposite-sign result, equals carry-in XOR carry-out at the top bit, and is independent of the carry out alone."
+      }
+    },
+    {
+      "id": "dl-number-representations.multiplication-booth",
+      "title": "Shift-and-add multiplication and Booth's algorithm",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        15,
+        236,
+        237,
+        242
+      ],
+      "points": [
+        "Unsigned shift-and-add: for each multiplier bit that is 1, add the shifted multiplicand; an n × n multiply yields up to 2n bits.",
+        "Booth radix-2 recoding scans pairs (qᵢ, qᵢ₋₁) with q₋₁ = 0: 10 → −1 (subtract), 01 → +1 (add), 00 and 11 → 0 (shift only).",
+        "A run of 1s from bit i to bit j becomes 2ʲ⁺¹ − 2ⁱ, so 0011 recodes to 0 +1 0 −1 (= 4 − 1) and 01110110 to +1 0 0 −1 +1 0 −1 0.",
+        "Booth works directly on two's complement multipliers. It saves work on long runs of 1s, but alternating patterns such as 0101… are its worst case, with an operation at every bit.",
+        "Arithmetic right shift of the combined A:Q:q₋₁ register keeps the sign of partial products during each step; A needs n + 1 bits, because subtracting the multiplicand −2ⁿ⁻¹ adds 2ⁿ⁻¹, which does not fit in n signed bits."
+      ],
+      "keyTerms": [
+        "Booth recoding",
+        "arithmetic shift right",
+        "partial product"
+      ],
+      "lesson": {
+        "why": "Booth questions usually ask how many additions and subtractions a multiplier needs, and that count comes from reading the multiplier bits alone.",
+        "intro": "Shift-and-add multiplication adds the multiplicand once for every 1 in the multiplier, shifted to that bit's position. Booth's method skips long runs of 1s: a run of ones equals one subtraction at its low end and one addition just above its high end. The multiplier is scanned bit by bit from the right, with an extra 0 placed to the right of the lowest bit, and every place where two neighbouring bits differ costs one operation.",
+        "prerequisites": [
+          "dl-number-representations.twos-complement"
+        ],
+        "definitions": [
+          {
+            "term": "Booth recoding",
+            "meaning": "Rewriting the multiplier as digits $+1$, $0$ and $-1$, chosen from each bit and the bit to its right."
+          },
+          {
+            "term": "Arithmetic shift right",
+            "meaning": "A right shift that copies the sign bit into the vacated top position, so a negative partial product stays negative."
+          }
+        ],
+        "principle": {
+          "text": "For bit $q_i$ and the bit to its right $q_{i-1}$ (with $q_{-1}=0$), the recoded digit is $q_{i-1}-q_i$. The pair 10 means subtract the shifted multiplicand, 01 means add it, and 00 or 11 means shift only. Because a run of ones from bit $i$ to bit $j$ equals $2^{j+1}-2^{i}$, the value is preserved, and it also works when the multiplier is a negative two's complement number.",
+          "tex": "d_i=q_{i-1}-q_i,\\qquad Q=\\sum_i d_i\\,2^i"
+        },
+        "limits": "Booth does not always save work: an alternating multiplier such as 01010101 needs an operation at every bit, more than plain shift-and-add. Only the multiplier decides the count; the multiplicand never changes it. The accumulator needs one extra bit, because subtracting the most negative multiplicand does not fit in the original width.",
+        "example": {
+          "problem": "Count the additions and subtractions Booth's algorithm needs for the 8-bit multiplier $Q=00111100$, and confirm that the recoding still equals $Q$.",
+          "steps": [
+            "Write $Q$ with an extra 0 on the right: 00111100 0. Scan from the right, one pair of neighbouring bits at a time.",
+            "Reading from bit 0 upward, the bits are 0,0,1,1,1,1,0,0. They change from 0 to 1 between bit 1 and bit 2, which is a subtraction at weight $2^2$.",
+            "They change from 1 to 0 between bit 5 and bit 6, which is an addition at weight $2^6$. No other pair differs.",
+            "The recoded value is $+2^6-2^2=64-4=60$, which equals $00111100$ read as an ordinary number."
+          ],
+          "result": "Booth needs 2 operations (one subtraction, one addition), where shift-and-add would need 4 additions."
+        },
+        "misconceptions": [
+          "Counting the 1s of the multiplier as the number of operations. Booth counts the places where neighbouring bits differ, so a long run of ones costs only two.",
+          "Forgetting the extra 0 to the right of the lowest bit, which loses the operation that a 1 in bit 0 starts.",
+          "Thinking the multiplicand affects the operation count. It only sets the size of each added or subtracted value."
+        ],
+        "recall": [
+          {
+            "q": "What do the bit pairs 10 and 01 mean in Booth recoding?",
+            "a": "The pair 10 (current bit 1, lower bit 0) means subtract the shifted multiplicand; 01 means add it. The pairs 00 and 11 mean shift only."
+          },
+          {
+            "q": "Which multiplier pattern is the worst case for Booth's algorithm?",
+            "a": "An alternating pattern such as 0101..., because every pair of neighbouring bits differs and every bit costs an operation."
+          },
+          {
+            "q": "Why does the product register need one extra bit?",
+            "a": "Subtracting the most negative multiplicand adds a value that does not fit in $n$ signed bits."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A Booth multiplier is the 8-bit two's complement number $Q=01011011$. How many additions and subtractions does Booth's algorithm perform?",
+          "answer": 6,
+          "explanation": "Append a 0 on the right and count the places where neighbouring bits differ: 0|1|0|11|0|11|0 splits into 7 runs, so there are 6 changes and 6 operations. Counting the five 1s of $Q$ and answering 5 is the tempting slip: it ignores that Booth works on changes, not on ones."
+        },
+        "summary": "Booth charges one add or subtract at every place where neighbouring multiplier bits differ, with a 0 appended on the right. Runs of ones are cheap, alternating bits are the worst case, and only the multiplier sets the count."
+      }
+    },
+    {
+      "id": "dl-number-representations.division",
+      "title": "Restoring and non-restoring division",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        15,
+        237
+      ],
+      "points": [
+        "Restoring division of an n-bit dividend Q by divisor M: each of n steps shifts A:Q left one place and sets A ← A − M.",
+        "If the new A is negative the step restores A ← A + M and sets the quotient bit to 0; otherwise the quotient bit is 1. At the end Q holds the quotient and A the remainder.",
+        "The number of restore operations equals the number of 0 bits in the n-bit quotient: 11 ÷ 3 in 4 bits gives quotient 0011, remainder 2, and 2 restores.",
+        "Non-restoring division skips the restore: when A is negative the next step adds M instead of subtracting it, and one final correction A + M fixes a negative remainder."
+      ],
+      "keyTerms": [
+        "restoring division",
+        "non-restoring division",
+        "remainder"
+      ],
+      "lesson": {
+        "why": "Restoring and non-restoring division appear as step-count and register-trace questions, and the restore count is a quick number to get right.",
+        "intro": "Binary division works like long division on paper. Keep a register A that starts at 0 and a register Q that holds the dividend. At each of the $n$ steps, shift A and Q left together as one unit so the top bit of Q moves into A, then subtract the divisor M from A. If A stays zero or positive, the quotient bit is 1. If A goes negative, put M back by adding it, and the quotient bit is 0. After $n$ steps Q holds the quotient and A holds the remainder.",
+        "prerequisites": [
+          "dl-number-representations.add-sub-overflow"
+        ],
+        "principle": {
+          "text": "Restoring division repeats $n$ times: shift A:Q left, compute $A-M$, keep it and set the new low bit of Q to 1 if it is non-negative, otherwise undo it with $A+M$ and set that bit to 0. Non-restoring division skips the undo: after a negative A the next step adds M instead of subtracting, and a negative final A needs one correction $A+M$.",
+          "tex": "\\text{restores}=\\#\\{\\text{zero bits of the }n\\text{-bit quotient}\\}"
+        },
+        "limits": "The restore count equals the zeros of the quotient only when the quotient is written in the full $n$ bits, leading zeros included. The scheme assumes unsigned operands and a non-zero divisor, and the quotient must fit in $n$ bits.",
+        "example": {
+          "problem": "Divide 13 by 3 with restoring division in 4 bits: Q = 1101, M = 0011, A = 0000. Find the quotient, remainder and number of restores.",
+          "steps": [
+            "Step 1: shift in the top bit of Q, giving A = 1. Then $1-3=-2<0$, so restore A = 1 and the quotient bit is 0.",
+            "Step 2: shift in the next bit, giving A = 3. Then $3-3=0$, so keep A = 0 and the quotient bit is 1.",
+            "Step 3: shift in 0, giving A = 0. Then $0-3<0$, so restore A = 0 and the quotient bit is 0.",
+            "Step 4: shift in the last bit, giving A = 1. Then $1-3<0$, so restore A = 1 and the quotient bit is 0.",
+            "Read the quotient bits in order: 0100 = 4, and A = 1. Restores happened in steps 1, 3 and 4."
+          ],
+          "result": "$13=4\\times3+1$: quotient 4, remainder 1, and 3 restores, one per zero bit of 0100."
+        },
+        "misconceptions": [
+          "Counting restores from the quotient without its leading zeros: 4 is 100 but is 0100 in 4 bits, so the restore count is 3, not 2.",
+          "Shifting only Q and not A:Q as one pair, which breaks the alignment of the remainder with the divisor.",
+          "Treating a negative remainder in non-restoring division as final: it needs the extra correction $A+M$."
+        ],
+        "recall": [
+          {
+            "q": "What does each step of restoring division do to A and Q before subtracting?",
+            "a": "It shifts the pair A:Q left by one place, so the top bit of Q enters A."
+          },
+          {
+            "q": "When is the quotient bit 0 and what is done to A?",
+            "a": "When $A-M$ is negative. A is restored by adding M back."
+          },
+          {
+            "q": "How does non-restoring division avoid the restore?",
+            "a": "After a negative A it adds M in the next step instead of subtracting, and corrects a negative final A with one addition of M."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Restoring division of 12 by 5 uses 4-bit registers. How many restore operations occur over the four steps?",
+          "answer": 3,
+          "explanation": "The quotient is 2 and the remainder is 2. In 4 bits the quotient is 0010, which has three zero bits, so three steps end with a negative A and a restore. Counting only the ones, or dropping the leading zeros, gives a smaller number, which is the tempting error."
+        },
+        "summary": "Division shifts A:Q left, subtracts M, and restores when A goes negative; restores equal the zero bits of the full-width quotient, and non-restoring division trades each restore for a later addition."
+      }
+    },
+    {
+      "id": "dl-number-representations.fixed-point",
+      "title": "Fixed-point numbers and the fixed versus floating trade-off",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A fixed-point word has an implied binary point after a fixed number of integer bits; an n-bit two's complement word with f fraction bits stores the integer x·2ᶠ.",
+        "Resolution is 2⁻ᶠ and range is −2ⁿ⁻ᶠ⁻¹ to 2ⁿ⁻ᶠ⁻¹ − 2⁻ᶠ: 8 bits with 4 fraction bits cover −8 to 7.9375 in steps of 0.0625.",
+        "To read a pattern, take its signed integer value and divide by 2ᶠ: 1010 1100 is −84, so with 4 fraction bits it is −5.25.",
+        "Fixed point has uniform absolute precision and uses the integer ALU; floating point trades that for an enormous range with uniform relative precision.",
+        "Multiplying two fixed-point numbers with f fraction bits each gives 2f fraction bits, so the product must be shifted right by f to rescale."
+      ],
+      "keyTerms": [
+        "Q format",
+        "resolution",
+        "implied binary point"
+      ],
+      "lesson": {
+        "why": "Fixed-point questions ask which values fit, what the range is, or what a pattern means, and each is answered with the count of fraction bits.",
+        "intro": "A fixed-point number is an ordinary integer word with an imagined binary point placed a set number of bits from the right. The hardware never stores the point; it is only agreed upon. The bits to the left of the point carry the whole part and the bits to the right carry halves, quarters, eighths and so on, so with $f$ fraction bits the smallest step between values is $2^{-f}$.",
+        "prerequisites": [
+          "dl-number-representations.twos-complement",
+          "dl-number-representations.base-conversion"
+        ],
+        "definitions": [
+          {
+            "term": "Implied binary point",
+            "meaning": "A point that is not stored; the word is read as an integer and then scaled by $2^{-f}$."
+          },
+          {
+            "term": "Resolution",
+            "meaning": "The gap between neighbouring representable values, $2^{-f}$ for $f$ fraction bits."
+          }
+        ],
+        "principle": {
+          "text": "An $n$-bit word with $f$ fraction bits stores the integer $x\\cdot 2^{f}$, so a pattern with integer value $N$ means $N/2^{f}$. An unsigned word covers 0 up to $2^{n-f}-2^{-f}$, in steps of $2^{-f}$, and a value is exact only if its fraction is a multiple of $2^{-f}$.",
+          "tex": "\\text{value}=\\frac{N}{2^{f}},\\qquad 0\\le X\\le 2^{\\,n-f}-2^{-f}"
+        },
+        "limits": "Fixed point has the same absolute precision everywhere, so it cannot cover a huge range and tiny values at once; that is what floating point is for. The range formula above is for unsigned words; a two's complement word runs from $-2^{n-f-1}$ to $2^{n-f-1}-2^{-f}$.",
+        "example": {
+          "problem": "An 8-bit two's complement word has 3 fraction bits. What value does the pattern 11010100 have?",
+          "steps": [
+            "Read the pattern as an ordinary 8-bit two's complement integer: 11010100 is $212-256=-44$.",
+            "With 3 fraction bits the scale is $2^3=8$, so divide the integer by 8.",
+            "$-44/8=-5.5$. As a check, the step is $1/8$, and $-5.5$ is a multiple of $1/8$."
+          ],
+          "result": "The pattern 11010100 stands for $-5.5$."
+        },
+        "misconceptions": [
+          "Treating the stored bits as if the point moves with the value. The point stays fixed, so the step is always $2^{-f}$.",
+          "Thinking 0.1 or 0.3 can be stored exactly. Only multiples of $2^{-f}$ are exact, and 0.1 is not one for any $f$.",
+          "Giving the top of the unsigned range as $2^{n-f}$ instead of one step below it, $2^{n-f}-2^{-f}$."
+        ],
+        "recall": [
+          {
+            "q": "What does an $n$-bit fixed-point pattern with $f$ fraction bits and integer value $N$ represent?",
+            "a": "The value $N/2^{f}$."
+          },
+          {
+            "q": "What is the resolution of a fixed-point format with $f$ fraction bits?",
+            "a": "The gap between neighbouring values is $2^{-f}$."
+          },
+          {
+            "q": "After multiplying two fixed-point numbers with $f$ fraction bits each, how many fraction bits does the raw product have?",
+            "a": "It has $2f$ fraction bits, so it is shifted right by $f$ to get back to the original format."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An unsigned 10-bit fixed-point format has 4 fraction bits. What is the largest value it can represent?",
+          "answer": 63.9375,
+          "explanation": "With 10 bits and 4 fraction bits there are 6 integer bits, so the top value is $2^6-2^{-4}=64-0.0625=63.9375$. The answer 64 is tempting but needs one more integer bit; the all-ones pattern is one step short of 64."
+        },
+        "summary": "Fixed point is an integer scaled by $2^{-f}$ with the point implied. The step is $2^{-f}$, the unsigned top is $2^{n-f}-2^{-f}$, and only multiples of the step are exact."
+      }
+    },
+    {
+      "id": "dl-number-representations.ieee754-format",
+      "title": "IEEE 754 formats, bias and the hidden bit",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        237,
+        239,
+        240,
+        243
+      ],
+      "points": [
+        "Single precision: 1 sign, 8 exponent, 23 fraction bits, bias 127. Double precision: 1 sign, 11 exponent, 52 fraction bits, bias 1023.",
+        "A normalized value is (−1)ˢ × 1.F × 2^(E − bias) for stored exponent 1 ≤ E ≤ 254 (single), so true exponents run from −126 to +127.",
+        "The leading 1 is implied, not stored, giving 24 significant bits in single and 53 in double, about 7 and 15–16 decimal digits.",
+        "The stored exponent is the true exponent plus the bias, never minus; 1.0 is 0 01111111 000…0 = 0x3F800000.",
+        "Because the exponent field sits above the fraction and is biased, non-negative floats compare in the same order as their bit patterns read as unsigned integers."
+      ],
+      "keyTerms": [
+        "bias",
+        "hidden bit",
+        "significand",
+        "normalized"
+      ],
+      "lesson": {
+        "why": "Every floating-point question starts by splitting a 32-bit word into sign, exponent and fraction, and the bias and hidden bit decide the value.",
+        "intro": "A single-precision float uses 32 bits: 1 sign bit, 8 exponent bits and 23 fraction bits. The number is written in binary scientific form, $1.\\text{fraction}\\times 2^{e}$. Because the leading 1 is always there for a normal number, it is not stored. The exponent is stored with a fixed offset added, so the stored field is never negative.",
+        "prerequisites": [
+          "dl-number-representations.base-conversion"
+        ],
+        "definitions": [
+          {
+            "term": "Bias",
+            "meaning": "The constant added to the true exponent before storing it: 127 for single precision and 1023 for double."
+          },
+          {
+            "term": "Hidden bit",
+            "meaning": "The leading 1 of a normalized significand, which is implied rather than stored."
+          },
+          {
+            "term": "Significand",
+            "meaning": "The number $1.F$ that multiplies the power of two."
+          }
+        ],
+        "principle": {
+          "text": "A normalized single-precision word with sign $S$, stored exponent $E$ (from 1 to 254) and fraction $F$ has the value below. The stored exponent is the true exponent plus 127, so true exponents run from $-126$ to $+127$.",
+          "tex": "(-1)^{S}\\times 1.F\\times 2^{\\,E-127}"
+        },
+        "limits": "The formula holds only for stored exponents 1 to 254. Exponent 0 gives zero and denormals, and exponent 255 gives infinity and NaN, both with different rules. Double precision uses 11 exponent bits, 52 fraction bits and bias 1023.",
+        "example": {
+          "problem": "Write 5.75 as an IEEE 754 single-precision word in hexadecimal.",
+          "steps": [
+            "In binary $5.75=101.11_2$, and normalizing gives $1.0111_2\\times 2^{2}$, so the sign is 0 and the true exponent is 2.",
+            "The stored exponent is $2+127=129=10000001_2$. The fraction is 0111 followed by zeros; the leading 1 is dropped.",
+            "The word is 0 10000001 0111000...0, which regroups into nibbles as 0100 0000 1011 1000 0000 0000 0000 0000."
+          ],
+          "result": "5.75 is 0x40B80000."
+        },
+        "misconceptions": [
+          "Subtracting the bias when encoding. The stored exponent is the true exponent plus the bias.",
+          "Forgetting the hidden bit when decoding, which reads $1.101$ as $0.101$.",
+          "Reading the exponent from the wrong bits: the exponent field starts after the sign bit, so it is not a whole hex digit: it uses the low 3 bits of the first digit, the whole second digit and the top bit of the third."
+        ],
+        "recall": [
+          {
+            "q": "How many bits do the sign, exponent and fraction use in single precision, and what is the bias?",
+            "a": "1, 8 and 23 bits, with bias 127."
+          },
+          {
+            "q": "What is the value of a normalized single-precision word?",
+            "a": "$(-1)^S\\times 1.F\\times 2^{E-127}$, valid for $E$ from 1 to 254."
+          },
+          {
+            "q": "How many significant bits does single precision give?",
+            "a": "24 bits, the 23 stored fraction bits plus the hidden leading 1."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What decimal value does the single-precision word 0x40500000 represent?",
+          "options": [
+            "3.25",
+            "1.25",
+            "6.5",
+            "13.0"
+          ],
+          "answer": 0,
+          "explanation": "The bits are 0 10000000 1010000...0, so the exponent field is 128, the true exponent is 1, and the significand is $1.101_2=1.625$. The value is $1.625\\times 2=3.25$. Choosing 6.5 comes from using exponent 2, and choosing 1.25 comes from dropping the hidden 1 ($0.625\\times 2$)."
+        },
+        "summary": "A single-precision word is 1, 8 and 23 bits with bias 127. Normal values are $(-1)^S\\times 1.F\\times 2^{E-127}$, the leading 1 is implied, and the stored exponent is the true one plus 127."
+      }
+    },
+    {
+      "id": "dl-number-representations.ieee754-special",
+      "title": "IEEE 754 zeros, denormals, infinities and NaN",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        237,
+        239,
+        240,
+        242,
+        243
+      ],
+      "points": [
+        "E = 0 and F = 0 encodes ±0; +0 is all zeros and −0 has only the sign bit set, and the two compare equal.",
+        "E = 0 and F ≠ 0 encodes a denormal (−1)ˢ × 0.F × 2^(1 − bias): no hidden 1, and the exponent is 1 − bias, not 0 − bias.",
+        "E all 1s with F = 0 is ±∞, the result of overflow or of dividing a non-zero number by zero; −∞ is 1 11111111 000…0 = 0xFF800000.",
+        "E all 1s with F ≠ 0 is NaN, produced by 0/0, ∞ − ∞ or √−1; NaN compares unequal to everything including itself.",
+        "Denormals fill the gap between 0 and 2⁻¹²⁶ in steps of 2⁻¹⁴⁹, giving gradual underflow instead of a sudden jump to zero."
+      ],
+      "keyTerms": [
+        "denormal",
+        "subnormal",
+        "NaN",
+        "infinity",
+        "gradual underflow"
+      ],
+      "lesson": {
+        "why": "Questions on the largest or smallest float, or on what a pattern means, depend on the reserved exponent values for zero, denormals, infinity and NaN.",
+        "intro": "Two exponent fields are kept back from ordinary numbers. An exponent field of all zeros marks zero and tiny numbers near it, and an exponent field of all ones marks infinity and not-a-number results. Everything in between, 1 to 254 in single precision, is a normal number. The fraction field then tells which special value it is.",
+        "prerequisites": [
+          "dl-number-representations.ieee754-format"
+        ],
+        "definitions": [
+          {
+            "term": "Denormal",
+            "meaning": "A tiny number with exponent field 0 and nonzero fraction; it has no hidden 1."
+          },
+          {
+            "term": "NaN",
+            "meaning": "Not a number: exponent field all ones and a nonzero fraction, the result of operations like $0/0$."
+          },
+          {
+            "term": "Gradual underflow",
+            "meaning": "Denormals fill the gap between zero and the smallest normal number instead of jumping straight to zero."
+          }
+        ],
+        "principle": {
+          "text": "With exponent field $E$ and fraction $F$ in single precision: $E=0,F=0$ is $\\pm0$; $E=0,F\\ne0$ is the denormal $(-1)^S\\times 0.F\\times 2^{-126}$; $E=255,F=0$ is $\\pm\\infty$; $E=255,F\\ne0$ is NaN. A denormal uses the exponent $1-127=-126$, not $0-127$.",
+          "tex": "\\text{denormal}=(-1)^{S}\\times 0.F\\times 2^{-126}"
+        },
+        "limits": "The rules apply to the reserved fields only; for $1\\le E\\le 254$ the normal formula applies. The largest finite number therefore has $E=254$, since $E=255$ is infinity or NaN. NaN is unequal to everything, including itself, so a comparison with it is false.",
+        "example": {
+          "problem": "Find the value of the single-precision word 0x00400000.",
+          "steps": [
+            "In binary the word is 0 00000000 100...0, so the exponent field is 0 and the fraction is not zero. It is a denormal.",
+            "The fraction 100...0 means $0.1_2=0.5$, with no hidden 1.",
+            "The exponent used is $-126$, so the value is $0.5\\times 2^{-126}=2^{-127}$."
+          ],
+          "result": "The word is a denormal equal to $2^{-127}\\approx 5.88\\times 10^{-39}$."
+        },
+        "misconceptions": [
+          "Using the exponent $0-127=-127$ for a denormal. It is $1-127=-126$, so denormals join smoothly to the smallest normal number.",
+          "Treating the all-ones exponent as the largest finite number. It is infinity or NaN.",
+          "Believing +0 and -0 differ in comparisons. They are equal, though their bit patterns differ in the sign bit."
+        ],
+        "recall": [
+          {
+            "q": "What exponent and fraction fields encode infinity?",
+            "a": "Exponent field all ones and fraction zero; the sign bit gives $+\\infty$ or $-\\infty$."
+          },
+          {
+            "q": "What exponent value does a single-precision denormal use?",
+            "a": "$-126$, with no hidden leading 1."
+          },
+          {
+            "q": "Which exponent field gives the largest finite single-precision number?",
+            "a": "254, with the fraction all ones."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which single-precision word is a denormal?",
+          "options": [
+            "0x007FFFFF",
+            "0x00800000",
+            "0x80000000",
+            "0x7F800001"
+          ],
+          "answer": 0,
+          "explanation": "The word 0x007FFFFF has exponent field 0 and a nonzero fraction, so it is a denormal. The word 0x00800000 has exponent field 1 and is the smallest normal number, which tempts because it is also tiny. The word 0x80000000 is $-0$ (fraction zero), and 0x7F800001 has exponent field 255 with nonzero fraction, which is NaN."
+        },
+        "summary": "Exponent 0 gives zeros and denormals, using $0.F\\times 2^{-126}$. Exponent all ones gives infinity or NaN. Normal numbers use exponents 1 to 254, so the largest finite float has exponent 254."
+      }
+    },
+    {
+      "id": "dl-number-representations.ieee754-conversion",
+      "title": "Converting to and from IEEE 754",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        237,
+        238,
+        239,
+        240,
+        241,
+        242
+      ],
+      "points": [
+        "Encoding: set S from the sign, write |x| in binary, normalize to 1.f × 2ᵉ, store E = e + bias, and pad f with zeros to the field width.",
+        "−12.5: 1100.1₂ = 1.1001 × 2³, E = 130 = 10000010, so the word is 1 10000010 1001000…0 = 0xC1480000.",
+        "−0.5 = −1.0 × 2⁻¹ gives E = 126 and fraction 0, so the word is 1 01111110 000…0 = 0xBF000000.",
+        "Decoding: split the 32 bits as 1 | 8 | 23, check E for the special cases, then compute (−1)ˢ × 1.F × 2^(E − 127); 0x3E6D0000 has E = 124 and 1.1101101₂ = 1.8515625, giving ≈ 0.2314.",
+        "Expand hex to binary first; the exponent field straddles the first two hex digits, so 0xC1… means S = 1 and E starts 1000 001.",
+        "Multiplication: S = S₁ ⊕ S₂, stored E = E₁ + E₂ − bias (two stored exponents carry the bias twice), multiply the significands and renormalize; 0xC1800000 (−16) × 0x3F5C2EF4 gives E = 131 + 126 − 127 = 130 with the fraction unchanged, 0xC15C2EF4."
+      ],
+      "keyTerms": [
+        "normalization",
+        "bit pattern",
+        "hex encoding",
+        "exponent addition"
+      ],
+      "lesson": {
+        "why": "Many questions give a hexadecimal word and ask for the decimal value, or the reverse, and the whole job is a fixed sequence of steps.",
+        "intro": "Converting between a decimal number and an IEEE 754 word follows the format step by step. To decode, expand the hexadecimal word to bits, split it into sign, exponent and fraction, and rebuild the number. To encode, do the same steps backwards: write the number in binary, normalize it and store the pieces. Practising both directions is the surest way to avoid slips.",
+        "prerequisites": [
+          "dl-number-representations.ieee754-format",
+          "dl-number-representations.base-conversion"
+        ],
+        "principle": {
+          "text": "To decode a single-precision word, split it as $1\\,|\\,8\\,|\\,23$ bits, check that the exponent field is not reserved, then compute the value below. To encode, normalize $|x|=1.f\\times 2^{e}$, store $E=e+127$ and pad $f$ with zeros.",
+          "tex": "x=(-1)^{S}\\,(1+F\\cdot 2^{-23})\\,2^{\\,E-127}"
+        },
+        "limits": "The steps assume a normal number. A word with exponent field 0 or 255 is read by the special-value rules, and a number whose fraction needs more than 23 bits is rounded when stored, so the encoding is then only approximate.",
+        "example": {
+          "problem": "Decode the single-precision word 0xC0A80000.",
+          "steps": [
+            "Expand to bits: C0A8 is 1100 0000 1010 1000, so the word is 1 10000001 0101000...0. The sign is 1 and the exponent field is 10000001, which is 129.",
+            "The true exponent is $129-127=2$. The fraction begins 0101, which is $0.25+0.0625=0.3125$, so the significand is $1.3125$.",
+            "The magnitude is $1.3125\\times 4=5.25$, and the sign bit makes it negative."
+          ],
+          "result": "The word 0xC0A80000 is $-5.25$."
+        },
+        "misconceptions": [
+          "Splitting the word at hex-digit boundaries. The exponent field starts after the first bit, so it crosses the first two hex digits.",
+          "Reading the fraction without the leading 1, or putting the 1 in the stored bits when encoding.",
+          "Using the stored exponent as the power of two without subtracting 127."
+        ],
+        "recall": [
+          {
+            "q": "How do you split a 32-bit IEEE 754 single-precision word?",
+            "a": "The sign is the top bit, the exponent is the next 8 bits and the fraction is the last 23 bits."
+          },
+          {
+            "q": "How is the stored exponent found when encoding?",
+            "a": "Normalize the number as $1.f\\times 2^e$ and store $E=e+127$."
+          },
+          {
+            "q": "What should be checked before applying the normal formula?",
+            "a": "That the exponent field is neither all zeros nor all ones, which are the special cases."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the decimal value of the single-precision word 0x41A40000?",
+          "answer": 20.5,
+          "explanation": "The bits are 0 10000011 0100100...0, so the exponent field is 131 and the true exponent is 4. The fraction 0100100 is $0.28125$, so the significand is $1.28125$ and the value is $1.28125\\times 16=20.5$. Using the fraction without the hidden 1 gives $0.28125\\times 16=4.5$, which is the typical slip."
+        },
+        "summary": "Decode by splitting the word as 1, 8 and 23 bits, checking for reserved exponents, and computing $(-1)^S\\times 1.F\\times 2^{E-127}$. Encode by normalizing and storing $e+127$."
+      }
+    },
+    {
+      "id": "dl-number-representations.fp-range-precision",
+      "title": "Floating-point range, precision, rounding and anomalies",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        15,
+        16,
+        238,
+        239,
+        241,
+        242
+      ],
+      "points": [
+        "Single precision: largest finite (2 − 2⁻²³) × 2¹²⁷ ≈ 3.4 × 10³⁸, smallest normal 2⁻¹²⁶ ≈ 1.18 × 10⁻³⁸, smallest denormal 2⁻¹⁴⁹ ≈ 1.4 × 10⁻⁴⁵.",
+        "The gap between consecutive floats (one ulp) is 2^(e − 23) in the binade [2ᵉ, 2ᵉ⁺¹); every binade holds exactly 2²³ normalized values.",
+        "Default rounding is round to nearest, ties to even; the other modes are toward zero (truncation), toward +∞ (ceiling) and toward −∞ (floor).",
+        "Floating-point addition is not associative: (2²⁴ + 1) + 1 rounds to 2²⁴ in single precision while 2²⁴ + (1 + 1) is exact, so order of summation matters.",
+        "Floating overflow rounds to ±∞ and underflow rounds to a denormal or zero; integer overflow instead wraps modulo 2ⁿ silently.",
+        "Addition: shift the significand of the smaller-exponent operand right by the exponent difference, add, renormalize, then round: 1.1₂ × 2³ + 1.01₂ × 2¹ = (1.1 + 0.0101)₂ × 2³ = 1.1101₂ × 2³ = 14.5. Guard, round and sticky bits keep the shifted-out bits so the rounding is correct."
+      ],
+      "keyTerms": [
+        "ulp",
+        "round to nearest even",
+        "binade",
+        "non-associativity",
+        "exponent alignment"
+      ],
+      "lesson": {
+        "why": "Questions on the smallest or largest float, on spacing between floats, or on whether a sum is exact all come from the structure of the exponent bands.",
+        "intro": "Floats are not spread evenly. Each power-of-two band, such as 1 to 2 or 1024 to 2048, holds the same number of values, so the gap between neighbours doubles every time the exponent goes up by one. Large numbers are therefore stored with larger gaps. A real number that falls between two floats is rounded to the nearer one, which is why some sums come out inexact.",
+        "prerequisites": [
+          "dl-number-representations.ieee754-format",
+          "dl-number-representations.ieee754-special"
+        ],
+        "definitions": [
+          {
+            "term": "Ulp",
+            "meaning": "Unit in the last place: the gap between a float and the next one up."
+          },
+          {
+            "term": "Round to nearest, ties to even",
+            "meaning": "The default rounding mode: pick the closer float, and on an exact tie pick the one whose last fraction bit is 0."
+          }
+        ],
+        "principle": {
+          "text": "In single precision, the band $[2^{e},2^{e+1})$ holds $2^{23}$ evenly spaced floats, so the gap is $2^{e-23}$. A value that lies less than half a gap from a float rounds to it. The largest finite number is $(2-2^{-23})\\times 2^{127}$, the smallest normal is $2^{-126}$ and the smallest denormal is $2^{-149}$.",
+          "tex": "\\mathrm{ulp}=2^{\\,e-23}\\quad\\text{for } 2^{e}\\le |x|<2^{e+1}"
+        },
+        "limits": "The gap formula covers normal numbers. In the denormal range the gap is fixed at $2^{-149}$. Rounding applies to the default mode only; truncation and directed modes round differently, and integers wrap on overflow instead of rounding to infinity.",
+        "example": {
+          "problem": "In single precision, is $1024+2^{-15}$ stored exactly, and what float is it rounded to?",
+          "steps": [
+            "The number 1024 is $2^{10}$, so it lies in the band with $e=10$, where the gap is $2^{10-23}=2^{-13}$.",
+            "The extra amount $2^{-15}$ is a quarter of the gap, so it is less than half a gap.",
+            "The number is nearer to 1024 than to $1024+2^{-13}$, so it rounds down to 1024."
+          ],
+          "result": "It is not exact; it rounds to 1024, because the gap near 1024 is $2^{-13}$."
+        },
+        "misconceptions": [
+          "Assuming the gap between floats is constant. It doubles with each exponent step.",
+          "Believing every integer is exact. In single precision integers are exact only up to $2^{24}$.",
+          "Expecting addition to be associative. Rounding after each step can make $(a+b)+c$ differ from $a+(b+c)$."
+        ],
+        "recall": [
+          {
+            "q": "How many normalized single-precision floats lie in one band $[2^e,2^{e+1})$?",
+            "a": "$2^{23}$, spaced evenly by $2^{e-23}$."
+          },
+          {
+            "q": "What are the smallest normal and smallest denormal single-precision numbers?",
+            "a": "$2^{-126}$ and $2^{-149}$."
+          },
+          {
+            "q": "Which neighbour does ties-to-even choose on an exact tie?",
+            "a": "The one whose last fraction bit is 0."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In single precision, what is the smallest positive integer that cannot be stored exactly?",
+          "options": [
+            "8388609",
+            "16777217",
+            "16777215",
+            "33554433"
+          ],
+          "answer": 1,
+          "explanation": "Below $2^{24}$ the gap is at most 1, so every integer is exact. In the band from $2^{24}$ to $2^{25}$ the gap is 2, so $16777217=2^{24}+1$ sits on an exact tie and rounds to the even neighbour $2^{24}$. The value 8388609 is $2^{23}+1$, which tempts because it is just past a power of two, but the gap there is still 1."
+        },
+        "summary": "Every power-of-two band holds $2^{23}$ single-precision floats, so the gap doubles with the exponent. Values round to the nearest float, ties to even, which makes integers inexact beyond $2^{24}$."
+      }
+    },
+    {
+      "id": "dl-number-representations.generic-float",
+      "title": "Non-standard floating-point formats",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "GATE often defines its own format (field widths, bias, whether the leading 1 is hidden); apply exactly the stated rules rather than IEEE habits.",
+        "For a k-bit exponent the IEEE-style bias is 2ᵏ⁻¹ − 1; a format that reserves no special values may use all exponent codes for normal numbers.",
+        "An 8-bit IEEE-like format with 1 sign, 4 exponent (bias 7) and 3 fraction bits has largest finite 1.111₂ × 2⁷ = 240 and smallest denormal 0.001₂ × 2⁻⁶ = 2⁻⁹.",
+        "Without a hidden bit the significand is 0.F or F as stated, and normalization means the first stored fraction bit is 1, which loses one bit of precision."
+      ],
+      "keyTerms": [
+        "custom format",
+        "minifloat"
+      ],
+      "lesson": {
+        "why": "GATE often invents a small floating-point format, and the marks come from applying its stated rules exactly rather than IEEE 754 habits.",
+        "intro": "A floating-point format splits a word into a sign bit, an exponent field and a fraction field. The exponent is stored with a bias added, so the true exponent is the stored code minus the bias. In a normal number a leading 1 is assumed before the fraction and not stored. If the format is IEEE-like, the all-zero exponent code is kept for zero and tiny denormal numbers, and the all-ones code for infinity and NaN. Before computing anything, write down the field widths, the bias and which codes are reserved.",
+        "prerequisites": [
+          "dl-number-representations.ieee754-format"
+        ],
+        "principle": {
+          "text": "With $k$ exponent bits the usual bias is $2^{k-1}-1$. In an IEEE-like format with $f$ fraction bits and a hidden bit, the largest finite value uses the largest non-reserved exponent code with all fraction bits 1, and the smallest positive value is the smallest denormal.",
+          "tex": "x_{\\max}=\\left(2-2^{-f}\\right)2^{\\,2^{k}-2-\\text{bias}},\\qquad x_{\\min}=2^{\\,1-\\text{bias}-f}"
+        },
+        "limits": "The formulas hold only for an IEEE-like layout. If the question says the format has no infinities, no denormals or no hidden bit, the largest exponent code becomes usable or the significand changes, and the rule must be rebuilt from the stated layout.",
+        "example": {
+          "problem": "An 8-bit format has 1 sign bit, 3 exponent bits with bias 3, and 4 fraction bits. It has a hidden bit and is IEEE-like. Find the largest finite value, the smallest normal value and the smallest positive denormal.",
+          "steps": [
+            "The all-ones exponent code 111 is reserved, so the largest usable code is 110 = 6 and the true exponent is $6-3=3$.",
+            "Largest finite: significand 1.1111 is $2-2^{-4}=1.9375$, so the value is $1.9375\\times2^3=15.5$.",
+            "Smallest normal: exponent code 001 gives true exponent $1-3=-2$, fraction 0, so the value is $2^{-2}=0.25$.",
+            "Denormals use true exponent $-2$ with no hidden bit; the smallest has fraction 0001, so the value is $0.0001_2\\times2^{-2}=2^{-6}=0.015625$."
+          ],
+          "result": "Largest finite 15.5, smallest normal 0.25, smallest positive denormal $2^{-6}=0.015625$."
+        },
+        "misconceptions": [
+          "Using the all-ones exponent code for the largest finite value, when an IEEE-like format keeps it for infinity and NaN.",
+          "Forgetting the hidden bit, which turns the significand 1.1111 into 0.1111 and loses the leading 1.",
+          "Applying the IEEE bias of 127 to a format with a different exponent width instead of $2^{k-1}-1$."
+        ],
+        "recall": [
+          {
+            "q": "What is the usual bias for a $k$-bit exponent field?",
+            "a": "$2^{k-1}-1$, so 127 for 8 bits and 3 for 3 bits."
+          },
+          {
+            "q": "Which exponent codes does an IEEE-like format reserve?",
+            "a": "All zeros for zero and denormals, and all ones for infinity and NaN."
+          },
+          {
+            "q": "What changes if a format has no hidden bit?",
+            "a": "The significand is read as 0.F or as stated, so the leading bit is stored and one bit of precision is lost."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An IEEE-like format has 1 sign bit, 5 exponent bits with bias 15, and 2 fraction bits, with a hidden bit. What is the largest finite value?",
+          "answer": 57344,
+          "explanation": "The all-ones code 11111 is reserved, so the largest code is 11110 = 30 and the true exponent is $30-15=15$. The significand is $1.11_2=1.75$, giving $1.75\\times2^{15}=57344$. Using code 31 gives $1.75\\times2^{16}=114688$, which is the tempting wrong answer."
+        },
+        "summary": "Read the layout first: bias, hidden bit and reserved codes decide the largest finite value and the smallest positive value, and IEEE habits apply only when the question says IEEE-like."
+      }
+    },
+    {
+      "id": "dl-number-representations.codes",
+      "title": "BCD, excess-3, Gray, ASCII and Hamming codes",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        15,
+        238,
+        239,
+        241,
+        243
+      ],
+      "points": [
+        "BCD codes each decimal digit in 4 bits: 25 is 0010 0101, not 11001. A d-digit number needs 4d bits, more than the ⌈d·log₂10⌉ of pure binary, and codes 1010–1111 are unused.",
+        "Excess-3 is BCD + 0011 per digit (5 → 1000); it is self-complementing, since inverting the bits gives the 9's complement digit.",
+        "Gray code changes exactly one bit between consecutive values: G = B ⊕ (B >> 1), so 1011 → 1110. Back to binary: Bₙ₋₁ = Gₙ₋₁ and Bᵢ = Bᵢ₊₁ ⊕ Gᵢ.",
+        "ASCII is a 7-bit code: '0' = 48 (0x30), 'A' = 65 (0x41), 'a' = 97 (0x61), so letter case differs only in bit 5 (value 32).",
+        "A Hamming code places parity bits at positions 1, 2, 4, 8, …; correcting one error in m data bits needs the least r with 2ʳ ≥ m + r + 1, so 8 data bits take 4 parity bits, plus one more for double-error detection."
+      ],
+      "keyTerms": [
+        "BCD",
+        "excess-3",
+        "Gray code",
+        "ASCII",
+        "Hamming code"
+      ],
+      "lesson": {
+        "why": "Code conversions and Hamming bit counts are short, mechanical questions where one wrong rule costs the whole answer.",
+        "intro": "A code is an agreed way to write a value as bits. BCD writes each decimal digit as its own 4-bit group, so 59 is 0101 1001. Excess-3 adds 3 to each digit before writing it, so 59 becomes 1000 1100. Gray code is a sequence where neighbouring values differ in exactly one bit. ASCII gives each character a 7-bit number. A Hamming code adds extra parity bits to data so that one flipped bit can be located and corrected.",
+        "prerequisites": [
+          "dl-number-representations.positional-systems"
+        ],
+        "principle": {
+          "text": "Gray code is the binary word XORed with itself shifted right once, and the reverse XORs each Gray bit with the binary bit just decoded above it. A single-error-correcting Hamming code with $m$ data bits needs the least $r$ parity bits satisfying the bound; a double-error-detecting version adds one more.",
+          "tex": "G=B\\oplus(B\\gg1),\\qquad 2^{r}\\ge m+r+1"
+        },
+        "limits": "BCD uses only the groups 0000 to 1001, so it is not a plain binary number and BCD arithmetic needs a correction. The Hamming bound counts parity bits for single-error correction only. ASCII facts are about the 7-bit table, and Gray decoding must use the decoded binary bit, not the next Gray bit.",
+        "example": {
+          "problem": "Write the decimal number 59 in BCD and excess-3, and convert the binary word 1101 to Gray code.",
+          "steps": [
+            "BCD: 5 is 0101 and 9 is 1001, so 59 is 0101 1001.",
+            "Excess-3: add 3 to each digit, giving 8 and 12, which are 1000 and 1100, so 59 is 1000 1100.",
+            "Gray: shift 1101 right once to get 0110.",
+            "XOR bit by bit: $1101\\oplus0110=1011$."
+          ],
+          "result": "59 is 0101 1001 in BCD and 1000 1100 in excess-3, and 1101 in binary is 1011 in Gray."
+        },
+        "misconceptions": [
+          "Writing 59 in BCD as its pure binary form 111011: BCD codes each digit separately, so 59 takes 8 bits.",
+          "Decoding Gray by XORing each Gray bit with the next Gray bit; it must be XORed with the already decoded binary bit.",
+          "Counting only data bits in the Hamming bound: the right side is $m+r+1$, which includes the parity bits themselves."
+        ],
+        "recall": [
+          {
+            "q": "How many bits does a d-digit decimal number take in BCD?",
+            "a": "$4d$ bits, one 4-bit group per digit."
+          },
+          {
+            "q": "How is excess-3 formed from BCD?",
+            "a": "Add 0011 to each digit, so 5 becomes 1000."
+          },
+          {
+            "q": "How many parity bits does a single-error-correcting Hamming code need for 8 data bits?",
+            "a": "Four, since $2^4=16\\ge8+4+1$; one more is added for double-error detection."
+          },
+          {
+            "q": "Which bit separates the ASCII upper case letter from the lower case one?",
+            "a": "Bit 5, value 32, so 'A' is 65 and 'a' is 97."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A single-error-correcting Hamming code protects 26 data bits. What is the least number of parity bits needed?",
+          "answer": 5,
+          "explanation": "Test the bound $2^r\\ge26+r+1$. For $r=4$ it gives $16\\ge31$, which fails. For $r=5$ it gives $32\\ge32$, which holds, so 5 parity bits are needed. Going on to 6 is tempting because the two sides are exactly equal at $r=5$, but equality satisfies the bound, so 5 is enough."
+        },
+        "summary": "BCD and excess-3 code digit by digit, Gray changes one bit per step via a shifted XOR, and a Hamming code needs the least $r$ with $2^r\\ge m+r+1$."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "dl-number-representations.positional-value",
+      "name": "Value of a base-r numeral",
+      "tex": "N = \\sum_{i=-m}^{k} d_i\\, r^{i}, \\qquad 0 \\le d_i \\le r-1",
+      "text": "N = Σ dᵢ · rⁱ for i from −m to k, 0 ≤ dᵢ ≤ r − 1",
+      "where": [
+        [
+          "dᵢ",
+          "digit at position i (negative i lies right of the radix point)"
+        ],
+        [
+          "r",
+          "base"
+        ]
+      ],
+      "note": "Every digit must be smaller than r; use this to bound an unknown radix before solving.",
+      "topic": "dl-number-representations.positional-systems",
+      "origin": "source",
+      "pages": [
+        235
+      ]
+    },
+    {
+      "id": "dl-number-representations.digits-needed",
+      "name": "Digits needed to write N in base r",
+      "tex": "\\text{digits} = \\lfloor \\log_r N \\rfloor + 1",
+      "text": "digits = ⌊log_r N⌋ + 1",
+      "where": [
+        [
+          "N",
+          "positive integer"
+        ],
+        [
+          "r",
+          "base"
+        ]
+      ],
+      "note": "For powers of r the answer jumps: 1024 needs 11 bits, 1023 needs 10.",
+      "topic": "dl-number-representations.positional-systems",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.twos-value",
+      "name": "Value of an n-bit two's complement pattern",
+      "tex": "x = -b_{n-1}\\,2^{n-1} + \\sum_{i=0}^{n-2} b_i\\,2^{i}",
+      "text": "x = −bₙ₋₁·2ⁿ⁻¹ + Σ bᵢ·2ⁱ (i from 0 to n − 2)",
+      "where": [
+        [
+          "bᵢ",
+          "bit i"
+        ],
+        [
+          "n",
+          "word length"
+        ]
+      ],
+      "note": "Equivalently, a pattern with MSB 1 is its unsigned value minus 2ⁿ.",
+      "topic": "dl-number-representations.twos-complement",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.twos-range",
+      "name": "Range of n-bit two's complement",
+      "tex": "-2^{n-1} \\le x \\le 2^{n-1} - 1",
+      "text": "−2ⁿ⁻¹ ≤ x ≤ 2ⁿ⁻¹ − 1",
+      "where": [
+        [
+          "n",
+          "word length"
+        ]
+      ],
+      "note": "2ⁿ distinct values with one zero; the extra value is on the negative side (−128 for 8 bits).",
+      "topic": "dl-number-representations.twos-complement",
+      "origin": "source",
+      "pages": [
+        15,
+        236,
+        238,
+        243
+      ]
+    },
+    {
+      "id": "dl-number-representations.sm-range",
+      "name": "Range of n-bit sign-magnitude and 1's complement",
+      "tex": "-(2^{n-1} - 1) \\le x \\le 2^{n-1} - 1",
+      "text": "−(2ⁿ⁻¹ − 1) ≤ x ≤ 2ⁿ⁻¹ − 1",
+      "where": [
+        [
+          "n",
+          "word length"
+        ]
+      ],
+      "note": "Only 2ⁿ − 1 distinct values because zero has two patterns.",
+      "topic": "dl-number-representations.signed-representations",
+      "origin": "source",
+      "pages": [
+        15,
+        235,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.excess-k",
+      "name": "Excess-K (biased) encoding",
+      "tex": "\\text{stored} = x + K, \\qquad -K \\le x \\le 2^{n} - 1 - K",
+      "text": "stored = x + K, −K ≤ x ≤ 2ⁿ − 1 − K",
+      "where": [
+        [
+          "K",
+          "bias"
+        ],
+        [
+          "n",
+          "field width"
+        ]
+      ],
+      "note": "IEEE 754 uses K = 2ᵏ⁻¹ − 1 for a k-bit exponent: 127 for 8 bits, 1023 for 11.",
+      "topic": "dl-number-representations.signed-representations",
+      "origin": "source",
+      "pages": [
+        236,
+        241
+      ]
+    },
+    {
+      "id": "dl-number-representations.overflow-carry",
+      "name": "Signed overflow from the MSB carries",
+      "tex": "V = c_{n-1} \\oplus c_{n}",
+      "text": "V = cₙ₋₁ ⊕ cₙ",
+      "where": [
+        [
+          "cₙ₋₁",
+          "carry into the MSB"
+        ],
+        [
+          "cₙ",
+          "carry out of the MSB"
+        ]
+      ],
+      "note": "The carry-out cₙ alone is the unsigned overflow signal, not the signed one.",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "source",
+      "pages": [
+        15,
+        236,
+        241,
+        243
+      ]
+    },
+    {
+      "id": "dl-number-representations.overflow-signs",
+      "name": "Signed overflow from the sign bits",
+      "tex": "V = a_{n-1} b_{n-1} \\overline{s_{n-1}} + \\overline{a_{n-1}}\\, \\overline{b_{n-1}}\\, s_{n-1}",
+      "text": "V = aₙ₋₁·bₙ₋₁·s′ₙ₋₁ + a′ₙ₋₁·b′ₙ₋₁·sₙ₋₁",
+      "where": [
+        [
+          "aₙ₋₁, bₙ₋₁",
+          "operand sign bits"
+        ],
+        [
+          "sₙ₋₁",
+          "sum sign bit"
+        ]
+      ],
+      "note": "For subtraction A − B, apply it to A and the inverted B.",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "source",
+      "pages": [
+        236,
+        239
+      ]
+    },
+    {
+      "id": "dl-number-representations.booth-digit",
+      "name": "Booth radix-2 recoded digit",
+      "tex": "r_i = q_{i-1} - q_i, \\qquad q_{-1} = 0",
+      "text": "rᵢ = qᵢ₋₁ − qᵢ, with q₋₁ = 0",
+      "where": [
+        [
+          "qᵢ",
+          "multiplier bit i"
+        ],
+        [
+          "rᵢ",
+          "recoded digit in {−1, 0, +1}"
+        ]
+      ],
+      "note": "Pair 10 gives −1 (subtract), 01 gives +1 (add); the number of non-zero rᵢ is the number of add/subtract operations.",
+      "topic": "dl-number-representations.multiplication-booth",
+      "origin": "source",
+      "pages": [
+        237,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.fixed-point-value",
+      "name": "Value and resolution of a fixed-point word",
+      "tex": "x = \\frac{I}{2^{f}}, \\qquad -2^{\\,n-f-1} \\le x \\le 2^{\\,n-f-1} - 2^{-f}",
+      "text": "x = I / 2ᶠ, −2ⁿ⁻ᶠ⁻¹ ≤ x ≤ 2ⁿ⁻ᶠ⁻¹ − 2⁻ᶠ",
+      "where": [
+        [
+          "I",
+          "the word read as a signed two's complement integer"
+        ],
+        [
+          "f",
+          "fraction bits"
+        ],
+        [
+          "n",
+          "word length"
+        ]
+      ],
+      "note": "Resolution is 2⁻ᶠ everywhere in the range, unlike floating point.",
+      "topic": "dl-number-representations.fixed-point",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.ieee-normal",
+      "name": "IEEE 754 normalized value",
+      "tex": "x = (-1)^{S} \\times 1.F \\times 2^{E - \\text{bias}}, \\qquad \\text{bias} = 2^{k-1} - 1",
+      "text": "x = (−1)ˢ × 1.F × 2^(E − bias), bias = 2ᵏ⁻¹ − 1",
+      "where": [
+        [
+          "S",
+          "sign bit"
+        ],
+        [
+          "E",
+          "stored exponent, 1 to 2ᵏ − 2"
+        ],
+        [
+          "F",
+          "stored fraction"
+        ],
+        [
+          "k",
+          "exponent width: 8 single, 11 double"
+        ]
+      ],
+      "note": "Bias 127 for single, 1023 for double. Stored E = true exponent + bias.",
+      "topic": "dl-number-representations.ieee754-format",
+      "origin": "source",
+      "pages": [
+        15,
+        237,
+        243
+      ]
+    },
+    {
+      "id": "dl-number-representations.ieee-denormal",
+      "name": "IEEE 754 denormal value",
+      "tex": "x = (-1)^{S} \\times 0.F \\times 2^{1 - \\text{bias}}",
+      "text": "x = (−1)ˢ × 0.F × 2^(1 − bias)",
+      "where": [
+        [
+          "E",
+          "stored exponent field, all zeros"
+        ],
+        [
+          "F",
+          "non-zero fraction"
+        ]
+      ],
+      "note": "The exponent is 1 − bias (−126 in single), the same as the smallest normal, so the two ranges join without a gap.",
+      "topic": "dl-number-representations.ieee754-special",
+      "origin": "source",
+      "pages": [
+        237
+      ]
+    },
+    {
+      "id": "dl-number-representations.ieee-limits",
+      "name": "Single-precision limits",
+      "tex": "x_{\\max} = (2 - 2^{-23})\\,2^{127}, \\quad x_{\\min}^{\\text{norm}} = 2^{-126}, \\quad x_{\\min}^{\\text{den}} = 2^{-149}",
+      "text": "max = (2 − 2⁻²³) × 2¹²⁷ ≈ 3.4 × 10³⁸, min normal = 2⁻¹²⁶ ≈ 1.18 × 10⁻³⁸, min denormal = 2⁻¹⁴⁹ ≈ 1.4 × 10⁻⁴⁵",
+      "where": [
+        [
+          "2⁻²³",
+          "one ulp at 1.0"
+        ]
+      ],
+      "note": "Double: max ≈ 1.8 × 10³⁰⁸, min normal 2⁻¹⁰²², min denormal 2⁻¹⁰⁷⁴.",
+      "topic": "dl-number-representations.fp-range-precision",
+      "origin": "source",
+      "pages": [
+        238,
+        241,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.ulp",
+      "name": "Spacing of floats in a binade",
+      "tex": "\\text{ulp}(x) = 2^{\\,e - p + 1}, \\qquad 2^{e} \\le |x| < 2^{e+1}",
+      "text": "ulp(x) = 2^(e − p + 1) for 2ᵉ ≤ |x| < 2ᵉ⁺¹",
+      "where": [
+        [
+          "p",
+          "significand precision in bits (24 single, 53 double)"
+        ],
+        [
+          "e",
+          "true exponent of x"
+        ]
+      ],
+      "note": "Above 2²⁴ single precision cannot represent every integer; 2²⁴ + 1 rounds to 2²⁴.",
+      "topic": "dl-number-representations.fp-range-precision",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.fp-multiply",
+      "name": "Floating-point multiplication",
+      "tex": "S = S_1 \\oplus S_2, \\qquad E = E_1 + E_2 - \\text{bias}, \\qquad M = M_1 \\times M_2",
+      "text": "S = S₁ ⊕ S₂, E = E₁ + E₂ − bias, M = M₁ × M₂",
+      "where": [
+        [
+          "Eᵢ",
+          "stored (biased) exponents"
+        ],
+        [
+          "Mᵢ",
+          "significands 1.F"
+        ]
+      ],
+      "note": "M lies in [1, 4); if M ≥ 2, shift it right once and add 1 to E. Forgetting to subtract the bias adds 127 to the true exponent.",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.fp-add-align",
+      "name": "Floating-point addition by exponent alignment",
+      "tex": "M_1 2^{e_1} + M_2 2^{e_2} = \\left(M_1 + M_2\\, 2^{-(e_1 - e_2)}\\right) 2^{e_1}, \\qquad e_1 \\ge e_2",
+      "text": "M₁·2^e₁ + M₂·2^e₂ = (M₁ + M₂·2^−(e₁ − e₂))·2^e₁ for e₁ ≥ e₂",
+      "where": [
+        [
+          "e₁, e₂",
+          "true exponents, e₁ the larger"
+        ],
+        [
+          "Mᵢ",
+          "significands"
+        ]
+      ],
+      "note": "Shift the smaller operand, never the larger. A sum of 2 or more is renormalized by one right shift; a cancelling subtraction may need several left shifts.",
+      "topic": "dl-number-representations.fp-range-precision",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.gray",
+      "name": "Binary to Gray and back",
+      "tex": "G = B \\oplus (B \\gg 1), \\qquad B_{n-1} = G_{n-1},\\; B_i = B_{i+1} \\oplus G_i",
+      "text": "G = B ⊕ (B >> 1); Bₙ₋₁ = Gₙ₋₁, Bᵢ = Bᵢ₊₁ ⊕ Gᵢ",
+      "where": [
+        [
+          "B",
+          "binary word"
+        ],
+        [
+          "G",
+          "Gray word"
+        ]
+      ],
+      "note": "Gray to binary XORs with the already decoded binary bit, not with the next Gray bit.",
+      "topic": "dl-number-representations.codes",
+      "origin": "source",
+      "pages": [
+        238,
+        243
+      ]
+    },
+    {
+      "id": "dl-number-representations.hamming-bound",
+      "name": "Parity bits for a single-error-correcting Hamming code",
+      "tex": "2^{r} \\ge m + r + 1",
+      "text": "2ʳ ≥ m + r + 1",
+      "where": [
+        [
+          "m",
+          "data bits"
+        ],
+        [
+          "r",
+          "parity bits"
+        ]
+      ],
+      "note": "m = 8 gives r = 4 (12 bits); SECDED adds one overall parity bit for 13.",
+      "topic": "dl-number-representations.codes",
+      "origin": "source",
+      "pages": [
+        238,
+        241
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "dl-number-representations.ripple-add",
+      "name": "n-bit ripple-carry addition",
+      "worst": "O(n) gate delays",
+      "notes": "Carry may propagate through every stage; carry-lookahead cuts the delay to O(log n).",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.shift-add-multiply",
+      "name": "Shift-and-add or Booth multiplication, n × n bits",
+      "worst": "n steps, up to n add/subtracts",
+      "notes": "Booth adds or subtracts only at the ends of runs of 1s; an alternating multiplier needs an operation at every bit.",
+      "topic": "dl-number-representations.multiplication-booth",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.restoring-divide",
+      "name": "Restoring division, n-bit quotient",
+      "worst": "n subtractions + n restores",
+      "notes": "Restores equal the number of 0 quotient bits; non-restoring division needs n add/subtracts plus at most one correction.",
+      "topic": "dl-number-representations.division",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "dl-number-representations.pt-ieee-encode-decode",
+      "title": "Encode a decimal in IEEE 754 or decode a 32-bit pattern",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For decoding, expand the hex to 32 bits and split them 1 | 8 | 23.",
+        "Check the exponent field for 0 or 255 first: those are zeros, denormals, infinities and NaN.",
+        "Otherwise compute e = E − 127 and the significand 1.F, then (−1)ˢ × 1.F × 2ᵉ.",
+        "For encoding, normalize |x| to 1.f × 2ᵉ, store E = e + 127 in 8 bits and f padded to 23 bits, then regroup in fours for hex."
+      ],
+      "trap": "Forgetting the hidden 1 when decoding, or storing it when encoding, which shifts the whole fraction by one bit.",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "source",
+      "pages": [
+        237,
+        238,
+        239,
+        241,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.pt-signed-range-value",
+      "title": "Value, range or count of n-bit signed representations",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Identify the representation (sign-magnitude, 1's, 2's complement or excess-K) and the word length n.",
+        "For a value, use the MSB weight −2ⁿ⁻¹ (two's complement) or invert the bits (1's complement) or strip the sign bit (sign-magnitude).",
+        "For range or count, recall that only two's complement has one zero and the extra value −2ⁿ⁻¹."
+      ],
+      "trap": "Giving −127 as the 8-bit two's complement minimum, or 2ⁿ as the count for sign-magnitude.",
+      "topic": "dl-number-representations.twos-complement",
+      "origin": "source",
+      "pages": [
+        236,
+        240,
+        241,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.pt-overflow",
+      "title": "Decide whether a two's complement sum overflows and set the flags",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Look at the operand sign bits: opposite signs can never overflow.",
+        "For same signs, add and compare the sum's MSB with the operands' MSB; a change means V = 1.",
+        "Read C separately as the carry out of the MSB, and Z and N from the result."
+      ],
+      "trap": "Treating the carry-out as signed overflow: 0x40 + 0xC0 carries out but gives the correct result 0.",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "source",
+      "pages": [
+        236,
+        238,
+        240,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.pt-unknown-radix",
+      "title": "Solve for an unknown base",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Expand each numeral as a polynomial in its base.",
+        "Equate the two sides and solve the resulting equation.",
+        "Keep only integer roots larger than every digit that appears; with two unknowns, count the pairs satisfying all digit constraints."
+      ],
+      "trap": "Accepting a root that is not larger than the largest digit, such as r = 3 for a numeral containing the digit 3.",
+      "topic": "dl-number-representations.unknown-radix",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.pt-booth",
+      "title": "Booth recoding and operation counts",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Append q₋₁ = 0 to the right of the multiplier.",
+        "Scan pairs (qᵢ, qᵢ₋₁) from the right: 10 → −1, 01 → +1, 00 and 11 → 0.",
+        "Count non-zero recoded digits for the number of add/subtract operations, and check that Σ rᵢ·2ⁱ equals the multiplier."
+      ],
+      "trap": "Reading the pair in the wrong order, which flips every sign and recodes the negated multiplier.",
+      "topic": "dl-number-representations.multiplication-booth",
+      "origin": "source",
+      "pages": [
+        237,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.pt-custom-float",
+      "title": "Range or value in a non-standard floating-point format",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write down the field widths, the bias, and whether the leading 1 is hidden and which exponent codes are reserved.",
+        "Largest finite value: largest allowed exponent code with an all-ones fraction.",
+        "Smallest positive: smallest normal exponent with a zero fraction, or the smallest denormal if denormals exist."
+      ],
+      "trap": "Using exponent code all-1s for the largest finite value when the format reserves it for infinity and NaN.",
+      "topic": "dl-number-representations.generic-float",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.pt-base-conversion",
+      "title": "Base conversion and bit counting",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Between bases that are powers of 2, go through binary and regroup bits by 3 or 4.",
+        "For an expression such as 3·16³ + 15·16² + 5·16 + 3, read the coefficients off as hex digits directly.",
+        "Count 1 bits per hex digit and add."
+      ],
+      "trap": "Grouping bits from the wrong end: grouping starts at the radix point.",
+      "topic": "dl-number-representations.base-conversion",
+      "origin": "source",
+      "pages": [
+        235,
+        240,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.pt-fp-arithmetic",
+      "title": "Add or multiply two floating-point numbers given as bit patterns",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Decode each operand into sign, true exponent and significand 1.F.",
+        "Multiply: XOR the signs, add the true exponents (or E₁ + E₂ − bias for stored ones), multiply the significands.",
+        "Add: shift the smaller operand's significand right by the exponent difference, then add or subtract the significands.",
+        "Renormalize to 1.f, round to the fraction width, and re-encode; check the stored exponent stays in 1 … 254."
+      ],
+      "trap": "Adding two stored exponents without subtracting the bias once, or shifting the larger operand during alignment.",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "dl-number-representations.q-unknown-radix",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The equation (312)ᵣ / (20)ᵣ = (13.1)ᵣ holds in base r. What is r?",
+      "answer": 5,
+      "explanation": "Left: (3r² + r + 2)/(2r). Right: r + 3 + 1/r = (r² + 3r + 1)/r. Cross-multiplying gives 3r² + r + 2 = 2r² + 6r + 2, so r² − 5r = 0 and r = 5 (r = 0 is not a base). The digit 3 needs r ≥ 4, which 5 satisfies.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.unknown-radix",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-octal-to-hex",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "(1217)₈ is equal to which hexadecimal number?",
+      "options": [
+        "(28F)₁₆",
+        "(2F8)₁₆",
+        "(28E)₁₆",
+        "(A8F)₁₆"
+      ],
+      "answer": 0,
+      "explanation": "Each octal digit is 3 bits: 001 010 001 111 = 001010001111. Regroup in fours from the right: 0010 1000 1111 = 2 8 F. Check: 1·512 + 2·64 + 1·8 + 7 = 655 = 2·256 + 8·16 + 15.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.base-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-minus-13-5bit",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is −13 in 5-bit two's complement?",
+      "options": [
+        "10011",
+        "10010",
+        "11101",
+        "01101"
+      ],
+      "answer": 0,
+      "explanation": "13 = 01101. Inverting gives 10010 (the 1's complement), and adding 1 gives 10011. Check: −16 + 2 + 1 = −13. 11101 is the sign-magnitude form and 01101 is +13.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.twos-complement",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — 2's complement",
+      "pages": [
+        241
+      ]
+    },
+    {
+      "id": "dl-number-representations.q-distinct-integers",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Let X be the number of distinct integers representable in 16-bit two's complement and Y the number representable in 16-bit sign-magnitude. What is X − Y?",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "2¹⁵"
+      ],
+      "answer": 1,
+      "explanation": "Both use all 2¹⁶ patterns. Two's complement maps them to 2¹⁶ different integers (−32768 to 32767). Sign-magnitude has two patterns for zero (+0 and −0), so it represents 2¹⁶ − 1 integers (−32767 to 32767). X − Y = 1.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.signed-representations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-overflow-flags",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The 8-bit two's complement numbers 0110 1101 and 0101 0010 are added by an 8-bit adder. Which statement about the result is correct?",
+      "options": [
+        "Sum 1011 1111, carry-out 0, overflow 1",
+        "Sum 1011 1111, carry-out 1, overflow 0",
+        "Sum 1011 1111, carry-out 0, overflow 0",
+        "Sum 0011 1111, carry-out 1, overflow 1"
+      ],
+      "answer": 0,
+      "explanation": "The operands are 109 and 82; the true sum 191 exceeds +127. Bitwise: 0110 1101 + 0101 0010 = 1011 1111 with no carry out of bit 7 (109 + 82 = 191 < 256). Both operands are positive but the result's MSB is 1 (it reads as −65), so V = 1. Equivalently, the carry into bit 7 is 1 and the carry out is 0, and 1 ⊕ 0 = 1.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2017) — Overflow detection",
+      "pages": [
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.q-which-overflow",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Each pair below is added as 8-bit two's complement numbers (given in hex). Which additions produce signed overflow?",
+      "options": [
+        "0x7F + 0x01",
+        "0x80 + 0xFF",
+        "0x40 + 0xC0",
+        "0xF0 + 0x20"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "0x7F + 0x01 = 127 + 1 = 128 > 127: result 0x80 (−128), overflow, with no carry-out. 0x80 + 0xFF = −128 + (−1) = −129 < −128: result 0x7F (+127), overflow, carry-out 1. 0x40 + 0xC0 = 64 + (−64) = 0: result 0x00 with carry-out 1 but no overflow, since the signs differ. 0xF0 + 0x20 = −16 + 32 = 16: result 0x10, carry-out 1, no overflow. Only the first two overflow; carry-out alone decides nothing about signed overflow.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.add-sub-overflow",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-booth-0011",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Using radix-2 Booth recoding with an appended 0 to the right of the least significant bit, what is the recoded form of the 4-bit multiplier 0011 (most significant digit first)?",
+      "options": [
+        "0 +1 0 −1",
+        "0 −1 0 +1",
+        "+1 0 −1 +1",
+        "0 +1 −1 0"
+      ],
+      "answer": 0,
+      "explanation": "Pairs (qᵢ, qᵢ₋₁) from the right with q₋₁ = 0: i = 0: (1, 0) → −1; i = 1: (1, 1) → 0; i = 2: (0, 1) → +1; i = 3: (0, 0) → 0. Most significant first: 0 +1 0 −1, value 4 − 1 = 3. The option 0 −1 0 +1 reads the pairs reversed and encodes −3.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.multiplication-booth",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Booth's algorithm",
+      "pages": [
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.q-booth-op-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The 8-bit multiplier 0111 0110 is recoded with radix-2 Booth recoding. How many addition or subtraction operations of the multiplicand does the multiplication perform?",
+      "answer": 4,
+      "explanation": "With q₋₁ = 0, the bits from LSB are 0,1,1,0,1,1,1,0. Pairs (qᵢ, qᵢ₋₁): i0 (0,0) 0; i1 (1,0) −1; i2 (1,1) 0; i3 (0,1) +1; i4 (1,0) −1; i5 (1,1) 0; i6 (1,1) 0; i7 (0,1) +1. Recoded MSB first: +1 0 0 −1 +1 0 −1 0, with four non-zero digits, so 4 operations. Check: 128 − 16 + 8 − 2 = 118 = 0111 0110. Plain shift-and-add would need 5 additions, one per 1 bit.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.multiplication-booth",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-restoring-division",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The 4-bit unsigned dividend 1011 is divided by the divisor 0011 using restoring division, with one shift-and-subtract step per quotient bit (4 steps). How many of the steps perform a restore (add the divisor back)?",
+      "answer": 2,
+      "explanation": "A = 0, Q = 1011, M = 3. Step 1: A:Q shifted gives A = 1; 1 − 3 < 0, restore, q = 0. Step 2: A = 2 (shifting in 0); 2 − 3 < 0, restore, q = 0. Step 3: A = 5; 5 − 3 = 2 ≥ 0, q = 1. Step 4: A = 5; 5 − 3 = 2, q = 1. Quotient 0011 = 3, remainder 2 (11 = 3·3 + 2). Restores happen exactly at the two 0 quotient bits.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.division",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-fixed-point-value",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An 8-bit two's complement fixed-point word has 4 integer bits (including the sign) and 4 fraction bits. What value does the pattern 1010 1100 represent?",
+      "options": [
+        "−5.25",
+        "10.75",
+        "−2.75",
+        "−5.1875"
+      ],
+      "answer": 0,
+      "explanation": "As a signed 8-bit integer, 1010 1100 is 172 − 256 = −84. Four fraction bits scale it by 2⁻⁴: −84/16 = −5.25. 10.75 is the unsigned reading (172/16), −2.75 the sign-magnitude reading (−44/16) and −5.1875 the 1's complement reading (−83/16).",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.fixed-point",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-fixed-vs-float",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about fixed-point and floating-point representations of the same word length are correct?",
+      "options": [
+        "Fixed point has the same absolute spacing between consecutive values across its whole range.",
+        "Floating point has roughly constant relative spacing, so the absolute gap grows with magnitude.",
+        "Floating point represents every integer that fixed point (with 0 fraction bits) of the same width can.",
+        "A 16-bit fixed-point word with 8 fraction bits has resolution 2⁻⁸."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "A fixed-point step is always 2⁻ᶠ, so (A) is true, and with f = 8 it is 2⁻⁸, so (D) is true. A float has p significand bits, so its spacing is about 2⁻ᵖ⁺¹ times the magnitude, which makes (B) true. (C) is false: a 32-bit int holds every integer up to 2³¹ − 1, but single precision has only 24 significand bits and skips odd integers above 2²⁴ (2²⁴ + 1 is not representable).",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.fixed-point",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-ieee-encode",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the IEEE 754 single-precision encoding of −12.5, written in hexadecimal?",
+      "options": [
+        "0xC1480000",
+        "0x41480000",
+        "0xC1640000",
+        "0xC0C80000"
+      ],
+      "answer": 0,
+      "explanation": "12.5 = 1100.1₂ = 1.1001 × 2³. S = 1, E = 3 + 127 = 130 = 1000 0010, F = 1001 0…0. The word is 1 10000010 10010000000000000000000; grouped in fours: 1100 0001 0100 1000 0000 … = C1480000. 0x41480000 is +12.5; 0xC1640000 stores the hidden 1 as the first fraction bit; 0xC0C80000 stores E = 129, as if the bias were 126 (or the true exponent were 2).",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — IEEE 754 conversion",
+      "pages": [
+        237,
+        238,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.q-ieee-decode",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The 32-bit IEEE 754 single-precision pattern 0011 1110 0110 1101 0000 0000 0000 0000 represents what decimal value? (Give 4 decimal places.)",
+      "answer": 0.2314,
+      "tolerance": 0.001,
+      "explanation": "Split 1 | 8 | 23: S = 0, E = 0111 1100 = 124, F = 1101 1010…0. True exponent 124 − 127 = −3. Significand 1.1101101₂ = 1 + 0.5 + 0.25 + 0.0625 + 0.03125 + 0.0078125 = 1.8515625. Value = 1.8515625 × 2⁻³ = 0.2314453125.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-ieee-multiply",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "P = 0xC1800000 and Q = 0x3F5C2EF4 are IEEE 754 single-precision numbers. Which pattern is the single-precision product P × Q?",
+      "options": [
+        "0xC15C2EF4",
+        "0x415C2EF4",
+        "0xC14C2EF4",
+        "0x405C2EF4"
+      ],
+      "answer": 0,
+      "explanation": "P = 1 10000011 000…0: S = 1, E = 131, significand 1.0, so P = −1.0 × 2⁴ = −16. Q = 0 01111110 1011100…: S = 0, E = 126, fraction 0x5C2EF4, so Q ≈ 0.8601. The product's sign is 1 ⊕ 0 = 1, its stored exponent is 131 + 126 − 127 = 130 = 1000 0010, and its significand is 1.0 × 1.F = 1.F, exact with no renormalization. The word is 1 10000010 followed by fraction 0x5C2EF4: 1100 0001 0101 1100 … = 0xC15C2EF4 ≈ −13.7615. 0x415C2EF4 drops the sign; 0xC14C2EF4 alters the fraction, which a power-of-2 factor cannot do; 0x405C2EF4 is +4Q.",
+      "difficulty": "medium",
+      "topic": "dl-number-representations.ieee754-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-ieee-special-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about IEEE 754 single precision are true?",
+      "options": [
+        "A pattern with exponent field all 1s and fraction 0 represents ±∞.",
+        "+0 and −0 have different bit patterns but compare equal.",
+        "A denormal number has an implicit leading 1 and exponent 0 − 127.",
+        "A NaN compares equal to itself."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "(A) is the definition of infinity. (B): +0 is 0x00000000 and −0 is 0x80000000, and the standard defines them as equal in comparisons. (C) is false twice over: denormals have an implicit leading 0, and their exponent is 1 − 127 = −126, which joins them to the normal range. (D) is false: NaN is unordered, so NaN == NaN is false.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.ieee754-special",
+      "origin": "source",
+      "pages": [
+        237,
+        240,
+        242
+      ]
+    },
+    {
+      "id": "dl-number-representations.q-custom-float-max",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An 8-bit floating-point format follows IEEE 754 conventions: 1 sign bit, 4 exponent bits with bias 7, 3 fraction bits, a hidden leading 1 for normalized numbers, and exponent code 1111 reserved for infinity and NaN. What is the largest finite positive value it represents?",
+      "answer": 240,
+      "explanation": "The largest usable exponent code is 1110 = 14, a true exponent of 14 − 7 = 7. The largest significand is 1.111₂ = 1.875. Value = 1.875 × 2⁷ = 240. Using code 1111 by mistake gives 480, and forgetting the hidden bit gives 0.875 × 128 = 112.",
+      "difficulty": "hard",
+      "topic": "dl-number-representations.generic-float",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-number-representations.q-codes-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following are correct?",
+      "options": [
+        "The BCD code for 47 is 0100 0111.",
+        "The Gray code of binary 1011 is 1101.",
+        "The excess-3 code for decimal digit 5 is 1000.",
+        "A 4-digit decimal number needs fewer bits in BCD than in pure binary."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "(A) 4 = 0100 and 7 = 0111, true. (B) G = B ⊕ (B >> 1) = 1011 ⊕ 0101 = 1110, so 1101 is wrong. (C) 5 + 3 = 8 = 1000, true. (D) BCD needs 4 × 4 = 16 bits, while 9999 < 2¹⁴ needs only 14 bits in binary, so BCD needs more.",
+      "difficulty": "easy",
+      "topic": "dl-number-representations.codes",
+      "origin": "source",
+      "pages": [
+        238,
+        241
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Negating in two's complement means invert and then add 1; stopping after the inversion gives the 1's complement, off by one.",
+      "origin": "source",
+      "pages": [
+        242
+      ]
+    },
+    {
+      "text": "Carry-out of the MSB is not signed overflow. Signed overflow is V = carry into MSB ⊕ carry out, and opposite-sign operands never overflow.",
+      "origin": "source",
+      "pages": [
+        238,
+        242
+      ]
+    },
+    {
+      "text": "The hidden 1 of a normalized IEEE number is not stored: do not put it in the fraction when encoding, and do not forget to add it back when decoding.",
+      "origin": "source",
+      "pages": [
+        242
+      ]
+    },
+    {
+      "text": "Stored exponent = true exponent + bias. Subtracting the bias when encoding, or using 128 instead of 127, shifts the value by powers of 2.",
+      "origin": "source",
+      "pages": [
+        242
+      ]
+    },
+    {
+      "text": "Denormals use exponent 1 − bias (−126 in single) and an implicit 0, not 0 − bias with an implicit 1.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "The 8-bit two's complement minimum is −128, not −127; −127 is the minimum for sign-magnitude and 1's complement.",
+      "origin": "source",
+      "pages": [
+        236,
+        242
+      ]
+    },
+    {
+      "text": "BCD is not binary: 25 in BCD is 0010 0101, and decimal digits above 9 (1010 to 1111) are invalid BCD codes.",
+      "origin": "source",
+      "pages": [
+        238,
+        243
+      ]
+    },
+    {
+      "text": "In an unknown-radix problem, a root no larger than the largest digit is not a valid base and must be discarded.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Signed integers (n bits)",
+      "lines": [
+        "2's: −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1, one zero; negate = invert + 1",
+        "Sign-mag and 1's: −(2ⁿ⁻¹ − 1) to 2ⁿ⁻¹ − 1, two zeros",
+        "Excess-K: stored = x + K",
+        "Sign-extend by copying the MSB",
+        "Overflow V = c_in(MSB) ⊕ c_out(MSB); carry-out = unsigned overflow"
+      ],
+      "origin": "source",
+      "pages": [
+        236,
+        243
+      ]
+    },
+    {
+      "heading": "IEEE 754",
+      "lines": [
+        "Single 1 | 8 | 23, bias 127; double 1 | 11 | 52, bias 1023",
+        "Normal: (−1)ˢ × 1.F × 2^(E − bias), E = 1 … 254",
+        "E = 0: F = 0 is ±0, else denormal 0.F × 2⁻¹²⁶",
+        "E = 255: F = 0 is ±∞, else NaN",
+        "Max ≈ 3.4 × 10³⁸, min normal 2⁻¹²⁶, min denormal 2⁻¹⁴⁹",
+        "Multiply: E = E₁ + E₂ − bias; add: shift the smaller operand right, add, renormalize, round"
+      ],
+      "origin": "source",
+      "pages": [
+        237,
+        238,
+        243
+      ]
+    },
+    {
+      "heading": "Conversions and codes",
+      "lines": [
+        "Hex = 4 bits, octal = 3 bits, grouped from the radix point",
+        "Fraction to binary: multiply by 2, read integer parts in order",
+        "Gray = B ⊕ (B >> 1); excess-3 = BCD + 0011",
+        "Hamming: 2ʳ ≥ m + r + 1"
+      ],
+      "origin": "source",
+      "pages": [
+        235,
+        238,
+        243
+      ]
+    },
+    {
+      "heading": "Arithmetic algorithms",
+      "lines": [
+        "Booth pair (qᵢ, qᵢ₋₁): 10 subtract, 01 add, 00/11 shift",
+        "Restoring division: restores = number of 0 quotient bits",
+        "Fixed point with f fraction bits: value = signed integer / 2ᶠ"
+      ],
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "errata": [
+    {
+      "page": 242,
+      "claim": "Booth recoding of the multiplier 0011 is given as '0+1, 0, -1, +1 (depends on convention)', with the 'standard' form written as '0100 -1'.",
+      "correction": "Radix-2 Booth recoding is fixed by the rule rᵢ = qᵢ₋₁ − qᵢ with q₋₁ = 0, and gives exactly four digits: 0 +1 0 −1 (most significant first), whose value is 4 − 1 = 3. Neither listed form is a valid 4-digit recoding of 0011."
+    },
+    {
+      "page": 241,
+      "claim": "The 2's complement of 11000000 (8 bits) is computed as 01000000 '⇒ value = −64?'.",
+      "correction": "The 2's complement of 11000000 is 01000000, which is +64. The original pattern 11000000 is −64; taking the 2's complement negates it, so the result is +64, not −64."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "dl-number-arithmetic",
+      "status": "partial",
+      "topics": [
+        "dl-number-representations.positional-systems",
+        "dl-number-representations.base-conversion",
+        "dl-number-representations.unknown-radix",
+        "dl-number-representations.signed-representations",
+        "dl-number-representations.twos-complement",
+        "dl-number-representations.add-sub-overflow",
+        "dl-number-representations.multiplication-booth",
+        "dl-number-representations.division",
+        "dl-number-representations.fixed-point",
+        "dl-number-representations.ieee754-format",
+        "dl-number-representations.ieee754-special",
+        "dl-number-representations.ieee754-conversion",
+        "dl-number-representations.fp-range-precision",
+        "dl-number-representations.generic-float",
+        "dl-number-representations.codes"
+      ]
+    }
+  ]
+}

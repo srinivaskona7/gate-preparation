@@ -1,0 +1,832 @@
+{
+  "chapter": "cd-lexical-analysis",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2023",
+    "gate-cse-2018",
+    "gate-cse-2017-s2"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q35",
+      "type": "nat",
+      "marks": 1,
+      "key": "13",
+      "topic": "cd-lexical-analysis.token-counting",
+      "difficulty": "medium",
+      "stem": "A lexical analyzer uses the following token definitions\n\n$letter \\rightarrow [A-Za-z]$\n$digit \\rightarrow [0-9]$\n$id \\rightarrow letter\\,(letter \\mid digit)^*$\n$number \\rightarrow digit^+$\n$ws \\rightarrow (blank \\mid tab \\mid newline)^+$\n\nFor the string given below,\n\n$x1\\ 23mm\\ 78\\ y\\ 7z\\ zz5\\ 14A\\ 8H\\ AaYcD$\n\nthe number of tokens (excluding $ws$) that will be produced by the lexical analyzer is __________. (answer in integer)",
+      "answer": 13,
+      "solutionDiagram": {
+        "alt": "The string split into 13 numbered boxes, each labelled id or num"
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a lexer does",
+            "body": "A lexical analyzer reads characters and cuts them into tokens. A token is one piece that matches a pattern, here $id$, $number$ or $ws$. The deciding rule is maximal munch: at each position the lexer takes the longest prefix that matches some pattern, then starts again right after it. A blank only separates; $ws$ is dropped, so it is not counted."
+          },
+          {
+            "title": "Read the two patterns",
+            "body": "An $id$ starts with a letter and may continue with any letters and digits. A $number$ is digits only. So a digit run stops as soon as a letter appears, because a letter cannot extend a $number$. An $id$ never starts with a digit."
+          },
+          {
+            "title": "Cut each blank-separated chunk",
+            "body": "$x1$ is one id (letter then digit). $23mm$ is $23$ (number) then $mm$ (id): 2 tokens. $78$ is 1. $y$ is 1. $7z$ is $7$ then $z$: 2. $zz5$ starts with a letter, so the digit is absorbed: 1. $14A$ is $14$ then $A$: 2. $8H$: 2. $AaYcD$: 1."
+          },
+          {
+            "title": "Add up",
+            "body": "$1+2+1+1+2+1+2+2+1=13$.",
+            "tex": "1+2+1+1+2+1+2+2+1=13"
+          }
+        ],
+        "shortcut": {
+          "body": "Count one token per chunk, plus one extra for every chunk that starts with a digit and also contains a letter (23mm, 7z, 14A, 8H). There are 9 chunks and 4 such chunks: 9 + 4 = 13. Safe because such a chunk is always a digit run followed by one id. A chunk that starts with a letter stays one id, however many digits and letters follow."
+        },
+        "traps": [
+          {
+            "text": "Treating $23mm$, $7z$, $14A$, $8H$ as one token each gives 9."
+          },
+          {
+            "text": "Counting $zz5$ as id plus number gives 14; the digit after a letter belongs to the id."
+          },
+          {
+            "text": "Counting the blanks as tokens adds 8 or more; $ws$ is excluded."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.token-counting",
+          "clues": "Token definitions for id, number and ws, a string where some chunks mix digits and letters (23mm, 7z), and a question asking for the number of tokens excluding ws.",
+          "contrast": "This is not a lexical-errors question: every character matches some pattern, so nothing is rejected. It also differs from a plain split on blanks, because a chunk that starts with a digit can still hold two tokens."
+        },
+        "check": {
+          "body": "Recount by kind. The ids are x1, mm, y, z, zz5, A, H and AaYcD, which is 8. The numbers are 23, 78, 7, 14 and 8, which is 5. Then 8 + 5 = 13, the same total reached by counting chunk by chunk."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/523121/gate-cse-2026-set-2-question-25"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What decides where one token ends and the next begins when no blank sits between two characters?"
+        },
+        {
+          "kind": "concept",
+          "text": "A lexer cuts the input into the longest piece that fits some pattern, then starts again right after it. Blanks only separate pieces and produce no token."
+        },
+        {
+          "kind": "principle",
+          "text": "A number is digits only, so it stops at the first letter. An id starts with a letter and keeps absorbing both letters and digits."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the string at the blanks first, then cut each chunk with those two patterns. Watch the chunks that start with a digit but also hold a letter."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the chunk x1: a letter then a digit, so the id absorbs the digit and the chunk is one token. Cut every other chunk the same way and add the counts."
+        }
+      ],
+      "variation": {
+        "stem": "A lexical analyzer uses the following token definitions\n\n$letter \\rightarrow [A-Za-z]$\n$digit \\rightarrow [0-9]$\n$id \\rightarrow letter\\,(letter \\mid digit)^*$\n$number \\rightarrow digit^+$\n$ws \\rightarrow (blank \\mid tab \\mid newline)^+$\n\nFor the string given below,\n\n$a9\\ 5bc\\ 42\\ k\\ 3x\\ yy7\\ 60Z\\ 9Q\\ Mn\\ 8$\n\nthe number of tokens (excluding $ws$) that will be produced by the lexical analyzer is __________. (answer in integer)",
+        "answer": 14,
+        "explanation": "Cut each blank-separated chunk by maximal munch: a digit run stops at the first letter, and a letter starts an id that absorbs everything after it. The chunks 5bc, 3x, 60Z and 9Q each split into a number and an id, giving 2 tokens each, and the other six chunks give 1 each. So the total is 4 x 2 + 6 = 14."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q27",
+      "type": "msq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-lexical-analysis.lexical-errors",
+      "difficulty": "medium",
+      "stem": "Consider the following C statements:\n\nWhich of the following options is/are correct?",
+      "code": {
+        "lang": "c",
+        "text": "char *str1 = \"Hello;                  /* Statement S1 */\nchar *str2 = \"Hello;\";                /* Statement S2 */\nint *str3 = \"Hello\";                  /* Statement S3 */"
+      },
+      "options": [
+        "S1 and S2 have syntactic errors",
+        "S2 has a lexical error and S3 has a syntactic error",
+        "S1 has a lexical error and S3 has a semantic error",
+        "S1 has a syntactic error and S3 has a semantic error"
+      ],
+      "answer": [
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Three kinds of error and who reports them",
+            "body": "A lexical error is a character sequence that matches no token pattern; the lexer reports it. A syntax error is a token sequence the grammar cannot derive; the parser reports it. A semantic error is a well-formed statement that breaks a meaning rule such as types; the semantic analyzer reports it. To classify a statement, ask which phase fails first."
+          },
+          {
+            "title": "S1",
+            "body": "The string literal opens with a quote but never closes on that line. The lexer cannot form a string token, so S1 is a lexical error. It is not syntactic, because the parser never receives a bad token sequence."
+          },
+          {
+            "title": "S2",
+            "body": "Here the quote closes after $Hello;$. The semicolon sits inside the string, and the final $;$ ends the declaration. S2 is valid: no error."
+          },
+          {
+            "title": "S3",
+            "body": "The tokens and grammar are fine. The string has type $char[\\,]$, which decays to $char*$, but the target is $int*$. The pointer types disagree: a type-rule violation, hence semantic. Only option C (index 2) says S1 lexical and S3 semantic."
+          }
+        ],
+        "shortcut": {
+          "body": "Spot the unclosed quote on S1 (lexical) and the char-to-int pointer mismatch on S3 (semantic). Only C pairs them."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Calling S2 wrong because of the semicolon inside the quotes; the quote closes after it."
+          },
+          {
+            "option": 1,
+            "text": "Blaming S2 and calling S3 syntactic; S3 parses fine."
+          },
+          {
+            "option": 3,
+            "text": "Calling an unterminated string syntactic; the lexer fails first, so it is lexical."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.lexical-errors",
+          "clues": "Three near-identical declarations that differ only in a missing closing quote and a mismatched pointer type, with options that name an error kind for each statement.",
+          "contrast": "A syntax error needs valid tokens in a bad order, but an unterminated string never gets as far as the parser. A type clash is semantic because the grammar accepts the tokens happily."
+        },
+        "check": {
+          "body": "Repair each statement and see what was wrong. Closing the quote on S1 makes it as valid as S2, so its fault was in forming a token. Changing int * to char * in S3 removes its only fault, so that one was a type rule."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/523063/gate-cse-2026-set-1-question-17"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each statement, which compiler phase is the first to get stuck on it?"
+        },
+        {
+          "kind": "concept",
+          "text": "A lexical error is text that forms no valid token. A syntax error is valid tokens in an order the grammar rejects. A semantic error is a well-formed statement that breaks a meaning rule such as types."
+        },
+        {
+          "kind": "principle",
+          "text": "Phases run in order, so classify each statement by the earliest phase that fails. Check that each string literal opens and closes its quotes."
+        },
+        {
+          "kind": "setup",
+          "text": "Go statement by statement. Can the lexer form every token? If so, do the tokens parse as a declaration? If so, do the types on both sides of the = agree?"
+        },
+        {
+          "kind": "partial",
+          "text": "Find where the quote in S2 closes, and see what is left for the parser. Then compare the pointer types in S3."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following C statements:\n\nS1: int count = 10 @ 2;\nS2: int total = ;\nS3: float f = \"3.5\";\n\nWhich of the following options is/are correct?",
+        "options": [
+          "S1 has a lexical error and S2 has a syntactic error",
+          "S2 has a lexical error and S3 has a syntactic error",
+          "S1 has a syntactic error and S3 has a semantic error",
+          "S2 has a syntactic error and S3 has a semantic error"
+        ],
+        "answer": [
+          0,
+          3
+        ],
+        "explanation": "The character @ matches no token, so S1 fails in the lexer. S2 has valid tokens, but the grammar needs an expression after the equals sign, so the parser rejects it. S3 is well formed but gives a string to a float, a type mismatch found by semantic analysis. Options A and D agree with this."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q12",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-lexical-analysis.symbol-table",
+      "difficulty": "easy",
+      "stem": "Which ONE of the following statements is FALSE regarding the symbol table?",
+      "options": [
+        "Symbol table is responsible for keeping track of the scope of variables.",
+        "Symbol table can be implemented using a binary search tree.",
+        "Symbol table is not required after the parsing phase.",
+        "Symbol table is created during the lexical analysis phase."
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "What the symbol table is",
+            "body": "The symbol table is the compiler's dictionary of names (variables, functions, types) with their attributes: type, scope, storage location. Many phases read and update it. The question asks for the false statement, so find the claim that contradicts this."
+          },
+          {
+            "title": "Check each option",
+            "body": "A: recording scope is a core job of the table, so it is true. B: any dictionary structure works (hash table, search tree), so it is true. D: the lexer meets each identifier first and enters it, so creation starts in lexical analysis; this is true."
+          },
+          {
+            "title": "The false one",
+            "body": "C says the table is not needed after parsing. But semantic analysis uses types and scopes, and code generation uses addresses and sizes, both after parsing. C is false, option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Type checking and code generation both come after parsing and need the table, so 'not required after parsing' is the odd one out. 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Doubting A; scope tracking is exactly the table's purpose."
+          },
+          {
+            "option": 1,
+            "text": "Thinking only hash tables are allowed; a balanced tree works."
+          },
+          {
+            "option": 3,
+            "text": "Thinking the table cannot start in the lexer; entries are first made on seeing identifiers."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.symbol-table",
+          "clues": "The word FALSE, a question wholly about the symbol table, and options that mention scope, a data structure and compiler phases.",
+          "contrast": "Do not confuse the symbol table with the parse tree. The tree holds the structure of the program, while the table holds facts about names and stays in use after parsing."
+        },
+        "check": {
+          "body": "Ask which later work would break without the table. Type checking could not find a variable's declared type, and code generation could not find its address. So any claim that the table is unneeded after parsing cannot hold."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/460079/gate-cse-2025-set-1-question-2"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "A symbol table keeps facts about names. Which later compiler jobs need those facts?"
+        },
+        {
+          "kind": "concept",
+          "text": "The table maps each name to its attributes, such as type, scope and storage location. Many phases read and update it, and identifiers first appear in the lexer."
+        },
+        {
+          "kind": "principle",
+          "text": "To find the false claim, test each option against what type checking and code generation need, and ask when those phases run compared with parsing."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the phase order: lexical, syntax, semantic, intermediate code, code generation. For each option note which phase it talks about and whether that phase needs names and types."
+        },
+        {
+          "kind": "partial",
+          "text": "A claim about implementing the table as a hash table or a search tree only concerns the data structure, and any dictionary can serve. Spend your attention on the options about scope and timing."
+        }
+      ],
+      "variation": {
+        "stem": "Which ONE of the following statements about the symbol table of a compiler is FALSE?",
+        "options": [
+          "It can record the type of each identifier.",
+          "It can be implemented as a hash table.",
+          "The code generator can use it to find where a variable is stored.",
+          "Two variables with the same name in different scopes must share one entry, with no scope information kept."
+        ],
+        "answer": 3,
+        "explanation": "The table stores attributes of names, and scope is one of them. Two variables that share a name in different scopes need separate entries, or the compiler could not tell them apart. Options A, B and C describe a real attribute, a real implementation and a real use, so D is the false one."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q21",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cd-lexical-analysis.compiler-phases",
+      "difficulty": "easy",
+      "stem": "Consider the following two sets:\n\nSet X: P. Lexical Analyzer; Q. Syntax Analyzer; R. Intermediate Code Generator; S. Code Optimizer\n\nSet Y: 1. Abstract Syntax Tree; 2. Token; 3. Parse Tree; 4. Constant Folding\n\nWhich one of the following options is the CORRECT match from Set X to Set Y ?",
+      "options": [
+        "P – 4; Q – 1; R – 3; S – 2",
+        "P – 2; Q – 3; R – 1; S – 4",
+        "P – 2; Q – 1; R – 3; S – 4",
+        "P – 4; Q – 3; R – 2; S – 1"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Phases and what each produces",
+            "body": "A compiler is a chain of phases, each turning one form of the program into the next. The lexical analyzer turns characters into tokens. The syntax analyzer turns tokens into a parse tree. The intermediate code generator builds an intermediate form from the tree (here the abstract syntax tree). The optimizer rewrites code to make it cheaper."
+          },
+          {
+            "title": "Match",
+            "body": "P (lexical) gives 2 (token). Q (syntax) gives 3 (parse tree). R (intermediate code) gives 1 (AST). S (optimizer) gives 4 (constant folding, evaluating constant expressions at compile time)."
+          },
+          {
+            "title": "Pick the option",
+            "body": "P-2, Q-3, R-1, S-4 is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Lexer-token and optimizer-constant folding are certain; only options B and C have P-2 and S-4, and the parser makes the parse tree, so B."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Pairing the lexer with constant folding mixes up the first and last phase."
+          },
+          {
+            "option": 2,
+            "text": "Swapping parse tree and AST between syntax analysis and intermediate code."
+          },
+          {
+            "option": 3,
+            "text": "Reversing the whole chain."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.compiler-phases",
+          "clues": "Two sets to match: compiler phases on one side and the forms or operations they produce (token, tree, constant folding) on the other.",
+          "contrast": "Parse tree and abstract syntax tree look alike. The parse tree comes straight from the grammar in syntax analysis, while the abstract syntax tree is the slimmer form used by the intermediate code stage."
+        },
+        "check": {
+          "body": "Check that the pairing follows pipeline order. Earlier phases make simpler forms (token before tree), and the optimizer comes last, so no later-phase item may be paired with an earlier phase."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/422886/gate-cse-2024-set-2-question-11"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does each compiler phase hand to the phase after it?"
+        },
+        {
+          "kind": "concept",
+          "text": "Phases form a pipeline: characters become tokens, tokens become a tree, the tree becomes an intermediate form, and that form is then improved."
+        },
+        {
+          "kind": "principle",
+          "text": "Match each phase to the form it hands on or the operation it carries out, not to what it reads."
+        },
+        {
+          "kind": "setup",
+          "text": "List the four phases in order and put each Set Y item next to the phase that creates or performs it. Pair the two you are surest of first and strike the options that disagree."
+        },
+        {
+          "kind": "partial",
+          "text": "The first phase turns raw characters into the smallest meaningful units. Find that item in Set Y, pair it with the lexical analyzer, and strike the options that disagree."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following two sets:\n\nSet X: P. Lexical Analyzer; Q. Syntax Analyzer; R. Semantic Analyzer; S. Code Generator\n\nSet Y: 1. Type checking; 2. Token stream; 3. Parse tree; 4. Target code\n\nWhich one of the following options is the CORRECT match from Set X to Set Y?",
+        "options": [
+          "P – 3; Q – 2; R – 1; S – 4",
+          "P – 2; Q – 3; R – 4; S – 1",
+          "P – 2; Q – 3; R – 1; S – 4",
+          "P – 1; Q – 2; R – 3; S – 4"
+        ],
+        "answer": 2,
+        "explanation": "The lexical analyzer outputs a token stream, the syntax analyzer outputs a parse tree, the semantic analyzer does type checking, and the code generator outputs target code. That is P-2, Q-3, R-1, S-4. Option A swaps the first two phases, B swaps the last two, and D shifts the first three pairings by one while leaving the code generator right."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q11",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cd-lexical-analysis.compiler-phases",
+      "difficulty": "easy",
+      "stem": "Consider the following statements regarding the front-end and back-end of a compiler.\nS1: The front-end includes phases that are independent of the target hardware.\nS2: The back-end includes phases that are specific to the target hardware.\nS3: The back-end includes phases that are specific to the programming language used in the source code.\n\nIdentify the CORRECT option.",
+      "options": [
+        "Only S1 is TRUE.",
+        "Only S1 and S2 are TRUE.",
+        "S1, S2, and S3 are all TRUE.",
+        "Only S1 and S3 are TRUE."
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Front end and back end",
+            "body": "The front end analyses the source: lexical, syntax and semantic analysis, and intermediate code. It depends on the source language but not on the machine. The back end takes the intermediate code and does optimization, code generation and register allocation. It depends on the target machine but not on the source language. This split is why one back end serves many languages."
+          },
+          {
+            "title": "Judge each statement",
+            "body": "S1: true, front-end phases ignore the target hardware. S2: true, code generation is machine specific. S3: false, the back end works from intermediate code and knows nothing of the source language."
+          },
+          {
+            "title": "Answer",
+            "body": "Only S1 and S2 are true: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Front end = language-specific, back end = machine-specific. S3 swaps them, so it is false; that leaves B."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Missing that S2 is also true."
+          },
+          {
+            "option": 2,
+            "text": "Accepting S3; the back end is language independent."
+          },
+          {
+            "option": 3,
+            "text": "Taking S3 as true and S2 false, i.e. swapping the ends."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.compiler-phases",
+          "clues": "Three statements about which end of the compiler is tied to the hardware and which to the source language.",
+          "contrast": "The front end depends on the source language but not the machine, and the back end is the reverse. A statement that gives the back end language-specific work has the two ends swapped."
+        },
+        "check": {
+          "body": "Count the compilers needed. With a shared intermediate form, m languages and n machines need m front ends and n back ends, not m times n compilers. That saving works only if front ends ignore the machine and back ends ignore the language."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/399311/gate-cse-2023-question-1"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which parts of a compiler would you rewrite for a new processor, and which for a new source language?"
+        },
+        {
+          "kind": "concept",
+          "text": "The front end analyses the source program and ends with intermediate code. The back end turns that intermediate code into target code."
+        },
+        {
+          "kind": "principle",
+          "text": "A phase belongs to the end whose change would force it to change: hardware-specific work is back end and language-specific work is front end."
+        },
+        {
+          "kind": "setup",
+          "text": "Make two columns, depends on source language and depends on target machine. Place lexical analysis, parsing, semantic analysis, register allocation and code generation, then test each statement against the columns."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following statements about a compiler with a shared intermediate representation.\nS1: Porting the compiler to a new target machine requires rewriting only the back end.\nS2: Supporting a new source language requires writing only a new front end.\nS3: The front end must know how many registers the target machine has.\n\nIdentify the CORRECT option.",
+        "options": [
+          "Only S1 and S2 are TRUE.",
+          "Only S1 is TRUE.",
+          "S1, S2, and S3 are all TRUE.",
+          "Only S2 and S3 are TRUE."
+        ],
+        "answer": 0,
+        "explanation": "The shared intermediate form separates the two ends. A new machine touches only the back end, so S1 is true, and a new language touches only the front end, so S2 is true. Register counts are a hardware fact used when generating code, so S3 is false."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q8",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cd-lexical-analysis.compiler-phases",
+      "difficulty": "easy",
+      "stem": "Which one of the following statements is FALSE?",
+      "options": [
+        "Context-free grammar can be used to specify both lexical and syntax rules.",
+        "Type checking is done before parsing.",
+        "High-level language programs can be translated to different Intermediate Representations.",
+        "Arguments to a function can be passed using the program stack."
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Order of phases",
+            "body": "The compiler runs lexical analysis, then parsing, then semantic analysis (which includes type checking), then code generation. Type checking needs the parse tree to know which expression has which operands, so it cannot come before parsing."
+          },
+          {
+            "title": "Check the others",
+            "body": "A: lexical rules are regular, and regular languages are context-free, so a CFG can describe both. C: one program can be translated into three-address code, quadruples, SSA or others. D: passing arguments on the stack is the usual calling convention. All true."
+          },
+          {
+            "title": "Answer",
+            "body": "Statement B is the false one, so the answer is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Types are checked on the parse tree, so before parsing is impossible. Pick B at once."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Doubting that a CFG covers lexical rules; regular languages are a subset of context-free."
+          },
+          {
+            "option": 2,
+            "text": "Thinking only one IR exists."
+          },
+          {
+            "option": 3,
+            "text": "Thinking arguments must go in registers."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.compiler-phases",
+          "clues": "The word FALSE and four separate compiler facts: grammars for lexical and syntax rules, when type checking happens, intermediate representations, and parameter passing.",
+          "contrast": "Lexical rules and syntax rules use different tools in practice (regular expressions versus grammars), but every regular language is also context-free, so one formalism can describe both. That does not make them one phase."
+        },
+        "check": {
+          "body": "Take x + y with x an int and y a float. A bottom-up type rule gives the + node a type from the types of its two children, so it needs a tree whose leaves already carry declared types. A flat token stream has no children to combine, which shows type checking has to come after the tree is built."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/204082/gate-cse-2018-question-8"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which statement claims something about the order or role of compiler phases that cannot hold?"
+        },
+        {
+          "kind": "concept",
+          "text": "Phases run in a fixed order, and each one needs the output of the one before it."
+        },
+        {
+          "kind": "principle",
+          "text": "Before the type of an expression can be checked, some earlier phase must already have run. Which one, and which option claims a different order?"
+        },
+        {
+          "kind": "setup",
+          "text": "Read each option and ask what input it needs and whether that input exists at the stage named. For the grammar claim, recall how regular languages relate to context-free languages."
+        },
+        {
+          "kind": "partial",
+          "text": "Passing arguments on the program stack is a common calling convention, and one language can be translated into several intermediate forms. Weigh the other two options with more care."
+        }
+      ],
+      "variation": {
+        "stem": "Which one of the following statements is FALSE?",
+        "options": [
+          "Regular expressions can be used to describe the tokens of a language.",
+          "Parsing is done before code generation.",
+          "The lexical analyzer takes the parse tree as its input.",
+          "A syntax error is reported when the token sequence does not fit the grammar."
+        ],
+        "answer": 2,
+        "explanation": "The lexical analyzer is the first phase and reads the character stream, so it cannot take a parse tree, which only exists after parsing. The other three statements describe real roles: regular expressions define tokens, code generation follows parsing, and the parser reports grammar violations."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q37",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cd-lexical-analysis.maximal-munch",
+      "difficulty": "hard",
+      "stem": "A lexical analyzer uses the following patterns to recognize three tokens $T_1$, $T_2$, and $T_3$ over the alphabet $\\{a,b,c\\}$.\n\n$T_1: a?(b|c)^*a$\n$T_2: b?(a|c)^*b$\n$T_3: c?(b|a)^*c$\n\nNote that '$x?$' means 0 or 1 occurrence of the symbol $x$. Note also that the analyzer outputs the token that matches the longest possible prefix.\n\nIf the string $bbaacabc$ is processed by the analyzer, which one of the following is the sequence of tokens it outputs?",
+      "options": [
+        "$T_1T_2T_3$",
+        "$T_1T_1T_3$",
+        "$T_2T_1T_3$",
+        "$T_3T_3$"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "The rule",
+            "body": "A lexer holds several patterns. From the current position it finds, for each pattern, the longest prefix of the remaining input that the pattern matches. It picks the pattern with the longest such prefix, outputs its token, and resumes after that prefix. This is the longest-prefix (maximal munch) rule; ties go to the earlier pattern."
+          },
+          {
+            "title": "Reading the patterns",
+            "body": "$T_1$: an optional $a$, then any $b$/$c$, then a final $a$. So it ends in $a$. $T_2$ ends in $b$ and $T_3$ ends in $c$. The middle of each avoids its own letter, except the optional first one."
+          },
+          {
+            "title": "Position 0, input $bbaacabc$",
+            "body": "$T_1$ needs an $a$-ended string starting $bb$: the middle allows only $b,c$, so the longest is $bba$ (3). $T_2$: $b$ then $(a|c)^*$ then $b$: the longest is $bb$ (2). $T_3$: no leading $c$, then $(b|a)^*$ reads $bbaa$, then $c$: $bbaac$ (5). The longest is $T_3$ with 5 characters."
+          },
+          {
+            "title": "Position 5, input $abc$",
+            "body": "$T_1$: $a$ (1). $T_2$: $ab$ (2). $T_3$: $(b|a)^*=ab$ then $c$: $abc$ (3). Longest is $T_3$. The input is used up.",
+            "tex": "bbaac\\,|\\,abc \\Rightarrow T_3\\,T_3"
+          },
+          {
+            "title": "Answer",
+            "body": "The output is $T_3T_3$, option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Try the last pattern first: $T_3$ eats $bbaac$ in one gulp since $(b|a)^*$ takes $bbaa$ and then $c$. What remains is $abc$, also all one $T_3$. Only D has two tokens. Safe here because the options are all different lengths."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Cutting at the first possible match for each token instead of the longest."
+          },
+          {
+            "option": 1,
+            "text": "Choosing $T_1$ for $bba$ and stopping there; $T_3$ goes further."
+          },
+          {
+            "option": 2,
+            "text": "Choosing $T_2$ on $bb$, which is shorter than the $T_3$ match."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.maximal-munch",
+          "clues": "Several token patterns tried on one string, with the rule that the analyzer outputs the token matching the longest possible prefix.",
+          "contrast": "Choosing the first pattern that matches anything gives shorter tokens. Here the longest prefix over all patterns decides, and only exact ties fall back to pattern order."
+        },
+        "check": {
+          "body": "Rebuild the input from the lexemes bbaac and abc: joined they give bbaacabc with nothing left over. Each lexeme fits its pattern, with the optional first c absent, a run of a and b, and a final c."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "The string bbaacabc with two brackets: T3 covers bbaac and T3 covers abc"
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/204111/gate-cse-2018-question-37"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "At the start of the string, how far can each of the three patterns reach?"
+        },
+        {
+          "kind": "concept",
+          "text": "A lexer with several patterns finds the longest prefix each one matches, then takes the pattern with the longest."
+        },
+        {
+          "kind": "principle",
+          "text": "Each token must end in one particular letter, after an optional first letter. Ties go to the earlier pattern, and scanning restarts right after the chosen prefix."
+        },
+        {
+          "kind": "setup",
+          "text": "At the current position, scan forward for T1, T2 and T3 and note the last place a match can end. Write the three lengths, take the largest, cut, and repeat on what is left."
+        },
+        {
+          "kind": "partial",
+          "text": "Start with T1 at position 0: it takes b and b, then has to end on an a. Count the characters of its longest match, then compare with what T2 and T3 can reach."
+        }
+      ],
+      "variation": {
+        "stem": "A lexical analyzer uses the following patterns to recognize three tokens $T_1$, $T_2$, and $T_3$ over the alphabet $\\{a,b,c\\}$.\n\n$T_1: a?(b|c)^*a$\n$T_2: b?(a|c)^*b$\n$T_3: c?(b|a)^*c$\n\nNote that '$x?$' means 0 or 1 occurrence of the symbol $x$. The analyzer outputs the token that matches the longest possible prefix, and the earlier token wins a tie.\n\nIf the string $bcbaacab$ is processed by the analyzer, which one of the following is the sequence of tokens it outputs?",
+        "options": [
+          "$T_2T_2$",
+          "$T_1T_2$",
+          "$T_1T_1T_2$",
+          "$T_3T_2$"
+        ],
+        "answer": 1,
+        "explanation": "At position 0, $T_1$ reaches $bcba$ (4 characters), $T_2$ only $bcb$ (3) and $T_3$ only $bc$ (2), so $T_1$ wins. On the remaining $acab$, $T_2$ reads all 4 characters, while $T_1$ stops at $aca$ (3) and $T_3$ at $ac$ (2), so $T_2$ wins. The output is $T_1T_2$."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q5",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-lexical-analysis.compiler-phases",
+      "difficulty": "easy",
+      "stem": "Match the following according to input (from the left column) to the compiler phase (in the right column) that processes it:\n\nP. Syntax tree; Q. Character stream; R. Intermediate representation; S. Token stream\n\n(i) Code generator; (ii) Syntax analyzer; (iii) Semantic analyzer; (iv) Lexical analyzer",
+      "options": [
+        "P → (ii), Q → (iii), R → (iv), S → (i)",
+        "P → (ii), Q → (i), R → (iii), S → (iv)",
+        "P → (iii), Q → (iv), R → (i), S → (ii)",
+        "P → (i), Q → (iv), R → (ii), S → (iii)"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Each phase eats the previous output",
+            "body": "Compilation is a pipeline. The lexical analyzer reads raw characters and produces tokens. The syntax analyzer reads tokens and produces a syntax tree. The semantic analyzer reads the syntax tree and checks meaning. The code generator reads an intermediate representation and produces target code."
+          },
+          {
+            "title": "Match inputs",
+            "body": "Q (character stream) goes to (iv) lexical. S (token stream) goes to (ii) syntax. P (syntax tree) goes to (iii) semantic. R (intermediate representation) goes to (i) code generator."
+          },
+          {
+            "title": "Answer",
+            "body": "P-iii, Q-iv, R-i, S-ii is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Write the pipeline order lexical, syntax, semantic, code generator and match inputs left to right. Q-iv and S-ii alone eliminate all but C."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Giving the syntax tree to the parser, which outputs it rather than reads it."
+          },
+          {
+            "option": 1,
+            "text": "Sending the character stream to the code generator."
+          },
+          {
+            "option": 3,
+            "text": "Sending the syntax tree to the code generator, skipping the semantic phase."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-lexical-analysis.compiler-phases",
+          "clues": "Matching four forms of the program (character stream, token stream, syntax tree, intermediate representation) to the phase that reads each.",
+          "contrast": "Reading and producing differ. The syntax analyzer produces the syntax tree but reads the token stream, and the question asks for the phase that takes the item as input."
+        },
+        "check": {
+          "body": "Cross-check with outputs. The lexical analyzer outputs tokens and the syntax analyzer reads them. The syntax analyzer outputs a tree and the semantic analyzer reads it. Every item made by one phase is read by its successor, so no phase reads its own output."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Five boxes in a row: lexical analyzer, syntax analyzer, semantic analyzer, code generator, target code, with each phase's input above"
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow",
+          "url": "https://gateoverflow.in/118592/gate-cse-2017-set-2-question-05"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each item on the left, which phase takes it in as input?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each phase reads the output of the phase before it, so inputs line up in pipeline order."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask of each left-hand item which phase needs exactly that form to do its job, and remember that a phase never reads its own output."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the four phases in order from source to target, then write above each phase the thing it consumes. Match each left-hand item to a slot."
+        },
+        {
+          "kind": "partial",
+          "text": "The first phase has no earlier output to read, so it must consume the raw source text. Find the left-hand item that is raw text, pair it, and strike the options that disagree."
+        }
+      ],
+      "variation": {
+        "stem": "Match each compiler phase in Set X with the form of the program that it outputs, in Set Y:\n\nSet X: P. Lexical analyzer; Q. Syntax analyzer; R. Semantic analyzer; S. Code generator\n\nSet Y: (i) Target code; (ii) Token stream; (iii) Syntax tree; (iv) Syntax tree with type information",
+        "options": [
+          "P → (iii), Q → (ii), R → (iv), S → (i)",
+          "P → (ii), Q → (iv), R → (iii), S → (i)",
+          "P → (ii), Q → (iii), R → (i), S → (iv)",
+          "P → (ii), Q → (iii), R → (iv), S → (i)"
+        ],
+        "answer": 3,
+        "explanation": "The lexical analyzer outputs a token stream and the syntax analyzer outputs a syntax tree. The semantic analyzer adds type information to that tree, and the code generator outputs target code. That is P-ii, Q-iii, R-iv, S-i."
+      }
+    }
+  ],
+  "skipped": []
+}

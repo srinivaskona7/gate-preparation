@@ -1,0 +1,2279 @@
+{
+  "id": "algo-design-paradigms",
+  "summary": "Three design paradigms cover most of GATE's algorithm questions. Divide and conquer splits a problem, recurses and combines, and its cost comes from a recurrence. Greedy commits to the locally best choice and is correct only when an exchange argument proves it. Dynamic programming tabulates overlapping subproblems; the exam hands you a disguised LCS, knapsack, matrix-chain or edit-distance instance and asks for a table value, the recurrence or its cost. Knowing which paradigm fits, and why greedy fails 0/1 knapsack, decides which method applies to a given problem.",
+  "highYield": [
+    "Matrix-chain minimum scalar multiplications for 4–5 given dimensions: a 2-mark NAT solved by filling the m[i][j] table diagonal by diagonal.",
+    "Huffman tree cost or average code length for a frequency list: merge the two smallest repeatedly and add up the merged weights.",
+    "LCS length or edit distance of two short strings by filling the (m+1)×(n+1) table.",
+    "Greedy versus DP: greedy by value/weight is optimal for fractional knapsack but not 0/1; activity selection must sort by finish time, not start time or length.",
+    "Costs as 1-mark facts: LCS and edit distance O(mn), 0/1 knapsack O(nW) pseudo-polynomial, matrix chain O(n³), Strassen Θ(n^2.81), Karatsuba Θ(n^1.585)."
+  ],
+  "topics": [
+    {
+      "id": "algo-design-paradigms.dc-template",
+      "title": "Divide and conquer: template and classic algorithms",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        32,
+        380,
+        381
+      ],
+      "points": [
+        "Divide the input into smaller instances of the same problem, conquer each recursively, then combine the partial answers; the combine step usually decides the cost.",
+        "Merge sort splits in half and merges in linear time, T(n) = 2T(n/2) + Θ(n) = Θ(n log n); it is stable and suits external sorting.",
+        "Quick sort does the work in the partition step before recursing: Θ(n log n) on average, Θ(n²) when pivots split 0 and n − 1.",
+        "Binary search discards half the range per comparison: T(n) = T(n/2) + Θ(1) = Θ(log n).",
+        "Closest pair of points sorts by x, recurses on two halves, then checks only a strip of width 2δ around the split line, where each point needs at most a constant number of comparisons: Θ(n log n)."
+      ],
+      "keyTerms": [
+        "divide",
+        "conquer",
+        "combine",
+        "closest pair"
+      ],
+      "lesson": {
+        "why": "Divide and conquer appears in GATE both as a question about a named algorithm and as a fill-in-the-method question, and the template tells you where the cost hides.",
+        "intro": "Some problems become easy once the input is cut into smaller copies of the same problem. Divide and conquer does this in three steps. Divide: split the input, usually in half. Conquer: solve each piece by calling the same procedure, stopping when a piece is so small that the answer is obvious. Combine: build the answer for the whole input from the answers for the pieces. Merge sort, quick sort and binary search all follow these steps and differ in where the real work happens.",
+        "definitions": [
+          {
+            "term": "Base case",
+            "meaning": "A piece small enough to answer directly, which stops the recursion."
+          },
+          {
+            "term": "Combine step",
+            "meaning": "The work that turns the answers of the pieces into the answer for the whole input."
+          }
+        ],
+        "principle": {
+          "text": "The total cost is the cost of the pieces plus the cost of dividing and combining. For two halves and a linear combine step this gives the recurrence below.",
+          "tex": "T(n) = 2\\,T(n/2) + f(n)"
+        },
+        "limits": "The pieces must be independent. If the same smaller instance appears again and again, as in the Fibonacci recursion, the method repeats work and dynamic programming is the better tool.",
+        "example": {
+          "problem": "Find the largest sum of consecutive elements in A = [3, -4, 5, -1, 2, -6] by dividing the array into two halves.",
+          "steps": [
+            "Split into the left half [3, -4, 5] and the right half [-1, 2, -6]. The best block lies in the left half, in the right half, or across the middle.",
+            "The best block inside the left half is [5], with sum 5. The best block inside the right half is [2], with sum 2.",
+            "A crossing block takes a suffix of the left half and a prefix of the right half. The best suffix of the left half is [5] with sum 5, and the best prefix of the right half is [-1, 2] with sum 1. The crossing sum is 5 + 1 = 6.",
+            "Take the largest of the three values 5, 2 and 6."
+          ],
+          "result": "The maximum is 6, from the block [5, -1, 2]."
+        },
+        "misconceptions": [
+          "Divide and conquer is not always faster than a direct loop. This problem has a linear scan, and the halving version only matches the cost of that scan or does worse.",
+          "The combine step is not free. In the example the crossing block needs its own pass over the elements, and ignoring it gives a wrong answer such as 5."
+        ],
+        "recall": [
+          {
+            "q": "What are the three steps of divide and conquer?",
+            "a": "Divide the input into smaller instances, conquer each by recursion, and combine their answers."
+          },
+          {
+            "q": "Where does quick sort do its main work, and where does merge sort?",
+            "a": "Quick sort works in the partition step before recursing; merge sort works in the merge step after recursing."
+          },
+          {
+            "q": "Which blocks must be considered when a range is split into two halves?",
+            "a": "Blocks entirely in the left half, entirely in the right half, and blocks that cross the split point."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The array B = [-2, 4, -1, 3, -5, 2, 1, -3] is split into two halves of four elements. What is the maximum sum over all blocks of consecutive elements of B?",
+          "answer": 6,
+          "explanation": "The left half [-2, 4, -1, 3] has best block [4, -1, 3] with sum 6. The right half [-5, 2, 1, -3] has best block [2, 1] with sum 3. A crossing block joins a left suffix and a right prefix. The best left suffix is [4, -1, 3] with sum 6, and the best right prefix is [-5, 2, 1] with sum -2, so the best crossing sum is 4. The answer is the largest of 6, 3 and 4, which is 6. The tempting answer 4 comes from assuming the best block must cross the split."
+        },
+        "summary": "Divide, solve each half recursively, and combine; for range problems the combine step must also examine blocks that cross the split."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.dc-recurrences",
+      "title": "Solving divide-and-conquer recurrences",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        381,
+        385,
+        387,
+        388
+      ],
+      "points": [
+        "Most D&C costs have the form T(n) = aT(n/b) + f(n): a subproblems of size n/b plus f(n) to divide and combine. Compare f(n) with $n^{\\log_b a}$ (the master theorem).",
+        "If f(n) is polynomially smaller, the leaves dominate: T(n) = Θ(n^(log_b a)). So T(n) = 2T(n/2) + 1 is Θ(n), not Θ(n log n).",
+        "If f(n) = Θ(n^(log_b a)), every level costs the same and a log n factor appears; if f(n) is polynomially larger (and regular), the root dominates and T(n) = Θ(f(n)).",
+        "Uneven splits such as T(n) = T(n/2) + T(n/4) + T(n/8) + n fall outside the master theorem; the level sums shrink geometrically by 7/8, so T(n) = Θ(n). Whenever the fractions sum to less than 1 with linear extra work, the answer is Θ(n).",
+        "Subtract-and-conquer recurrences like T(n) = T(n − 1) + 1 are not master-theorem shapes at all: unroll them (here Θ(n))."
+      ],
+      "keyTerms": [
+        "master theorem",
+        "recursion tree",
+        "Akra–Bazzi"
+      ],
+      "lesson": {
+        "why": "Divide-and-conquer running times are asked as recurrences, and the master theorem turns each one into a bound in a few seconds.",
+        "intro": "A divide-and-conquer algorithm splits a problem of size $n$ into $a$ smaller problems, each of size $n/b$, solves them, and spends $f(n)$ extra time to split and combine. Its running time therefore satisfies $T(n) = aT(n/b) + f(n)$. The recursion makes a tree: the top level costs $f(n)$, and the bottom level has many tiny problems. Which end of the tree costs more decides the answer.",
+        "prerequisites": [
+          "algo-design-paradigms.dc-template"
+        ],
+        "definitions": [
+          {
+            "term": "Recursion tree",
+            "meaning": "A picture of the recurrence with one node per call, labelled by the work that call does itself."
+          },
+          {
+            "term": "Critical exponent",
+            "meaning": "The number $\\log_b a$. The leaves of the tree together cost $\\Theta(n^{\\log_b a})$."
+          }
+        ],
+        "principle": {
+          "text": "Compare $f(n)$ with $n^{\\log_b a}$. If $f$ is polynomially smaller, the leaves dominate. If they match, every level costs the same and a $\\log n$ factor appears. If $f$ is polynomially larger and regular, the root dominates.",
+          "tex": "T(n)=\\begin{cases}\\Theta(n^{\\log_b a}) & f(n)=O(n^{\\log_b a-\\epsilon})\\\\ \\Theta(n^{\\log_b a}\\log n) & f(n)=\\Theta(n^{\\log_b a})\\\\ \\Theta(f(n)) & f(n)=\\Omega(n^{\\log_b a+\\epsilon})\\end{cases}"
+        },
+        "limits": "The theorem needs equal-size subproblems. A recurrence such as $T(n)=T(n/2)+T(n/4)+n$ has uneven parts, and $T(n)=T(n-1)+1$ shrinks by subtraction; unroll those instead. A gap of only a log factor, as in $2T(n/2)+n/\\log n$, fits no case.",
+        "example": {
+          "problem": "Solve $T(n) = 4T(n/2) + n$.",
+          "steps": [
+            "Read off $a = 4$, $b = 2$ and $f(n) = n$.",
+            "Compute the critical exponent: $\\log_2 4 = 2$, so the leaves cost $n^2$.",
+            "Compare $f(n) = n$ with $n^2$: $n$ is polynomially smaller, so the leaves dominate."
+          ],
+          "result": "$T(n) = \\Theta(n^2)$."
+        },
+        "misconceptions": [
+          "Every divide-and-conquer algorithm is not $\\Theta(n \\log n)$. That answer holds only when $f(n)$ matches $n^{\\log_b a}$, as in merge sort.",
+          "Case 3 is not automatic when $f$ is larger; the regularity condition $a f(n/b) \\le c f(n)$ with $c < 1$ must also hold."
+        ],
+        "recall": [
+          {
+            "q": "What are $a$, $b$ and $f(n)$ in $T(n)=aT(n/b)+f(n)$?",
+            "a": "$a$ is the number of subproblems, $n/b$ is the size of each, and $f(n)$ is the cost of dividing and combining."
+          },
+          {
+            "q": "What does the master theorem compare?",
+            "a": "It compares $f(n)$ with $n^{\\log_b a}$, the total cost of the leaves."
+          },
+          {
+            "q": "Which case gives a $\\log n$ factor?",
+            "a": "The middle case, where $f(n)$ is $\\Theta(n^{\\log_b a})$, so every level costs the same."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the solution of $T(n) = 2T(n/2) + n^2$?",
+          "options": [
+            "$\\Theta(n)$",
+            "$\\Theta(n \\log n)$",
+            "$\\Theta(n^2)$",
+            "$\\Theta(n^2 \\log n)$"
+          ],
+          "answer": 2,
+          "explanation": "Here $\\log_2 2 = 1$ and $f(n) = n^2$ is polynomially larger than $n$. The regularity check holds, since $2(n/2)^2 = n^2/2 \\le \\tfrac12 n^2$, so the root dominates and $T(n) = \\Theta(n^2)$. The choice $\\Theta(n \\log n)$ tempts because it is the answer for merge sort, where $f(n) = n$ instead."
+        },
+        "summary": "Find $n^{\\log_b a}$ and compare it with $f(n)$: smaller means leaves win, equal adds a $\\log n$, larger means the root wins. Uneven or subtractive splits are unrolled by hand."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.fast-multiplication",
+      "title": "Strassen and Karatsuba multiplication",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        32,
+        381,
+        384
+      ],
+      "points": [
+        "Naive block multiplication of n×n matrices makes 8 half-size products: T(n) = 8T(n/2) + Θ(n²) = Θ(n³).",
+        "Strassen computes the product with 7 half-size multiplications and 18 additions or subtractions: T(n) = 7T(n/2) + Θ(n²) = Θ(n^(log₂ 7)) ≈ Θ(n^2.81).",
+        "Karatsuba multiplies two n-digit numbers with 3 half-size products, using (a + b)(c + d) − ac − bd for the cross term: T(n) = 3T(n/2) + Θ(n) = Θ(n^(log₂ 3)) ≈ Θ(n^1.585).",
+        "Both gain only by cutting the number of recursive calls; the extra additions cost Θ(n²) or Θ(n) per level and do not change the exponent."
+      ],
+      "lesson": {
+        "why": "GATE asks for the running time and the number of multiplications of Strassen and Karatsuba, and both follow from one recurrence with a smaller $a$.",
+        "intro": "Multiplying two $n \\times n$ matrices by splitting each into four half-size blocks takes 8 block products, so the time is $T(n) = 8T(n/2) + \\Theta(n^2)$, which is $\\Theta(n^3)$. Strassen found a way to get the same result with 7 block products and more additions. Multiplying two $n$-digit numbers has the same shape: splitting each into two halves seems to need 4 half-size products, and Karatsuba reduces that to 3.",
+        "prerequisites": [
+          "algo-design-paradigms.dc-recurrences"
+        ],
+        "principle": {
+          "text": "Cutting the number of recursive multiplications lowers the exponent $\\log_b a$. The extra additions cost only $\\Theta(n^2)$ for matrices or $\\Theta(n)$ for numbers, which the leaves outweigh.",
+          "tex": "T(n)=7T(n/2)+\\Theta(n^2)\\Rightarrow \\Theta(n^{\\log_2 7}),\\qquad T(n)=3T(n/2)+\\Theta(n)\\Rightarrow \\Theta(n^{\\log_2 3})"
+        },
+        "limits": "The exponents are $\\log_2 7 \\approx 2.81$ and $\\log_2 3 \\approx 1.585$. For small inputs the extra additions make these methods slower than the plain ones, and Strassen as stated needs the matrix size to be a power of 2 (or padding).",
+        "example": {
+          "problem": "Multiply $12 \\times 34$ with Karatsuba, writing $12 = 10a + b$ and $34 = 10c + d$.",
+          "steps": [
+            "Here $a = 1$, $b = 2$, $c = 3$, $d = 4$.",
+            "Compute the three products: $ac = 3$, $bd = 8$, and $(a+b)(c+d) = 3 \\times 7 = 21$.",
+            "The cross term is $ad + bc = 21 - 3 - 8 = 10$.",
+            "Combine: $ac \\cdot 100 + (ad+bc) \\cdot 10 + bd = 300 + 100 + 8$."
+          ],
+          "result": "$12 \\times 34 = 408$, using 3 digit products instead of 4."
+        },
+        "misconceptions": [
+          "Strassen does not cut the number of additions; it uses more of them. The gain is only the 7 versus 8 recursive products.",
+          "Karatsuba is not about matrices. It multiplies long integers, with $T(n) = 3T(n/2) + \\Theta(n)$."
+        ],
+        "recall": [
+          {
+            "q": "How many half-size products do naive block matrix multiplication, Strassen and Karatsuba use?",
+            "a": "Naive block multiplication uses 8, Strassen uses 7, and Karatsuba uses 3 for numbers."
+          },
+          {
+            "q": "What is the running time of Strassen?",
+            "a": "$\\Theta(n^{\\log_2 7})$, which is about $\\Theta(n^{2.81})$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Strassen recursion multiplies two $4 \\times 4$ matrices by splitting into $2 \\times 2$ blocks and again down to $1 \\times 1$ blocks. How many scalar multiplications does it perform?",
+          "answer": 49,
+          "explanation": "A $4 \\times 4$ product makes 7 products of $2 \\times 2$ matrices, and each of those makes 7 scalar products, so $7 \\times 7 = 49$. The number 64 tempts because it is the count for the naive method, $4^3$."
+        },
+        "summary": "Strassen replaces 8 block products by 7 and Karatsuba replaces 4 by 3; the recurrences give $\\Theta(n^{\\log_2 7})$ and $\\Theta(n^{\\log_2 3})$."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.greedy-principles",
+      "title": "Greedy choice, proofs and greedy versus DP",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        381,
+        382,
+        384,
+        386
+      ],
+      "points": [
+        "A greedy algorithm makes the locally best choice and never revisits it. It is correct when the problem has the greedy-choice property (some optimal solution contains the greedy choice) and optimal substructure.",
+        "Correctness is proved by an exchange argument (swap the greedy choice into any optimal solution without making it worse) or by showing greedy stays ahead at every step.",
+        "DP considers every option for each subproblem and keeps the best in a table, so it succeeds wherever greedy does but usually costs O(n²) or O(nW) instead of O(n log n).",
+        "Canonical greedy algorithms: activity selection, fractional knapsack, Huffman coding, job sequencing, Kruskal, Prim and Dijkstra (non-negative weights only).",
+        "A single counterexample kills a greedy rule. For 0/1 knapsack with capacity 50 and items (10, 60), (20, 100), (30, 120), the best-ratio greedy takes the first two for 160, while the optimum is 220."
+      ],
+      "keyTerms": [
+        "greedy-choice property",
+        "optimal substructure",
+        "exchange argument",
+        "matroid"
+      ],
+      "lesson": {
+        "why": "GATE asks whether a greedy rule is correct, and the usual answer is a counterexample, so you need to know what makes a rule safe and how to break one quickly.",
+        "intro": "A greedy algorithm builds an answer one step at a time. At each step it takes the choice that looks best right now, for example the item with the highest value per kilogram, and it never changes that choice later. This is fast because no alternatives are stored. It is correct only for problems where the best-looking choice can always be extended to a best overall answer. For other problems the early choice blocks a better combination.",
+        "definitions": [
+          {
+            "term": "Greedy-choice property",
+            "meaning": "Some optimal solution contains the choice the greedy rule makes first."
+          },
+          {
+            "term": "Optimal substructure",
+            "meaning": "After the first choice, the rest of an optimal solution is an optimal solution of the smaller remaining problem."
+          },
+          {
+            "term": "Exchange argument",
+            "meaning": "A proof that swaps the greedy choice into any optimal solution without making it worse."
+          }
+        ],
+        "principle": {
+          "text": "A greedy rule is correct when the greedy-choice property and optimal substructure both hold. To refute a rule, one small input on which it returns a worse answer than the optimum is enough."
+        },
+        "limits": "The ratio rule is optimal when items can be split, as in fractional knapsack, but it is not guaranteed when items are taken whole, as in 0/1 knapsack. A greedy rule that works for one problem says nothing about a similar-looking problem.",
+        "example": {
+          "problem": "Capacity 10. Items given as (weight, value): (6, 30), (5, 20), (5, 20). Whole items only. Compare the highest-ratio-first rule with the best choice.",
+          "steps": [
+            "The ratios are 5, 4 and 4, so the greedy rule takes the item (6, 30) first.",
+            "Weight 6 is used and 4 remains. The other items weigh 5 each and do not fit, so greedy stops with value 30.",
+            "The two items (5, 20) and (5, 20) together weigh exactly 10 and have value 40.",
+            "The greedy choice of the first item prevented this better pair."
+          ],
+          "result": "Greedy gives 30 and the optimum is 40, so the ratio rule is wrong for whole items."
+        },
+        "misconceptions": [
+          "A rule that gives the right answer on the sample in the question is not proved correct. Only an exchange argument or a counterexample settles it.",
+          "Greedy is not a simpler version of dynamic programming that always works. Dynamic programming tries all options per subproblem, which is why it can handle 0/1 knapsack where greedy cannot."
+        ],
+        "recall": [
+          {
+            "q": "What two properties make a greedy algorithm correct?",
+            "a": "The greedy-choice property and optimal substructure."
+          },
+          {
+            "q": "How is a greedy rule shown to be wrong?",
+            "a": "By one input on which the rule returns a worse value than the optimum."
+          },
+          {
+            "q": "Name three problems solved correctly by a greedy rule.",
+            "a": "Activity selection, fractional knapsack and Huffman coding; Kruskal and Prim for minimum spanning trees also qualify."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Capacity 8, whole items only, given as (weight, value): (6, 48), (4, 28), (4, 28). A greedy algorithm takes items in decreasing order of value per weight, and skips an item that does not fit. What is the optimal value minus the greedy value?",
+          "answer": 8,
+          "explanation": "The ratios are 8, 7 and 7, so greedy takes (6, 48) first. Only 2 units remain and neither other item fits, so greedy gets 48. The two items (4, 28) weigh 8 together and give 56. The difference is 56 - 48 = 8. The tempting answer 0 comes from trusting the ratio rule, which holds only when items can be split."
+        },
+        "summary": "Greedy commits to the locally best choice and is right only with the greedy-choice property and optimal substructure; one counterexample disproves a rule."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.activity-selection",
+      "title": "Activity selection and interval problems",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        30,
+        31,
+        382,
+        387
+      ],
+      "points": [
+        "To choose the most pairwise-compatible activities, sort by finish time and repeatedly take the next activity whose start is at least the last chosen finish: O(n log n) for the sort, O(n) for the scan.",
+        "Earliest finish leaves the most room for the rest; earliest start or shortest duration both have counterexamples.",
+        "Interval partitioning (fewest rooms or train platforms to host all intervals) is a different problem: the answer is the maximum number of intervals overlapping at any instant, found by sweeping sorted start and end times."
+      ],
+      "keyTerms": [
+        "earliest finish time",
+        "interval partitioning",
+        "minimum platforms"
+      ],
+      "lesson": {
+        "why": "Choosing the largest set of non-overlapping activities, and counting the platforms a timetable needs, are standard greedy trace questions.",
+        "intro": "You have a list of activities, each with a start and a finish time, and one room. Two activities are compatible when one finishes no later than the other starts. The goal is to hold as many activities as possible. The greedy method sorts them by finish time, takes the first, and then takes every next activity that starts at or after the finish of the last one chosen.",
+        "prerequisites": [
+          "algo-design-paradigms.greedy-principles"
+        ],
+        "definitions": [
+          {
+            "term": "Interval partitioning",
+            "meaning": "Assigning all intervals to as few resources, such as rooms or platforms, as possible so that no two overlapping intervals share one."
+          }
+        ],
+        "principle": {
+          "text": "Earliest finish time leaves the most room for the rest. Sorting costs $O(n \\log n)$ and the scan costs $O(n)$. Fewest platforms is a different question: its answer is the largest number of intervals overlapping at one instant."
+        },
+        "limits": "Earliest start and shortest duration are not safe rules; each has a counterexample. Selection maximises the number of activities, whereas interval partitioning must host every interval.",
+        "example": {
+          "problem": "Activities as (start, finish): (1,10), (2,4), (5,7), (8,9). Select the most compatible activities.",
+          "steps": [
+            "Sort by finish time: (2,4), (5,7), (8,9), (1,10).",
+            "Take (2,4). Next (5,7) starts at 5, which is at least 4, so take it.",
+            "(8,9) starts at 8, at least 7, so take it. (1,10) starts at 1, before 9, so skip it."
+          ],
+          "result": "Three activities are chosen: (2,4), (5,7), (8,9). Sorting by earliest start would take (1,10) first and end with only one."
+        },
+        "misconceptions": [
+          "Sorting by start time is not the same as sorting by finish time; one long early activity can block everything else.",
+          "The minimum number of platforms is not the number of trains. Trains that never overlap can share a platform."
+        ],
+        "recall": [
+          {
+            "q": "In what order does the greedy activity selection sort the activities?",
+            "a": "By finish time, earliest first."
+          },
+          {
+            "q": "How do you find the minimum number of platforms?",
+            "a": "Sort arrival and departure times together and sweep, tracking the largest number of trains present at once."
+          },
+          {
+            "q": "What is the running time of activity selection?",
+            "a": "$O(n \\log n)$ for the sort plus $O(n)$ for the scan."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Trains arrive and depart at (900, 910), (940, 1200), (950, 1120), (1100, 1130), (1500, 1900) and (1800, 2000). What is the minimum number of platforms needed?",
+          "answer": 3,
+          "explanation": "At time 1100 the trains (940,1200), (950,1120) and (1100,1130) are all present, and no instant has four. The answer 6 tempts because it counts every train, but trains such as (900,910) and (1500,1900) share platforms with others."
+        },
+        "summary": "Sort by finish time and keep every activity compatible with the last one chosen. Minimum platforms is a different problem solved by a sweep for the maximum overlap."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.fractional-knapsack",
+      "title": "Fractional knapsack",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        30,
+        381,
+        384,
+        387
+      ],
+      "points": [
+        "Items may be split, so sort by value/weight ratio and take items greedily, finishing with a fraction of the first item that does not fit: O(n log n).",
+        "Greedy is optimal here because any unused capacity can always be filled with the best remaining ratio; at most one item is taken fractionally.",
+        "Capacity 50 with items (weight 10, value 60), (20, 100), (30, 120) gives 60 + 100 + (20/30)·120 = 240."
+      ],
+      "lesson": {
+        "why": "Fractional knapsack is the standard case where greedy is provably optimal, and GATE contrasts it with 0/1 knapsack, where it fails.",
+        "intro": "A knapsack holds a limited total weight. Each item has a weight and a value, and you want the largest total value. In the fractional version you may take part of an item, such as half of a sack of grain, and you gain the same fraction of its value. The best rule is to rank items by value per unit of weight and take the best ones first.",
+        "prerequisites": [
+          "algo-design-paradigms.greedy-principles"
+        ],
+        "definitions": [
+          {
+            "term": "Value density",
+            "meaning": "The ratio of value to weight, which is the value gained per unit of capacity used."
+          }
+        ],
+        "principle": {
+          "text": "Sort by value/weight, highest first, take whole items while they fit, then take the fitting fraction of the next one. At most one item is split. The cost is $O(n \\log n)$ for the sort."
+        },
+        "limits": "This works only because items can be split. When each item is taken whole or not at all (0/1 knapsack), the same rule can be wrong and dynamic programming is needed.",
+        "example": {
+          "problem": "Capacity 8. Items as (weight, value): (4,40), (6,30), (2,24). Find the maximum value.",
+          "steps": [
+            "The ratios are 10, 5 and 12, so the order is (2,24), (4,40), (6,30).",
+            "Take (2,24): capacity left 6, value 24. Take (4,40): capacity left 2, value 64.",
+            "Only 2 units remain, so take $2/6$ of (6,30), which adds 10."
+          ],
+          "result": "Maximum value is $24 + 40 + 10 = 74$."
+        },
+        "misconceptions": [
+          "Sorting by largest value or smallest weight is not the rule; only the ratio is correct.",
+          "The greedy answer for the fractional problem is not valid for 0/1 knapsack, because a whole item may not fit the leftover space."
+        ],
+        "recall": [
+          {
+            "q": "By what quantity does the fractional knapsack greedy sort?",
+            "a": "By value divided by weight, largest first."
+          },
+          {
+            "q": "How many items can be taken only partly?",
+            "a": "At most one, the last item taken."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Capacity 11. Items as (weight, value): (3,24), (5,30), (2,6), (10,50). What is the maximum value when fractions are allowed?",
+          "answer": 69,
+          "explanation": "The ratios are 8, 6, 3 and 5, so the order is (3,24), (5,30), (10,50), (2,6). Whole items (3,24) and (5,30) use 8 units and give 54. The remaining 3 units take $3/10$ of (10,50), adding 15, for 69. Taking the small item (2,6) next tempts because it fits whole, but its ratio is only 3."
+        },
+        "summary": "Rank by value per weight, take whole items while they fit, and split the last one. This is optimal for the fractional problem only."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.huffman",
+      "title": "Huffman coding",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        30,
+        382,
+        385,
+        387
+      ],
+      "points": [
+        "Huffman builds an optimal prefix-free code: put all frequencies in a min-heap, repeatedly remove the two smallest, and insert a parent whose weight is their sum, until one tree remains. Time O(n log n).",
+        "No codeword is a prefix of another because symbols sit only at leaves, so a bit stream decodes uniquely.",
+        "The least frequent symbols end up deepest; the cost Σ fᵢ·depthᵢ equals the sum of the weights of all internal (merged) nodes.",
+        "Frequencies 5, 9, 12, 13, 16, 45 merge into 14, 25, 30, 55, 100, so the total cost is 224 bits, or 2.24 bits per symbol on average for 100 symbols."
+      ],
+      "keyTerms": [
+        "prefix code",
+        "min-heap",
+        "weighted path length"
+      ],
+      "lesson": {
+        "why": "Huffman coding is a regular source of numerical questions, asking for the total or average code length, and the merging procedure gives that number without drawing the whole tree.",
+        "intro": "To store text in bits, each symbol gets a bit string called its code. If frequent symbols get short codes and rare symbols get long ones, the whole text is shorter. The codes must also be readable without separators, which holds when no code is the beginning of another code. Such a set is called a prefix code. Huffman coding builds the best prefix code by joining the two lightest symbols into one group, again and again, until one group remains.",
+        "prerequisites": [
+          "algo-design-paradigms.greedy-principles"
+        ],
+        "definitions": [
+          {
+            "term": "Prefix code",
+            "meaning": "A set of codes in which no code is the beginning of another, so a bit stream decodes in only one way."
+          },
+          {
+            "term": "Weight",
+            "meaning": "The frequency of a symbol, or for a merged group, the sum of the frequencies inside it."
+          }
+        ],
+        "principle": {
+          "text": "Repeatedly remove the two smallest weights and insert their sum. The total encoded length, the sum of frequency times code length, equals the sum of all the merged sums.",
+          "tex": "\\text{cost} = \\sum_i f_i\\, d_i = \\sum_{\\text{merges}} (\\text{merged weight})"
+        },
+        "limits": "Huffman is optimal among codes that give each symbol its own whole number of bits. Ties between equal weights can produce different trees with the same cost, but not different costs. An extra rule on code lengths, such as an ordering among equal-frequency symbols, can force a particular tie choice.",
+        "example": {
+          "problem": "Symbols with frequencies 3, 5, 7 and 10. Find the total number of bits for the encoded text.",
+          "steps": [
+            "Merge the two smallest, 3 and 5, into a group of weight 8. The weights are now 7, 8, 10.",
+            "Merge 7 and 8 into 15. The weights are now 10 and 15.",
+            "Merge 10 and 15 into 25. One group remains.",
+            "Add the merged weights: 8 + 15 + 25 = 48."
+          ],
+          "result": "The total is 48 bits. As a check, the code lengths are 3, 3, 2 and 1 for the frequencies 3, 5, 7 and 10, and 3*3 + 5*3 + 7*2 + 10*1 = 48."
+        },
+        "misconceptions": [
+          "The merged weights are added to get the cost, not the original frequencies. Adding 3 + 5 + 7 + 10 = 25 gives only the last merge.",
+          "Symbols are always leaves of the tree; a symbol never sits at an inner node, which is why no code is the beginning of another."
+        ],
+        "recall": [
+          {
+            "q": "Which two weights does Huffman merge at each step?",
+            "a": "The two smallest weights currently available."
+          },
+          {
+            "q": "How can the total encoded length be found from the merges?",
+            "a": "It equals the sum of the weights of all merged nodes."
+          },
+          {
+            "q": "Why can a Huffman code be decoded without separators?",
+            "a": "No code is a prefix of another, because all symbols are leaves of the tree."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Symbols with frequencies 4, 6, 8, 12 and 20 are encoded with a Huffman code. What is the total number of bits needed for the whole text?",
+          "answer": 108,
+          "explanation": "Merge 4 and 6 into 10. The weights are 8, 10, 12, 20. Merge 8 and 10 into 18. The weights are 12, 18, 20. Merge 12 and 18 into 30. Merge 20 and 30 into 50. The sum of merged weights is 10 + 18 + 30 + 50 = 108. The tempting answer 50 is the root weight, which counts only the last merge."
+        },
+        "summary": "Merge the two smallest weights until one remains; the sum of all merged weights is the total encoded length."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.job-sequencing",
+      "title": "Job sequencing with deadlines",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        30,
+        381
+      ],
+      "points": [
+        "Each unit-time job has a deadline and a profit, and earns its profit only if it finishes by the deadline. Sort jobs by profit, highest first.",
+        "Place each job in the latest free slot at or before its deadline; if none is free, drop it.",
+        "A plain slot scan costs O(n²); a disjoint-set structure that maps each slot to the latest free slot at or below it brings this to about O(n log n), dominated by the sort."
+      ],
+      "lesson": {
+        "why": "Job sequencing with deadlines is a common greedy trace; you are asked for the total profit or the set of jobs scheduled.",
+        "intro": "Each job takes one unit of time and has a deadline and a profit. A job earns its profit only if it finishes by its deadline, and the machine runs one job at a time. You want the schedule with the largest total profit. The greedy method looks at jobs from the highest profit down, and puts each in the latest free time slot not after its deadline.",
+        "prerequisites": [
+          "algo-design-paradigms.greedy-principles"
+        ],
+        "principle": {
+          "text": "Sort by profit, highest first. Put each job in the latest free slot at or before its deadline, and drop it if no such slot is free. A plain scan costs $O(n^2)$; a disjoint-set structure over slots brings it near $O(n \\log n)$."
+        },
+        "limits": "This relies on every job taking exactly one time unit. Jobs with different lengths make the problem harder, and the rule above no longer applies.",
+        "example": {
+          "problem": "Jobs as (profit, deadline): A(20,2), B(15,2), C(10,1), D(5,3), E(1,3). Find the best total profit.",
+          "steps": [
+            "Take A (profit 20) first and place it in slot 2, its latest free slot.",
+            "B (15, deadline 2): slot 2 is taken, so use slot 1. C (10, deadline 1): slot 1 is taken, so drop C.",
+            "D (5, deadline 3) goes in slot 3. E (1, deadline 3): slots 1 to 3 are full, so drop E."
+          ],
+          "result": "Jobs B, A, D occupy slots 1, 2, 3, for total profit $15 + 20 + 5 = 40$."
+        },
+        "misconceptions": [
+          "Placing a job in the earliest free slot is not the rule; using the latest free slot keeps the early slots open for jobs with tight deadlines.",
+          "A job with a high profit is not always scheduled. It is dropped when every slot up to its deadline is already taken by more profitable jobs."
+        ],
+        "recall": [
+          {
+            "q": "In what order are jobs considered?",
+            "a": "By profit, highest first."
+          },
+          {
+            "q": "Which slot does a job get?",
+            "a": "The latest free slot at or before its deadline; the job is dropped if there is none."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Jobs as (profit, deadline): P(100,2), Q(19,1), R(27,2), S(25,1), T(15,3). Each takes one unit. What is the maximum total profit?",
+          "answer": 142,
+          "explanation": "By profit the order is P, R, S, Q, T. P takes slot 2 and R takes slot 1. S and Q both have deadline 1, which is taken, so they are dropped. T takes slot 3. The total is $100 + 27 + 15 = 142$. Choosing S or Q in slot 1 tempts because their profits are high, but R is worth more and competes for the same slot."
+        },
+        "summary": "Go through jobs by decreasing profit and place each in the latest free slot by its deadline; jobs that find none are dropped."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.coin-change",
+      "title": "Coin change: greedy and DP",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        30,
+        31,
+        383,
+        386,
+        387
+      ],
+      "points": [
+        "Largest-coin-first greedy is optimal only for canonical systems such as {1, 5, 10} or Indian currency: 18 = 10 + 5 + 1 + 1 + 1 uses 5 coins.",
+        "With coins {1, 3, 4} and amount 6, greedy takes 4 + 1 + 1 (3 coins) while the optimum is 3 + 3 (2 coins), so in general DP is needed.",
+        "Minimum coins: dp[0] = 0 and dp[a] = 1 + min over coins c ≤ a of dp[a − c]. Number of ways: dp[0] = 1 and, looping coins in the outer loop, dp[a] += dp[a − c]. Both run in O(n · amount).",
+        "Putting the coin loop outside counts combinations; putting the amount loop outside counts ordered sequences, a different number. With {1, 2, 5} and amount 5 there are 4 combinations."
+      ],
+      "lesson": {
+        "why": "GATE asks both when greedy coin selection fails and how many ways a sum can be made, and the two need different methods.",
+        "intro": "Given coin values and a target amount, you can ask for the fewest coins that sum to it, or for the number of different ways to make it. The tempting method is to keep taking the largest coin that fits. For some coin sets this is always right, and for others it is not. Dynamic programming handles every coin set by building the answer for each amount from 0 up to the target.",
+        "prerequisites": [
+          "algo-design-paradigms.greedy-principles",
+          "algo-design-paradigms.dp-framework"
+        ],
+        "principle": {
+          "text": "For the fewest coins, $dp[0]=0$ and $dp[a] = 1 + \\min dp[a-c]$ over coins $c \\le a$. For the number of ways, $dp[0]=1$ and $dp[a] \\mathrel{+}= dp[a-c]$ with the coin loop outermost. Both take $O(n \\cdot \\text{amount})$ for $n$ coins.",
+          "tex": "dp[a]=1+\\min_{c\\le a}dp[a-c],\\quad dp[0]=0"
+        },
+        "limits": "Largest-coin-first is safe only for special sets, such as 1, 5, 10, and a set that fails cannot be fixed by sorting differently. Looping amounts outside coins counts ordered sequences, not combinations.",
+        "example": {
+          "problem": "Coins {1, 5, 6}, amount 10. Compare greedy with the fewest-coins DP.",
+          "steps": [
+            "Greedy takes 6, leaving 4, then four coins of 1, so 5 coins in all.",
+            "DP values for amounts 0 to 10 are 0, 1, 2, 3, 4, 1, 1, 2, 3, 4, 2.",
+            "The entry for 10 is $1 + dp[5] = 2$, from 5 + 5."
+          ],
+          "result": "Greedy uses 5 coins, but the optimum is 2 coins (5 + 5)."
+        },
+        "misconceptions": [
+          "Greedy is not always optimal for coin change; {1, 5, 6} with amount 10 is a counterexample.",
+          "Counting combinations and counting ordered sequences are different problems; swapping the loop order changes the answer."
+        ],
+        "recall": [
+          {
+            "q": "When is largest-coin-first greedy guaranteed optimal?",
+            "a": "Only for special coin systems, such as {1, 5, 10}; it must be checked, since it fails for sets like {1, 5, 6}."
+          },
+          {
+            "q": "What recurrence gives the fewest coins?",
+            "a": "$dp[a] = 1 + \\min dp[a-c]$ over coins $c \\le a$, with $dp[0] = 0$."
+          },
+          {
+            "q": "Which loop goes outside to count combinations?",
+            "a": "The coin loop; the amount loop inside then counts each multiset once."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In how many different ways, ignoring order, can the amount 5 be made from coins of value 1, 2 and 3 (unlimited supply of each)?",
+          "answer": 5,
+          "explanation": "The ways are 3+2, 3+1+1, 2+2+1, 2+1+1+1 and 1+1+1+1+1, which is 5, and a coin-outer DP gives the same. The number 13 tempts when orderings such as 3+2 and 2+3 are counted separately, which this question does not ask."
+        },
+        "summary": "Greedy coin change works only for special coin systems. DP handles all sets: take the minimum for fewest coins, and sum with coins outermost for combinations."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.dp-framework",
+      "title": "The dynamic programming framework",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        31,
+        382,
+        383,
+        385,
+        386,
+        388
+      ],
+      "points": [
+        "DP applies when a problem has optimal substructure and overlapping subproblems: the same subproblem recurs many times in the plain recursion.",
+        "Top-down memoization keeps the recursion and caches each answer; bottom-up tabulation fills the table in an order where every dependency is already computed.",
+        "Recipe: define the state, write the recurrence, fix the base cases, choose the evaluation order, then trace back through the table to reconstruct the solution.",
+        "Fibonacci shows the payoff: naive recursion makes Θ(φⁿ) calls (15 calls for F(5)), memoization needs O(n) time plus O(n) cache and stack, and a bottom-up loop keeps only the last two values in O(1) space.",
+        "Time is roughly (number of states) × (work per state); if a row depends only on the previous row, rolling arrays cut space from O(mn) to O(n)."
+      ],
+      "keyTerms": [
+        "memoization",
+        "tabulation",
+        "overlapping subproblems",
+        "state"
+      ],
+      "lesson": {
+        "why": "Many GATE questions give a recurrence or a table-filling loop and ask for a value or for whether the filling order is correct, which needs the basic structure of dynamic programming.",
+        "intro": "Some problems are solved by combining answers to smaller versions of the same problem, and the smaller versions overlap: the same one is needed many times. Plain recursion recomputes it each time. Dynamic programming computes each smaller version once, stores the answer in a table and reads it back when needed. The table is indexed by the state, the few numbers that identify a subproblem, such as the number of stairs climbed so far.",
+        "definitions": [
+          {
+            "term": "State",
+            "meaning": "The numbers that identify one subproblem, which are the indices of the table."
+          },
+          {
+            "term": "Recurrence",
+            "meaning": "The rule that gives the answer of a state from the answers of smaller states."
+          },
+          {
+            "term": "Memoization",
+            "meaning": "Recursion that stores each answer when computed and reuses it."
+          },
+          {
+            "term": "Tabulation",
+            "meaning": "Filling the table in an order in which every cell is computed after the cells it depends on."
+          }
+        ],
+        "principle": {
+          "text": "Define the state, write the recurrence, fix the base cases and fill in an order where each cell's dependencies are final. The time is the number of states times the work per state."
+        },
+        "limits": "Dynamic programming needs optimal substructure and overlapping subproblems. Without overlap, as in merge sort, the table brings no saving. If the number of states is huge, the table cannot be built.",
+        "example": {
+          "problem": "A staircase has 6 steps. You climb 1 or 2 steps at a time. How many different ways reach the top?",
+          "steps": [
+            "The state is n, the number of steps climbed so far. Let W(n) be the number of ways to reach step n.",
+            "The last move was 1 step or 2 steps, so W(n) = W(n-1) + W(n-2), with W(0) = 1 and W(1) = 1.",
+            "Fill the table from the left: W(2) = 2, W(3) = 3, W(4) = 5, W(5) = 8.",
+            "W(6) = W(5) + W(4) = 8 + 5 = 13."
+          ],
+          "result": "There are 13 ways."
+        },
+        "misconceptions": [
+          "Filling a table in any order is not enough; a cell computed before the cells it reads holds its starting value and gives a wrong result.",
+          "Memoization does not make the recursion faster by itself in every case; the saving comes from each state being computed once, so the number of states bounds the time.",
+          "The recurrence is not always a sum over fixed moves. When the choice is a piece or item, as in cutting a rod of length n into pieces, the state is the length n and the recurrence takes the best over the piece sizes: $R(n) = \\max_k (price_k + R(n-k))$."
+        ],
+        "recall": [
+          {
+            "q": "What two properties does a problem need for dynamic programming?",
+            "a": "Optimal substructure and overlapping subproblems."
+          },
+          {
+            "q": "What is the difference between memoization and tabulation?",
+            "a": "Memoization caches answers inside the recursion; tabulation fills a table iteratively in a valid dependency order."
+          },
+          {
+            "q": "How is the running time of a dynamic programming algorithm estimated?",
+            "a": "As the number of states times the work done per state."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A staircase has 8 steps and you may climb 1, 3 or 4 steps at a time. Let W(0) = 1 and W(n) = W(n-1) + W(n-3) + W(n-4), taking terms with a negative index as 0. What is W(8)?",
+          "answer": 25,
+          "explanation": "W(1) = 1 and W(2) = 1. W(3) = W(2) + W(0) = 2. W(4) = W(3) + W(1) + W(0) = 4. W(5) = W(4) + W(2) + W(1) = 6. W(6) = W(5) + W(3) + W(2) = 9. W(7) = W(6) + W(4) + W(3) = 15. W(8) = W(7) + W(5) + W(4) = 15 + 6 + 4 = 25. The tempting answer 15 is the value one cell early, W(7)."
+        },
+        "summary": "Define the state, write the recurrence and base cases, and fill the table so every dependency is ready; time is states times work per state."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.knapsack-01",
+      "title": "0/1 knapsack, subset sum and partition",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        31,
+        32,
+        383,
+        385,
+        386,
+        387
+      ],
+      "points": [
+        "dp[i][w] is the best value using items 1..i within capacity w: skip item i (dp[i−1][w]) or, if wᵢ ≤ w, take it (vᵢ + dp[i−1][w − wᵢ]).",
+        "Time and space are O(nW); a single array of size W + 1 works if w is scanned from W down to wᵢ, so each item is used at most once.",
+        "O(nW) is pseudo-polynomial: W takes only log W bits to write, so the running time is exponential in the input length. 0/1 knapsack is NP-hard.",
+        "Subset sum (can some subset reach exactly S?) and partition (split into two equal-sum halves, S = total/2) are the same table with Boolean entries."
+      ],
+      "keyTerms": [
+        "pseudo-polynomial",
+        "subset sum",
+        "partition problem"
+      ],
+      "lesson": {
+        "why": "0/1 knapsack is the standard example of a problem where greedy fails and a table is needed, and its running time is the standard example of pseudo-polynomial. Subset sum and partition reuse the same table.",
+        "intro": "You have items, each with a weight and a value, and a bag that holds a fixed total weight. Every item is either taken whole or left behind. The goal is the largest total value that fits. The method builds a table: row $i$ looks only at the first $i$ items, and column $w$ is a capacity. Each cell answers one question, what is the best value using these items within this capacity, and it is computed from cells in the row above.",
+        "prerequisites": [
+          "algo-design-paradigms.dp-framework"
+        ],
+        "definitions": [
+          {
+            "term": "Pseudo-polynomial",
+            "meaning": "A running time polynomial in the numeric value of an input number, such as the capacity $W$, but exponential in the number of bits needed to write it."
+          },
+          {
+            "term": "Subset sum",
+            "meaning": "The yes/no question of whether some subset of the given numbers adds up to exactly a target $S$."
+          }
+        ],
+        "principle": {
+          "text": "For item $i$ with weight $w_i$ and value $v_i$, the best value either skips the item or takes it and spends $w_i$ of the capacity. Row 0 is all zeros, and the answer is the last cell. Time and space are $O(nW)$.",
+          "tex": "K[i][w] = \\begin{cases} K[i-1][w] & w_i > w \\\\ \\max\\bigl(K[i-1][w],\\ v_i + K[i-1][w-w_i]\\bigr) & w_i \\le w \\end{cases}"
+        },
+        "limits": "The table needs integer weights and costs time proportional to $W$, so a huge capacity makes it slow even for few items. Taking items by best value per weight is correct only when items can be split, as in fractional knapsack; for whole items it can be wrong.",
+        "example": {
+          "problem": "Capacity $W = 5$. Item 1 has weight 2 and value 3, item 2 has weight 3 and value 4, item 3 has weight 4 and value 5. Find the best total value.",
+          "steps": [
+            "Row for item 1 (weight 2, value 3), columns $w = 0..5$: 0, 0, 3, 3, 3, 3. The item fits from capacity 2 on.",
+            "Row for item 2 (weight 3, value 4): 0, 0, 3, 4, 4, 7. At $w = 5$ the choice is max(3, 4 + K[1][2]) = max(3, 7) = 7.",
+            "Row for item 3 (weight 4, value 5): 0, 0, 3, 4, 5, 7. At $w = 5$ the choice is max(7, 5 + K[2][1]) = max(7, 5) = 7.",
+            "The last cell, $K[3][5]$, is the answer. It was set by items 1 and 2, whose weights 2 + 3 fill the bag exactly."
+          ],
+          "result": "The best value is 7, from items 1 and 2."
+        },
+        "misconceptions": [
+          "Since the time is $O(nW)$, it is not polynomial in the input size: $W$ is written with about $\\log W$ bits, so the table grows exponentially in that length.",
+          "Scanning $w$ upwards in the one-row version lets an item be taken several times and answers a different problem. For 0/1 the scan must go from $W$ down to $w_i$.",
+          "Subset sum is not a different algorithm: it is this table with true/false cells and no values."
+        ],
+        "recall": [
+          {
+            "q": "What are the two choices in the 0/1 knapsack recurrence?",
+            "a": "Skip item $i$ and keep $K[i-1][w]$, or take it and get $v_i + K[i-1][w-w_i]$; the cell holds the larger."
+          },
+          {
+            "q": "Why is $O(nW)$ called pseudo-polynomial?",
+            "a": "It is polynomial in the value of $W$ but exponential in the number of bits that write $W$."
+          },
+          {
+            "q": "How is partition solved with this table?",
+            "a": "Compute half the total as $S$ and ask by a Boolean subset-sum table whether some subset reaches exactly $S$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Items as (weight, value): (3, 40), (4, 50), (2, 30), (5, 65). The knapsack capacity is 7 and each item may be taken at most once. What is the maximum total value?",
+          "answer": 95,
+          "explanation": "Weight 7 can be filled by items 3 and 4 (2 + 5) for 30 + 65 = 95, or by items 1 and 2 (3 + 4) for 40 + 50 = 90. No three items fit, since the three lightest weigh 2 + 3 + 4 = 9. The value 90 tempts because it uses the two items that come first in the list, and 70 comes from taking items in order of value per weight, which wastes capacity."
+        },
+        "summary": "Each cell either skips the item or takes it and spends its weight; the table costs $O(nW)$, which is pseudo-polynomial, and subset sum is the same table with Boolean cells."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.lcs-edit-distance",
+      "title": "LCS and edit distance",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        385,
+        386,
+        387
+      ],
+      "points": [
+        "For LCS, dp[i][j] is the LCS length of X[1..i] and Y[1..j]: on a match take dp[i−1][j−1] + 1, otherwise max(dp[i−1][j], dp[i][j−1]); row 0 and column 0 are 0.",
+        "LCS takes O(mn) time; the length alone needs only two rows, O(min(m, n)) space, but reconstructing the subsequence needs the full table or a divide-and-conquer trick.",
+        "A subsequence keeps order but need not be contiguous: LCS(ABCBDAB, BDCAB) = 4, achieved by BCAB and BDAB, among others.",
+        "Edit distance: dp[i][0] = i, dp[0][j] = j, and dp[i][j] = dp[i−1][j−1] on a match, else 1 + min(delete dp[i−1][j], insert dp[i][j−1], replace dp[i−1][j−1]). O(mn); kitten → sitting costs 3."
+      ],
+      "keyTerms": [
+        "subsequence",
+        "Levenshtein distance"
+      ],
+      "lesson": {
+        "why": "Longest common subsequence and edit distance are standard dynamic programming problems, usually posed as a table to fill and read. The two share one table shape and differ in the border and the rule for a mismatch.",
+        "intro": "A subsequence of a string keeps the letters in their original order but may skip letters, so ACE is a subsequence of ABCDE while CAE is not. The longest common subsequence of two strings is the longest string that is a subsequence of both. Edit distance asks a related question: the fewest single-letter inserts, deletes and replacements that turn one string into the other. Both are solved by a table whose cell $(i, j)$ answers the question for the first $i$ letters of one string and the first $j$ of the other.",
+        "prerequisites": [
+          "algo-design-paradigms.dp-framework"
+        ],
+        "definitions": [
+          {
+            "term": "Subsequence",
+            "meaning": "A string obtained by deleting zero or more letters without changing the order of the rest; the kept letters need not be adjacent."
+          },
+          {
+            "term": "Edit distance",
+            "meaning": "The least number of insertions, deletions and replacements of one letter needed to turn one string into another."
+          }
+        ],
+        "principle": {
+          "text": "If the last letters match, LCS extends the diagonal cell by one; otherwise it takes the better of dropping one letter from either string. Row 0 and column 0 are 0. Edit distance has borders $i$ and $j$ and charges 1 for a mismatch. Both take $O(mn)$ time.",
+          "tex": "c[i][j] = \\begin{cases} c[i-1][j-1] + 1 & x_i = y_j \\\\ \\max\\bigl(c[i-1][j],\\ c[i][j-1]\\bigr) & x_i \\ne y_j \\end{cases}"
+        },
+        "limits": "A subsequence is not a substring: the letters need not touch, and treating them as contiguous gives a smaller answer. The table gives the length; recovering one actual subsequence means tracing back through it, and the longest one is often not unique.",
+        "example": {
+          "problem": "Find the length of the longest common subsequence of X = ABCB and Y = BCAB.",
+          "steps": [
+            "Make a table with a row for each letter of X and a column for each letter of Y, plus a zero row and a zero column.",
+            "Row A (columns B, C, A, B): 0, 0, 1, 1. Only the match of A with A creates a 1.",
+            "Row B: 1, 1, 1, 2. The first B matches B and copies the diagonal 0 plus 1; the last B matches B and adds 1 to the diagonal value 1.",
+            "Row C: 1, 2, 2, 2. C matches C and adds 1 to the diagonal value 1. Row B: 1, 2, 2, 3, where the last B matches B and adds 1 to the diagonal value 2.",
+            "The bottom-right cell is 3. Tracing back through the matches gives the subsequence BCB."
+          ],
+          "result": "The LCS has length 3, for example BCB."
+        },
+        "misconceptions": [
+          "A subsequence need not be contiguous. For ABCB and BCAB the answer 3 uses the letters B, C, B, which are not adjacent in the first string.",
+          "On a mismatch, edit distance takes $1 + \\min$ of three neighbours (delete, insert, replace), while LCS takes the $\\max$ of two. Mixing the two rules is a common slip.",
+          "The LCS is not always unique: ABCBDAB and BDCAB share both BCAB and BDAB, each of length 4."
+        ],
+        "recall": [
+          {
+            "q": "What does the LCS cell take when the two letters differ?",
+            "a": "The larger of the cell above and the cell to the left."
+          },
+          {
+            "q": "What are the borders of the edit distance table?",
+            "a": "$D[i][0] = i$ and $D[0][j] = j$, the cost of deleting or inserting every letter."
+          },
+          {
+            "q": "What is the edit distance from SUN to SAT?",
+            "a": "2: replace U by A and N by T."
+          },
+          {
+            "q": "What is the time to fill an LCS table for lengths $m$ and $n$?",
+            "a": "$O(mn)$, one constant-time step per cell."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the length of the longest common subsequence of AGGTAB and GXTXAYB?",
+          "answer": 4,
+          "explanation": "Filling the table row by row gives a last cell of 4. One common subsequence is G, T, A, B: in AGGTAB they sit at positions 2 or 3, 4, 5, 6, and in GXTXAYB at positions 1, 3, 5, 7, in the same order. The answer 3 tempts if the match on A is skipped, and 2 comes from counting only the matches G and T and missing the later A and B."
+        },
+        "summary": "Match extends the diagonal, mismatch looks up and left; LCS takes the max and edit distance adds 1 to the min of three neighbours, both in $O(mn)$."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.lis",
+      "title": "Longest increasing subsequence",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        386,
+        387
+      ],
+      "points": [
+        "L[i] = 1 + max L[j] over j < i with a[j] < a[i] (or 1 if none) is the length of the longest increasing subsequence ending at i; the answer is max L[i]. O(n²).",
+        "Patience sorting keeps, for each length k, the smallest possible tail of an increasing subsequence of length k, and binary-searches each new element into that array: O(n log n).",
+        "For 10, 22, 9, 33, 21, 50, 41, 60, 80 the LIS has length 6, for example 10, 22, 33, 50, 60, 80."
+      ],
+      "lesson": {
+        "why": "The longest increasing subsequence appears as a trace on a short list or as a question on the best running time. It is the smallest dynamic programming problem with a one-dimensional table.",
+        "intro": "Given a list of numbers, pick some of them, keeping their order, so that each picked number is larger than the one before. The task is to make the picked group as long as possible. The method records, for each position, the length of the longest increasing run that ends exactly at that number. A position builds on the best earlier position that holds a smaller value.",
+        "prerequisites": [
+          "algo-design-paradigms.dp-framework"
+        ],
+        "definitions": [
+          {
+            "term": "Increasing subsequence",
+            "meaning": "Chosen entries of a list, kept in their original order, with each value strictly larger than the one before."
+          },
+          {
+            "term": "Tail array",
+            "meaning": "In the fast method, entry $k$ holds the smallest possible last value of an increasing subsequence of length $k$."
+          }
+        ],
+        "principle": {
+          "text": "Let $L[i]$ be the length of the longest increasing subsequence that ends at position $i$. It is 1 plus the best $L[j]$ among earlier, smaller entries. The answer is the largest $L[i]$, not $L[n]$. The table costs $O(n^2)$.",
+          "tex": "L[i] = 1 + \\max\\{\\, L[j] : j < i,\\ a_j < a_i \\,\\},\\qquad \\mathrm{LIS} = \\max_i L[i]"
+        },
+        "limits": "The quadratic method compares every pair of positions, so it is slow for long lists. Keeping the tail array and finding each new entry's place by binary search brings the time to $O(n \\log n)$, but that array is not itself a valid subsequence.",
+        "example": {
+          "problem": "Find the length of the longest increasing subsequence of 4, 2, 5, 3, 7, 6, 8.",
+          "steps": [
+            "Position 1 (value 4) and position 2 (value 2) have no smaller earlier entry that helps, so $L$ = 1 and 1.",
+            "Value 5 can follow 4 or 2, both with $L$ = 1, so $L$ = 2. Value 3 can follow only 2, so $L$ = 2.",
+            "Value 7 can follow 5 or 3, both with $L$ = 2, so $L$ = 3. Value 6 can also follow 5 or 3, so $L$ = 3.",
+            "Value 8 can follow 7 or 6, both with $L$ = 3, so $L$ = 4.",
+            "The list of $L$ values is 1, 1, 2, 2, 3, 3, 4, and the largest is 4. One such subsequence is 4, 5, 7, 8."
+          ],
+          "result": "The longest increasing subsequence has length 4."
+        },
+        "misconceptions": [
+          "The answer is the largest $L[i]$ over all positions. The last entry may be small and end only a short run, so $L[n]$ alone can be too low.",
+          "A subsequence is not a run of adjacent entries. In 4, 2, 5, 3, 7, 6, 8 the subsequence 4, 5, 7, 8 skips the entries 2, 3 and 6.",
+          "In the $O(n \\log n)$ method the tail array is not the answer sequence itself; only its length is the answer."
+        ],
+        "recall": [
+          {
+            "q": "What does $L[i]$ mean?",
+            "a": "The length of the longest increasing subsequence that ends at position $i$."
+          },
+          {
+            "q": "What is the time of the table method and of the tail-array method?",
+            "a": "$O(n^2)$ for the table and $O(n \\log n)$ for the tail array with binary search."
+          },
+          {
+            "q": "How is the final answer read from the table?",
+            "a": "It is the maximum of all $L[i]$, not the last value."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the length of the longest strictly increasing subsequence of 2, 5, 3, 7, 11, 8, 10, 13, 6?",
+          "answer": 6,
+          "explanation": "The values $L[i]$ are 1, 2, 2, 3, 4, 4, 5, 6, 3, and the largest is 6, reached at the entry 13. One subsequence is 2, 5, 7, 8, 10, 13. The answer 3 tempts because it is $L$ of the last entry 6, which ends only a short run, and 5 comes from stopping at 10 before seeing 13."
+        },
+        "summary": "Each entry extends the best run that ends at a smaller earlier entry; the answer is the maximum $L[i]$, in $O(n^2)$ or $O(n \\log n)$ with the tail array."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.interval-dp",
+      "title": "Matrix-chain multiplication and optimal BST",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        31,
+        32,
+        383,
+        387
+      ],
+      "points": [
+        "Aᵢ has dimensions p(i−1) × p(i). m[i][j] = min over i ≤ k < j of m[i][k] + m[k+1][j] + p(i−1)·p(k)·p(j), with m[i][i] = 0. Fill by chain length; O(n³) time, O(n²) space.",
+        "Dimensions 30, 35, 15, 5, 10 give a minimum of 9375 scalar multiplications via (A₁(A₂A₃))A₄; a bad order such as ((A₁A₂)A₃)A₄ costs 15750 + 2250 + 1500 = 19500.",
+        "The number of ways to parenthesize n matrices is the Catalan number C(n−1): 1, 1, 2, 5, 14, 42 for n = 1..6, which is why brute force is exponential.",
+        "Optimal BST uses the same interval shape: cost[i][j] = min over roots r of cost[i][r−1] + cost[r+1][j] + (sum of frequencies of keys i..j), since every key in the range sinks one level. O(n³)."
+      ],
+      "keyTerms": [
+        "parenthesization",
+        "Catalan number",
+        "optimal binary search tree"
+      ],
+      "lesson": {
+        "why": "Matrix-chain multiplication is a repeat GATE topic, asking for the minimum cost or for the structure of the best bracketing, and the same table shape appears in optimal binary search trees.",
+        "intro": "Multiplying a chain of matrices gives the same result however the brackets are placed, but the number of scalar multiplications changes a lot. A matrix with p rows and q columns times one with q rows and r columns costs p times q times r multiplications. The task is to choose the bracketing with the smallest total cost. The method asks, for each stretch of the chain, where the last multiplication happens, and stores the best cost of every stretch in a table.",
+        "prerequisites": [
+          "algo-design-paradigms.dp-framework"
+        ],
+        "definitions": [
+          {
+            "term": "Dimension list",
+            "meaning": "The numbers p0, p1, ..., pn where matrix Ai has p(i-1) rows and p(i) columns."
+          },
+          {
+            "term": "Parenthesization",
+            "meaning": "A choice of brackets that fixes the order of the multiplications."
+          }
+        ],
+        "principle": {
+          "text": "The best cost m[i][j] of the stretch from matrix i to matrix j is found by trying each position k of the last split. Single matrices cost 0, and the table is filled by increasing stretch length.",
+          "tex": "m[i][j] = \\min_{i \\le k < j}\\bigl(m[i][k] + m[k+1][j] + p_{i-1}\\,p_k\\,p_j\\bigr)"
+        },
+        "limits": "The method fixes the order of the matrices and only chooses brackets; it does not reorder the chain. It takes cubic time in the number of matrices, so it is not suited for very long chains.",
+        "example": {
+          "problem": "Three matrices have dimension list 10, 20, 5, 30, so A1 is 10 by 20, A2 is 20 by 5 and A3 is 5 by 30. Find the minimum cost.",
+          "steps": [
+            "Stretches of one matrix cost 0. The stretch A1A2 costs 10*20*5 = 1000, and the stretch A2A3 costs 20*5*30 = 3000.",
+            "For the whole chain, split after A1: cost 0 + 3000 + 10*20*30 = 9000.",
+            "Split after A2: cost 1000 + 0 + 10*5*30 = 2500.",
+            "Take the smaller of the two.",
+            "Record the split that gave the minimum, here k = 2. The bracketing is read from the recorded splits: k = 2 puts A1A2 on the left and A3 on the right, and the left stretch has only the split k = 1, so it is (A1A2)A3."
+          ],
+          "result": "The minimum is 2500, from (A1A2)A3."
+        },
+        "misconceptions": [
+          "The cost depends on the bracketing, not on the matrices alone: here the two orders differ by a factor of more than three.",
+          "The cost of the last multiplication is p(i-1) times p(k) times p(j), where p(k) is the dimension at the split point. Leaving out p(k) is the usual error; in the example the last product costs 10*20*30 when the split is after A1, and 10*5*30 when it is after A2, with the split dimension in the middle."
+        ],
+        "recall": [
+          {
+            "q": "What does multiplying a p by q matrix with a q by r matrix cost?",
+            "a": "p times q times r scalar multiplications."
+          },
+          {
+            "q": "How is the table of best costs filled?",
+            "a": "By increasing chain length, so every shorter stretch is ready before it is used."
+          },
+          {
+            "q": "What is the time complexity for n matrices?",
+            "a": "Cubic, O(n^3), with O(n^2) space."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four matrices A1, A2, A3, A4 have the dimension list 5, 10, 3, 12, 5. What is the minimum number of scalar multiplications needed to compute the product A1A2A3A4?",
+          "answer": 405,
+          "explanation": "Stretches of two: A1A2 costs 5*10*3 = 150, A2A3 costs 10*3*12 = 360, A3A4 costs 3*12*5 = 180. Stretches of three: m[1][3] = min(0 + 360 + 5*10*12, 150 + 0 + 5*3*12) = min(960, 180+150) = 330, and m[2][4] = min(0 + 180 + 10*3*5, 360 + 0 + 10*12*5) = min(330, 960) = 330. Whole chain: split after A1 gives 0 + 330 + 5*10*5 = 580, split after A2 gives 150 + 180 + 5*3*5 = 405, split after A3 gives 330 + 0 + 5*12*5 = 630. The minimum is 405, from (A1A2)(A3A4). The tempting answer 330 is the best cost for only the first three matrices."
+        },
+        "summary": "Try every last split of each stretch and keep the cheapest; fill by stretch length, in cubic time."
+      }
+    },
+    {
+      "id": "algo-design-paradigms.shortest-path-dp",
+      "title": "Shortest paths as dynamic programming",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        31,
+        32,
+        384,
+        386
+      ],
+      "points": [
+        "Floyd–Warshall: d_k[i][j] is the shortest i→j distance using only vertices 1..k as intermediates, d_k[i][j] = min(d_(k−1)[i][j], d_(k−1)[i][k] + d_(k−1)[k][j]). Θ(V³) time and Θ(V²) space, with k as the outermost loop.",
+        "Floyd–Warshall handles negative edges; a negative entry on the diagonal after the run reveals a negative cycle.",
+        "Bellman–Ford is DP over the number of edges: after round i, every distance is correct for paths of at most i edges, so V − 1 rounds of relaxing every edge suffice. O(VE); one more improving round signals a negative cycle."
+      ],
+      "lesson": {
+        "why": "Floyd-Warshall and Bellman-Ford are both dynamic programming, and GATE asks for the running time, the effect of negative edges, and the matrix after a given round of the loop.",
+        "intro": "The shortest route between two places can be built up by asking which places the route is allowed to pass through. Floyd-Warshall starts with direct roads only. It then permits vertex 1 as a stop, then vertices 1 and 2, and so on, and after each round it stores the best distance between every pair. Bellman-Ford instead limits the number of roads on a route and lengthens that limit round by round.",
+        "prerequisites": [
+          "algo-design-paradigms.dp-framework"
+        ],
+        "definitions": [
+          {
+            "term": "Intermediate vertex",
+            "meaning": "A vertex on a path other than its two ends."
+          },
+          {
+            "term": "Negative cycle",
+            "meaning": "A cycle whose edge weights add up to less than zero, so going around it again always shortens the path."
+          }
+        ],
+        "principle": {
+          "text": "After round $k$ of Floyd-Warshall, $d_{ij}$ is the shortest distance from $i$ to $j$ using only vertices $1..k$ as intermediates. A route either avoids vertex $k$ or goes through it once. Time is $\\Theta(V^3)$ with $k$ in the outermost loop. Bellman-Ford needs $V-1$ rounds over all edges, $O(VE)$.",
+          "tex": "d^{(k)}_{ij} = \\min\\bigl(d^{(k-1)}_{ij},\\ d^{(k-1)}_{ik} + d^{(k-1)}_{kj}\\bigr)"
+        },
+        "limits": "Both methods are correct with negative edges, but neither gives a finite answer when a negative cycle can be reached. Floyd-Warshall then shows a negative entry on the diagonal, and Bellman-Ford shows an edge that still relaxes after $V-1$ rounds. With only non-negative edges and a single source, Dijkstra is faster.",
+        "example": {
+          "problem": "A directed graph on vertices 1, 2, 3 has the edges 1 to 2 of weight 4, 1 to 3 of weight 11, 2 to 3 of weight 2 and 3 to 1 of weight 3. Run Floyd-Warshall and give the final distance from 1 to 3.",
+          "steps": [
+            "Round 1 allows vertex 1 as a stop. The only new route is 3 to 2 through 1, of cost 3 + 4 = 7, so $d_{32}$ becomes 7.",
+            "Round 2 allows vertex 2. The route 1 to 3 through 2 costs 4 + 2 = 6, which beats 11, so $d_{13}$ becomes 6.",
+            "Round 3 allows vertex 3. The route 2 to 1 through 3 costs 2 + 3 = 5, so $d_{21}$ becomes 5; no other entry improves.",
+            "The final distance from vertex 1 to vertex 3 is the entry $d_{13}$ = 6."
+          ],
+          "result": "The shortest distance from 1 to 3 is 6, along 1, 2, 3."
+        },
+        "misconceptions": [
+          "The loop over $k$ must be outermost. Putting it inside the loops over $i$ and $j$ no longer follows the recurrence and can miss shorter routes.",
+          "Floyd-Warshall allows negative edges. Only a negative cycle breaks it, and the diagonal shows that.",
+          "Bellman-Ford needs $V-1$ rounds because a shortest path with no cycle has at most $V-1$ edges. One more round that still improves a distance signals a negative cycle."
+        ],
+        "recall": [
+          {
+            "q": "What does $d^{(k)}_{ij}$ mean in Floyd-Warshall?",
+            "a": "The shortest distance from $i$ to $j$ using only vertices $1$ to $k$ as intermediates."
+          },
+          {
+            "q": "What are the time and space of Floyd-Warshall?",
+            "a": "$\\Theta(V^3)$ time and $\\Theta(V^2)$ space."
+          },
+          {
+            "q": "How does Bellman-Ford fit the dynamic programming pattern?",
+            "a": "After round $i$ every distance is correct for paths of at most $i$ edges, so $V-1$ rounds suffice; time is $O(VE)$."
+          },
+          {
+            "q": "How is a negative cycle detected?",
+            "a": "Floyd-Warshall leaves a negative diagonal entry; Bellman-Ford finds an edge that still relaxes in round $V$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A directed graph on vertices 1 to 4 has the edges 1 to 2 of weight 3, 1 to 4 of weight 7, 2 to 1 of weight 8, 2 to 3 of weight 2, 3 to 1 of weight 5, 3 to 4 of weight 1 and 4 to 1 of weight 2. After Floyd-Warshall finishes, what is the shortest distance from vertex 2 to vertex 1?",
+          "answer": 5,
+          "explanation": "The direct edge 2 to 1 costs 8, but the route 2, 3, 4, 1 costs 2 + 1 + 2 = 5. The route 2, 3, 1 costs 7 and already beats 8 in round 3; allowing vertex 4 in round 4 lowers $d_{21}$ to 5. The value 8 tempts because it is the only edge out of vertex 2 that reaches vertex 1, and 7 because it stops after allowing vertex 3."
+        },
+        "summary": "Floyd-Warshall adds one allowed intermediate vertex per round in $\\Theta(V^3)$; Bellman-Ford adds one allowed edge per round in $O(VE)$; a negative cycle breaks both."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "algo-design-paradigms.dc-recurrence",
+      "name": "Divide-and-conquer recurrence",
+      "tex": "T(n) = a\\,T\\!\\left(\\frac{n}{b}\\right) + f(n)",
+      "text": "T(n) = a·T(n/b) + f(n)",
+      "where": [
+        [
+          "a",
+          "number of subproblems"
+        ],
+        [
+          "n/b",
+          "size of each subproblem"
+        ],
+        [
+          "f(n)",
+          "cost of dividing and combining"
+        ]
+      ],
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "pages": [
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.master-theorem",
+      "name": "Master theorem (three cases)",
+      "tex": "T(n)=\\begin{cases}\\Theta(n^{\\log_b a}) & f(n)=O(n^{\\log_b a-\\epsilon})\\\\ \\Theta(n^{\\log_b a}\\log n) & f(n)=\\Theta(n^{\\log_b a})\\\\ \\Theta(f(n)) & f(n)=\\Omega(n^{\\log_b a+\\epsilon})\\end{cases}",
+      "text": "T(n) = Θ(n^(log_b a)) if f is polynomially smaller; Θ(n^(log_b a) log n) if equal; Θ(f(n)) if polynomially larger",
+      "where": [
+        [
+          "ε",
+          "some constant > 0"
+        ]
+      ],
+      "note": "Case 3 also needs regularity, a·f(n/b) ≤ c·f(n) for some c < 1. A gap of only a log factor, as in 2T(n/2) + n/log n, fits no case.",
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "pages": [
+        381,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.fraction-sum-rule",
+      "name": "Uneven splits with linear work",
+      "tex": "T(n) = \\sum_{i} T(\\alpha_i n) + \\Theta(n),\\ \\sum_i \\alpha_i < 1 \\;\\Rightarrow\\; T(n) = \\Theta(n)",
+      "text": "T(n) = Σ T(αᵢ·n) + Θ(n) with Σ αᵢ < 1 gives T(n) = Θ(n)",
+      "note": "If Σ αᵢ = 1 every level costs n and the answer is Θ(n log n), as in T(n) = T(n/3) + T(2n/3) + n.",
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.strassen",
+      "name": "Strassen matrix multiplication",
+      "tex": "T(n) = 7\\,T\\!\\left(\\frac{n}{2}\\right) + \\Theta(n^2) = \\Theta(n^{\\log_2 7}) \\approx \\Theta(n^{2.81})",
+      "text": "T(n) = 7T(n/2) + Θ(n²) = Θ(n^(log₂ 7)) ≈ Θ(n^2.81)",
+      "topic": "algo-design-paradigms.fast-multiplication",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.karatsuba",
+      "name": "Karatsuba integer multiplication",
+      "tex": "T(n) = 3\\,T\\!\\left(\\frac{n}{2}\\right) + \\Theta(n) = \\Theta(n^{\\log_2 3}) \\approx \\Theta(n^{1.585})",
+      "text": "T(n) = 3T(n/2) + Θ(n) = Θ(n^(log₂ 3)) ≈ Θ(n^1.585)",
+      "topic": "algo-design-paradigms.fast-multiplication",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.huffman-cost",
+      "name": "Huffman tree cost",
+      "tex": "B(T) = \\sum_{c} f(c)\\, d_T(c) = \\sum_{\\text{internal } v} w(v)",
+      "text": "B(T) = Σ f(c)·depth(c) = sum of weights of internal nodes",
+      "where": [
+        [
+          "f(c)",
+          "frequency of symbol c"
+        ],
+        [
+          "d_T(c)",
+          "depth of c, equal to its codeword length"
+        ],
+        [
+          "w(v)",
+          "weight created by one merge"
+        ]
+      ],
+      "note": "Average code length is B(T) divided by the total frequency.",
+      "topic": "algo-design-paradigms.huffman",
+      "origin": "source",
+      "pages": [
+        382,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.knapsack-recurrence",
+      "name": "0/1 knapsack recurrence",
+      "tex": "K[i][w]=\\begin{cases}K[i-1][w] & w_i>w\\\\ \\max\\big(K[i-1][w],\\ v_i+K[i-1][w-w_i]\\big) & w_i\\le w\\end{cases}",
+      "text": "K[i][w] = K[i−1][w] if wᵢ > w, else max(K[i−1][w], vᵢ + K[i−1][w − wᵢ])",
+      "where": [
+        [
+          "K[0][w]",
+          "0 for every w"
+        ],
+        [
+          "W",
+          "knapsack capacity; the table is (n+1)×(W+1)"
+        ]
+      ],
+      "note": "In the one-row version, scan w downwards; scanning upwards lets an item be reused, which solves unbounded knapsack instead.",
+      "topic": "algo-design-paradigms.knapsack-01",
+      "origin": "source",
+      "pages": [
+        31,
+        383
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.lcs-recurrence",
+      "name": "LCS recurrence",
+      "tex": "c[i][j]=\\begin{cases}0 & i=0 \\text{ or } j=0\\\\ c[i-1][j-1]+1 & x_i=y_j\\\\ \\max(c[i-1][j],\\ c[i][j-1]) & x_i\\ne y_j\\end{cases}",
+      "text": "c[i][j] = 0 at a border; c[i−1][j−1] + 1 if xᵢ = yⱼ; else max(c[i−1][j], c[i][j−1])",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "pages": [
+        31,
+        383
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.edit-distance-recurrence",
+      "name": "Edit distance recurrence",
+      "tex": "D[i][j]=\\begin{cases}D[i-1][j-1] & x_i=y_j\\\\ 1+\\min\\big(D[i-1][j],\\ D[i][j-1],\\ D[i-1][j-1]\\big) & x_i\\ne y_j\\end{cases}",
+      "text": "D[i][j] = D[i−1][j−1] if xᵢ = yⱼ, else 1 + min(D[i−1][j], D[i][j−1], D[i−1][j−1])",
+      "where": [
+        [
+          "D[i][0]",
+          "i deletions"
+        ],
+        [
+          "D[0][j]",
+          "j insertions"
+        ]
+      ],
+      "note": "The three terms are delete, insert and replace. Some questions charge replace 2, which makes it never better than a delete plus an insert.",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.lis-recurrence",
+      "name": "LIS recurrence",
+      "tex": "L[i] = 1 + \\max\\{\\, L[j] : j < i,\\ a_j < a_i \\,\\},\\qquad \\mathrm{LIS} = \\max_i L[i]",
+      "text": "L[i] = 1 + max{L[j] : j < i, a[j] < a[i]} (1 if none); LIS = max L[i]",
+      "topic": "algo-design-paradigms.lis",
+      "origin": "source",
+      "pages": [
+        31,
+        383
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.mcm-recurrence",
+      "name": "Matrix-chain recurrence",
+      "tex": "m[i][j]=\\min_{i\\le k<j}\\big(m[i][k]+m[k+1][j]+p_{i-1}\\,p_k\\,p_j\\big),\\quad m[i][i]=0",
+      "text": "m[i][j] = min over i ≤ k < j of m[i][k] + m[k+1][j] + p(i−1)·p(k)·p(j); m[i][i] = 0",
+      "where": [
+        [
+          "p_{i−1} × p_i",
+          "dimensions of matrix Aᵢ"
+        ]
+      ],
+      "note": "Multiplying a p×q by a q×r matrix costs pqr scalar multiplications. Fill by increasing chain length j − i.",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "pages": [
+        31,
+        383
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.catalan-parenthesizations",
+      "name": "Number of parenthesizations",
+      "tex": "P(n) = C_{n-1} = \\frac{1}{n}\\binom{2n-2}{n-1}",
+      "text": "P(n) = C(n−1) = (1/n)·binom(2n−2, n−1)",
+      "where": [
+        [
+          "n",
+          "number of matrices in the chain"
+        ]
+      ],
+      "note": "Gives 1, 1, 2, 5, 14, 42 for n = 1..6; the same Catalan numbers count binary trees with n − 1 internal nodes.",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-design-paradigms.obst-recurrence",
+      "name": "Optimal BST recurrence",
+      "tex": "e[i][j] = \\min_{i\\le r\\le j}\\big(e[i][r-1] + e[r+1][j]\\big) + \\sum_{t=i}^{j} f_t,\\quad e[i][i-1]=0",
+      "text": "e[i][j] = min over roots r of (e[i][r−1] + e[r+1][j]) + Σ f(t) for t = i..j",
+      "where": [
+        [
+          "f_t",
+          "access frequency of key t"
+        ]
+      ],
+      "note": "This counts the root at depth 1. Adding the range's total frequency once per level is what makes deeper keys cost more.",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "pages": [
+        32
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.coin-change-recurrences",
+      "name": "Coin change recurrences",
+      "tex": "M[a] = 1 + \\min_{c \\le a} M[a-c],\\ M[0]=0;\\qquad W[a] \\mathrel{+}= W[a-c],\\ W[0]=1",
+      "text": "M[a] = 1 + min over coins c ≤ a of M[a − c], M[0] = 0; ways W[a] += W[a − c], W[0] = 1",
+      "note": "For W, loop coins outside and amounts inside to count combinations; swapping the loops counts ordered sequences.",
+      "topic": "algo-design-paradigms.coin-change",
+      "origin": "source",
+      "pages": [
+        31
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.floyd-warshall-recurrence",
+      "name": "Floyd–Warshall recurrence",
+      "tex": "d^{(k)}_{ij} = \\min\\big(d^{(k-1)}_{ij},\\ d^{(k-1)}_{ik} + d^{(k-1)}_{kj}\\big)",
+      "text": "d(k)[i][j] = min(d(k−1)[i][j], d(k−1)[i][k] + d(k−1)[k][j])",
+      "where": [
+        [
+          "k",
+          "highest-numbered vertex allowed as an intermediate"
+        ]
+      ],
+      "note": "A negative d[i][i] at the end means a negative cycle through i.",
+      "topic": "algo-design-paradigms.shortest-path-dp",
+      "origin": "source",
+      "pages": [
+        32
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.fibonacci",
+      "name": "Fibonacci recurrence",
+      "tex": "F(n) = F(n-1) + F(n-2),\\quad F(0) = 0,\\ F(1) = 1",
+      "text": "F(n) = F(n−1) + F(n−2), F(0) = 0, F(1) = 1",
+      "note": "Naive recursion makes 2F(n+1) − 1 calls, which is Θ(φⁿ) with φ ≈ 1.618; tabulation is O(n).",
+      "topic": "algo-design-paradigms.dp-framework",
+      "origin": "source",
+      "pages": [
+        31,
+        383
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "algo-design-paradigms.cx-merge-sort",
+      "name": "Merge sort",
+      "best": "Θ(n log n)",
+      "average": "Θ(n log n)",
+      "worst": "Θ(n log n)",
+      "space": "Θ(n)",
+      "notes": "Stable; suits external sorting.",
+      "topic": "algo-design-paradigms.dc-template",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-quick-sort",
+      "name": "Quick sort",
+      "best": "Θ(n log n)",
+      "average": "Θ(n log n)",
+      "worst": "Θ(n²)",
+      "space": "O(log n) stack on average",
+      "notes": "Worst case when every pivot is the minimum or maximum, e.g. sorted input with a first-element pivot.",
+      "topic": "algo-design-paradigms.dc-template",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-binary-search",
+      "name": "Binary search",
+      "best": "Θ(1)",
+      "worst": "Θ(log n)",
+      "space": "O(1) iterative",
+      "topic": "algo-design-paradigms.dc-template",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-closest-pair",
+      "name": "Closest pair of points (2D)",
+      "worst": "Θ(n log n)",
+      "notes": "Presort by x and y once; re-sorting the strip in every call gives Θ(n log² n).",
+      "topic": "algo-design-paradigms.dc-template",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-strassen",
+      "name": "Strassen matrix multiplication",
+      "worst": "Θ(n^2.81)",
+      "space": "Θ(n²)",
+      "notes": "Θ(n^(log₂ 7)); naive multiplication is Θ(n³).",
+      "topic": "algo-design-paradigms.fast-multiplication",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-karatsuba",
+      "name": "Karatsuba multiplication",
+      "worst": "Θ(n^1.585)",
+      "notes": "Θ(n^(log₂ 3)) digit operations; schoolbook multiplication is Θ(n²).",
+      "topic": "algo-design-paradigms.fast-multiplication",
+      "origin": "source",
+      "pages": [
+        32,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-activity-selection",
+      "name": "Activity selection",
+      "worst": "O(n log n)",
+      "notes": "O(n) if the activities already arrive sorted by finish time.",
+      "topic": "algo-design-paradigms.activity-selection",
+      "origin": "source",
+      "pages": [
+        30,
+        382
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-fractional-knapsack",
+      "name": "Fractional knapsack",
+      "worst": "O(n log n)",
+      "notes": "Sorting by ratio dominates; a linear-time selection method also exists.",
+      "topic": "algo-design-paradigms.fractional-knapsack",
+      "origin": "source",
+      "pages": [
+        30,
+        381
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-huffman",
+      "name": "Huffman coding",
+      "worst": "O(n log n)",
+      "notes": "n − 1 merges, each with two extract-min and one insert on a binary heap.",
+      "topic": "algo-design-paradigms.huffman",
+      "origin": "source",
+      "pages": [
+        30,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-job-sequencing",
+      "name": "Job sequencing with deadlines",
+      "worst": "O(n²) slot scan",
+      "notes": "About O(n log n) with a disjoint-set slot finder.",
+      "topic": "algo-design-paradigms.job-sequencing",
+      "origin": "source",
+      "pages": [
+        30
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-knapsack-01",
+      "name": "0/1 knapsack DP",
+      "worst": "O(nW)",
+      "space": "O(nW), or O(W) with one row",
+      "notes": "Pseudo-polynomial: W is a value, not a length.",
+      "topic": "algo-design-paradigms.knapsack-01",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-lcs",
+      "name": "Longest common subsequence",
+      "worst": "O(mn)",
+      "space": "O(mn), or O(min(m, n)) for the length",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-edit-distance",
+      "name": "Edit distance",
+      "worst": "O(mn)",
+      "space": "O(mn), or O(min(m, n)) for the value",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "pages": [
+        383,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-lis",
+      "name": "Longest increasing subsequence",
+      "worst": "O(n²) DP, O(n log n) patience",
+      "space": "O(n)",
+      "topic": "algo-design-paradigms.lis",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-mcm",
+      "name": "Matrix-chain multiplication",
+      "worst": "O(n³)",
+      "space": "O(n²)",
+      "notes": "Θ(n²) table entries, each minimising over O(n) split points.",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-obst",
+      "name": "Optimal binary search tree",
+      "worst": "O(n³)",
+      "space": "O(n²)",
+      "notes": "Knuth's root-monotonicity trick reduces it to O(n²).",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "pages": [
+        32
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-coin-change",
+      "name": "Coin change DP (min coins or ways)",
+      "worst": "O(n · amount)",
+      "space": "O(amount)",
+      "notes": "n is the number of coin denominations.",
+      "topic": "algo-design-paradigms.coin-change",
+      "origin": "source",
+      "pages": [
+        31,
+        388
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-fibonacci",
+      "name": "Fibonacci",
+      "worst": "Θ(φⁿ) naive, O(n) DP",
+      "space": "O(1) bottom-up",
+      "notes": "Memoized recursion needs O(n) cache plus O(n) stack.",
+      "topic": "algo-design-paradigms.dp-framework",
+      "origin": "source",
+      "pages": [
+        31,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-floyd-warshall",
+      "name": "Floyd–Warshall",
+      "worst": "Θ(V³)",
+      "space": "Θ(V²)",
+      "topic": "algo-design-paradigms.shortest-path-dp",
+      "origin": "source",
+      "pages": [
+        32,
+        384,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.cx-bellman-ford",
+      "name": "Bellman–Ford",
+      "worst": "O(VE)",
+      "space": "O(V)",
+      "topic": "algo-design-paradigms.shortest-path-dp",
+      "origin": "source",
+      "pages": [
+        384,
+        386
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "algo-design-paradigms.pt-mcm-cost",
+      "title": "Minimum scalar multiplications for a matrix chain",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the dimension list p0, p1, …, pn so that Aᵢ is p(i−1) × p(i).",
+        "Fill chain length 2: m[i][i+1] = p(i−1)·p(i)·p(i+1).",
+        "For each longer chain, try every split k and keep the minimum of m[i][k] + m[k+1][j] + p(i−1)·p(k)·p(j).",
+        "Read m[1][n]; record the best k to recover the parenthesization if asked."
+      ],
+      "trap": "Using p(i)·p(k)·p(j) instead of p(i−1)·p(k)·p(j), or stopping after checking only one or two parenthesizations.",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-string-dp",
+      "title": "LCS length or edit distance of two strings",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Draw an (m+1) × (n+1) table and fill the border: 0 for LCS, i and j for edit distance.",
+        "Fill row by row: on a match copy the diagonal (plus 1 for LCS); otherwise take the max of up and left (LCS) or 1 + min of up, left and diagonal (edit distance).",
+        "Read the bottom-right cell; trace back through matches to name an actual subsequence or edit script."
+      ],
+      "trap": "Treating a subsequence as a substring (contiguous), which gives a smaller answer.",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-huffman",
+      "title": "Huffman cost, code length or average bits per symbol",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Sort the frequencies; repeatedly merge the two smallest and reinsert their sum.",
+        "Add up every merged weight: that total is Σ frequency × code length.",
+        "For a single symbol's code length, count how many merges include it; for average length, divide the total by the sum of frequencies."
+      ],
+      "trap": "Forgetting to re-sort after each merge, so a new parent is merged out of order.",
+      "topic": "algo-design-paradigms.huffman",
+      "origin": "source",
+      "pages": [
+        30,
+        382,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-greedy-trace",
+      "title": "Greedy trace: activity selection or job sequencing",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Activity selection: sort by finish time, take the first, then every activity starting at or after the last chosen finish.",
+        "Job sequencing: sort by profit descending and put each job in the latest free slot at or before its deadline.",
+        "Report the count, the chosen set or the total profit, as asked."
+      ],
+      "trap": "Sorting activities by start time or by duration, both of which can pick fewer activities.",
+      "topic": "algo-design-paradigms.activity-selection",
+      "origin": "source",
+      "pages": [
+        30,
+        381,
+        382,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-knapsack",
+      "title": "0/1 versus fractional knapsack value",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Fractional: sort by value/weight, take whole items while they fit, then a fraction of the next.",
+        "0/1: fill K[i][w] row by row, or for 3–5 items enumerate the feasible subsets directly.",
+        "Compare with the greedy answer only if the question asks whether greedy is optimal."
+      ],
+      "trap": "Applying the ratio greedy to 0/1 knapsack; it can leave capacity unused that a different item set would fill.",
+      "topic": "algo-design-paradigms.knapsack-01",
+      "origin": "source",
+      "pages": [
+        31,
+        383,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-paradigm-choice",
+      "title": "Which paradigm or which greedy rule is optimal",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "For each claimed greedy rule, look for a 2–3 item counterexample before believing it.",
+        "Remember the proven list: earliest finish, best ratio for fractional items, two smallest for Huffman, profit order for unit jobs, Kruskal, Prim, Dijkstra without negative edges.",
+        "If items are indivisible or choices interact, expect DP."
+      ],
+      "trap": "Assuming largest-coin-first is optimal for any coin system.",
+      "topic": "algo-design-paradigms.greedy-principles",
+      "origin": "source",
+      "pages": [
+        381,
+        382,
+        384,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.pt-dc-recurrence",
+      "title": "Time complexity of a divide-and-conquer recurrence",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Identify a, b and f(n), and compute n^(log_b a).",
+        "Compare f(n) with it and apply the matching master-theorem case.",
+        "For unequal splits, sum the fractions: below 1 with linear work gives Θ(n), exactly 1 gives Θ(n log n)."
+      ],
+      "trap": "Assuming every two-way split gives n log n: 2T(n/2) + 1 is only Θ(n).",
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "pages": [
+        381,
+        385,
+        387
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "algo-design-paradigms.q-greedy-optimal",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following greedy strategies always produce an optimal solution?",
+      "options": [
+        "Fractional knapsack: take items in decreasing order of value/weight, splitting the last one",
+        "Activity selection: repeatedly pick the compatible activity with the earliest finish time",
+        "0/1 knapsack: take whole items in decreasing order of value/weight while they fit",
+        "Activity selection: repeatedly pick the compatible activity with the earliest start time"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Fractional knapsack and earliest-finish activity selection both have exchange-argument proofs. For 0/1 knapsack with capacity 50 and items (10, 60), (20, 100), (30, 120), the ratio greedy gets 160 but {20, 30} gives 220. For earliest start, one long activity (0, 10) beats out (1, 2) and (3, 4), giving 1 instead of 2.",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.greedy-principles",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2018) — Knapsack",
+      "pages": [
+        381,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-lcs-length",
+      "type": "nat",
+      "marks": 2,
+      "stem": "What is the length of the longest common subsequence of the strings ABCBDAB and BDCAB?",
+      "answer": 4,
+      "explanation": "Fill the 8 × 6 LCS table (including the zero border): a match takes the diagonal plus 1, a mismatch takes the max of up and left. The bottom-right cell is 4. BCAB is one witness: B, C, A, B appear in that order in both strings (positions 2, 3, 6, 7 of ABCBDAB and 1, 3, 4, 5 of BDCAB). BDAB also works. No length-5 common subsequence exists, because BDCAB itself is not a subsequence of ABCBDAB (after B, D at position 5 there is no C).",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — DP",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-mcm-cost",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Matrices A₁, A₂, A₃, A₄ have dimensions 30×35, 35×15, 15×5 and 5×10. What is the minimum number of scalar multiplications needed to compute A₁A₂A₃A₄?",
+      "answer": 9375,
+      "explanation": "p = (30, 35, 15, 5, 10). Length 2: m12 = 30·35·15 = 15750, m23 = 35·15·5 = 2625, m34 = 15·5·10 = 750. Length 3: m13 = min(0 + 2625 + 30·35·5, 15750 + 0 + 30·15·5) = min(7875, 18000) = 7875; m24 = min(0 + 750 + 35·15·10, 2625 + 0 + 35·5·10) = min(6000, 4375) = 4375. Length 4: m14 = min(k=1: 4375 + 30·35·10 = 14875; k=2: 15750 + 750 + 30·15·10 = 21000; k=3: 7875 + 30·5·10 = 9375) = 9375, from (A₁(A₂A₃))A₄.",
+      "difficulty": "hard",
+      "topic": "algo-design-paradigms.interval-dp",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2017) — Matrix chain",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-coin-greedy-fails",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Coins of denominations 1, 3 and 4 are available in unlimited supply. For the amount 6, how many coins does the largest-coin-first greedy use, and what is the true minimum?",
+      "options": [
+        "Greedy uses 3 coins; the minimum is 2",
+        "Greedy uses 2 coins; the minimum is 2",
+        "Greedy uses 3 coins; the minimum is 3",
+        "Greedy uses 2 coins; the minimum is 1"
+      ],
+      "answer": 0,
+      "explanation": "Greedy takes 4, leaving 2, then 1 and 1: three coins. The DP dp[a] = 1 + min(dp[a−1], dp[a−3], dp[a−4]) gives dp[1..6] = 1, 2, 1, 1, 2, 2, so 6 = 3 + 3 needs only two coins. The system {1, 3, 4} is not canonical, so greedy is not safe. For {1, 5, 10} and 18, greedy's 10 + 5 + 1 + 1 + 1 (5 coins) is optimal.",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.coin-change",
+      "origin": "source",
+      "sourceLabel": "Practice Q17 — Coin change",
+      "pages": [
+        386,
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-activity-selection",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Eleven activities have (start, finish) times (1,4), (3,5), (0,6), (5,7), (3,9), (5,9), (6,10), (8,11), (8,12), (2,14), (12,16). An activity may start at the moment another finishes. What is the maximum number of mutually compatible activities?",
+      "answer": 4,
+      "explanation": "Sort by finish time: 4, 5, 6, 7, 9, 9, 10, 11, 12, 14, 16. Take (1,4). The next with start ≥ 4 is (5,7). Then start ≥ 7: (8,11). Then start ≥ 11: (12,16). Nothing else starts at or after 16. Earliest-finish greedy is optimal, so the maximum is 4.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.activity-selection",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Greedy",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-uneven-recurrence",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the solution of T(n) = T(n/2) + T(n/4) + T(n/8) + n, with T(1) = 1?",
+      "options": [
+        "Θ(n)",
+        "Θ(n log n)",
+        "Θ(n²)",
+        "Θ(log n)"
+      ],
+      "answer": 0,
+      "explanation": "In the recursion tree, level 0 costs n, level 1 costs n/2 + n/4 + n/8 = 7n/8, and level k costs (7/8)ᵏ n. The geometric series sums to at most 8n, and the root alone already costs n, so T(n) = Θ(n). Θ(n log n) would need the fractions to sum to exactly 1.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Recurrence",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-huffman-cost",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Six symbols have frequencies 5, 9, 12, 13, 16 and 45. A Huffman code is built for them. What is the total weighted path length Σ (frequency × codeword length)?",
+      "answer": 224,
+      "explanation": "Merges: 5 + 9 = 14; 12 + 13 = 25; 14 + 16 = 30; 25 + 30 = 55; 45 + 55 = 100. Summing the merged weights gives 14 + 25 + 30 + 55 + 100 = 224. Check with depths: 45 at depth 1, 12, 13 and 16 at depth 3, 5 and 9 at depth 4, so 45 + 3·41 + 4·14 = 224. The average code length is 224/100 = 2.24 bits.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.huffman",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Huffman",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-edit-distance",
+      "type": "nat",
+      "marks": 2,
+      "stem": "With insertion, deletion and substitution each costing 1, what is the edit distance between kitten and sitting?",
+      "answer": 3,
+      "explanation": "Substitute k → s (sitten), substitute e → i (sittin), insert g at the end (sitting): 3 operations. Filling the 7 × 8 table (border D[i][0] = i, D[0][j] = j) gives D[6][7] = 3, so no 2-operation script exists. At least one operation must be an insertion since sitting is one character longer.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.lcs-edit-distance",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — DP edit distance",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-knapsack-01",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 0/1 knapsack has capacity 5 and four items with (weight, value) = (2, 3), (3, 4), (4, 5), (5, 6). What is the maximum total value?",
+      "options": [
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "answer": 1,
+      "explanation": "Feasible sets within weight 5: any single item (best is 6 from the weight-5 item), or items 1 and 2 (weight 5, value 7). Every other pair weighs at least 6. So the optimum is 7. The DP K[4][5] gives the same value.",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.knapsack-01",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — DP",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-lis-length",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the length of the longest strictly increasing subsequence of 10, 22, 9, 33, 21, 50, 41, 60, 80?",
+      "options": [
+        "5",
+        "6",
+        "7",
+        "4"
+      ],
+      "answer": 1,
+      "explanation": "L[i] values: 10→1, 22→2, 9→1, 33→3, 21→2, 50→4, 41→4, 60→5, 80→6. The maximum is 6, for example 10, 22, 33, 50, 60, 80 (or with 41 in place of 50).",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.lis",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — DP LIS",
+      "pages": [
+        387
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-strassen",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Strassen's algorithm multiplies two n×n matrices using 7 recursive multiplications of n/2 × n/2 matrices plus Θ(n²) additions. What is its running time?",
+      "options": [
+        "Θ(n³)",
+        "Θ(n² log n)",
+        "$\\Theta(n^{\\log_2 7})$",
+        "$\\Theta(n^{\\log_2 3})$"
+      ],
+      "answer": 2,
+      "explanation": "T(n) = 7T(n/2) + Θ(n²). Here n^(log₂ 7) ≈ n^2.807 grows polynomially faster than n², so master-theorem case 1 gives Θ(n^(log₂ 7)). Θ(n³) is the naive 8-product recursion; Θ(n^(log₂ 3)) is Karatsuba's 3T(n/2) + Θ(n).",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.fast-multiplication",
+      "origin": "source",
+      "pages": [
+        381,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-dc-recurrences",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following recurrence–solution pairs are correct?",
+      "options": [
+        "Karatsuba: T(n) = 3T(n/2) + Θ(n) gives $\\Theta(n^{\\log_2 3})$",
+        "T(n) = 2T(n/2) + 1 gives Θ(n log n)",
+        "Merge sort: T(n) = 2T(n/2) + Θ(n) gives Θ(n log n)",
+        "Binary search: T(n) = T(n/2) + Θ(1) gives Θ(log n)"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Karatsuba: n^(log₂ 3) ≈ n^1.585 beats n, case 1. 2T(n/2) + 1: n^(log₂ 2) = n beats 1, so case 1 gives Θ(n), not Θ(n log n). Merge sort: f(n) = n matches n^(log₂ 2), case 2 adds a log factor. Binary search: n^(log₂ 1) = 1 matches Θ(1), case 2 gives Θ(log n).",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.dc-recurrences",
+      "origin": "source",
+      "pages": [
+        381,
+        385
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-dp-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about dynamic programming are true?",
+      "options": [
+        "The O(nW) 0/1 knapsack algorithm is not polynomial in the input size, because W needs only about log₂ W bits",
+        "The LCS length of strings of lengths m and n can be computed in O(mn) time with O(min(m, n)) extra space",
+        "Matrix-chain DP for n matrices runs in O(n²) time because its table has O(n²) entries",
+        "Top-down memoization is always asymptotically faster than bottom-up tabulation for the same recurrence"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Knapsack's running time grows with the numeric value W, which is exponential in its bit length, so it is pseudo-polynomial. LCS row i depends only on row i − 1, so two rows of the shorter length suffice. Matrix chain has Θ(n²) entries but each minimises over up to n − 1 splits, giving Θ(n³). Memoization and tabulation evaluate the same states; memoization can skip unreachable ones but is never asymptotically faster in general, and it adds recursion overhead.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.dp-framework",
+      "origin": "source",
+      "pages": [
+        383,
+        385,
+        386
+      ]
+    },
+    {
+      "id": "algo-design-paradigms.q-job-sequencing",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Six unit-time jobs J1–J6 have deadlines 2, 1, 2, 1, 3, 3 and profits 100, 19, 27, 25, 15, 90 respectively. One job runs per time slot, and a job earns its profit only if it completes by its deadline. What is the maximum total profit?",
+      "answer": 217,
+      "explanation": "Sort by profit: J1 (100, d2), J6 (90, d3), J3 (27, d2), J4 (25, d1), J2 (19, d1), J5 (15, d3). J1 takes slot 2, J6 slot 3, J3 the latest free slot ≤ 2, which is slot 1. J4, J2 and J5 find no free slot at or before their deadlines. Profit 100 + 90 + 27 = 217. Only 3 slots exist, and these are the three largest profits that fit them.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.job-sequencing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-design-paradigms.q-fib-calls",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "fib(n) returns n when n < 2 and fib(n−1) + fib(n−2) otherwise, with no memoization. How many calls of fib, including the first, does fib(6) make in total?",
+      "options": [
+        "25",
+        "13",
+        "21",
+        "32"
+      ],
+      "answer": 0,
+      "explanation": "Let C(n) be the number of calls: C(0) = C(1) = 1 and C(n) = 1 + C(n−1) + C(n−2). That gives 1, 1, 3, 5, 9, 15, 25 for n = 0..6, so 25 calls. In general C(n) = 2F(n+1) − 1, and with F(7) = 13 this is 25. Memoization would cut this to 7 distinct evaluations.",
+      "difficulty": "medium",
+      "topic": "algo-design-paradigms.dp-framework",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-design-paradigms.q-fractional-value",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A knapsack of capacity 50 holds items with (weight, value) = (10, 60), (20, 100), (30, 120). Items may be taken in fractions. What is the maximum total value?",
+      "options": [
+        "220",
+        "240",
+        "160",
+        "280"
+      ],
+      "answer": 1,
+      "explanation": "Ratios are 6, 5 and 4. Take the whole 10-unit item (60) and the whole 20-unit item (100), leaving capacity 20, then 20/30 of the third item for 80. Total 240. With whole items only, the best is the 20- and 30-unit items for 220.",
+      "difficulty": "easy",
+      "topic": "algo-design-paradigms.fractional-knapsack",
+      "origin": "source",
+      "pages": [
+        30,
+        381
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Greedy by value/weight is optimal for fractional knapsack only; on 0/1 knapsack it can leave capacity that a different set of whole items would use better.",
+      "origin": "source",
+      "pages": [
+        384,
+        388
+      ]
+    },
+    {
+      "text": "The master theorem does not cover subtract-and-conquer recurrences such as T(n) = T(n − 1) + 1, or uneven splits like T(n/2) + T(n/4) + T(n/8) + n; use unrolling or a recursion tree.",
+      "origin": "source",
+      "pages": [
+        388
+      ]
+    },
+    {
+      "text": "A bottom-up table must be filled so every cell's dependencies come first: matrix chain and optimal BST by chain length, not row by row from the top.",
+      "origin": "source",
+      "pages": [
+        388
+      ]
+    },
+    {
+      "text": "O(nW) is pseudo-polynomial, not polynomial; the input encodes W in log W bits.",
+      "origin": "source",
+      "pages": [
+        385,
+        388
+      ]
+    },
+    {
+      "text": "Deep memoized recursion can overflow the call stack where an equivalent tabulation would not.",
+      "origin": "source",
+      "pages": [
+        388
+      ]
+    },
+    {
+      "text": "In one-row 0/1 knapsack the capacity loop must run downwards; an upward loop lets the same item be added again.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "In the matrix-chain cost term, the left dimension is p(i−1), not p(i): A₁ is p₀ × p₁.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Greedy",
+      "lines": [
+        "Activity selection: earliest finish; interval rooms: max overlap",
+        "Fractional knapsack: best value/weight; never for 0/1",
+        "Huffman: merge two smallest; cost = sum of merged weights",
+        "Job sequencing: profit order, latest free slot ≤ deadline",
+        "Coins: greedy only for canonical systems ({1, 3, 4} at 6 fails)"
+      ],
+      "origin": "source",
+      "pages": [
+        30,
+        381,
+        388
+      ]
+    },
+    {
+      "heading": "DP classics",
+      "lines": [
+        "LCS, edit distance: O(mn), length in O(min(m, n)) space",
+        "0/1 knapsack: O(nW), pseudo-polynomial",
+        "Matrix chain, optimal BST: O(n³); p(i−1)·p(k)·p(j)",
+        "LIS: O(n²) or O(n log n); coin change: O(n · amount)",
+        "Floyd–Warshall Θ(V³); Bellman–Ford O(VE)"
+      ],
+      "origin": "source",
+      "pages": [
+        383,
+        388
+      ]
+    },
+    {
+      "heading": "Divide and conquer",
+      "lines": [
+        "Merge sort, closest pair: Θ(n log n); binary search: Θ(log n)",
+        "Strassen 7T(n/2) + n²: Θ(n^2.81); Karatsuba 3T(n/2) + n: Θ(n^1.585)",
+        "2T(n/2) + 1 = Θ(n); fractions summing below 1 with + n give Θ(n)"
+      ],
+      "origin": "source",
+      "pages": [
+        381,
+        385,
+        388
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 387,
+      "claim": "For matrices 30×35, 35×15, 15×5 and 5×10, the minimum number of scalar multiplications is 4500.",
+      "correction": "The minimum is 9375, achieved by (A₁(A₂A₃))A₄: 35·15·5 = 2625, then 30·35·5 = 5250, then 30·5·10 = 1500. 4500 is not the cost of any parenthesization: the five orders cost 9375 for (A₁(A₂A₃))A₄, 14875 for A₁((A₂A₃)A₄), 16500 for A₁(A₂(A₃A₄)), 19500 for ((A₁A₂)A₃)A₄ and 21000 for (A₁A₂)(A₃A₄). 4500 is only the final 30·15·10 step of the last order."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "algo-greedy",
+      "status": "covered",
+      "topics": [
+        "algo-design-paradigms.greedy-principles",
+        "algo-design-paradigms.activity-selection",
+        "algo-design-paradigms.fractional-knapsack",
+        "algo-design-paradigms.huffman",
+        "algo-design-paradigms.job-sequencing",
+        "algo-design-paradigms.coin-change"
+      ]
+    },
+    {
+      "item": "algo-dynamic-programming",
+      "status": "covered",
+      "topics": [
+        "algo-design-paradigms.dp-framework",
+        "algo-design-paradigms.knapsack-01",
+        "algo-design-paradigms.lcs-edit-distance",
+        "algo-design-paradigms.lis",
+        "algo-design-paradigms.interval-dp",
+        "algo-design-paradigms.shortest-path-dp",
+        "algo-design-paradigms.coin-change"
+      ]
+    },
+    {
+      "item": "algo-divide-and-conquer",
+      "status": "covered",
+      "topics": [
+        "algo-design-paradigms.dc-template",
+        "algo-design-paradigms.dc-recurrences",
+        "algo-design-paradigms.fast-multiplication"
+      ]
+    }
+  ]
+}

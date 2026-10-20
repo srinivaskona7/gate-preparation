@@ -1,0 +1,2077 @@
+{
+  "id": "dl-sequential-circuits",
+  "summary": "Sequential circuits add memory: their outputs depend on stored state as well as present inputs. GATE tests the four flip-flops through characteristic and excitation tables, asks you to trace or design counters and shift registers, to read the count sequence off a given circuit, to compute the maximum clock frequency from delays, and to build and minimise Mealy and Moore machines such as sequence detectors. Most questions are short traces: write the state table, step it clock by clock, and the answer falls out.",
+  "highYield": [
+    "Trace a given flip-flop circuit from a start state and report the count sequence, the modulus or the state after k clocks: a 2-mark question in most papers.",
+    "Characteristic equations and excitation tables of SR, JK, D and T flip-flops, including JK toggle at J = K = 1 and the SR forbidden input.",
+    "Ring counter n states versus Johnson counter 2n states, and ⌈log₂ k⌉ flip-flops for a MOD-k counter.",
+    "Maximum clock frequency: 1/(n·t_pd) for an n-bit ripple counter, 1/(t_pd + t_comb + t_setup) for a synchronous design.",
+    "Minimum number of states of a Mealy or Moore sequence detector, overlapping or not, and state minimisation by partition refinement."
+  ],
+  "topics": [
+    {
+      "id": "dl-sequential-circuits.latch-vs-flipflop",
+      "title": "Latches versus flip-flops",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        14,
+        222
+      ],
+      "points": [
+        "A sequential circuit feeds stored state back into its logic, so the output depends on the input history and not only on the present input.",
+        "A latch is level-sensitive: while its enable is active the output follows the input, so it is transparent for the whole enable phase.",
+        "A flip-flop is edge-sensitive: it samples its input only at the rising or falling clock edge and holds the value for the rest of the cycle.",
+        "The D latch passes D to Q while enable = 1 and freezes Q when enable = 0; two D latches in series with opposite enables form an edge-triggered D flip-flop."
+      ],
+      "keyTerms": [
+        "level-triggered",
+        "edge-triggered",
+        "transparent latch",
+        "D latch"
+      ],
+      "lesson": {
+        "why": "GATE gives a feedback circuit, such as a multiplexer with its output looped back to an input, and asks whether it is a latch or a flip-flop, which depends on whether the output follows the input for a whole phase or only at an edge.",
+        "intro": "A circuit that stores a bit has to feed its own output back into its input logic. Two kinds of storage cell are built this way. A latch has an enable input: while the enable is 1 the output $Q$ copies the data input $D$ continuously, and while the enable is 0 the output keeps its last value. A flip-flop has a clock input and looks at $D$ only for an instant, at one edge of the clock (rising or falling), then keeps that value until the next edge.",
+        "definitions": [
+          {
+            "term": "Level-sensitive",
+            "meaning": "The cell reacts for as long as its enable is at the active level, so a change of $D$ in that period reaches $Q$."
+          },
+          {
+            "term": "Edge-sensitive",
+            "meaning": "The cell reacts only at the instant the clock changes from 0 to 1 or from 1 to 0."
+          },
+          {
+            "term": "Transparent",
+            "meaning": "A latch is transparent while enabled: its output simply mirrors its input."
+          }
+        ],
+        "principle": {
+          "text": "A D latch obeys $Q = D$ while $E = 1$ and $Q = Q_{\\text{old}}$ while $E = 0$. An edge-triggered D flip-flop obeys $Q^+ = D$ sampled at the active edge only.",
+          "tex": "\\text{latch: } Q = E\\,D + \\overline{E}\\,Q \\qquad \\text{flip-flop: } Q^+ = D \\text{ at the clock edge}"
+        },
+        "limits": "A latch and a flip-flop give the same output only if $D$ is constant from just before the active edge to the end of the enable phase, so the difference shows whenever $D$ moves in that span. Two latches in series with opposite enables behave as one edge-triggered flip-flop.",
+        "example": {
+          "problem": "A D latch and a rising-edge D flip-flop both start at $Q = 0$ and see the same $D$. The enable or clock $E$ is 1 only in intervals 2 to 5 of intervals 0 to 7. In intervals 0 to 7, $D$ is 0, 1, 1, 0, 0, 0, 1, 1. What are $Q$ of each after interval 7?",
+          "steps": [
+            "The latch follows $D$ during intervals 2 to 5, so its output there is 1, 0, 0, 0.",
+            "At interval 6, $E$ is 0 again, so the latch holds its last value 0 and ignores $D = 1$ in intervals 6 and 7.",
+            "The flip-flop sees one rising edge, at the start of interval 2. It samples the value of $D$ present just before the edge, which is the 1 held through interval 1, so $Q$ becomes 1.",
+            "Nothing else is an active edge, so the flip-flop holds 1 through interval 7."
+          ],
+          "result": "After interval 7 the latch holds 0 and the flip-flop holds 1, although both saw the same $D$."
+        },
+        "misconceptions": [
+          "A latch is not a flip-flop with a slower clock: it has no edge at all, and a glitch on $D$ while it is enabled passes straight to $Q$.",
+          "A circuit that holds a value when its enable is 0 is not automatically a flip-flop; if it is transparent while enabled, it is a latch."
+        ],
+        "recall": [
+          {
+            "q": "When does a D latch let $D$ reach $Q$?",
+            "a": "Only while its enable is active; it is transparent for that whole phase and holds otherwise."
+          },
+          {
+            "q": "What is the difference between level and edge triggering?",
+            "a": "A level-sensitive cell reacts for as long as the level lasts; an edge-triggered cell reacts only at the instant of the clock transition."
+          },
+          {
+            "q": "How can two D latches form a flip-flop?",
+            "a": "Place them in series with opposite enables, so one is closed whenever the other is open and the pair changes only at a clock edge."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A D latch has $E = 1$ and $D = 1$ at an instant. While $E$ stays 1, $D$ falls to 0, and later $E$ falls to 0. What is $Q$ after $E$ has fallen?",
+          "options": [
+            "$Q = 1$, because $D$ was 1 when $E$ rose",
+            "$Q = 0$, because $Q$ followed $D$ until $E$ fell",
+            "$Q$ toggles once",
+            "$Q$ is undefined"
+          ],
+          "answer": 1,
+          "explanation": "A latch is transparent while $E = 1$, so $Q$ fell with $D$ and was 0 when $E$ closed it. The first option is the edge-triggered answer and tempts because it applies flip-flop behaviour to a latch. Nothing in a D latch toggles, and its output is well defined."
+        },
+        "summary": "A latch follows its input for the whole enable level, a flip-flop samples it only at a clock edge; a circuit that feeds back and holds when disabled but is transparent when enabled is a D latch."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.sr-latch",
+      "title": "SR latch: NOR and NAND forms",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        14,
+        223
+      ],
+      "points": [
+        "Two cross-coupled NOR gates give an active-high SR latch: S = 1 sets Q to 1, R = 1 resets it to 0, S = R = 0 holds the stored bit.",
+        "S = R = 1 on the NOR latch forces Q = Q' = 0, breaking complementarity; if both inputs then drop to 0 together, the final state depends on gate delays, so the input is forbidden.",
+        "Two cross-coupled NAND gates give an active-low latch (inputs S' and R'): S' = R' = 1 holds, and S' = R' = 0 forces Q = Q' = 1, the forbidden case.",
+        "Characteristic equation Q(t+1) = S + R'Q, valid under the constraint SR = 0."
+      ],
+      "keyTerms": [
+        "cross-coupled",
+        "forbidden state",
+        "active-low"
+      ],
+      "lesson": {
+        "why": "The SR latch is the simplest memory cell and the base of every flip-flop. GATE asks what a NOR or NAND latch stores after a sequence of inputs, and which input pair is forbidden.",
+        "intro": "A latch remembers one bit in a loop: two gates feed each other, so the output of each gate is an input of the other. The bit is read at $Q$, and the second gate gives its opposite $Q'$. Two control inputs act on the loop. $S$ (set) pushes $Q$ to 1 and $R$ (reset) pushes $Q$ to 0. When neither is pushed, the loop keeps whatever it held, which is the memory.",
+        "definitions": [
+          {
+            "term": "Cross-coupled",
+            "meaning": "Two gates wired so that each gate's output is an input of the other, which creates the feedback loop."
+          },
+          {
+            "term": "Forbidden state",
+            "meaning": "The input pair that breaks the rule that $Q$ and $Q'$ are opposites and leaves the next state unpredictable."
+          },
+          {
+            "term": "Active-low",
+            "meaning": "An input that acts when it is 0; the NAND latch has active-low inputs $S'$ and $R'$."
+          }
+        ],
+        "principle": {
+          "text": "For the NOR latch, $S=1$ sets, $R=1$ resets and $S=R=0$ holds. $S=R=1$ is forbidden. The next state follows the characteristic equation, valid only when $SR = 0$. The NAND latch swaps the roles: $S'=R'=1$ holds and $S'=R'=0$ is forbidden.",
+          "tex": "Q(t+1) = S + R'Q, \\qquad SR = 0"
+        },
+        "limits": "The equation says nothing when $S=R=1$: both NOR outputs become 0, and if both inputs then fall together the winner is decided by gate delays. A plain SR latch also has no clock, so it reacts the moment an input changes.",
+        "example": {
+          "problem": "A NOR SR latch starts at $Q = 0$. The inputs $(S,R)$ are applied in turn: $(1,0)$, $(0,0)$, $(0,1)$, $(0,0)$, $(1,0)$, $(0,0)$. Find $Q$ after each.",
+          "steps": [
+            "$(1,0)$: $S=1$ sets the latch, so $Q = 1$.",
+            "$(0,0)$: nothing is pushed, so the latch holds and $Q = 1$.",
+            "$(0,1)$: $R=1$ resets it, so $Q = 0$. Then $(0,0)$ holds, so $Q = 0$.",
+            "$(1,0)$ sets it again, so $Q = 1$, and the final $(0,0)$ holds it at 1."
+          ],
+          "result": "The outputs are 1, 1, 0, 0, 1, 1. Each hold step repeats the previous output."
+        },
+        "misconceptions": [
+          "$S=R=0$ is the safe input, not the forbidden one; it simply holds the stored bit. The forbidden input of the NOR latch is $S=R=1$.",
+          "The NAND latch is not the NOR latch with the same inputs: its inputs are active-low, so $S'=R'=0$ is the forbidden pair and $S'=R'=1$ holds."
+        ],
+        "recall": [
+          {
+            "q": "What does a NOR SR latch do for $S=0, R=0$?",
+            "a": "It holds the stored bit; the output keeps its previous value."
+          },
+          {
+            "q": "Which input pair is forbidden for the NOR latch and for the NAND latch?",
+            "a": "For the NOR latch it is $S=R=1$; for the NAND latch it is $S'=R'=0$."
+          },
+          {
+            "q": "What is the characteristic equation of the SR latch?",
+            "a": "$Q(t+1) = S + R'Q$, valid only under the constraint $SR = 0$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A NOR SR latch starts at $Q = 1$. The inputs $(S,R)$ are applied in order: $(0,0)$, $(0,1)$, $(0,0)$, $(1,0)$, $(0,0)$. What is $Q$ at the end?",
+          "options": [
+            "$Q = 0$, because the latch was last reset",
+            "$Q = 1$, because the last pushed input was $S$",
+            "$Q = 0$, because it was reset once",
+            "$Q$ is undefined"
+          ],
+          "answer": 1,
+          "explanation": "$R$ resets $Q$ to 0 at the second step, and $(0,0)$ holds it. $S=1$ at the fourth step sets it to 1 and the final $(0,0)$ holds that. The first option tempts because it stops after the reset. No step uses $S=R=1$, so the output is always defined."
+        },
+        "summary": "An SR latch holds on 00, sets on S and resets on R; the NOR form forbids S=R=1 and the NAND form forbids S'=R'=0, and Q(t+1) = S + R'Q only when SR = 0."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.d-and-t-flipflops",
+      "title": "D and T flip-flops",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        223,
+        224
+      ],
+      "points": [
+        "The D flip-flop copies D into Q at each active clock edge: Q(t+1) = D. It is the building block of registers, shift registers and pipeline stages.",
+        "The T flip-flop holds when T = 0 and toggles when T = 1: Q(t+1) = T ⊕ Q.",
+        "A T flip-flop with T tied to 1 toggles every clock, so its output has half the clock frequency; n such stages in a chain divide by 2ⁿ.",
+        "Neither flip-flop has a forbidden input, which makes D the default choice for state registers and T the natural choice for binary counters."
+      ],
+      "keyTerms": [
+        "characteristic equation",
+        "toggle",
+        "frequency division"
+      ],
+      "lesson": {
+        "why": "D and T flip-flops are the cells GATE uses for registers and counters. Questions trace a T flip-flop through a clock sequence or ask for the output frequency of a chain of them.",
+        "intro": "A flip-flop stores one bit and changes only on the active edge of its clock. The D flip-flop has a single data input $D$: at each active edge it copies $D$ into the output $Q$. The T flip-flop has a toggle input $T$: at each active edge it keeps $Q$ if $T = 0$ and flips $Q$ to its opposite if $T = 1$. Neither has an input pair that must be avoided.",
+        "definitions": [
+          {
+            "term": "Characteristic equation",
+            "meaning": "The formula for the next output $Q(t+1)$ in terms of the inputs and the present output."
+          },
+          {
+            "term": "Toggle",
+            "meaning": "To change $Q$ to its opposite, 0 to 1 or 1 to 0."
+          },
+          {
+            "term": "Frequency division",
+            "meaning": "A T flip-flop with $T=1$ produces one output cycle for every two clock cycles, halving the frequency."
+          }
+        ],
+        "principle": {
+          "text": "The D flip-flop gives $Q(t+1) = D$ and the T flip-flop gives $Q(t+1) = T \\oplus Q$. With $T=1$ the output has half the clock frequency, so $n$ stages in a chain divide it by $2^n$.",
+          "tex": "Q(t+1) = D, \\qquad Q(t+1) = T \\oplus Q, \\qquad f_{\\text{out}} = \\frac{f_{\\text{clk}}}{2^n}"
+        },
+        "limits": "The division by $2^n$ needs every stage to have $T=1$ and each stage to be clocked by the output of the one before it. The T equation describes the state after an active edge only; between edges the output does not change.",
+        "example": {
+          "problem": "A T flip-flop starts at $Q = 0$. The $T$ input is 1, 0, 1, 1, 0, 1, 1 at seven successive active edges. Find $Q$ after each edge.",
+          "steps": [
+            "Apply $Q(t+1) = T \\oplus Q$ at each edge. Edge 1: $1 \\oplus 0 = 1$, so $Q = 1$.",
+            "Edge 2: $T = 0$ holds, so $Q = 1$. Edge 3: $1 \\oplus 1 = 0$. Edge 4: $1 \\oplus 0 = 1$.",
+            "Edge 5: $T = 0$ holds, so $Q = 1$. Edge 6: $1 \\oplus 1 = 0$. Edge 7: $1 \\oplus 0 = 1$."
+          ],
+          "result": "The outputs are 1, 1, 0, 1, 1, 0, 1, so $Q = 1$ after the seventh edge. Five of the seven edges had $T=1$, and each of those flipped $Q$."
+        },
+        "misconceptions": [
+          "A D flip-flop does not toggle; it copies. If $D$ stays 1 for many edges, $Q$ stays 1 and does not flip each time.",
+          "A T flip-flop with $T=1$ halves the frequency of the clock only once per stage; one stage does not divide by 4. Division by 4 needs two stages."
+        ],
+        "recall": [
+          {
+            "q": "What is the characteristic equation of a D flip-flop?",
+            "a": "$Q(t+1) = D$: the output after the edge is the input value present at the edge."
+          },
+          {
+            "q": "What does a T flip-flop do when $T=0$ and when $T=1$?",
+            "a": "It holds $Q$ when $T=0$ and toggles $Q$ when $T=1$, so $Q(t+1) = T \\oplus Q$."
+          },
+          {
+            "q": "By what factor do $n$ chained T flip-flops with $T=1$ divide the clock?",
+            "a": "By $2^n$, because each stage halves the frequency of the signal it receives."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A chain of 4 T flip-flops has $T = 1$ on every stage, and each stage is clocked by the output of the previous one. The first is driven by a 96 kHz clock. What is the output frequency of the last stage, in kHz?",
+          "answer": 6,
+          "explanation": "Each stage halves the frequency, so four stages divide by $2^4 = 16$ and $96/16 = 6$ kHz. A tempting wrong answer is 24 kHz, which divides by 4 as if there were two stages, or 48 kHz, which counts only one halving."
+        },
+        "summary": "A D flip-flop copies D at the active edge and a T flip-flop toggles when T is 1; with T tied to 1, n chained stages divide the clock frequency by 2 to the power n."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.jk-flipflop",
+      "title": "JK flip-flop, race-around and master-slave",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        223,
+        224
+      ],
+      "points": [
+        "The JK flip-flop behaves like SR with the forbidden input repurposed: J = K = 0 holds, J = 1, K = 0 sets, J = 0, K = 1 resets, J = K = 1 toggles.",
+        "Characteristic equation Q(t+1) = JQ' + K'Q. Substituting J = K = 1 gives Q', the toggle.",
+        "In a level-triggered JK with J = K = 1, the output keeps toggling for as long as the clock stays high whenever the pulse is wider than the propagation delay: the race-around condition.",
+        "A master-slave JK cures it: the master latch accepts inputs while the clock is high and the slave copies the master when the clock falls, so the output changes once per clock pulse."
+      ],
+      "keyTerms": [
+        "toggle",
+        "race-around",
+        "master-slave"
+      ],
+      "lesson": {
+        "why": "The JK flip-flop is the general-purpose cell, so GATE uses its characteristic equation in tracing questions and asks why a level-triggered JK fails and how master-slave fixes it.",
+        "intro": "The JK flip-flop has two inputs, $J$ and $K$, and works like an SR cell whose forbidden input has been given a useful job. $J=0, K=0$ keeps the stored bit. $J=1, K=0$ sets $Q$ to 1. $J=0, K=1$ resets $Q$ to 0. $J=1, K=1$ toggles $Q$ to its opposite. All four inputs are legal.",
+        "definitions": [
+          {
+            "term": "Race-around",
+            "meaning": "With $J=K=1$ on a level-triggered cell, the output keeps toggling as long as the clock is high, so the final value at the end of the pulse is unpredictable."
+          },
+          {
+            "term": "Master-slave",
+            "meaning": "Two latches in series with opposite clock levels, so the output changes only once per clock pulse."
+          }
+        ],
+        "principle": {
+          "text": "The next state is $Q(t+1) = JQ' + K'Q$. Race-around occurs when $J=K=1$ and the clock pulse is wider than the propagation delay. A master-slave structure cures it: the master takes the inputs while the clock is high and the slave copies the master when the clock falls.",
+          "tex": "Q(t+1) = J\\,\\overline{Q} + \\overline{K}\\,Q"
+        },
+        "limits": "Race-around is a problem of level triggering only; an edge-triggered JK samples once per edge and does not suffer from it. The race also needs $J=K=1$: other input pairs settle after one change.",
+        "example": {
+          "problem": "A JK flip-flop starts at $Q = 0$. At six successive active edges the inputs $(J,K)$ are $(1,0)$, $(0,0)$, $(1,1)$, $(1,1)$, $(0,1)$, $(1,1)$. Find $Q$ after each edge.",
+          "steps": [
+            "$(1,0)$ sets: $Q = 1$. $(0,0)$ holds: $Q = 1$.",
+            "$(1,1)$ toggles: $Q = 0$. The next $(1,1)$ toggles again: $Q = 1$.",
+            "$(0,1)$ resets: $Q = 0$. The last $(1,1)$ toggles: $Q = 1$."
+          ],
+          "result": "The outputs are 1, 1, 0, 1, 0, 1, so the final value is $Q = 1$."
+        },
+        "misconceptions": [
+          "$J=K=1$ is not forbidden; it is the toggle input. The forbidden input belongs to the SR latch.",
+          "Master-slave does not make the output follow the input faster. It limits the output to one change per pulse, at the falling clock edge."
+        ],
+        "recall": [
+          {
+            "q": "What does a JK flip-flop do for each of the four $(J,K)$ inputs?",
+            "a": "00 holds, 10 sets, 01 resets and 11 toggles."
+          },
+          {
+            "q": "What is the characteristic equation of the JK flip-flop?",
+            "a": "$Q(t+1) = JQ' + K'Q$; setting $J=K=1$ gives $Q'$, the toggle."
+          },
+          {
+            "q": "Why does a master-slave JK avoid race-around?",
+            "a": "The master is closed while the slave is open and the reverse, so the output changes only once per pulse, when the clock falls."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A level-triggered JK flip-flop has $J = K = 1$ and a clock pulse much wider than its propagation delay. What does the output do during the pulse?",
+          "options": [
+            "It toggles once and holds for the rest of the pulse",
+            "It keeps toggling repeatedly (race-around), so its value at the pulse end is unpredictable",
+            "It holds its previous value",
+            "It goes to the forbidden state with $Q = Q' = 0$"
+          ],
+          "answer": 1,
+          "explanation": "With $J=K=1$ the output flips, and the new value feeds back and flips again after each propagation delay while the clock stays high. The first option tempts because an edge-triggered cell would behave that way. The JK flip-flop has no forbidden state, so the last option confuses it with the SR latch."
+        },
+        "summary": "A JK flip-flop holds, sets, resets or toggles for 00, 10, 01 and 11 with Q(t+1) = JQ' + K'Q; a level-triggered JK races around at J=K=1 and the master-slave form fixes it."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.excitation-tables",
+      "title": "Excitation tables",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        224,
+        225
+      ],
+      "points": [
+        "A characteristic table answers what the next state is for given inputs; an excitation table answers which inputs produce a required transition Q → Q(t+1).",
+        "JK: 0→0 needs J = 0, K = X; 0→1 needs 1, X; 1→0 needs X, 1; 1→1 needs X, 0. Every row has a don't-care, which is why JK designs give the smallest input logic.",
+        "SR: 0→0 is S = 0, R = X; 0→1 is 1, 0; 1→0 is 0, 1; 1→1 is X, 0.",
+        "D: D equals the next state. T: T = Q ⊕ Q(t+1), so T = 1 exactly when the bit must change."
+      ],
+      "keyTerms": [
+        "excitation table",
+        "don't-care"
+      ],
+      "lesson": {
+        "why": "Designing a counter or state machine with a chosen flip-flop reduces to filling an excitation table, and GATE asks for the resulting input expressions directly.",
+        "intro": "A flip-flop's characteristic table is read forwards: given the inputs, what is the next output? To design a circuit you need the reverse. You know the output must go from $Q$ to $Q^+$ and want the inputs that cause it. The excitation table lists, for each of the four transitions $0\\to0$, $0\\to1$, $1\\to0$ and $1\\to1$, which input values work. An input marked X can be 0 or 1, because the flip-flop does the same thing either way.",
+        "prerequisites": [
+          "dl-sequential-circuits.latch-vs-flipflop"
+        ],
+        "definitions": [
+          {
+            "term": "Excitation table",
+            "meaning": "A table of the inputs a flip-flop needs for each required transition from $Q$ to $Q^+$."
+          },
+          {
+            "term": "Don't-care (X)",
+            "meaning": "An input value that may be 0 or 1 without changing the transition, which a K-map can use to shrink the logic."
+          }
+        ],
+        "principle": {
+          "text": "For D, the input equals the next state. For T, the input is 1 exactly when the bit must change. For JK, set $J$ to 1 for a $0\\to1$ change, $K$ to 1 for a $1\\to0$ change, and leave the other input free.",
+          "tex": "D = Q^+ \\qquad T = Q \\oplus Q^+ \\qquad (J,K) = (0,X),\\,(1,X),\\,(X,1),\\,(X,0) \\text{ for } 00,\\,01,\\,10,\\,11"
+        },
+        "limits": "The table gives inputs per transition, not a circuit; each input still has to be written as a function of the present state, and don't-cares only help if the K-map uses them. SR has one forbidden input, $S = R = 1$, which no row may require.",
+        "example": {
+          "problem": "A 2-bit counter built with T flip-flops steps through $Q_1Q_0$ = 00, 11, 01, 10 and back to 00. Find $T_1$ and $T_0$.",
+          "steps": [
+            "Use $T = Q \\oplus Q^+$ for each bit: it is 1 where the bit changes.",
+            "00 to 11 changes both bits and 01 to 10 changes both, so $T_1T_0 = 11$ at present states 00 and 01.",
+            "11 to 01 changes only $Q_1$ and 10 to 00 changes only $Q_1$, so $T_1T_0 = 10$ at present states 11 and 10.",
+            "$T_1$ is 1 in all four rows. $T_0$ is 1 at 00 and 01, where $Q_1 = 0$, and 0 where $Q_1 = 1$."
+          ],
+          "result": "$T_1 = 1$ and $T_0 = \\overline{Q_1}$."
+        },
+        "misconceptions": [
+          "For a T flip-flop the input is not the next state; it is 1 only when the state changes, so a bit that stays at 1 needs $T = 0$.",
+          "An X in the table does not mean the flip-flop ignores that input in general; it means either value gives the same transition for that row."
+        ],
+        "recall": [
+          {
+            "q": "What is the excitation rule for a T flip-flop?",
+            "a": "$T = Q \\oplus Q^+$, so $T = 1$ exactly when the bit has to change."
+          },
+          {
+            "q": "What do $J$ and $K$ need to be for the transition $1\\to0$?",
+            "a": "$J$ is a don't-care and $K = 1$."
+          },
+          {
+            "q": "Why do JK designs often give simpler logic?",
+            "a": "Each row of the JK excitation table has a don't-care, which a K-map can group to shorten the expressions."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A JK flip-flop output must follow $Q$ = 0, 1, 1, 0 over three clock pulses. Which values of $J$ and $K$ are needed on the three pulses, with X as don't-care?",
+          "options": [
+            "$J$ = 1, X, X and $K$ = X, 0, 1",
+            "$J$ = X, 0, 1 and $K$ = 1, X, X",
+            "$J$ = 1, 0, X and $K$ = X, X, 1",
+            "$J$ = 1, X, X and $K$ = X, 1, 0"
+          ],
+          "answer": 0,
+          "explanation": "The transitions are $0\\to1$ needing $J=1$, $K=X$; then $1\\to1$ needing $J=X$, $K=0$; then $1\\to0$ needing $J=X$, $K=1$. The second option swaps the roles of $J$ and $K$. The fourth tempts by reversing the last two $K$ values, which would reset the output when it must hold."
+        },
+        "summary": "Read the excitation table backwards from the transition you want: D copies the next state, T marks change, and JK always leaves one input free."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.ff-conversion",
+      "title": "Converting one flip-flop type into another",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        225
+      ],
+      "points": [
+        "To make flip-flop A behave as type B: tabulate B's inputs and Q, take the required next state from B's characteristic table, read the inputs A needs from A's excitation table, then minimise.",
+        "JK used as T: tie J = K = T. JK used as D: J = D and K = D'.",
+        "D used as JK: D = JQ' + K'Q. D used as T: D = T ⊕ Q.",
+        "T used as JK: T = JQ' + KQ, which is 1 exactly when the JK table says the output must change. T used as D: T = D ⊕ Q."
+      ],
+      "keyTerms": [
+        "flip-flop conversion"
+      ],
+      "lesson": {
+        "why": "GATE asks how to build one flip-flop from another, such as a T flip-flop from a JK. The answer is a small gate expression that you can derive by a fixed method.",
+        "intro": "Suppose you have flip-flop A but need the behaviour of flip-flop B. Wrap A with a little logic so that, for each present output and each B input, A receives exactly the inputs that make it reach the next state B would reach. The wrapper is found from two tables: B's behaviour tells which next state is wanted, and A's excitation table (the inputs A needs for each change of output) tells what to feed in.",
+        "definitions": [
+          {
+            "term": "Excitation table",
+            "meaning": "A table of the inputs a flip-flop needs for each change of output from $Q$ to $Q(t+1)$."
+          },
+          {
+            "term": "Conversion",
+            "meaning": "Driving flip-flop A through logic so that the whole circuit acts as flip-flop B."
+          }
+        ],
+        "principle": {
+          "text": "To make A act as B: list B's input and $Q$, take the required next state from B's characteristic table, read A's inputs from A's excitation table, then simplify. Results to remember: JK as T uses $J=K=T$; JK as D uses $J=D, K=D'$; D as T uses $D = T\\oplus Q$; T as D uses $T = D\\oplus Q$; T as JK uses $T = JQ' + KQ$.",
+          "tex": "D = T \\oplus Q, \\qquad T = D \\oplus Q, \\qquad T = J\\,\\overline{Q} + K\\,Q"
+        },
+        "limits": "The result is a minimised form, and a different but equal gate network is also correct. The method assumes both flip-flops share the same clock edge, and it does not turn a latch into a flip-flop.",
+        "example": {
+          "problem": "Make a T flip-flop from a JK flip-flop. Find $J$ and $K$ in terms of $T$ and check all four rows.",
+          "steps": [
+            "The required next state is $Q(t+1) = T \\oplus Q$. When $T=0$ the output must stay, so the JK must hold, $J=K=0$.",
+            "When $T=1$ the output must flip, which the JK does for $J=K=1$. Both cases are met by $J = K = T$.",
+            "Check against $Q(t+1) = JQ' + K'Q$ with $J=K=T$: $Q=0, T=0$ gives 0; $Q=0, T=1$ gives 1; $Q=1, T=0$ gives 1; $Q=1, T=1$ gives 0."
+          ],
+          "result": "Tie $J = K = T$. The four rows match $T \\oplus Q$."
+        },
+        "misconceptions": [
+          "The conversion expression is not the target flip-flop's own equation. $D = T\\oplus Q$ comes from needing $Q(t+1) = T\\oplus Q$ with a D cell, which just copies its input.",
+          "T as D is not $T = D$. The T flip-flop must toggle only when $D$ differs from $Q$, so $T = D\\oplus Q$."
+        ],
+        "recall": [
+          {
+            "q": "How do you tie a JK flip-flop to make it act as a T flip-flop?",
+            "a": "Connect $J$ and $K$ together to $T$, so $J = K = T$."
+          },
+          {
+            "q": "What input does a D flip-flop need to act as a T flip-flop?",
+            "a": "$D = T \\oplus Q$, the next state a T flip-flop would take."
+          },
+          {
+            "q": "What does a T flip-flop need to act as a D flip-flop?",
+            "a": "$T = D \\oplus Q$, which is 1 exactly when the output must change."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A T flip-flop is to be made to behave as a D flip-flop, so that the next output equals $D$. Which expression must drive $T$?",
+          "options": [
+            "$T = D$",
+            "$T = D \\oplus Q$",
+            "$T = D + Q$",
+            "$T = D'Q$"
+          ],
+          "answer": 1,
+          "explanation": "The output must change only when $D \\ne Q$, and a T flip-flop changes when $T=1$, so $T = D \\oplus Q$. The first option tempts because it treats T like a data input: with $D=1$ and $Q=1$ it would toggle to 0 instead of holding. The last two fail for the same reason in other rows."
+        },
+        "summary": "To convert flip-flop A into B, take B's required next state and read A's inputs from its excitation table: JK as T is J=K=T, D as T is D = T xor Q, and T as D is T = D xor Q."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.timing",
+      "title": "Setup, hold, propagation delay and maximum clock frequency",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        14
+      ],
+      "points": [
+        "Setup time is how long the input must be stable before the clock edge; hold time is how long it must stay stable after the edge; t_pd is the clock-to-Q propagation delay.",
+        "In a synchronous circuit a signal leaves one flip-flop at t_pd, passes through the combinational logic and must arrive t_setup before the next edge, so T_clk ≥ t_pd + t_comb + t_setup.",
+        "Hold is checked against the fastest path: t_pd(min) + t_comb(min) ≥ t_hold. Slowing the clock never fixes a hold violation; it is fixed by adding delay to the path.",
+        "Example: t_pd = 8 ns, one AND gate of 4 ns and t_setup = 3 ns give T_clk = 15 ns, so f_max ≈ 66.7 MHz."
+      ],
+      "keyTerms": [
+        "setup time",
+        "hold time",
+        "propagation delay",
+        "critical path"
+      ],
+      "lesson": {
+        "why": "Questions give delays in nanoseconds and ask for the shortest clock period or the highest clock frequency of a synchronous circuit, or whether a hold violation exists.",
+        "intro": "A flip-flop copies its input only at a clock edge, so the input must be steady for a short time around that edge. The time before the edge is the setup time, and the time after is the hold time. After the edge, the output takes a short time to change; this is the propagation delay. A signal leaving one flip-flop travels through logic gates to the next flip-flop and must arrive on time for the following edge. The clock period must be long enough for that journey.",
+        "definitions": [
+          {
+            "term": "Setup time",
+            "meaning": "How long the input must be stable before the clock edge."
+          },
+          {
+            "term": "Hold time",
+            "meaning": "How long the input must stay stable after the clock edge."
+          },
+          {
+            "term": "Propagation delay",
+            "meaning": "The time from the clock edge until the flip-flop output changes, written $t_{pd}$."
+          },
+          {
+            "term": "Critical path",
+            "meaning": "The slowest flip-flop-to-flip-flop path, which sets the minimum clock period."
+          }
+        ],
+        "principle": {
+          "text": "The clock period must cover the clock-to-output delay, the slowest logic and the setup time. Hold is checked on the fastest path and does not involve the clock period.",
+          "tex": "T_{clk} \\ge t_{pd} + t_{comb} + t_{setup}, \\qquad f_{\\max} = \\frac{1}{T_{\\min}}, \\qquad t_{pd,\\min} + t_{comb,\\min} \\ge t_{hold}"
+        },
+        "limits": "The formula assumes a single clock with no skew between flip-flops. A hold violation is not cured by slowing the clock; the fix is to add delay to the short path. For a ripple counter the delays add per stage instead, as $n\\,t_{pd}$.",
+        "example": {
+          "problem": "A synchronous circuit has flip-flop delay $t_{pd} = 6$ ns, a slowest logic path of 9 ns and a setup time of 5 ns. Find the minimum clock period and the maximum clock frequency.",
+          "steps": [
+            "Add the three delays on the slowest path: $T_{\\min} = 6 + 9 + 5 = 20$ ns.",
+            "Invert the period: $f_{\\max} = 1/(20\\text{ ns}) = 50$ MHz, since $1/(1\\text{ ns}) = 1000$ MHz."
+          ],
+          "result": "The minimum period is 20 ns and the maximum frequency is 50 MHz."
+        },
+        "misconceptions": [
+          "Hold time does not limit the clock frequency. Making the clock slower leaves a hold violation unchanged.",
+          "The period uses the slowest logic path for setup, not the fastest; the fastest path is the one that matters for hold."
+        ],
+        "recall": [
+          {
+            "q": "What is the minimum clock period of a synchronous circuit?",
+            "a": "$T_{\\min} = t_{pd} + t_{comb} + t_{setup}$, using the slowest path between two flip-flops."
+          },
+          {
+            "q": "Which path is checked for the hold constraint?",
+            "a": "The fastest path, which must satisfy $t_{pd,\\min} + t_{comb,\\min} \\ge t_{hold}$."
+          },
+          {
+            "q": "Can a slower clock repair a hold violation?",
+            "a": "No, the hold inequality contains no clock period; delay must be added to the short path."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A synchronous circuit has $t_{pd} = 9$ ns, a slowest combinational path of 24 ns and a setup time of 7 ns. What is the maximum clock frequency in MHz?",
+          "answer": 25,
+          "explanation": "The period is $9 + 24 + 7 = 40$ ns, so $f_{\\max} = 1000/40 = 25$ MHz. A tempting wrong answer ignores the setup time: $9 + 24 = 33$ ns gives about 30.3 MHz, which is too fast for the receiving flip-flop to capture the data."
+        },
+        "summary": "The minimum clock period of a synchronous circuit is t_pd + t_comb + t_setup on the slowest path, and f_max is its inverse; hold is checked on the fastest path and cannot be fixed by slowing the clock."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.ripple-counters",
+      "title": "Asynchronous (ripple) counters",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        225,
+        226,
+        230
+      ],
+      "points": [
+        "In a ripple counter only the first flip-flop sees the external clock; each later toggle flip-flop is clocked by the previous stage's output.",
+        "With negative-edge flip-flops clocked by the previous Q the chain counts up; clocking from Q' (or using positive edges on Q) makes it count down.",
+        "Delays add up: after the edge that takes 0111 to 1000 the last bit settles only after n·t_pd, so f_max = 1/(n·t_pd). A 4-bit counter with 10 ns stages runs at 25 MHz at most.",
+        "A MOD-k ripple counter detects state k with a NAND on the bits that are 1 in k and clears all stages asynchronously; for MOD-6 it decodes 110 (Q₂ and Q₁). State k exists only for a moment, which can cause glitches.",
+        "While the bits settle the counter passes through wrong intermediate values, so decoding a ripple counter's outputs produces spikes."
+      ],
+      "keyTerms": [
+        "ripple counter",
+        "asynchronous clear",
+        "MOD-k",
+        "decoding glitch"
+      ],
+      "lesson": {
+        "why": "Ripple counters carry two standard calculations, the frequency at each stage and the slowest safe clock, and both come from understanding that each stage is clocked by the one before it.",
+        "intro": "In a ripple counter the outside clock drives only the first flip-flop. Each flip-flop is set to toggle, and its output clocks the next one. A toggling flip-flop produces one output cycle for every two input cycles, so its output frequency is half its input frequency. After $n$ stages the frequency is divided by $2^n$. Because each stage waits for the previous one, the change travels along the chain like a ripple, which makes the circuit simple but slow.",
+        "prerequisites": [
+          "dl-sequential-circuits.excitation-tables"
+        ],
+        "analogy": {
+          "text": "A row of dominoes: each falls only when the one before it falls, so the last one moves after all the delays have added up.",
+          "breaksWhen": "Dominoes fall once, whereas a ripple counter repeats forever, with each stage toggling at half the rate of the one before it."
+        },
+        "definitions": [
+          {
+            "term": "Asynchronous counter",
+            "meaning": "A counter whose flip-flops do not share one clock, so they change at different moments."
+          },
+          {
+            "term": "Propagation delay",
+            "meaning": "The time between a clock edge arriving at a flip-flop and its output settling to the new value."
+          }
+        ],
+        "principle": {
+          "text": "Counting the first flip-flop as stage 1, stage $k$ outputs a wave of frequency $f/2^k$. The count is valid only after the change has rippled through all $n$ stages, so the clock period must be at least $n\\,t_{pd}$.",
+          "tex": "f_k = \\frac{f}{2^k} \\qquad f_{\\max} = \\frac{1}{n\\,t_{pd}}"
+        },
+        "limits": "The delay formula assumes every stage has the same delay and that the count is read after the last stage settles. Outputs read earlier show wrong intermediate values, and a synchronous counter has no such delay growth.",
+        "example": {
+          "problem": "A 5-bit ripple counter is driven by a 3.2 MHz clock. What are the frequency and period at the output of the last flip-flop?",
+          "steps": [
+            "Each of the 5 stages halves the frequency, so the total division is $2^5 = 32$.",
+            "The last output is $3.2\\ \\text{MHz} / 32 = 100$ kHz.",
+            "The period is the reciprocal, $1/100\\ \\text{kHz} = 10\\ \\mu\\text{s}$."
+          ],
+          "result": "The last stage runs at 100 kHz, with a period of 10 microseconds."
+        },
+        "misconceptions": [
+          "The counter's frequency is the frequency of the external clock at the first stage, not of the last flip-flop's output, which is $2^n$ times slower.",
+          "A ripple counter does not change all bits at once. After 0111 goes to 1000 the bits settle one after another, so reading the outputs too early can show values such as 0110 that are not in the count."
+        ],
+        "recall": [
+          {
+            "q": "Which flip-flop in a ripple counter receives the external clock?",
+            "a": "Only the first one; each later flip-flop is clocked by the output of the one before it."
+          },
+          {
+            "q": "By what factor does an $n$-stage ripple counter divide the clock?",
+            "a": "By $2^n$, because each stage halves the frequency."
+          },
+          {
+            "q": "Why is a ripple counter slower than a synchronous one?",
+            "a": "The stage delays add up, so the clock period must cover $n\\,t_{pd}$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An 8-bit ripple counter has flip-flops with a propagation delay of 12.5 ns each. Taking the minimum clock period to be the total settling time of the chain, what is the maximum clock frequency in MHz?",
+          "answer": 10,
+          "explanation": "The change must travel through 8 stages, so the minimum period is $8 \\times 12.5 = 100$ ns and $f_{\\max} = 1/100\\ \\text{ns} = 10$ MHz. A learner who uses a single stage delay gets 80 MHz, which would read the outputs while the upper bits are still changing."
+        },
+        "summary": "A ripple counter divides the clock by 2 at each stage, so the last stage runs at $f/2^n$, and its stage delays add to $n\\,t_{pd}$, which limits the clock."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.synchronous-counters",
+      "title": "Synchronous counters and their design",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        225,
+        226,
+        231
+      ],
+      "points": [
+        "All flip-flops share one clock, and combinational logic decides which of them change; the delay no longer grows stage by stage.",
+        "Binary up counter with T flip-flops: T₀ = 1, T₁ = Q₀, T₂ = Q₀Q₁, and in general Tᵢ is the AND of all lower bits. A down counter uses the AND of the complemented lower bits.",
+        "An up/down counter selects between the two with a mode input M: Tᵢ = M·(AND of lower Q) + M'·(AND of lower Q').",
+        "Design recipe: state diagram, state table with present and next state, excitation table for the chosen flip-flop, one K-map per flip-flop input, then the circuit.",
+        "A MOD-k counter needs ⌈log₂ k⌉ flip-flops, leaving 2ⁿ − k unused states. Treat them as don't-cares for smaller logic, then check that every unused state leads back into the count; a counter that can stay stuck outside it has lock-out."
+      ],
+      "keyTerms": [
+        "synchronous counter",
+        "up/down counter",
+        "unused states",
+        "lock-out",
+        "self-correcting"
+      ],
+      "lesson": {
+        "why": "Synchronous counters are the standard design question: write the T or D input of each flip-flop as a function of the present state, or trace one step from a given wiring.",
+        "intro": "In a synchronous counter every flip-flop is wired to the same clock, so all of them can change at the same edge. Ordinary gates in front of each flip-flop decide whether it should change on the next edge. For a binary up counter built from T flip-flops, a bit should toggle exactly when all lower bits are 1, which is when the count carries into it. Since no stage waits for another, the delay does not grow with the number of bits.",
+        "prerequisites": [
+          "dl-sequential-circuits.excitation-tables",
+          "dl-sequential-circuits.ripple-counters"
+        ],
+        "definitions": [
+          {
+            "term": "Synchronous",
+            "meaning": "All flip-flops are clocked by the same signal, so they update together from the state before the edge."
+          },
+          {
+            "term": "Lock-out",
+            "meaning": "A fault in which a state outside the count sequence leads only to other unused states and never returns to the count."
+          }
+        ],
+        "principle": {
+          "text": "For an up counter with T flip-flops, $T_i$ is the AND of all lower bits; for a down counter it is the AND of their complements. $T_0 = 1$ in both cases.",
+          "tex": "T_i = Q_0 Q_1 \\cdots Q_{i-1} \\;\\text{(up)} \\qquad T_i = \\overline{Q_0}\\,\\overline{Q_1}\\cdots\\overline{Q_{i-1}} \\;\\text{(down)}"
+        },
+        "limits": "A MOD-$k$ counter with $k$ not a power of 2 has unused states, and the minimal logic is valid only if each of them leads back into the count. The gates of a synchronous counter add area, and a wide AND chain also adds delay to the settling time of the logic.",
+        "example": {
+          "problem": "A 3-bit synchronous up counter uses T flip-flops with $T_0 = 1$, $T_1 = Q_0$ and $T_2 = Q_0Q_1$. From $Q_2Q_1Q_0 = 011$, what is the next state?",
+          "steps": [
+            "In state 011, $Q_0 = 1$ and $Q_1 = 1$.",
+            "So $T_0 = 1$, $T_1 = Q_0 = 1$ and $T_2 = Q_0Q_1 = 1$: all three flip-flops toggle.",
+            "Toggling 011 bit by bit gives 100 at the same clock edge."
+          ],
+          "result": "The next state is 100, the binary value after 3."
+        },
+        "misconceptions": [
+          "Using the same clock does not mean every flip-flop toggles each time; the gates in front of each input decide, and the lowest bit alone toggles on every pulse.",
+          "A down counter is not an up counter with the same T equations; it needs the complemented lower bits, because a borrow occurs when the lower bits are all 0."
+        ],
+        "recall": [
+          {
+            "q": "Why does the delay of a synchronous counter not grow with the number of bits?",
+            "a": "All flip-flops share one clock and update at once, so no stage waits for another."
+          },
+          {
+            "q": "How many flip-flops does a MOD-$k$ counter need?",
+            "a": "$\\lceil \\log_2 k \\rceil$, which leaves $2^n - k$ unused states."
+          },
+          {
+            "q": "What must be checked about unused states when they are used as don't-cares?",
+            "a": "That each leads back into the counting sequence, so the counter cannot lock out."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A 3-bit synchronous down counter uses T flip-flops with $T_0 = 1$, $T_1 = \\overline{Q_0}$ and $T_2 = \\overline{Q_0}\\,\\overline{Q_1}$. In the state $Q_2Q_1Q_0 = 010$, what are $T_2T_1T_0$ and the next state?",
+          "options": [
+            "$T_2T_1T_0 = 011$, next state 001",
+            "$T_2T_1T_0 = 001$, next state 011",
+            "$T_2T_1T_0 = 111$, next state 101",
+            "$T_2T_1T_0 = 010$, next state 000"
+          ],
+          "answer": 0,
+          "explanation": "With $Q_0 = 0$ and $Q_1 = 1$: $T_1 = 1$, $T_2 = 1\\cdot 0 = 0$ and $T_0 = 1$. So $Q_1$ and $Q_0$ toggle and 010 becomes 001, which is one less. The second option applies the up-counter equations, which give 011 as the next state, and tempts because it only toggles the lowest bit."
+        },
+        "summary": "A synchronous counter clocks every flip-flop together and gates the toggles: the AND of lower bits for counting up, the AND of their complements for counting down."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.circuit-analysis",
+      "title": "Analysing a given sequential circuit",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Write each flip-flop input as a Boolean function of the present state bits (and inputs), then substitute into the characteristic equation to get the next-state function.",
+        "Build the full state table for all 2ⁿ present states, not only the ones reached from the start state, so lock-out and self-correction are visible.",
+        "Follow the table from the given start state until a state repeats: the cycle length is the modulus and the visited states give the count sequence.",
+        "Example: D_A = B, D_B = C, D_C = A'B' from 000 visits 000, 001, 011, 110, 100 and returns to 000, a MOD-5 counter; the unused states 010, 101 and 111 all re-enter the cycle."
+      ],
+      "keyTerms": [
+        "state table",
+        "next-state equation",
+        "count sequence"
+      ],
+      "lesson": {
+        "why": "Analysis questions hand you a drawn circuit and ask for a state after $k$ pulses, the count sequence or the modulus, and a full state table is the dependable way to answer them.",
+        "intro": "Analysing a sequential circuit means working out what it does from the wiring. First read the wiring to write each flip-flop's input as a function of the present state. Then put that input into the flip-flop's rule ($Q^+ = D$ for a D flip-flop, $Q^+ = T \\oplus Q$ for a T flip-flop) to get the next value of each bit. Listing this for every present state gives the state table, and following the table from a start state gives the sequence.",
+        "prerequisites": [
+          "dl-sequential-circuits.excitation-tables"
+        ],
+        "definitions": [
+          {
+            "term": "State table",
+            "meaning": "A table giving the next state for every present state (and input)."
+          },
+          {
+            "term": "Count sequence",
+            "meaning": "The list of states visited from a start state until the first repeat."
+          }
+        ],
+        "principle": {
+          "text": "All flip-flops on one clock update together from the state before the edge, so compute every next value from the old state and apply them at once.",
+          "tex": "Q_i^+ = f_i(Q_{n-1},\\ldots,Q_0)"
+        },
+        "limits": "A path from the given start state shows only part of the behaviour. States outside it may loop among themselves or lead into the cycle, and a start state that is not on a cycle is visited only once. For a circuit with asynchronous clocks the update-together rule does not hold.",
+        "example": {
+          "problem": "Two D flip-flops have $D_1 = Q_1 \\oplus Q_0$ and $D_0 = \\overline{Q_1}$. Find the sequence from $Q_1Q_0 = 00$ and the next state of 10.",
+          "steps": [
+            "From 00: $D_1 = 0\\oplus 0 = 0$ and $D_0 = 1$, so the next state is 01.",
+            "From 01: $D_1 = 0\\oplus 1 = 1$ and $D_0 = 1$, so the next state is 11.",
+            "From 11: $D_1 = 1\\oplus 1 = 0$ and $D_0 = 0$, so the next state is 00 and the sequence repeats.",
+            "From 10: $D_1 = 1\\oplus 0 = 1$ and $D_0 = 0$, so the next state is 10 again."
+          ],
+          "result": "The sequence is 00, 01, 11 (modulus 3), and the unused state 10 maps to itself, so it locks out."
+        },
+        "misconceptions": [
+          "The flip-flops do not update one after another within a pulse: a D flip-flop that copies another flip-flop gets that flip-flop's old value, not its new one.",
+          "Following only the start state's path does not tell you whether the circuit self-corrects; the other states must be traced as well."
+        ],
+        "recall": [
+          {
+            "q": "What is the first step of analysing a sequential circuit?",
+            "a": "Write each flip-flop's input as a Boolean function of the present state and inputs."
+          },
+          {
+            "q": "How do you find the modulus from a state table?",
+            "a": "Follow the table from the start state until a state repeats; the number of states in the cycle is the modulus."
+          },
+          {
+            "q": "What does it mean if an unused state maps to itself?",
+            "a": "The counter is locked in it and never rejoins the count sequence."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Three D flip-flops form $Q_2Q_1Q_0$ with $D_2 = Q_1$, $D_1 = Q_0$ and $D_0 = \\overline{Q_2 Q_1}$ (a NAND), all on one clock. Starting from 001, after how many clock pulses does the state return to 001?",
+          "answer": 5,
+          "explanation": "The states are 001, 011, 111, 110, 100 and then 001, so the cycle has 5 states and the return takes 5 pulses. Starting at 000 the path is 000, 001, 011, 111, 110, 100, 001: 000 is not on the cycle, and counting it would give 6, which is the tempting wrong answer."
+        },
+        "summary": "Turn the wiring into next-state equations, build the table for all present states, and follow it from the start state until it repeats."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.ring-johnson",
+      "title": "Ring and Johnson counters",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        226,
+        230,
+        231
+      ],
+      "points": [
+        "A ring counter is a shift register whose last output feeds the first input; preset to one 1 (1000), it circulates that 1 and has n states with n flip-flops.",
+        "Each ring state has exactly one bit high, so it is already one-hot decoded and needs no decoder, at the cost of using only n of the 2ⁿ states.",
+        "A Johnson (twisted-ring) counter feeds the complement of the last output back, giving 2n states from n flip-flops: 0000, 1000, 1100, 1110, 1111, 0111, 0011, 0001.",
+        "Any Johnson state is decoded by a single 2-input AND gate; the 2ⁿ − 2n unused states form other cycles, so a basic Johnson counter is not self-correcting."
+      ],
+      "keyTerms": [
+        "ring counter",
+        "Johnson counter",
+        "twisted ring",
+        "one-hot"
+      ],
+      "lesson": {
+        "why": "Ring and Johnson counters give a sequence of $n$ or $2n$ states from $n$ flip-flops, and GATE asks for the cycle length, the state after some pulses or the flip-flops needed.",
+        "intro": "A shift register moves every stored bit one place along on each clock pulse. If the last output is fed back to the first input, the pattern goes round in a loop. That is a ring counter: preset it with a single 1, for example 1000, and the 1 circulates, giving as many states as flip-flops. If the complement of the last output is fed back instead, the register fills with 1s and then empties again with 0s. That is a Johnson counter, and it has twice as many states as flip-flops.",
+        "definitions": [
+          {
+            "term": "Ring counter",
+            "meaning": "A shift register whose last output feeds the first input, so a preset single 1 circulates."
+          },
+          {
+            "term": "Johnson counter",
+            "meaning": "A shift register whose complemented last output feeds the first input, also called a twisted-ring counter."
+          }
+        ],
+        "principle": {
+          "text": "An $n$-flip-flop ring counter has $n$ states. An $n$-flip-flop Johnson counter has $2n$ states: $n$ pulses fill the register with 1s and $n$ more empty it.",
+          "tex": "N_{\\text{ring}} = n \\qquad N_{\\text{Johnson}} = 2n"
+        },
+        "limits": "The counts hold only for a start state on the intended cycle. The other $2^n - n$ (ring) or $2^n - 2n$ (Johnson) patterns lie on separate cycles, and neither basic counter corrects itself into the main cycle without extra logic.",
+        "example": {
+          "problem": "A 5-bit Johnson counter starts at 00000, shifting right with $\\overline{Q_{\\text{last}}}$ entering at the left. What is the state after 7 pulses, and how long is the cycle?",
+          "steps": [
+            "Pulses 1 to 5 fill with 1s: 10000, 11000, 11100, 11110, 11111.",
+            "Pulse 6 gives 01111 and pulse 7 gives 00111.",
+            "The 1s keep leaving until 00001, and the tenth pulse returns to 00000."
+          ],
+          "result": "After 7 pulses the state is 00111, and the cycle has 10 states."
+        },
+        "misconceptions": [
+          "A Johnson counter is not a ring counter with a different name: it has $2n$ states rather than $n$, and its states are not one-hot.",
+          "Not every initial value lies on the long cycle; for 4 bits, 0100 starts a second cycle of its own, although its length also happens to be 8."
+        ],
+        "recall": [
+          {
+            "q": "What is fed back in a Johnson counter?",
+            "a": "The complement of the last flip-flop's output goes to the first flip-flop's input."
+          },
+          {
+            "q": "How many states do $n$ flip-flops give in a ring counter and in a Johnson counter?",
+            "a": "A ring counter has $n$ states and a Johnson counter has $2n$."
+          },
+          {
+            "q": "Why does a ring counter need no decoder?",
+            "a": "Each state has exactly one bit high, so every output already identifies its state."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A Johnson counter must cycle through 14 distinct states. How many flip-flops does it need?",
+          "answer": 7,
+          "explanation": "A Johnson counter has $2n$ states, so $2n = 14$ and $n = 7$. A ring counter would need 14 flip-flops, which is the tempting answer, and a plain binary counter would need 4."
+        },
+        "summary": "A ring counter circulates one 1 through $n$ states; a Johnson counter feeds back the complement and doubles that to $2n$ states."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.shift-registers",
+      "title": "Shift registers and LFSRs",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        14,
+        226,
+        231
+      ],
+      "points": [
+        "An n-bit shift register is n D flip-flops on a common clock, each feeding the next; one clock moves every bit one place.",
+        "SISO, SIPO, PISO and PIPO name the input and output modes. SIPO converts serial to parallel in n clocks, PISO parallel to serial; a SISO of n stages delays a bit stream by n clocks.",
+        "A bidirectional register picks left or right shift with a mode bit; a universal register adds parallel load and hold, four operations selected by two control bits through a 4:1 multiplexer per stage.",
+        "A linear feedback shift register feeds the XOR of selected taps back to the input; with the right taps an n-bit LFSR cycles through all 2ⁿ − 1 non-zero states, and the all-zero state locks it.",
+        "Example: a 4-bit right-shift SIPO with serial input into Q₃, fed 1, 1, 0, 1 (the bits of 1011 LSB first), holds Q₃Q₂Q₁Q₀ = 1011 after four clocks."
+      ],
+      "keyTerms": [
+        "SISO",
+        "SIPO",
+        "PISO",
+        "PIPO",
+        "universal shift register",
+        "LFSR"
+      ],
+      "lesson": {
+        "why": "Shift registers appear in GATE as small circuits of chained D flip-flops where you must trace the stored bits clock by clock or count states and transitions.",
+        "intro": "A flip-flop stores one bit. Put several in a row on the same clock, and wire each one's output to the next one's input. On every clock edge each flip-flop copies the bit held by its left neighbour, so the whole pattern slides one place along the row. The first flip-flop takes a fresh bit from outside. This row is a shift register, and it turns a stream of bits arriving one per clock into a word stored side by side.",
+        "prerequisites": [
+          "dl-sequential-circuits.d-and-t-flipflops"
+        ],
+        "analogy": {
+          "text": "A conveyor belt with n slots: at every tick each item moves to the next slot, a new item is placed on the first slot and the item on the last slot falls off.",
+          "breaksWhen": "A belt can have gaps, but a register slot always holds a 0 or a 1, so the cleared state 0000 is still a stored pattern and not an empty belt."
+        },
+        "definitions": [
+          {
+            "term": "SIPO",
+            "meaning": "Serial in, parallel out: bits enter one per clock and all n stored bits are read together."
+          },
+          {
+            "term": "Serial input",
+            "meaning": "The external bit fed into the first flip-flop at each clock edge."
+          }
+        ],
+        "principle": {
+          "text": "With D flip-flops chained as a right-shift register, every edge applies the same update to all stages at once, using the values from just before the edge.",
+          "tex": "Q_{n-1}^{+} = \\text{in},\\qquad Q_i^{+} = Q_{i+1}\\quad (0 \\le i < n-1)"
+        },
+        "limits": "This holds only when all stages share one edge-triggered clock. The state has 2^n values, but a pure shift register cannot reach a new state arbitrarily: from any state only two successors exist, one for each serial input bit. A state keeps itself only when every bit equals the serial input, so an n-bit register has exactly two self-loop states, 00...0 and 11...1.",
+        "example": {
+          "problem": "A 4-bit right-shift register Q3 Q2 Q1 Q0 starts at 0000. Its serial input feeds Q3 and carries the bits 1, 0, 1, 1 on the four successive clock edges. What does the register hold afterwards?",
+          "steps": [
+            "Edge 1: the new bit 1 enters Q3 and the other bits move right, giving 1000.",
+            "Edge 2: the bit 0 enters and the 1 moves to Q2, giving 0100.",
+            "Edge 3: the bit 1 enters, giving 1010.",
+            "Edge 4: the bit 1 enters, giving 1101."
+          ],
+          "result": "After four clocks the register holds 1101, the input bits in reverse order, with the first bit sent now in Q0."
+        },
+        "misconceptions": [
+          "A bit does not reach the last stage in one clock. A bit entering the first stage needs n clocks to be at Q0 of an n-bit register, because each edge moves it one place only.",
+          "All stages change at the same edge using old values. Updating them one after another would copy the same bit through every stage, which a real register does not do."
+        ],
+        "recall": [
+          {
+            "q": "How many clock edges does a SISO register of n stages need to delay a bit stream?",
+            "a": "n edges: the stream appears at the output n clocks after it entered."
+          },
+          {
+            "q": "What does a SIPO register convert, and in how many clocks?",
+            "a": "A serial stream into a parallel word, in n clocks for n bits."
+          },
+          {
+            "q": "What is the next state of a right-shift register of D flip-flops in terms of the serial input?",
+            "a": "The serial input goes into the first stage and every other stage takes its left neighbour's old value."
+          },
+          {
+            "q": "In an n-bit shift register, which states have a self-loop and why?",
+            "a": "Only all-zeros and all-ones: the new state is the input followed by the old bits shifted, which equals the old state only if all bits equal the input."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 4-bit right-shift register Q3 Q2 Q1 Q0 of positive edge-triggered D flip-flops holds 0100. The serial input into Q3 is 1, 0, 1 on three successive clock edges. After the third edge, what is the content of the register read as a binary number in decimal?",
+          "answer": 10,
+          "explanation": "Edge 1 gives 1010, edge 2 gives 0101 and edge 3 gives 1010, which is 10 in decimal. Reading the input bits in the wrong order, or shifting left, tempts toward other values such as 5."
+        },
+        "summary": "A shift register is a row of D flip-flops on one clock: every edge moves all bits one place and loads the serial input into the first stage. Trace it edge by edge using the old values."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.mealy-moore",
+      "title": "Mealy and Moore machines and their conversion",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        14,
+        15,
+        227
+      ],
+      "points": [
+        "A Moore machine's output is a function of the present state only, so outputs are written inside the states; a Mealy machine's output depends on state and input, so outputs are written on the edges.",
+        "Mealy outputs react to an input change within the same clock cycle and can glitch; Moore outputs change only after a clock edge and are stable, but appear one cycle later.",
+        "Moore to Mealy: put each target state's output on every edge entering it. The state count stays the same, and may then shrink after minimisation.",
+        "Mealy to Moore: split every state that is entered with different outputs into one copy per output. The Moore machine can need up to (states × outputs) states, usually one more than the Mealy detector."
+      ],
+      "keyTerms": [
+        "Mealy",
+        "Moore",
+        "output function"
+      ],
+      "lesson": {
+        "why": "GATE asks you to read or build a small Mealy or Moore machine and to tell which output belongs to which state or input, so you must know exactly when each output is produced.",
+        "intro": "A finite state machine reads one input bit per clock and moves between states. It also produces an output. The two machine types differ only in what the output may depend on. In a Moore machine the output depends on the current state alone, so it is written inside each state. In a Mealy machine it depends on the current state and the input that is being read, so it is written on each arrow.",
+        "prerequisites": [
+          "dl-sequential-circuits.circuit-analysis"
+        ],
+        "definitions": [
+          {
+            "term": "Output function",
+            "meaning": "The rule that gives the output bit: of the state alone for Moore, of state and input for Mealy."
+          },
+          {
+            "term": "Transition",
+            "meaning": "The change from one state to the next, taken at a clock edge and chosen by the input."
+          }
+        ],
+        "principle": {
+          "text": "Moore output is a function of the state, Mealy output is a function of the state and the input. A Moore machine can always be turned into a Mealy machine by placing the output of the target state on every edge entering it.",
+          "tex": "\\text{Moore: } y = g(s),\\qquad \\text{Mealy: } y = g(s, x)"
+        },
+        "limits": "The conversion from Mealy to Moore may need more states, because a state entered with two different outputs must be split into one copy per output. The converse conversion never adds states. A Moore output also appears one cycle after the input that caused it.",
+        "example": {
+          "problem": "A Moore machine has states A (output 0) and B (output 1). On input 0 it goes to A, on input 1 it goes to B, from either state. It starts in A and reads 1, 1, 0, 1. Give its output sequence and the equivalent Mealy output sequence.",
+          "steps": [
+            "Moore: start in A, output 0. Input 1 goes to B, output 1; input 1 stays in B, output 1; input 0 goes to A, output 0; input 1 goes to B, output 1.",
+            "The Moore output sequence is 0, 1, 1, 0, 1: the first 0 belongs to the start state, before any input.",
+            "Mealy: put each target state's output on the edge into it, so edges into A carry 0 and edges into B carry 1.",
+            "The Mealy outputs for the four inputs are 1, 1, 0, 1, produced in the same cycle as each input."
+          ],
+          "result": "The Mealy sequence is 1, 1, 0, 1. The Moore sequence 0, 1, 1, 0, 1 is the same stream delayed by one cycle."
+        },
+        "misconceptions": [
+          "A Moore machine does not ignore its input. The input chooses the next state, so it affects the output indirectly, one clock later.",
+          "Converting Mealy to Moore does not keep the state count. Each state entered by edges with different outputs has to be split, so the machine can grow."
+        ],
+        "recall": [
+          {
+            "q": "What does the output of a Moore machine depend on?",
+            "a": "Only on the present state, so the output is written inside the state."
+          },
+          {
+            "q": "What does the output of a Mealy machine depend on?",
+            "a": "On the present state and the current input, so the output is written on the edges."
+          },
+          {
+            "q": "How do you convert a Moore machine to a Mealy machine?",
+            "a": "Put the output of each target state on every edge that enters it; the state count does not change."
+          },
+          {
+            "q": "How do you get Boolean expressions for a two-state Mealy machine?",
+            "a": "Let s be the present state, b the input bit, t the next state and y the output. Tabulate t and y for each (s, b) pair, then read each column as a function. For a machine whose next state is the input bit and whose output is 1 only when the state and input are both 1, this gives t = b and y = s·b."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A Mealy machine has states P and Q, with P as the start state. Edges are written input/output. From P: 0/0 stays in P, 1/1 goes to Q. From Q: 0/1 goes to P, 1/0 stays in Q. How many states does the equivalent Moore machine need, if no two states are equivalent?",
+          "answer": 4,
+          "explanation": "P is entered with output 0 (from P on 0) and with output 1 (from Q on 0). Q is entered with output 1 (from P on 1) and with output 0 (from Q on 1). Each state therefore splits into two copies by output: P/0, P/1, Q/0, Q/1, giving 4. Answering 2 forgets that a Moore state carries one output only."
+        },
+        "summary": "Moore output depends on state alone, Mealy output on state and input. Moore to Mealy keeps the states; Mealy to Moore splits every state entered with different outputs."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.fsm-design",
+      "title": "FSM design and sequence detectors",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        15,
+        227,
+        228
+      ],
+      "points": [
+        "Design flow: fix the inputs and outputs, draw the state diagram, write the state table, assign binary codes, pick a flip-flop, derive input equations from the excitation table with K-maps, then the output logic.",
+        "A detector for a k-bit pattern tracks the longest prefix of the pattern that is a suffix of the input so far: k states for Mealy (prefix lengths 0 to k − 1), k + 1 for Moore (one extra state that outputs 1).",
+        "Overlapping detection keeps the longest proper border after a match (for 1011 it falls back to state 1, the prefix 1); non-overlapping detection returns to the start state.",
+        "Minimal overlapping detectors: 101 needs 3 Mealy or 4 Moore states, 1011 needs 4 Mealy or 5 Moore states, and 01 needs 2 Mealy or 3 Moore states.",
+        "A circuit with n flip-flops has at most 2ⁿ states, so an FSM with s states needs ⌈log₂ s⌉ flip-flops under binary encoding or s flip-flops under one-hot encoding."
+      ],
+      "keyTerms": [
+        "state diagram",
+        "sequence detector",
+        "overlapping",
+        "state assignment",
+        "one-hot encoding"
+      ],
+      "lesson": {
+        "why": "GATE asks for the number of states or flip-flops of a sequence detector, and sometimes for its output on an input string. These follow from a fixed way of building the state diagram.",
+        "intro": "A finite state machine reads one input bit per clock and moves between a fixed set of states, one for each thing it must remember. A sequence detector outputs 1 when the last few input bits equal a chosen pattern. To detect a pattern of $k$ bits, the machine only needs to remember how many bits of the pattern's start match the end of what it has read so far. That count is the state: 0 means no match yet, 1 means the first bit matched, and so on.",
+        "definitions": [
+          {
+            "term": "Mealy machine",
+            "meaning": "A machine whose output depends on the present state and the present input, so the output sits on a transition."
+          },
+          {
+            "term": "Moore machine",
+            "meaning": "A machine whose output depends on the present state only, so a separate state is needed for the matched case."
+          },
+          {
+            "term": "Overlapping detection",
+            "meaning": "After a match, the last bits can start the next match, so the machine falls back to the longest border of the pattern instead of the start."
+          },
+          {
+            "term": "One-hot encoding",
+            "meaning": "One flip-flop per state, with exactly one flip-flop set at a time."
+          }
+        ],
+        "principle": {
+          "text": "Track the longest prefix of the pattern that is a suffix of the input so far. A $k$-bit detector needs $k$ states as a Mealy machine and $k+1$ as a Moore machine. A machine with $s$ states needs $\\lceil \\log_2 s \\rceil$ flip-flops in binary encoding or $s$ in one-hot encoding.",
+          "tex": "N_{\\text{Mealy}} = k, \\qquad N_{\\text{Moore}} = k+1, \\qquad n = \\lceil \\log_2 s \\rceil"
+        },
+        "limits": "The counts hold for the minimal detector of one fixed pattern. A machine that detects several patterns, or counts occurrences, needs more states. The design flow (state table, encoding, K-maps) gives the logic, but the number of states is fixed before any encoding is chosen.",
+        "example": {
+          "problem": "Design an overlapping Mealy detector for the pattern 110 and run it on the input 0110110. Give the states and outputs.",
+          "steps": [
+            "Pattern length is 3, so a Mealy machine has 3 states: S0 (no match), S1 (last bit 1) and S2 (last two bits 11).",
+            "Transitions: S0 on 0 stays S0, on 1 goes to S1. S1 on 0 goes to S0, on 1 goes to S2. S2 on 1 stays in S2 (the last two bits are still 11). S2 on 0 completes 110, so it outputs 1 and returns to S0, since no proper border of 110 is a prefix.",
+            "Run 0110110: the states after each bit are S0, S1, S2, S0, S1, S2, S0, and the outputs are 0, 0, 0, 1, 0, 0, 1."
+          ],
+          "result": "The machine has 3 states, and the output is 0001001, so it detects 110 twice."
+        },
+        "misconceptions": [
+          "A Moore detector is not the same size as a Mealy one: it needs one extra state to hold the output 1, giving $k+1$ states.",
+          "Overlapping detection does not always change the machine. It only changes where the matching edge goes, and for 110 the edge returns to S0 either way."
+        ],
+        "recall": [
+          {
+            "q": "How many states does a minimal Mealy detector for a $k$-bit pattern need, and how many does a Moore one need?",
+            "a": "A Mealy detector needs $k$ states and a Moore detector needs $k+1$."
+          },
+          {
+            "q": "What does each state of a sequence detector remember?",
+            "a": "The length of the longest prefix of the pattern that is a suffix of the input read so far."
+          },
+          {
+            "q": "How many flip-flops encode $s$ states in binary and in one-hot?",
+            "a": "Binary needs $\\lceil \\log_2 s \\rceil$ and one-hot needs $s$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A minimal Moore machine detects the 4-bit pattern 1001. States are encoded in binary with the fewest flip-flops. How many flip-flops are needed?",
+          "answer": 3,
+          "explanation": "A Moore detector for $k=4$ bits has $k+1 = 5$ states, and $\\lceil \\log_2 5 \\rceil = 3$. Counting 4 states, as a Mealy machine would, gives 2 flip-flops, which is the tempting wrong answer. One-hot encoding would need 5."
+        },
+        "summary": "A sequence detector tracks the longest pattern prefix matching the input suffix: k states for Mealy, k+1 for Moore, and ceil(log2 s) flip-flops for s states in binary encoding."
+      }
+    },
+    {
+      "id": "dl-sequential-circuits.state-minimization",
+      "title": "State equivalence and minimisation",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        15,
+        227,
+        229,
+        231
+      ],
+      "points": [
+        "Two states are equivalent when, for every input sequence, they produce the same output sequence; equivalently, same outputs for each input and equivalent next states.",
+        "Partition refinement: first group states by their output row (Mealy) or output (Moore), then split any block whose members go to different blocks on some input; stop when no block splits.",
+        "Each final block becomes one state of the minimal machine, which is unique up to renaming.",
+        "Removing redundant states can cut the flip-flop count: 6 states need 3 flip-flops but 4 states need only 2."
+      ],
+      "keyTerms": [
+        "equivalent states",
+        "partition refinement",
+        "implication"
+      ],
+      "lesson": {
+        "why": "GATE gives a state table and asks for the minimum number of states or flip-flops, so you need a reliable way to find which states are interchangeable.",
+        "intro": "Two states of a machine are equivalent if nobody can tell them apart from outside: whatever input sequence you feed, starting in either one, the outputs you see are the same. Equivalent states can be merged into one without changing the machine's behaviour. Minimisation finds all such groups. The method starts with the easy distinction, the outputs, and keeps separating states whose successors have already been separated. In a Mealy table the output is a row of values, one per input, so two states start in the same group only when the whole row matches. A machine with k states needs ceil(log2 k) flip-flops, so merging states can save flip-flops.",
+        "prerequisites": [
+          "dl-sequential-circuits.mealy-moore"
+        ],
+        "definitions": [
+          {
+            "term": "Equivalent states",
+            "meaning": "States that give the same output sequence for every input sequence."
+          },
+          {
+            "term": "Partition",
+            "meaning": "A split of the states into groups where every state lies in exactly one group."
+          }
+        ],
+        "principle": {
+          "text": "Start with groups of states that have the same output. Split a group when two of its states move to different groups on some input. Repeat until no group splits; each remaining group is one state of the minimal machine.",
+          "tex": "s \\sim t \\iff \\text{out}(s)=\\text{out}(t)\\ \\text{and}\\ \\delta(s,x)\\sim\\delta(t,x)\\ \\text{for every input } x"
+        },
+        "limits": "This works for completely specified machines, where every state has a defined next state and output for every input. Do not merge states by looking at the next-state columns alone, since equal successors with different outputs are not equivalent. The method must run to the end, not stop after one round.",
+        "example": {
+          "problem": "A Moore machine has five states with outputs A0, B0, C0, D1, E1. The successors on input 0 and 1 are A: (B, D), B: (A, E), C: (D, D), D: (A, E), E: (B, D). Find the minimal number of states.",
+          "steps": [
+            "Group by output: {A, B, C} with output 0 and {D, E} with output 1.",
+            "Check {A, B, C}. On input 0, A goes to B and B goes to A, both in the 0-group, but C goes to D, in the 1-group. So C splits off.",
+            "Check {A, B}: On input 0, A and B reach each other, and on input 1 they reach D and E, which share a group, so A and B stay together. Check {D, E}: D goes to (A, E) and E to (B, D); the successors lie in the same groups, so D and E stay together.",
+            "No group splits further. The groups are {A, B}, {C}, {D, E}."
+          ],
+          "result": "The minimal machine has 3 states, down from 5."
+        },
+        "misconceptions": [
+          "Matching outputs are not enough to merge two states. Their successors must also be equivalent, which is why the splitting rounds are needed.",
+          "Finishing after the first round of splitting is a common error. A split in one group can separate the successors of another group, so repeat until a round changes nothing."
+        ],
+        "recall": [
+          {
+            "q": "When are two states equivalent?",
+            "a": "When every input sequence gives the same output sequence from either state."
+          },
+          {
+            "q": "What is the first partition in the refinement method?",
+            "a": "States grouped by their outputs for each input."
+          },
+          {
+            "q": "When do you stop refining?",
+            "a": "When a full round splits no group; the groups left are the minimal states."
+          },
+          {
+            "q": "How do you form the first partition for a Mealy table with one input bit?",
+            "a": "Group states whose output pair (output on X=0, output on X=1) is identical; then refine by successors. The flip-flop count is ceil(log2) of the final state count."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A Moore machine has six states with outputs P0, Q0, R0, S1, T1, U0. Successors on inputs (0, 1): P (Q, S), Q (P, T), R (S, S), S (R, S), T (P, T), U (Q, S). What is the minimum number of states?",
+          "answer": 5,
+          "explanation": "By output the groups are {P, Q, R, U} and {S, T}. R splits off because it reaches S on input 0 while the others reach a 0-state. Then S and T separate, since S moves to R and T moves to P. Next P and Q separate, because P reaches S and Q reaches T, which now lie in different groups. P and U have identical rows (Q, S), so they merge. The classes are {P, U}, {Q}, {R}, {S}, {T}: 5 states. Stopping after the first round would leave too few groups and a wrong count."
+        },
+        "summary": "Group states by output, split groups whose members reach different groups, and repeat until stable. Each final group becomes one state, and states can be removed only when every successor agrees."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "dl-sequential-circuits.sr-characteristic",
+      "name": "SR characteristic equation",
+      "tex": "Q(t+1) = S + R'Q, \\qquad SR = 0",
+      "text": "Q(t+1) = S + R'Q, with SR = 0",
+      "note": "The constraint SR = 0 is part of the equation: with S = R = 1 the NOR latch output is not defined.",
+      "topic": "dl-sequential-circuits.sr-latch",
+      "origin": "source",
+      "pages": [
+        14,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.jk-characteristic",
+      "name": "JK characteristic equation",
+      "tex": "Q(t+1) = J\\,\\overline{Q} + \\overline{K}\\,Q",
+      "text": "Q(t+1) = JQ' + K'Q",
+      "note": "J = K = 1 gives Q(t+1) = Q', the toggle.",
+      "topic": "dl-sequential-circuits.jk-flipflop",
+      "origin": "source",
+      "pages": [
+        14,
+        224,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.d-characteristic",
+      "name": "D characteristic equation",
+      "tex": "Q(t+1) = D",
+      "text": "Q(t+1) = D",
+      "topic": "dl-sequential-circuits.d-and-t-flipflops",
+      "origin": "source",
+      "pages": [
+        14,
+        223,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.t-characteristic",
+      "name": "T characteristic equation",
+      "tex": "Q(t+1) = T \\oplus Q",
+      "text": "Q(t+1) = T ⊕ Q",
+      "note": "Read backwards it is the T excitation rule: T = Q ⊕ Q(t+1).",
+      "topic": "dl-sequential-circuits.d-and-t-flipflops",
+      "origin": "source",
+      "pages": [
+        14,
+        224,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.t-from-jk",
+      "name": "T input that makes a T flip-flop act as JK",
+      "tex": "T = J\\,\\overline{Q} + K\\,Q",
+      "text": "T = JQ' + KQ",
+      "note": "T must be 1 exactly when the JK output changes: J = 1 with Q = 0, or K = 1 with Q = 1.",
+      "topic": "dl-sequential-circuits.ff-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.mod-k-flipflops",
+      "name": "Flip-flops for a MOD-k counter or s-state FSM",
+      "tex": "n = \\lceil \\log_2 k \\rceil",
+      "text": "n = ⌈log₂ k⌉",
+      "where": [
+        [
+          "k",
+          "number of states to be represented"
+        ]
+      ],
+      "note": "Binary encoding. A ring counter needs k flip-flops; a Johnson counter needs ⌈k/2⌉ (a basic Johnson counter has modulus 2n, so an odd k needs a modified Johnson counter).",
+      "topic": "dl-sequential-circuits.synchronous-counters",
+      "origin": "source",
+      "pages": [
+        226,
+        229,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.max-states",
+      "name": "States available from n flip-flops",
+      "tex": "N_{\\max} = 2^n",
+      "text": "N_max = 2ⁿ",
+      "note": "A MOD-k design leaves 2ⁿ − k unused states, which must be checked for lock-out.",
+      "topic": "dl-sequential-circuits.fsm-design",
+      "origin": "source",
+      "pages": [
+        230
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.ring-states",
+      "name": "Ring counter modulus",
+      "tex": "\\text{MOD} = n",
+      "text": "MOD = n",
+      "where": [
+        [
+          "n",
+          "number of flip-flops"
+        ]
+      ],
+      "topic": "dl-sequential-circuits.ring-johnson",
+      "origin": "source",
+      "pages": [
+        14,
+        226,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.johnson-states",
+      "name": "Johnson counter modulus and unused states",
+      "tex": "\\text{MOD} = 2n, \\qquad \\text{unused} = 2^n - 2n",
+      "text": "MOD = 2n, unused = 2ⁿ − 2n",
+      "where": [
+        [
+          "n",
+          "number of flip-flops"
+        ]
+      ],
+      "note": "For n = 4: 8 used and 8 unused states; for n = 5: 10 used and 22 unused.",
+      "topic": "dl-sequential-circuits.ring-johnson",
+      "origin": "source",
+      "pages": [
+        14,
+        226,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.ripple-fmax",
+      "name": "Ripple counter settling time and maximum frequency",
+      "tex": "t_{\\text{settle}} = n\\,t_{pd}, \\qquad f_{\\max} = \\frac{1}{n\\,t_{pd}}",
+      "text": "t_settle = n·t_pd, f_max = 1/(n·t_pd)",
+      "where": [
+        [
+          "n",
+          "number of flip-flops"
+        ],
+        [
+          "t_pd",
+          "propagation delay of one flip-flop"
+        ]
+      ],
+      "note": "Add the decoding gate's delay when the question says the outputs are decoded or used to reset the counter.",
+      "topic": "dl-sequential-circuits.ripple-counters",
+      "origin": "source",
+      "pages": [
+        225,
+        230
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.sync-fmax",
+      "name": "Synchronous circuit minimum clock period",
+      "tex": "T_{\\min} = t_{pd} + t_{\\text{comb}} + t_{\\text{setup}}, \\qquad f_{\\max} = \\frac{1}{T_{\\min}}",
+      "text": "T_min = t_pd + t_comb + t_setup, f_max = 1/T_min",
+      "where": [
+        [
+          "t_comb",
+          "delay of the slowest combinational path between two flip-flops"
+        ],
+        [
+          "t_setup",
+          "setup time of the receiving flip-flop"
+        ]
+      ],
+      "note": "Independent of the number of bits except through t_comb; a long AND chain in a big counter raises t_comb.",
+      "topic": "dl-sequential-circuits.timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.hold-constraint",
+      "name": "Hold-time constraint",
+      "tex": "t_{pd,\\min} + t_{\\text{comb},\\min} \\ge t_{\\text{hold}}",
+      "text": "t_pd(min) + t_comb(min) ≥ t_hold",
+      "note": "Contains no clock period: changing the frequency cannot repair a hold violation.",
+      "topic": "dl-sequential-circuits.timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.lfsr-period",
+      "name": "Maximum-length LFSR period",
+      "tex": "P_{\\max} = 2^n - 1",
+      "text": "P_max = 2ⁿ − 1",
+      "where": [
+        [
+          "n",
+          "number of register stages"
+        ]
+      ],
+      "note": "XOR feedback keeps the all-zero state fixed, which is why one state is missing.",
+      "topic": "dl-sequential-circuits.shift-registers",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.detector-states",
+      "name": "States of a k-bit sequence detector",
+      "tex": "N_{\\text{Mealy}} = k, \\qquad N_{\\text{Moore}} = k + 1",
+      "text": "N_Mealy = k, N_Moore = k + 1",
+      "where": [
+        [
+          "k",
+          "length of the pattern"
+        ]
+      ],
+      "note": "Holds for the minimal detector of one fixed pattern, overlapping or not; the overlap only changes where the matching edge goes.",
+      "topic": "dl-sequential-circuits.fsm-design",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "dl-sequential-circuits.ff-next-state",
+      "title": "Next state or required inputs of a single flip-flop",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "For the next state, substitute the inputs and present Q into the characteristic equation.",
+        "For the required inputs, look up the transition Q → Q(t+1) in the excitation table and keep the don't-cares.",
+        "For a conversion, tabulate the target flip-flop's behaviour and read the driving flip-flop's inputs from its excitation table."
+      ],
+      "trap": "JK 1→1 is J = X, K = 0, not J = 1, K = 0; the don't-care matters when the options compare minimised expressions.",
+      "topic": "dl-sequential-circuits.excitation-tables",
+      "origin": "source",
+      "pages": [
+        224,
+        225,
+        230,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.trace-circuit",
+      "title": "Count sequence or modulus of a given flip-flop circuit",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write every flip-flop input as an expression in the present state bits.",
+        "Fill the next-state table for all 2ⁿ states using the characteristic equations.",
+        "Walk the table from the start state until a state repeats; count the distinct states for the modulus.",
+        "If asked about self-starting, check where each unused state leads."
+      ],
+      "trap": "Mixing up which bit is the MSB when reading the state as a number.",
+      "topic": "dl-sequential-circuits.circuit-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.counter-design",
+      "title": "Design a synchronous counter for a given sequence",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "List present state and next state for every state in the sequence; mark unused states as don't-cares.",
+        "Read each flip-flop's inputs for every row from its excitation table.",
+        "Minimise each input with a K-map and compare with the options.",
+        "For a binary up counter with T flip-flops the answer is Tᵢ = AND of all lower bits."
+      ],
+      "trap": "Leaving unused states as don't-cares can create lock-out; check them if the question asks for a self-starting counter.",
+      "topic": "dl-sequential-circuits.synchronous-counters",
+      "origin": "source",
+      "pages": [
+        226,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.counter-count",
+      "title": "Modulus and flip-flop count of ring, Johnson and MOD-k counters",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Binary MOD-k: ⌈log₂ k⌉ flip-flops.",
+        "Ring: n flip-flops give n states; Johnson: n flip-flops give 2n states.",
+        "Unused states = 2ⁿ minus the used ones."
+      ],
+      "trap": "A Johnson counter with n flip-flops has 2n states, not 2ⁿ.",
+      "topic": "dl-sequential-circuits.ring-johnson",
+      "origin": "source",
+      "pages": [
+        226,
+        229,
+        230,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.clock-frequency",
+      "title": "Maximum clock frequency from delays",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Ripple: the total settling time is n·t_pd, plus any decoding gate delay.",
+        "Synchronous: find the slowest path flip-flop → logic → flip-flop and add t_pd + t_comb + t_setup.",
+        "Invert the period; 1/(1 ns) = 1000 MHz."
+      ],
+      "trap": "Using n·t_pd for a synchronous counter; its period does not grow with the number of stages.",
+      "topic": "dl-sequential-circuits.timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.fsm-states",
+      "title": "Minimum states of an FSM or sequence detector",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "For a pattern detector, create one state per prefix length matched so far, plus an output state for Moore.",
+        "For each state and input, go to the longest prefix of the pattern that is a suffix of what has been read.",
+        "For a given state table, run partition refinement and count the final blocks."
+      ],
+      "trap": "Forgetting that Moore needs one more state than Mealy because the output must live in a state.",
+      "topic": "dl-sequential-circuits.fsm-design",
+      "origin": "source",
+      "pages": [
+        227,
+        228,
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.shift-trace",
+      "title": "Shift register contents after k clocks",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Fix the direction and which end takes the serial input.",
+        "Shift one place per clock and write the register after each clock.",
+        "Read the final state in the order the question asks (Q₃Q₂Q₁Q₀ or the reverse)."
+      ],
+      "trap": "With right shift the first bit fed in ends at the far right; reading the order backwards gives the reversed pattern.",
+      "topic": "dl-sequential-circuits.shift-registers",
+      "origin": "source",
+      "pages": [
+        226,
+        231
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "dl-sequential-circuits.q-mod12-flipflops",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the minimum number of flip-flops needed to build a MOD-12 binary counter?",
+      "options": [
+        "3",
+        "4",
+        "6",
+        "12"
+      ],
+      "answer": 1,
+      "explanation": "Three flip-flops give only 2³ = 8 states, too few; four give 16 ≥ 12, so ⌈log₂ 12⌉ = 4. Six is the Johnson count (2n = 12) and twelve the ring count, neither minimal.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.synchronous-counters",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Counter",
+      "pages": [
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-t-up-counter",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A 3-bit synchronous binary up counter (state Q₂Q₁Q₀, Q₀ the LSB) is built from T flip-flops. Which of these input equations are correct?",
+      "options": [
+        "T₀ = 1",
+        "T₁ = Q₀",
+        "T₂ = Q₁",
+        "T₂ = Q₀Q₁"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Counting up, a bit flips exactly when every lower bit is 1. Q₀ flips every clock, so T₀ = 1. Q₁ flips when Q₀ = 1, so T₁ = Q₀. Q₂ flips only on 011 → 100 and 111 → 000, that is when Q₁ = Q₀ = 1, so T₂ = Q₀Q₁. T₂ = Q₁ would wrongly toggle Q₂ on 010 → 011, sending it to 111.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.synchronous-counters",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2016) — Synchronous design",
+      "pages": [
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-race-around",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The master-slave arrangement of a JK flip-flop is used mainly to eliminate:",
+      "options": [
+        "The forbidden input S = R = 1",
+        "The race-around condition when J = K = 1",
+        "Setup-time violations",
+        "Clock skew between flip-flops"
+      ],
+      "answer": 1,
+      "explanation": "In a level-triggered JK with J = K = 1, the output toggles repeatedly while the clock stays high. In the master-slave version the master samples while the clock is high and the slave copies it on the falling edge, so the output changes once per pulse. The JK already has no forbidden input, and the arrangement does nothing for setup time or skew.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.jk-flipflop",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2015) — Race",
+      "pages": [
+        224,
+        230,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-mealy-moore",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about Mealy and Moore machines are true?",
+      "options": [
+        "The output of a Moore machine depends only on its present state.",
+        "The output of a Mealy machine can change between clock edges when the input changes.",
+        "Converting a Mealy machine to an equivalent Moore machine never increases the number of states.",
+        "Every Moore machine with n states has an equivalent Mealy machine with at most n states."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "A Moore output is a function of the state, while a Mealy output is a function of state and input, so it follows input changes inside a cycle. Moore to Mealy moves each state's output onto the edges entering it and keeps n states. Mealy to Moore must split states entered with different outputs, so the count can grow: the overlapping 101 detector has 3 Mealy states but 4 Moore states, which makes the third statement false.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.mealy-moore",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2014) — Mealy",
+      "pages": [
+        227,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-ring-johnson-modulus",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-bit ring counter is preset to 1000 and a 4-bit Johnson counter is cleared to 0000. What are their moduli?",
+      "options": [
+        "4 and 8",
+        "4 and 16",
+        "8 and 4",
+        "16 and 8"
+      ],
+      "answer": 0,
+      "explanation": "The ring counter circulates one 1: 1000, 0100, 0010, 0001, so MOD-4. The Johnson counter feeds back Q' of the last stage: 0000, 1000, 1100, 1110, 1111, 0111, 0011, 0001, then 0000 again, so MOD-8 = 2n.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.ring-johnson",
+      "origin": "source",
+      "sourceLabel": "PYQ-6/PYQ-7 (GATE 2019, 2020) — Ring and twisted ring",
+      "pages": [
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-johnson-unused",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A Johnson counter is built from 5 flip-flops. How many of the possible flip-flop states are never visited during normal counting from 00000?",
+      "answer": 22,
+      "explanation": "Five flip-flops have 2⁵ = 32 states. A Johnson counter with n = 5 uses 2n = 10 of them (00000, 10000, 11000, 11100, 11110, 11111, 01111, 00111, 00011, 00001). Unused = 32 − 10 = 22.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.ring-johnson",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.q-jk-excitation",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "For a JK flip-flop to go from Q = 1 to Q(t+1) = 1, the inputs (J, K) must be:",
+      "options": [
+        "(X, 0)",
+        "(1, 0)",
+        "(0, X)",
+        "(X, 1)"
+      ],
+      "answer": 0,
+      "explanation": "With Q = 1, J = K = 0 holds at 1 and J = 1, K = 0 sets to 1, so J does not matter while K must be 0: (X, 0). (1, 0) works but is not the complete requirement; (0, X) is the 0 → 0 row and (X, 1) the 1 → 0 row.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.excitation-tables",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2013) — Excitation",
+      "pages": [
+        225,
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-sipo-trace",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-bit SIPO shift register (outputs Q₃Q₂Q₁Q₀) starts at 0000 and shifts right on every clock: the serial input enters Q₃, Q₃ moves to Q₂, Q₂ to Q₁ and Q₁ to Q₀. The bits of 1011 are fed least significant bit first, so the input sequence is 1, 1, 0, 1. What is Q₃Q₂Q₁Q₀ after four clocks?",
+      "options": [
+        "1011",
+        "1101",
+        "0111",
+        "1110"
+      ],
+      "answer": 0,
+      "explanation": "Clock 1: 1000. Clock 2: 1100. Clock 3: 0110. Clock 4: 1011. The first bit in (the LSB) has travelled to Q₀ and the last bit in (the MSB) sits in Q₃, so the register holds the word in its natural order. 1101 is the result of reading the sequence in arrival order.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.shift-registers",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Shift register",
+      "pages": [
+        231
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-moore-ends-01",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A Moore machine reads a bit stream and outputs 1 exactly when the last two bits read are 0 then 1. What is the minimum number of states?",
+      "options": [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "answer": 1,
+      "explanation": "Track the longest prefix of 01 already matched: S0 (nothing), S1 (just read 0), S2 (just read 01, output 1). From S2 a 0 goes to S1 and a 1 to S0. All three are distinguishable: S2 is the only one with output 1, and from S1 input 1 reaches the output state while from S0 it does not. A Mealy machine would need only 2 states.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.fsm-design",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — FSM",
+      "pages": [
+        232
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-moore-1011",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A Moore machine detects the sequence 1011 with overlapping allowed: its output is 1 in the clock cycle after the last bit of every occurrence of 1011 in the input stream. What is the minimum number of states?",
+      "answer": 5,
+      "explanation": "States record the longest matched prefix: S0 (none), S1 (1), S2 (10), S3 (101), S4 (1011, output 1). Transitions: S0: 0→S0, 1→S1; S1: 0→S2, 1→S1; S2: 0→S0, 1→S3; S3: 0→S2, 1→S4; S4: 0→S2, 1→S1. Partition refinement starts with {S4} and {S0..S3}; S3 splits off first (input 1 reaches S4), then S2 (input 1 reaches S3), then S1 (input 0 reaches S2), leaving five blocks. The Mealy version needs 4.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.fsm-design",
+      "origin": "source",
+      "pages": [
+        15,
+        228
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-state-minimization",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A Mealy machine has states A–F, input x and output z. Entries are next state/output for x = 0 and x = 1. A: B/0, C/0. B: D/0, E/0. C: F/0, E/0. D: A/0, E/1. E: A/0, E/1. F: A/0, E/1. How many states does the minimal equivalent machine have?",
+      "answer": 3,
+      "explanation": "Output rows split the states into P1 = {A, B, C} with outputs (0, 0) and P2 = {D, E, F} with (0, 1). Next-state blocks: A goes to (P1, P1), B and C go to (P2, P2), so P1 splits into {A} and {B, C}. D, E, F all go to (A, E), that is ({A}, P2), so P2 stays together. Re-checking {B, C}: B goes to (D, E) and C to (F, E), both in (P2, P2), so no further split. Final blocks {A}, {B, C}, {D, E, F}: 3 states.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.state-minimization",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.q-circuit-modulus",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A synchronous circuit has three D flip-flops with state ABC (A is the MSB). The inputs are D_A = B, D_B = C and D_C = A'·B'. How many states are in the cycle that contains ABC = 000, counting 000 itself (the modulus of the counter)?",
+      "answer": 5,
+      "explanation": "Next state = (B, C, A'B'). From 000: A'B' = 1, so 001. From 001: 011. From 011: A'B' = 0, so 110. From 110: 100. From 100: A'B' = 0, so 000. The cycle 000 → 001 → 011 → 110 → 100 has 5 states, a MOD-5 counter. The unused states also return: 010 → 100, 101 → 010, 111 → 110.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.circuit-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.q-sync-fmax",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 3-bit synchronous up counter uses T flip-flops with clock-to-Q delay 8 ns and setup time 3 ns. T₂ = Q₀Q₁ is produced by one 2-input AND gate of delay 4 ns, and T₀ = 1, T₁ = Q₀ need no gates. What is the maximum clock frequency in MHz? (2 decimals)",
+      "answer": 66.67,
+      "tolerance": 0.05,
+      "explanation": "The slowest path is Q₀ or Q₁ → AND gate → T₂: 8 + 4 = 12 ns, and T₂ must be stable 3 ns before the next edge, so T_min = 8 + 4 + 3 = 15 ns. f_max = 1/15 ns = 1000/15 ≈ 66.67 MHz. A 3-stage ripple counter with the same flip-flops would settle in 3 × 8 = 24 ns, but that formula does not apply to a synchronous counter.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.q-ff-conversion",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A D flip-flop is to behave exactly like a JK flip-flop with inputs J and K. Which expression must drive D?",
+      "options": [
+        "D = JQ' + K'Q",
+        "D = JQ + K'Q'",
+        "D = J ⊕ K",
+        "D = JQ' + KQ"
+      ],
+      "answer": 0,
+      "explanation": "Since Q(t+1) = D for a D flip-flop, D must equal the JK next state, which is the JK characteristic equation JQ' + K'Q. Check J = K = 1: D = Q', the toggle. JQ' + KQ is the input a T flip-flop needs for the same job, because T marks a change rather than the next value.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.ff-conversion",
+      "origin": "source",
+      "pages": [
+        225
+      ]
+    },
+    {
+      "id": "dl-sequential-circuits.q-ripple-mod6-clear",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 3-bit ripple up counter (Q₂Q₁Q₀, Q₀ the LSB) is to count 0 to 5 and restart. The flip-flops have active-low asynchronous clear inputs driven by one 2-input NAND gate. Which outputs feed the NAND gate?",
+      "options": [
+        "Q₂ and Q₀",
+        "Q₂ and Q₁",
+        "Q₁ and Q₀",
+        "Q₂ and Q₁'"
+      ],
+      "answer": 1,
+      "explanation": "The counter must clear as soon as it reaches 6 = 110. Q₂ = Q₁ = 1 occurs first at 110 (111 is never reached), so NAND(Q₂, Q₁) goes low there and clears to 000. Q₂ and Q₀ would detect 101 and give MOD-5; Q₁ and Q₀ detect 011 and give MOD-3.",
+      "difficulty": "medium",
+      "topic": "dl-sequential-circuits.ripple-counters",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-sequential-circuits.q-nand-latch",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In an SR latch built from two cross-coupled NAND gates, both active-low inputs S' and R' are held at 0. What are the outputs?",
+      "options": [
+        "Q = 0, Q' = 1",
+        "Q = 1, Q' = 0",
+        "Q = 1, Q' = 1",
+        "Q = 0, Q' = 0"
+      ],
+      "answer": 2,
+      "explanation": "A NAND gate outputs 1 whenever any input is 0, so both gates output 1 regardless of feedback: Q = Q' = 1. The outputs are no longer complements, and if both inputs return to 1 together the final state depends on which gate is faster, so this input is forbidden. Q = Q' = 0 is the forbidden result of the NOR latch with S = R = 1.",
+      "difficulty": "easy",
+      "topic": "dl-sequential-circuits.sr-latch",
+      "origin": "source",
+      "pages": [
+        14,
+        223
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The SR input S = R = 1 (NOR) or S' = R' = 0 (NAND) is forbidden, not a don't-care: it breaks Q and Q' complementarity and leaves the next state to gate delays.",
+      "origin": "source",
+      "pages": [
+        14,
+        232
+      ]
+    },
+    {
+      "text": "A Johnson counter with n flip-flops has 2n states, not 2ⁿ; a ring counter has n. Neither uses all 2ⁿ codes, and both have unused states that can trap the counter.",
+      "origin": "source",
+      "pages": [
+        226,
+        232
+      ]
+    },
+    {
+      "text": "Ripple counter delay grows with the number of stages (n·t_pd); a synchronous counter's period is t_pd + t_comb + t_setup regardless of n.",
+      "origin": "source",
+      "pages": [
+        225,
+        232
+      ]
+    },
+    {
+      "text": "A Moore detector needs one more state than the Mealy one for the same pattern, and its output appears one clock later.",
+      "origin": "source",
+      "pages": [
+        227,
+        232
+      ]
+    },
+    {
+      "text": "In overlapping detection, a match goes to the state for the longest proper border of the pattern, not to the start state: after 1011 the detector is in state 1.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "When designing with don't-cares for unused states, check where those states go; a counter that never leaves them has lock-out.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Shift-register questions hinge on the shift direction and on which end takes the serial input; write the register after every clock instead of reasoning about reversals.",
+      "origin": "source",
+      "pages": [
+        231
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Flip-flop equations",
+      "lines": [
+        "SR: Q⁺ = S + R'Q, SR = 0",
+        "JK: Q⁺ = JQ' + K'Q (J = K = 1 toggles)",
+        "D: Q⁺ = D; T: Q⁺ = T ⊕ Q",
+        "Master-slave JK removes race-around"
+      ],
+      "origin": "source",
+      "pages": [
+        14,
+        224,
+        232
+      ]
+    },
+    {
+      "heading": "Excitation and conversion",
+      "lines": [
+        "JK: 0→0 0X, 0→1 1X, 1→0 X1, 1→1 X0",
+        "SR: 0→0 0X, 0→1 10, 1→0 01, 1→1 X0",
+        "D = next state; T = Q ⊕ Q⁺",
+        "JK as T: J = K = T; T as JK: T = JQ' + KQ"
+      ],
+      "origin": "source",
+      "pages": [
+        224,
+        225,
+        232
+      ]
+    },
+    {
+      "heading": "Counters and timing",
+      "lines": [
+        "MOD-k: ⌈log₂ k⌉ flip-flops",
+        "Ring n states; Johnson 2n states",
+        "Ripple f_max = 1/(n·t_pd)",
+        "Sync T_min = t_pd + t_comb + t_setup",
+        "Up counter with T: Tᵢ = AND of lower bits"
+      ],
+      "origin": "source",
+      "pages": [
+        226,
+        231,
+        232
+      ]
+    },
+    {
+      "heading": "FSMs",
+      "lines": [
+        "Mealy: output = f(state, input), fewer states",
+        "Moore: output = f(state), stable, one cycle later",
+        "k-bit detector: k Mealy, k + 1 Moore states",
+        "Minimise: split by outputs, then by next-state blocks"
+      ],
+      "origin": "source",
+      "pages": [
+        227,
+        232
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 225,
+      "claim": "T → JK conversion: T = J = K (tie inputs together).",
+      "correction": "Tying J = K = T makes a JK flip-flop behave as a T flip-flop, which is the JK → T case. Making a T flip-flop behave as JK needs T = JQ' + KQ."
+    },
+    {
+      "page": 225,
+      "claim": "JK → D: D = JQ' + K'Q (as input for J, then K accordingly). Easier: J = D, K = D'.",
+      "correction": "D = JQ' + K'Q is the input that makes a D flip-flop act as JK. Making a JK flip-flop act as D needs only J = D and K = D'."
+    },
+    {
+      "page": 228,
+      "claim": "The Moore 1011 detector has four states S0–S3, with output 1 on the S3 → S2 transition taken on input 0.",
+      "correction": "The match completes when S3 (101 seen) reads a 1, not a 0, and a Moore machine cannot carry its output on an edge. The minimal overlapping Moore detector has five states: add S4 (output 1) with S3 —1→ S4, S4 —0→ S2 and S4 —1→ S1; S3 —0→ S2 is correct but outputs 0."
+    },
+    {
+      "page": 231,
+      "claim": "A 4-bit SIPO fed 1011 LSB first gives 1101, or 1011 reversed, depending on convention.",
+      "correction": "With right shift and the serial input entering Q₃, the inputs 1, 1, 0, 1 give 1000, 1100, 0110, 1011, so Q₃Q₂Q₁Q₀ = 1011. A stated convention gives one answer."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "dl-sequential-design",
+      "status": "covered",
+      "topics": [
+        "dl-sequential-circuits.sr-latch",
+        "dl-sequential-circuits.d-and-t-flipflops",
+        "dl-sequential-circuits.jk-flipflop",
+        "dl-sequential-circuits.excitation-tables",
+        "dl-sequential-circuits.ff-conversion",
+        "dl-sequential-circuits.timing",
+        "dl-sequential-circuits.ripple-counters",
+        "dl-sequential-circuits.synchronous-counters",
+        "dl-sequential-circuits.circuit-analysis",
+        "dl-sequential-circuits.ring-johnson",
+        "dl-sequential-circuits.shift-registers",
+        "dl-sequential-circuits.mealy-moore",
+        "dl-sequential-circuits.fsm-design",
+        "dl-sequential-circuits.state-minimization"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1813 @@
+{
+  "id": "coa-pipelining",
+  "summary": "Pipelining splits instruction execution into stages (IF, ID, EX, MEM, WB) and overlaps them, so once the pipeline is full one instruction can finish every cycle. GATE tests it almost entirely through calculation: the clock cycle from stage delays and latch overhead, the (k + n − 1) cycle count, speedup and efficiency, CPI inflated by stalls, and stall counts for a given instruction sequence with or without forwarding. Hazard classification (structural, RAW/WAR/WAW, control) and branch handling round out the chapter.",
+  "highYield": [
+    "Cycle time = slowest stage + latch delay, total time = (k + n − 1) cycles, and speedup over a non-pipelined machine whose instruction time is the sum of stage delays.",
+    "Effective CPI = 1 + stall cycles per instruction, with branch stalls = branch fraction × misprediction (or taken) fraction × penalty.",
+    "Counting stalls for a short code sequence on the 5-stage pipeline, with and without operand forwarding; with forwarding only the load-use case still costs a cycle.",
+    "Branch penalty = number of stages fetched before the branch resolves: 2 cycles if resolved in EX, 1 if resolved in ID.",
+    "Classifying RAW, WAR and WAW dependences between instruction pairs, and knowing that only RAW stalls an in-order 5-stage pipeline."
+  ],
+  "topics": [
+    {
+      "id": "coa-pipelining.pipeline-basics",
+      "title": "The five-stage pipeline",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        263,
+        264
+      ],
+      "points": [
+        "The classic RISC pipeline has five stages: IF fetches the instruction, ID decodes it and reads registers, EX runs the ALU or computes an address, MEM accesses data memory, WB writes the result to the register file.",
+        "Pipeline registers (latches) between stages hold each instruction's partial results, so a different instruction can occupy every stage in the same cycle.",
+        "Pipelining does not shorten a single instruction's latency; it raises throughput. After the first k cycles fill a k-stage pipeline, one instruction completes per cycle.",
+        "In the space-time diagram, instruction i enters IF in cycle i and leaves WB in cycle i + 4 when there are no stalls."
+      ],
+      "keyTerms": [
+        "IF",
+        "ID",
+        "EX",
+        "MEM",
+        "WB",
+        "pipeline register",
+        "space-time diagram"
+      ],
+      "lesson": {
+        "why": "Every other pipelining question builds on the five-stage picture. Knowing what each stage does and when an instruction occupies it lets you draw the space-time diagram that stall and hazard questions depend on.",
+        "intro": "A processor can split the work of one instruction into steps and give each step its own hardware. In the classic design there are five: IF fetches the instruction from memory, ID decodes it and reads its registers, EX does the arithmetic or computes an address, MEM reads or writes data memory, and WB writes the result into a register. Between neighbouring steps sits a pipeline register that holds what the instruction has produced so far. Because every step has its own hardware, five different instructions can be in progress at once, each in a different step.",
+        "definitions": [
+          {
+            "term": "Pipeline register",
+            "meaning": "A latch between two stages that holds one instruction's partial results for the next cycle."
+          },
+          {
+            "term": "Space-time diagram",
+            "meaning": "A table with one row per instruction and one column per clock cycle, showing which stage each instruction occupies."
+          }
+        ],
+        "principle": {
+          "text": "With no stalls, instruction $i$ (counting from 1) is in IF during cycle $i$ and in WB during cycle $i+4$, so $n$ instructions on $k$ stages finish in $k+n-1$ cycles. One instruction still takes $k$ cycles from start to finish; the gain is that one instruction completes per cycle once the pipeline is full.",
+          "tex": "\\text{completion cycle of instruction } i = i + k - 1"
+        },
+        "limits": "The counts hold only with no hazards and every stage taking one cycle. A stall, a slower stage or a flushed instruction shifts later rows of the diagram to the right.",
+        "example": {
+          "problem": "Six instructions run on a 5-stage pipeline with no stalls. In which cycle does the fourth instruction finish, and how many cycles do all six take?",
+          "steps": [
+            "The fourth instruction enters IF in cycle 4.",
+            "It moves one stage per cycle, so it is in ID in 5, EX in 6, MEM in 7 and WB in 8.",
+            "The sixth instruction enters IF in cycle 6 and reaches WB in cycle 10, which is $5+6-1$."
+          ],
+          "result": "The fourth instruction finishes in cycle 8; all six take 10 cycles."
+        },
+        "misconceptions": [
+          "Pipelining does not make one instruction finish sooner; its latency stays $k$ cycles and only the rate of completion improves.",
+          "The pipeline registers are not extra stages; they are the storage between stages, and they add a small delay to every cycle.",
+          "The first instruction does not finish in cycle 1; the first $k-1$ cycles fill the pipeline before one instruction completes per cycle."
+        ],
+        "recall": [
+          {
+            "q": "What does each of the five stages IF, ID, EX, MEM and WB do?",
+            "a": "Fetch the instruction, decode it and read registers, run the ALU or compute the address, access data memory, write the result to a register."
+          },
+          {
+            "q": "Why can five instructions be in flight at once?",
+            "a": "Each stage has its own hardware, and pipeline registers keep each instruction's partial results separate."
+          },
+          {
+            "q": "How many cycles do n instructions take on a k-stage pipeline with no stalls?",
+            "a": "$k+n-1$ cycles."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 5-stage pipeline runs 12 instructions with no stalls, one cycle per stage. In which clock cycle does the last instruction complete its WB stage?",
+          "answer": 16,
+          "explanation": "The first instruction needs 5 cycles to fill the pipeline, and each of the remaining 11 instructions finishes one cycle after the previous one, so the total is $5+12-1=16$. Answering 60 comes from multiplying 12 by 5 as if nothing overlapped, and 17 comes from adding all 12 to the 5 fill cycles."
+        },
+        "summary": "Five stages with latches between them let five instructions overlap; with no stalls, n instructions finish in k+n-1 cycles although each one still takes k cycles."
+      }
+    },
+    {
+      "id": "coa-pipelining.cycle-time",
+      "title": "Clock cycle of a pipeline",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        264,
+        268
+      ],
+      "points": [
+        "Every stage must finish in one clock, so the cycle is set by the slowest stage plus the latch (pipeline register) delay: τ = max(τᵢ) + d.",
+        "Stages 200, 150, 250, 200, 150 ps with a 50 ps latch give τ = 250 + 50 = 300 ps; the faster stages idle for part of each cycle.",
+        "A non-pipelined datapath has no inter-stage latches and takes the sum of the stage delays per instruction, here 950 ps.",
+        "Unbalanced stages waste time: splitting the slowest stage, or balancing work across stages, is what shortens the clock."
+      ],
+      "keyTerms": [
+        "latch overhead",
+        "stage balancing"
+      ],
+      "lesson": {
+        "why": "Almost every pipeline calculation starts by finding the clock cycle, so an error here ruins the rest of the answer.",
+        "intro": "A pipeline is driven by one clock, and each tick moves every instruction forward by one stage. A tick must therefore be long enough for the slowest stage to finish its work. Between stages sit small registers called latches, which hold each instruction's partial result; they add a fixed delay to every tick. The tick length is the clock cycle. Faster stages cannot shorten it, so they simply wait out the rest of the tick.",
+        "prerequisites": [
+          "coa-pipelining.pipeline-basics"
+        ],
+        "analogy": {
+          "text": "An assembly line where every worker must hand over the part at the same whistle: the whistle interval is set by the slowest worker, plus the time to pass the part along.",
+          "breaksWhen": "A real line can give a slow worker extra staff, while a hardware stage has a fixed delay unless the designer splits it into two stages."
+        },
+        "definitions": [
+          {
+            "term": "Latch delay",
+            "meaning": "The time a pipeline register adds to every clock cycle, paid once per stage boundary."
+          },
+          {
+            "term": "Non-pipelined time",
+            "meaning": "The sum of all stage delays, with no latches, for one instruction."
+          }
+        ],
+        "principle": {
+          "text": "The cycle is the slowest stage delay plus the latch delay. With k stages and n instructions and no stalls, the pipelined run takes k + n - 1 cycles, because the first instruction needs k cycles and each later one finishes one cycle after its predecessor.",
+          "tex": "\\tau = \\max_i \\tau_i + d, \\qquad T_{\\text{pipe}} = (k + n - 1)\\,\\tau"
+        },
+        "limits": "The formula assumes no stalls and one latch delay per cycle. If the question mentions hazards, branches or a non-pipelined baseline, extra cycles or a second time must be computed separately.",
+        "example": {
+          "problem": "A 3-stage pipeline has stage delays 40, 70 and 50 ns and a latch delay of 10 ns. How long do 10 independent instructions take, and how long would a non-pipelined unit take?",
+          "steps": [
+            "The slowest stage is 70 ns, so the cycle is 70 + 10 = 80 ns.",
+            "The pipelined run needs 3 + 10 - 1 = 12 cycles, which is 12 x 80 = 960 ns.",
+            "The non-pipelined unit has no latches: one instruction takes 40 + 70 + 50 = 160 ns, so ten take 1600 ns."
+          ],
+          "result": "960 ns pipelined against 1600 ns non-pipelined."
+        },
+        "misconceptions": [
+          "The cycle is not the sum of the stage delays; adding them gives the non-pipelined time of one instruction, not the clock.",
+          "The latch delay is not paid once per program; it is part of every cycle, so it multiplies by the cycle count.",
+          "The total is not n x k x tau; the stages overlap, so it is (k + n - 1) cycles."
+        ],
+        "recall": [
+          {
+            "q": "What sets the clock cycle of a pipeline?",
+            "a": "The slowest stage delay plus the latch delay."
+          },
+          {
+            "q": "How many cycles do n instructions take on a k-stage pipeline with no stalls?",
+            "a": "k + n - 1 cycles."
+          },
+          {
+            "q": "What is the non-pipelined time for one instruction?",
+            "a": "The sum of all stage delays, with no latch delay."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 5-stage pipeline has stage delays 80, 100, 60, 90 and 70 ns, and each latch adds 5 ns. With no stalls, how many nanoseconds do 50 independent instructions take?",
+          "answer": 5670,
+          "explanation": "The slowest stage is 100 ns, so the cycle is 105 ns. The run takes 5 + 50 - 1 = 54 cycles, and 54 x 105 = 5670 ns. A tempting error is to use 5 x 50 = 250 cycles, which ignores the overlap, or to forget the latch and use 100 ns per cycle."
+        },
+        "summary": "Cycle = slowest stage + latch delay; n instructions take (k + n - 1) cycles; the non-pipelined time per instruction is the plain sum of stage delays."
+      }
+    },
+    {
+      "id": "coa-pipelining.speedup-throughput",
+      "title": "Execution time, speedup, efficiency and throughput",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        264,
+        269,
+        270
+      ],
+      "points": [
+        "n instructions on a k-stage pipeline with no stalls take (k + n − 1) cycles: k cycles for the first instruction, then one more for each of the remaining n − 1.",
+        "Speedup is the non-pipelined time divided by the pipelined time; with equal stages, no latch delay and n → ∞ it approaches k, the number of stages.",
+        "Efficiency η = speedup / k measures how close the pipeline gets to the ideal; a speedup of 4 on 5 stages is 80% efficient.",
+        "Throughput is n / ((k + n − 1)τ), which tends to one instruction per cycle, 1/τ, once the pipeline is full."
+      ],
+      "keyTerms": [
+        "speedup",
+        "efficiency",
+        "throughput",
+        "pipeline fill"
+      ],
+      "lesson": {
+        "why": "Speedup and efficiency questions are quick marks once the ideal formulas are clear, and they show up beside the cycle-time calculation.",
+        "intro": "Pipelining is judged by comparing it with running the same instructions one at a time on the same stages. Speedup is the time without the pipeline divided by the time with it. Because a pipeline needs a few cycles to fill before it finishes one instruction per cycle, short programs gain less than long ones. Efficiency says how close the speedup comes to the number of stages, and throughput is how many instructions finish per unit time.",
+        "prerequisites": [
+          "coa-pipelining.cycle-time"
+        ],
+        "definitions": [
+          {
+            "term": "Pipeline fill",
+            "meaning": "The first k - 1 cycles, during which the later stages of the pipeline have nothing to work on."
+          },
+          {
+            "term": "Throughput",
+            "meaning": "Instructions completed per unit time."
+          }
+        ],
+        "principle": {
+          "text": "For equal stage delays and no latch overhead, the speedup of n instructions on a k-stage pipeline is nk / (k + n - 1). It tends to k as n grows. Efficiency is the speedup divided by k. With unequal stages and a latch delay, each time is (k + n - 1) times its own cycle, where the pipelined cycle is the slowest stage plus the latch delay and the non-pipelined time per instruction is the sum of the stage delays.",
+          "tex": "S = \\frac{n k \\tau}{(k+n-1)\\tau} = \\frac{nk}{k+n-1}, \\qquad \\eta = \\frac{S}{k}"
+        },
+        "limits": "The limit k holds only for balanced stages and no stalls. Unequal stages, latch delay or hazards lower it, and then the two times must be computed with their own cycles. A different trade-off is total time = serial part + parallel part / n + overhead per extra core; it is smallest where the two terms that change with n are about equal, and it is not a pipeline formula.",
+        "example": {
+          "problem": "Four equal stages of 10 ns each, no latch delay, 100 instructions. Find the speedup and the efficiency.",
+          "steps": [
+            "Non-pipelined: each instruction takes 4 x 10 = 40 ns, so 100 take 4000 ns.",
+            "Pipelined: 4 + 100 - 1 = 103 cycles of 10 ns, which is 1030 ns.",
+            "Speedup is 4000 / 1030, about 3.88, and efficiency is 3.88 / 4, about 0.97."
+          ],
+          "result": "Speedup about 3.88, efficiency about 97 percent."
+        },
+        "misconceptions": [
+          "Speedup does not equal k for any finite program; it only approaches k as n becomes large.",
+          "Efficiency is not the same as speedup; it divides the speedup by the number of stages, so it never exceeds 1.",
+          "Throughput of a full pipeline is one instruction per cycle, not one per k cycles."
+        ],
+        "recall": [
+          {
+            "q": "What does speedup tend to for a long program on a balanced k-stage pipeline?",
+            "a": "It tends to k, the number of stages."
+          },
+          {
+            "q": "How is efficiency defined?",
+            "a": "Speedup divided by the number of stages k."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 4-stage pipeline has stage delays 6, 9, 5 and 10 ns and a latch delay of 1 ns between stages. The non-pipelined unit does the same work in the sum of the stage delays with no latches. For 33 instructions with no stalls, what is the speedup of the pipeline?",
+          "answer": 2.5,
+          "explanation": "The pipelined cycle is 10 + 1 = 11 ns and the run takes 4 + 33 - 1 = 36 cycles, which is 396 ns. The non-pipelined unit takes 33 x 30 = 990 ns. The speedup is 990 / 396 = 2.5. Using nk/(k+n-1) gives about 3.67, which tempts but assumes equal stages and no latch."
+        },
+        "summary": "Speedup is nk/(k+n-1) for balanced stages, approaching k; efficiency is speedup divided by k; a full pipeline finishes one instruction per cycle."
+      }
+    },
+    {
+      "id": "coa-pipelining.cpi-performance",
+      "title": "CPI with stalls and overall performance",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        18,
+        270
+      ],
+      "points": [
+        "The ideal pipelined CPI is 1; every stall cycle adds to it, so effective CPI = 1 + average stall cycles per instruction.",
+        "Stall cycles per instruction are summed over causes: for example branch fraction × penalty plus load fraction × load-use fraction × 1.",
+        "Execution time = instruction count × CPI × cycle time, and MIPS = f / (CPI × 10⁶), with IPC = 1/CPI.",
+        "With stalls, the speedup over a non-pipelined machine of the same total work becomes (non-pipelined time per instruction) / (CPI × τ)."
+      ],
+      "keyTerms": [
+        "CPI",
+        "IPC",
+        "MIPS",
+        "stall cycles"
+      ],
+      "lesson": {
+        "why": "Questions that mix CPI, stalls and different clock rates appear as 2-mark pipeline problems, and a single wrong comparison costs the mark.",
+        "intro": "CPI is the average number of clock cycles one instruction takes. A perfect pipeline finishes one instruction per cycle, so its ideal CPI is 1. Every stall cycle is a tick in which nothing finishes, so stalls push CPI above 1. Two designs may run at different clock rates, so their CPIs cannot be compared directly. Compare the time per instruction, which is CPI divided by the clock frequency.",
+        "prerequisites": [
+          "coa-pipelining.speedup-throughput"
+        ],
+        "definitions": [
+          {
+            "term": "Stall cycle",
+            "meaning": "A clock tick in which the pipeline completes no instruction because one has to wait."
+          },
+          {
+            "term": "Execution time per instruction",
+            "meaning": "CPI multiplied by the clock period, which equals CPI divided by the frequency."
+          },
+          {
+            "term": "MIPS",
+            "meaning": "Millions of instructions per second: the frequency in Hz divided by CPI times one million."
+          }
+        ],
+        "principle": {
+          "text": "Effective CPI is 1 plus the average stall cycles per instruction, summed over causes, each weighted by the fraction of instructions that suffer it. Speedup of a pipelined design over a non-pipelined one is the ratio of their times per instruction.",
+          "tex": "\\mathrm{CPI} = 1 + \\sum_j f_j s_j, \\qquad S = \\frac{\\mathrm{CPI}_{\\text{old}} / f_{\\text{old}}}{\\mathrm{CPI}_{\\text{new}} / f_{\\text{new}}}"
+        },
+        "limits": "The stall sum assumes the stall cycles of different instructions do not overlap. When the clocks are equal, the frequencies cancel and the CPIs alone give the speedup.",
+        "example": {
+          "problem": "A non-pipelined unit at 2 GHz takes 4 cycles per instruction. A pipelined version runs at 1.6 GHz, and 20 percent of its instructions stall for 3 cycles. Find the speedup.",
+          "steps": [
+            "Non-pipelined time per instruction is 4 / 2 = 2 ns.",
+            "Pipelined CPI is 1 + 0.2 x 3 = 1.6, so its time is 1.6 / 1.6 = 1 ns.",
+            "The speedup is 2 / 1 = 2."
+          ],
+          "result": "The pipelined design is 2 times faster."
+        },
+        "misconceptions": [
+          "A lower CPI does not by itself mean a faster machine; a slower clock can cancel it, so always divide by frequency.",
+          "Stall fractions are not added to 1 directly; each is multiplied by its stall length first.",
+          "Ideal pipelined CPI is 1 even for a k-stage pipeline; k is the depth, not the CPI."
+        ],
+        "recall": [
+          {
+            "q": "What is the ideal CPI of a pipeline, and what raises it?",
+            "a": "The ideal CPI is 1; stall cycles raise it by their average count per instruction."
+          },
+          {
+            "q": "How do you compare two designs with different clock rates?",
+            "a": "Compare the time per instruction, CPI divided by frequency, and take the ratio."
+          },
+          {
+            "q": "What is MIPS in terms of CPI and frequency?",
+            "a": "Frequency divided by CPI times one million, with the frequency in Hz."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A non-pipelined unit at 3 GHz takes 6 cycles per instruction. A pipelined version runs at 2.5 GHz. In its program 10 percent of instructions stall for 4 cycles and 20 percent stall for 1 cycle. Find the speedup.",
+          "answer": 3.125,
+          "explanation": "Non-pipelined time is 6 / 3 = 2 ns. Pipelined CPI is 1 + 0.1 x 4 + 0.2 x 1 = 1.6, so its time is 1.6 / 2.5 = 0.64 ns. The speedup is 2 / 0.64 = 3.125. Dividing the CPIs alone gives 6 / 1.6 = 3.75, which tempts because it ignores the slower pipelined clock."
+        },
+        "summary": "CPI = 1 + sum of fraction x stall length; compare designs by CPI over frequency, never by CPI alone when the clocks differ."
+      }
+    },
+    {
+      "id": "coa-pipelining.structural-hazards",
+      "title": "Structural hazards",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        17,
+        265,
+        266,
+        270
+      ],
+      "points": [
+        "A structural hazard occurs when two instructions need the same hardware unit in the same cycle.",
+        "With a single memory port, a load or store in MEM conflicts with the fetch of a later instruction in IF, so one of them must stall.",
+        "Separate instruction and data caches (a Harvard-style split) remove the IF/MEM conflict; duplicating or pipelining a busy functional unit removes others.",
+        "The register file is written in the first half of a cycle and read in the second half, so WB and ID can share it without a structural hazard."
+      ],
+      "keyTerms": [
+        "Harvard architecture",
+        "split cache",
+        "bubble"
+      ],
+      "lesson": {
+        "why": "Structural hazards are tested as stall counts caused by a shared or slow unit, and the count comes from one small rule.",
+        "intro": "A hazard is a situation that forces an instruction to wait. A structural hazard happens when two instructions need the same piece of hardware in the same cycle and the hardware can serve only one. The classic case is a single memory used both to fetch instructions and to load or store data. A second case is a stage whose operation takes longer than one clock cycle, which keeps the stage busy so the next instruction cannot enter. The waiting instruction leaves an empty slot called a bubble.",
+        "prerequisites": [
+          "coa-pipelining.pipeline-basics"
+        ],
+        "definitions": [
+          {
+            "term": "Bubble",
+            "meaning": "An empty slot that travels through the pipeline where a stalled instruction should have been."
+          },
+          {
+            "term": "Split cache",
+            "meaning": "Separate instruction and data memories, so fetch and data access never compete."
+          }
+        ],
+        "principle": {
+          "text": "A unit used by two instructions in one cycle forces a stall unless it is duplicated. An operation of t ns on a clock of c ns occupies its stage for ceil(t / c) cycles, so it costs ceil(t / c) - 1 stall cycles.",
+          "tex": "\\text{stalls} = \\left\\lceil \\frac{t}{c} \\right\\rceil - 1"
+        },
+        "limits": "The register file is not a hazard in the usual model: it is written in the first half of a cycle and read in the second half, so WB and ID share it. The formula also assumes a stage that is not itself pipelined.",
+        "example": {
+          "problem": "Six instructions run on a 5-stage pipeline with one memory port. Only I1 is a load, in MEM in cycle 4. When does the last instruction finish, compared with an ideal run?",
+          "steps": [
+            "Ideal: 5 + 6 - 1 = 10 cycles.",
+            "I4 would fetch in cycle 4, the same cycle in which I1 uses the memory for its data access.",
+            "The memory serves I1, so I4 fetches one cycle later, and every following instruction is delayed by that one cycle."
+          ],
+          "result": "11 cycles instead of 10, one stall from the shared memory."
+        },
+        "misconceptions": [
+          "A load is not slow because of data dependence here; the stall comes from competing for the memory, even if no register is shared.",
+          "A stage that takes 1.5 clock cycles does not cost 0.5 stall cycles; it holds the stage for 2 whole cycles, so one stall.",
+          "Separate instruction and data caches remove the fetch against data-access conflict, but not a long operation in one stage."
+        ],
+        "recall": [
+          {
+            "q": "What is a structural hazard?",
+            "a": "Two instructions need the same hardware unit in the same cycle and it can serve only one."
+          },
+          {
+            "q": "How many stall cycles does a stage of t ns cause on a c ns clock?",
+            "a": "ceil(t / c) - 1."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The clock period is 2 ns. In a program of 100 instructions, the EX stage needs 3.0 ns for 30 of them, 5.0 ns for 20 and 7.5 ns for 10; the other 40 need 1.5 ns. How many stall cycles do structural hazards in EX cause in total?",
+          "answer": 100,
+          "explanation": "A 3.0 ns operation holds EX for ceil(1.5) = 2 cycles, so 1 stall; 5.0 ns holds it for 3 cycles, so 2 stalls; 7.5 ns holds it for 4 cycles, so 3 stalls. The total is 30 x 1 + 20 x 2 + 10 x 3 = 100. The 40 short instructions add none. Using t/c - 1 without rounding up gives 72.5, which tempts because it treats a part-cycle as a part-stall."
+        },
+        "summary": "A shared unit used twice in one cycle forces a stall; a stage of t ns on a c ns clock costs ceil(t/c) - 1 stalls; split caches remove the fetch against data conflict."
+      }
+    },
+    {
+      "id": "coa-pipelining.data-hazard-types",
+      "title": "Data dependences: RAW, WAR and WAW",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        18,
+        265,
+        268,
+        270
+      ],
+      "points": [
+        "RAW (read after write, true dependence): a later instruction reads a register that an earlier one writes, as in ADD R1,R2,R3 followed by SUB R4,R1,R5.",
+        "WAR (write after read, anti-dependence): a later instruction writes a register that an earlier one reads; harmful only if the write can complete before the read.",
+        "WAW (write after write, output dependence): two instructions write the same register and the final value must be the later one's.",
+        "In an in-order 5-stage pipeline every instruction reads in ID and writes in WB in program order, so only RAW can cause a hazard; WAR and WAW appear with out-of-order completion."
+      ],
+      "keyTerms": [
+        "true dependence",
+        "anti-dependence",
+        "output dependence"
+      ],
+      "lesson": {
+        "why": "A 1-mark question gives a short instruction sequence and asks you to name or choose the dependences, so the three names must be exact.",
+        "intro": "Two instructions are dependent when they use the same register and at least one of them writes it. The names say which comes first. Read it as the later instruction's action followed by the earlier one's action. RAW means the later instruction reads a register the earlier one writes. WAR means the later one writes a register the earlier one reads. WAW means both write the register. Two reads of a register never conflict.",
+        "prerequisites": [
+          "coa-pipelining.pipeline-basics"
+        ],
+        "definitions": [
+          {
+            "term": "True dependence",
+            "meaning": "RAW: the later instruction needs a value the earlier one produces."
+          },
+          {
+            "term": "Name dependence",
+            "meaning": "WAR or WAW: only the register name is reused, no value flows between the instructions."
+          }
+        ],
+        "principle": {
+          "text": "For an earlier instruction X and a later instruction Y: RAW if X writes and Y reads the register, WAR if X reads and Y writes it, WAW if both write it. In the format 'Op dest, src1, src2' the first register is written and the other two are read. In an in-order 5-stage pipeline only RAW can cause a hazard."
+        },
+        "limits": "WAR and WAW become real hazards only when instructions finish out of order, for example with variable-latency units or out-of-order issue. Read-after-read is never a hazard.",
+        "example": {
+          "problem": "I1: ADD R1, R2, R3. I2: SUB R4, R1, R5. I3: MUL R1, R6, R4. List the dependences.",
+          "steps": [
+            "I1 writes R1 and I2 reads it, so I1 to I2 is RAW on R1.",
+            "I1 and I3 both write R1, so I1 to I3 is WAW on R1.",
+            "I2 reads R1 and I3 later writes it, so I2 to I3 is WAR on R1.",
+            "I2 writes R4 and I3 reads it, so I2 to I3 is also RAW on R4."
+          ],
+          "result": "RAW on R1 (I1, I2), WAW on R1 (I1, I3), WAR on R1 (I2, I3) and RAW on R4 (I2, I3)."
+        },
+        "misconceptions": [
+          "WAR is easy to reverse: the read is the earlier access and the write is the later one, so WAR is a later write after an earlier read.",
+          "A shared register between two instructions is not always a hazard; read after read is harmless.",
+          "A WAR or WAW pair does not stall an in-order 5-stage pipeline, because reads happen in ID and writes in WB, in program order."
+        ],
+        "recall": [
+          {
+            "q": "Which dependence is a true dependence?",
+            "a": "RAW, where the later instruction reads a value the earlier one writes."
+          },
+          {
+            "q": "When can WAR and WAW cause hazards?",
+            "a": "When instructions can complete out of order."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "I1: ADD R3, R1, R2. I2: SUB R1, R3, R4. Which dependences exist between I1 and I2?",
+          "options": [
+            "RAW on R3 only",
+            "RAW on R3 and WAR on R1",
+            "WAR on R3 and RAW on R1",
+            "WAW on R3 and RAW on R1"
+          ],
+          "answer": 1,
+          "explanation": "I1 writes R3 and I2 reads it, so that is RAW on R3. I1 reads R1 and I2 writes it later, so that is WAR on R1. The third option swaps the registers, and the first misses the WAR; the WAW option needs both instructions to write the same register, which they do not."
+        },
+        "summary": "RAW is a read after a write, WAR a write after a read, WAW two writes; the destination is the first register; only RAW hurts an in-order pipeline."
+      }
+    },
+    {
+      "id": "coa-pipelining.forwarding-load-use",
+      "title": "Stalling, forwarding and the load-use hazard",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        18,
+        265,
+        266,
+        268,
+        269,
+        271
+      ],
+      "points": [
+        "Without extra hardware the pipeline stalls the dependent instruction in ID (inserting bubbles) until the producer has written the register.",
+        "Forwarding (bypassing) routes a result from the EX/MEM or MEM/WB pipeline register straight to the ALU input, so back-to-back ALU dependences cost no stall.",
+        "A load has its data only at the end of MEM, so an instruction that uses the loaded register immediately after the load still stalls 1 cycle even with forwarding.",
+        "The compiler can hide the load-use bubble by scheduling an independent instruction between the load and its use."
+      ],
+      "keyTerms": [
+        "operand forwarding",
+        "bypassing",
+        "load-use hazard",
+        "instruction scheduling"
+      ],
+      "lesson": {
+        "why": "Stall counts with and without forwarding are a standard calculation, and the load-use case is the one stall that forwarding cannot remove.",
+        "intro": "A dependent instruction needs a value that the previous instruction has not written to the register file yet. Waiting for the write-back stage wastes cycles. Forwarding, also called bypassing, adds wires and multiplexers that carry a result straight from a pipeline register to the input of the ALU for the next instruction. An arithmetic result exists at the end of its execute stage, so the next instruction can use it at once. A loaded value exists only at the end of the memory stage, one stage later.",
+        "prerequisites": [
+          "coa-pipelining.data-hazard-types"
+        ],
+        "definitions": [
+          {
+            "term": "Forwarding",
+            "meaning": "Hardware that passes a result from a pipeline register directly to a later instruction's input, skipping the register file."
+          },
+          {
+            "term": "Load-use hazard",
+            "meaning": "A dependent instruction directly after a load, which still stalls one cycle even with forwarding."
+          }
+        ],
+        "principle": {
+          "text": "With forwarding, an ALU result feeds the next instruction with no stall, and a load result feeds an instruction directly after it with one stall. Without forwarding, with the register file written in the first half and read in the second half of a cycle, a dependent instruction directly after the producer stalls 2 cycles and one two places later stalls 1."
+        },
+        "limits": "These counts assume the standard 5-stage model. If the question moves the register read to another stage or lengthens EX, redraw the chart: a dependent instruction starts its EX the cycle after the producer's WB without forwarding, or the cycle after the producer's EX ends with forwarding.",
+        "example": {
+          "problem": "LW R1, 0(R2); ADD R3, R1, R4; SUB R5, R3, R6 on a 5-stage pipeline. Count the cycles with and without forwarding.",
+          "steps": [
+            "Ideal: 5 + 3 - 1 = 7 cycles.",
+            "With forwarding, ADD needs the loaded R1 one stage after LW produces it, so 1 stall. SUB takes R3 from ADD's ALU output with no stall. Total 8 cycles.",
+            "Without forwarding, ADD stalls 2 cycles for LW, and SUB stalls 2 cycles for ADD. Total 7 + 4 = 11 cycles."
+          ],
+          "result": "8 cycles with forwarding, 11 without."
+        },
+        "misconceptions": [
+          "Forwarding does not remove every stall; a dependent instruction right after a load still waits one cycle.",
+          "Forwarding is not free; it needs extra multiplexers and bypass paths in the datapath.",
+          "Forwarding does not help when the consumer is already far from the producer; those pairs never stalled."
+        ],
+        "recall": [
+          {
+            "q": "Why does a load followed by a dependent instruction stall even with forwarding?",
+            "a": "The loaded value exists only at the end of MEM, one stage later than an ALU result."
+          },
+          {
+            "q": "How many stalls does an ALU result cause with forwarding?",
+            "a": "None for the next instruction."
+          },
+          {
+            "q": "If registers are read in EX, when can a dependent instruction start its EX?",
+            "a": "Without forwarding, the cycle after the producer's WB; with forwarding, the cycle after the producer's EX ends."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "On a 5-stage pipeline with forwarding: I1 LW R1, 0(R2); I2 ADD R3, R1, R4; I3 LW R5, 0(R3); I4 SUB R6, R5, R1. How many cycles do the four instructions take?",
+          "answer": 10,
+          "explanation": "Ideal time is 5 + 4 - 1 = 8 cycles. I2 uses a load result from I1, so 1 stall. I3 takes R3 from ADD's ALU output, so no stall. I4 uses the load result of I3, so 1 stall. Its use of R1 is far enough away. The total is 8 + 2 = 10. Counting 11 or more is tempting if the ADD to LW pair is treated as a load-use case."
+        },
+        "summary": "Forwarding removes stalls for ALU results but a load followed by its user still costs one cycle; without forwarding the nearest dependent costs two."
+      }
+    },
+    {
+      "id": "coa-pipelining.stall-counting",
+      "title": "Counting stalls in a code sequence",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Without forwarding, and with the register file written in the first half and read in the second half of a cycle, a consumer's ID may share the producer's WB cycle: an adjacent RAW dependence costs 2 stalls, a dependence two instructions apart costs 1.",
+        "With full forwarding, an ALU result is usable in the very next instruction's EX, so the only remaining data stall is 1 cycle for an immediate load-use pair.",
+        "A stalled instruction holds every instruction behind it, so stalls accumulate: total cycles = (k + n − 1) + total stall cycles.",
+        "Draw the space-time table row by row; each instruction's stage can start no earlier than one cycle after the same stage of the instruction ahead of it."
+      ],
+      "lesson": {
+        "why": "Stall-count questions for a short code sequence appear regularly as NAT questions. They reward a fixed routine: find the dependences, apply the stated forwarding rule, then add the stalls to the ideal time.",
+        "intro": "A stall is a cycle in which an instruction waits because the value it needs is not ready. In a pipeline that runs in order, a waiting instruction holds back everything fetched after it, so each stall adds exactly one cycle to the total. The method is to list which later instruction reads a register written by an earlier one, decide from the pipeline rules how many cycles that pair must wait, and add the waits to the ideal time.",
+        "prerequisites": [
+          "coa-pipelining.pipeline-basics",
+          "coa-pipelining.data-hazard-types",
+          "coa-pipelining.forwarding-load-use"
+        ],
+        "definitions": [
+          {
+            "term": "Stall",
+            "meaning": "A cycle in which an instruction cannot advance because its operand or stage is not ready, which also delays every instruction behind it."
+          }
+        ],
+        "principle": {
+          "text": "Total cycles equal the ideal time plus the sum of all stall cycles. Without forwarding, and with the register file written in the first half and read in the second half of a cycle, an adjacent dependent pair stalls 2 cycles and a pair with one instruction between stalls 1. With full forwarding only a load directly followed by its user stalls, for 1 cycle.",
+          "tex": "T = (k + n - 1) + \\sum \\text{stalls}"
+        },
+        "limits": "Stalls from different pairs can overlap: waiting for one producer may already cover the wait for an older one. The rules also change if the question moves the register read, lengthens EX for some operations or shares a memory port, so use the rules the question states.",
+        "example": {
+          "problem": "No forwarding, split-cycle register file: I1 ADD R1,R2,R3; I2 SUB R4,R1,R5; I3 AND R6,R4,R7. How many cycles do the three instructions take?",
+          "steps": [
+            "The ideal time is $5+3-1=7$ cycles.",
+            "I2 reads R1 from the instruction just before it, so it stalls 2 cycles.",
+            "I3 reads R4 from I2, which is also adjacent, so it stalls 2 more cycles; it reads nothing from I1, so no extra wait arises there."
+          ],
+          "result": "$7+2+2=11$ cycles."
+        },
+        "misconceptions": [
+          "Do not count stalls per dependence without checking the distance; a pair two instructions apart waits 1 cycle, not 2.",
+          "An independent instruction behind a stalled one is not free; in an in-order pipeline it waits too.",
+          "Do not add the stalls of every earlier dependence to a later instruction; only the cycles it actually waits for count."
+        ],
+        "recall": [
+          {
+            "q": "How many stalls does an adjacent RAW pair cost with no forwarding and a split-cycle register file?",
+            "a": "2 stalls."
+          },
+          {
+            "q": "What is the formula for total cycles with stalls?",
+            "a": "$(k+n-1)$ plus the total number of stall cycles."
+          },
+          {
+            "q": "With full forwarding, which pair still stalls?",
+            "a": "A load followed directly by an instruction that uses the loaded register, for 1 stall."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "No forwarding, split-cycle register file, 5 stages. I1 ADD R1,R2,R3; I2 OR R5,R6,R7; I3 SUB R2,R1,R3; I4 AND R4,R2,R8. How many cycles do the four instructions take?",
+          "answer": 11,
+          "explanation": "The ideal time is $5+4-1=8$. I3 uses R1 from I1, two places earlier, so 1 stall. I4 uses R2 from I3, adjacent, so 2 stalls. I2 is independent of both. The total is $8+1+2=11$. Answering 12 comes from charging 2 stalls to the I1 to I3 pair, and 10 from forgetting that I3 uses R1 at all."
+        },
+        "summary": "Total cycles are k+n-1 plus stalls; find each producer-consumer pair, apply the stated rule for its distance, and remember every stall delays all later instructions."
+      }
+    },
+    {
+      "id": "coa-pipelining.variable-latency",
+      "title": "Multi-cycle EX stages and unequal latencies",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Some questions give operations different EX latencies, for example MUL taking 3 cycles and ADD 1, on a single non-pipelined EX unit.",
+        "A multi-cycle instruction blocks the EX unit, so the next instruction waits in ID even if it is independent; dependent instructions also wait for the forwarded result.",
+        "Each cycle an instruction spends in EX beyond the first adds one cycle to the total for everything behind it in an in-order pipeline.",
+        "When stage times differ per instruction class, compute the timeline explicitly rather than plugging into (k + n − 1)."
+      ],
+      "lesson": {
+        "why": "GATE sets pipelines where one stage takes a different number of cycles for different instructions. The usual formula for equal stages then gives a wrong total, so you need the method that replaces it.",
+        "intro": "In the basic pipeline every stage takes one cycle and one instruction finishes per cycle. Here one stage, say the one that performs the operation, takes 1, 2 or 3 cycles depending on the instruction. A stage can work on only one instruction at a time, so while a slow instruction occupies it, the instructions behind it must wait; an instruction that has finished its stage but cannot move on is on hold. That stage becomes the bottleneck: the rest of the pipeline can only move as fast as it lets instructions through.",
+        "prerequisites": [
+          "coa-pipelining.cycle-time"
+        ],
+        "analogy": {
+          "text": "A toll booth on a road: cars arrive in a stream, but each one occupies the booth for its own time, so the booth sets how fast cars get through, not the road before or after it.",
+          "breaksWhen": "A real road may have several booths in parallel, while this stage is a single unit that serves one instruction at a time."
+        },
+        "definitions": [
+          {
+            "term": "Bottleneck stage",
+            "meaning": "The stage that is busy in every cycle, so its total busy time fixes the speed of the whole pipeline."
+          },
+          {
+            "term": "Hold",
+            "meaning": "A cycle in which an instruction has finished a stage but cannot enter the next because that stage is still occupied."
+          }
+        ],
+        "principle": {
+          "text": "If the long stage is never idle once it has started, the total time is the cycles before the first instruction reaches it, plus the sum of its busy cycles over all instructions, plus the cycles after the last instruction leaves it. The order of fast and slow instructions does not matter.",
+          "tex": "T = (\\text{stages before}) + \\sum_i \\text{cycles}_i + (\\text{stages after})"
+        },
+        "limits": "This shortcut needs every other stage to take at most as long as the long stage for every instruction, and no data or control hazards. If another stage can also be longer, or an instruction waits for a result, build the timeline cycle by cycle.",
+        "example": {
+          "problem": "A pipeline has stages IF, ID, OF, PO and WB. IF, ID, OF and WB take 1 cycle each. For six instructions the PO stage takes 2, 1, 3, 1, 2 and 1 cycles. There are no hazards. How many cycles does the run need?",
+          "steps": [
+            "PO is the only stage that varies and the others take 1 cycle, so PO is the bottleneck and never idles once the first instruction arrives. Instructions behind a slow one are held until PO is free.",
+            "The first instruction spends 3 cycles in IF, ID and OF before reaching PO.",
+            "PO is busy for 2 + 1 + 3 + 1 + 2 + 1 = 10 cycles in total.",
+            "The last instruction then needs 1 cycle in WB, so the run takes 3 + 10 + 1 = 14 cycles."
+          ],
+          "result": "14 cycles. Equal stages would have given only 5 + 6 - 1 = 10."
+        },
+        "misconceptions": [
+          "The total is not k + n - 1 when a stage is longer for some instructions; each extra cycle in the long stage delays everything behind it.",
+          "Adding all stage times of all instructions counts the overlap as if there were none; only the bottleneck stage's cycles are added in full.",
+          "The long stage's cycles already include one pass through that stage, so do not add the full five stages on top of its total; add only the stages before and after it."
+        ],
+        "recall": [
+          {
+            "q": "Why does a stage with unequal times slow the whole pipeline?",
+            "a": "It serves one instruction at a time, so later instructions wait behind a slow one and cannot enter it."
+          },
+          {
+            "q": "What is the total time when one stage is the never-idle bottleneck?",
+            "a": "Stages before it, plus the sum of its busy cycles, plus stages after it."
+          },
+          {
+            "q": "Does the order of slow and fast instructions change the total?",
+            "a": "No, as long as the bottleneck stays busy; only the sum of its cycles matters."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A pipeline has stages IF, ID, OF, PO and WB, each 1 cycle except PO. Among 50 instructions, 10 take 4 cycles in PO, 20 take 2 cycles and 20 take 1 cycle. There are no hazards. How many cycles does the run need?",
+          "answer": 104,
+          "explanation": "PO is busy for 10 x 4 + 20 x 2 + 20 x 1 = 100 cycles. Add 3 cycles before it for the first instruction and 1 for the last WB: 104. Writing 50 + 4 = 54 tempts because it is the equal-stage formula, and adding 100 + 5 = 105 tempts because it counts one extra stage."
+        },
+        "summary": "With one varying stage, find the bottleneck, add its total busy cycles, then add the stages before and after it. The order of instructions does not change the total."
+      }
+    },
+    {
+      "id": "coa-pipelining.control-hazards",
+      "title": "Control hazards and branch penalty",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        18,
+        266,
+        268,
+        269,
+        270
+      ],
+      "points": [
+        "A branch's outcome and target are known only in a later stage, but fetch must continue every cycle, so the instructions fetched behind it may be wrong.",
+        "The penalty for a wrongly fetched path equals the number of instructions fetched before resolution: 2 cycles if the branch resolves in EX, 1 cycle if it resolves in ID.",
+        "Freezing fetch until every branch resolves charges the penalty on every branch; predict-not-taken charges it only on taken branches.",
+        "Deeper pipelines allow a faster clock but resolve branches later, so each misprediction costs more cycles."
+      ],
+      "keyTerms": [
+        "branch penalty",
+        "flush",
+        "predict not-taken",
+        "pipeline depth"
+      ],
+      "lesson": {
+        "why": "Branch penalty and effective CPI with branches are a standard high-frequency calculation, and the single idea to get right is which branches actually pay the penalty.",
+        "intro": "A branch decides which instruction runs next, but the pipeline cannot know the decision until the branch reaches a later stage. Fetch keeps running every cycle, so the instructions fetched in the meantime may be from the wrong place. If the guess was wrong, they are thrown away, which is called a flush, and the cycles they used are lost. The number of lost cycles is called the branch penalty. The simplest policy, predict not-taken, keeps fetching the next instruction in sequence and pays the penalty only when the branch is taken.",
+        "prerequisites": [
+          "coa-pipelining.pipeline-basics"
+        ],
+        "definitions": [
+          {
+            "term": "Branch penalty",
+            "meaning": "The number of cycles lost when instructions fetched after a branch have to be discarded."
+          },
+          {
+            "term": "Flush",
+            "meaning": "Discarding wrongly fetched instructions from the pipeline."
+          }
+        ],
+        "principle": {
+          "text": "If a branch resolves in stage $r$ (IF is stage 1), the penalty per wrongly fetched path is $r-1$ cycles. Freezing fetch charges it on every branch; predict not-taken charges it only on taken branches. The effective CPI adds the branch fraction times the fraction that pays times the penalty.",
+          "tex": "\\mathrm{CPI} = 1 + f_{\\text{branch}} \\times p_{\\text{wrong}} \\times (r-1)"
+        },
+        "limits": "The formula assumes every other instruction completes at one per cycle and that a correct path costs nothing. A taken branch with a branch target buffer, or a delayed branch, changes who pays.",
+        "example": {
+          "problem": "20% of instructions are branches and a branch resolves in EX. Find the CPI when fetch freezes on every branch, and when the pipeline predicts not-taken and 60% of branches are taken.",
+          "steps": [
+            "Resolving in EX means stage 3, so the penalty is $3-1=2$ cycles.",
+            "Freezing pays on every branch: $1+0.2\\times1\\times2=1.4$.",
+            "Predict not-taken pays only on the 60% taken: $1+0.2\\times0.6\\times2=1.24$."
+          ],
+          "result": "CPI is 1.4 with freezing and 1.24 with predict not-taken."
+        },
+        "misconceptions": [
+          "Predict not-taken does not remove the penalty; every taken branch still costs it in full.",
+          "The penalty is not the pipeline depth; it counts only the stages before the branch resolves.",
+          "Do not apply the penalty to all instructions; only the branch fraction, and under prediction only the wrong ones, pay it."
+        ],
+        "recall": [
+          {
+            "q": "What is the branch penalty if a branch resolves in EX of a 5-stage pipeline?",
+            "a": "2 cycles, the instructions fetched in IF and ID after it."
+          },
+          {
+            "q": "Which branches pay under predict not-taken?",
+            "a": "Only taken branches."
+          },
+          {
+            "q": "Why do deeper pipelines make mispredictions cost more?",
+            "a": "The branch resolves in a later stage, so more instructions have been fetched down the wrong path."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 5-stage pipeline resolves branches in EX and predicts not-taken. Of 100 instructions, 25 are branches and 40% of branches are taken. Counting no other stalls, how many cycles do the 100 instructions take?",
+          "answer": 124,
+          "explanation": "The ideal time is $5+100-1=104$. Taken branches number $25\\times0.4=10$, and each costs 2 cycles, so $20$ more. The total is 124. Charging all 25 branches gives 154, which is the answer for freezing on every branch."
+        },
+        "summary": "A branch loses the cycles fetched before it resolves, r-1 per wrong path; freezing charges every branch while predict not-taken charges only taken ones, and CPI adds branch fraction times wrong fraction times penalty."
+      }
+    },
+    {
+      "id": "coa-pipelining.delayed-branch",
+      "title": "Delayed branch",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        18,
+        266,
+        268,
+        269
+      ],
+      "points": [
+        "With a delayed branch, the instruction(s) in the delay slot right after the branch always execute, whatever the outcome.",
+        "The compiler fills the slot with a useful instruction, typically one from before the branch that the branch condition does not depend on; if none qualifies it inserts a NOP.",
+        "A 5-stage pipeline that resolves branches in ID needs one delay slot to hide the whole branch penalty."
+      ],
+      "keyTerms": [
+        "delay slot",
+        "NOP"
+      ],
+      "lesson": {
+        "why": "Delayed branch questions test whether you count the delay-slot instruction as executed work, which decides the cycle count and whether a stall is hidden.",
+        "intro": "After a branch, the pipeline already holds the next instruction by the time the branch outcome is known. Instead of throwing it away, a delayed branch makes a rule: the instruction right after the branch, in the delay slot, always runs, whether the branch is taken or not. The compiler then moves a useful instruction into that slot, one that the branch does not depend on. The cycle that would have been lost does real work. If the compiler can find nothing safe to move, it fills the slot with a NOP, an instruction that does nothing.",
+        "prerequisites": [
+          "coa-pipelining.control-hazards"
+        ],
+        "definitions": [
+          {
+            "term": "Delay slot",
+            "meaning": "The instruction position right after a branch whose instruction always executes."
+          },
+          {
+            "term": "NOP",
+            "meaning": "An instruction that does no work, used to fill a delay slot when nothing useful can be moved there."
+          }
+        ],
+        "principle": {
+          "text": "With a delayed branch the delay-slot instruction executes on both paths. A 5-stage pipeline that resolves branches in ID loses one cycle, so one delay slot hides the whole penalty when the slot holds useful work. A slot filled with a NOP still takes a cycle, so nothing is saved."
+        },
+        "limits": "The slot hides only as many cycles as it has instructions. If the branch resolves in EX, the penalty is 2 cycles and one slot hides only half of it. A moved instruction must not feed the branch condition.",
+        "example": {
+          "problem": "A 5-stage pipeline resolves branches in ID. A program executes 10 instructions including one branch. Compare the cycles with a stall, a delay slot filled with a useful instruction, and a delay slot filled with a NOP.",
+          "steps": [
+            "With a stall after the branch: $5+10-1=14$ plus 1 stall gives 15.",
+            "With a useful instruction in the slot, that instruction is one of the 10 and the slot hides the stall, so the time is $5+10-1=14$.",
+            "With a NOP, the program has 11 executed instructions and no stall, so $5+11-1=15$."
+          ],
+          "result": "15 cycles with a stall, 14 with a useful slot, 15 with a NOP."
+        },
+        "misconceptions": [
+          "A NOP in the slot is not free; it takes a pipeline cycle like any instruction.",
+          "The delay-slot instruction is not skipped when the branch is taken; it always runs.",
+          "The instruction moved into the slot cannot be one the branch condition depends on."
+        ],
+        "recall": [
+          {
+            "q": "When does the delay-slot instruction execute?",
+            "a": "Always, on both the taken and not-taken paths."
+          },
+          {
+            "q": "How many delay slots hide the penalty of a branch that resolves in ID?",
+            "a": "One delay slot."
+          },
+          {
+            "q": "What fills the slot when no useful instruction can be moved?",
+            "a": "A NOP."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 5-stage pipeline that resolves branches in ID, with one delay slot, runs a loop whose body is 3 instructions plus a branch, 10 iterations. The compiler fills each delay slot with a NOP and there are no other stalls. How many cycles does the loop take?",
+          "answer": 54,
+          "explanation": "Each iteration executes 4 instructions plus the NOP, which is 5, so 50 in total. The time is $5+50-1=54$. Answering 44 assumes the slot holds useful work and is not an extra instruction, and 50 forgets the 4 extra cycles the pipeline needs to fill."
+        },
+        "summary": "The delay slot always executes, so a useful instruction there hides the branch penalty while a NOP only changes where the lost cycle appears."
+      }
+    },
+    {
+      "id": "coa-pipelining.branch-prediction",
+      "title": "Static and dynamic branch prediction",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        18,
+        267,
+        268,
+        269,
+        271
+      ],
+      "points": [
+        "Static schemes fix the guess at design or compile time: always taken, always not-taken, or BTFN (backward branches taken, forward not taken), which suits loops.",
+        "A 1-bit predictor stores the last outcome; on a loop branch it mispredicts twice per loop execution, at the exit and again on the next entry.",
+        "A 2-bit saturating counter (00 strongly NT, 01 weakly NT, 10 weakly T, 11 strongly T) predicts taken in states 10 and 11 and moves one step towards each actual outcome.",
+        "From a strong state it takes two consecutive mispredictions to flip the prediction; from a weak state one misprediction flips it.",
+        "A branch target buffer, indexed by PC, caches predicted targets so a taken prediction can redirect fetch in IF; correlating predictors add global history."
+      ],
+      "keyTerms": [
+        "BTFN",
+        "1-bit predictor",
+        "2-bit saturating counter",
+        "BTB",
+        "branch history table"
+      ],
+      "lesson": {
+        "why": "Branch prediction decides how many stall cycles a branch costs. GATE asks both for a predictor's behaviour on a sequence of outcomes and for the CPI or speed-up that a given accuracy produces.",
+        "intro": "A branch is an instruction that may send the program to a different place. The branch is taken when the program jumps to the new place and not taken when it simply continues with the next instruction. The pipeline fetches the next instruction before it knows which case applies, so a wrong guess wastes the fetched instructions. A branch predictor guesses the outcome early. A correct guess costs nothing; a wrong guess pays the full branch penalty, which is the number of cycles of fetched work thrown away. Simple predictors keep a little memory of past outcomes of a branch and guess it will repeat.",
+        "prerequisites": [
+          "coa-pipelining.cpi-performance"
+        ],
+        "definitions": [
+          {
+            "term": "Misprediction",
+            "meaning": "A guess that differs from the actual outcome; it costs the branch penalty."
+          },
+          {
+            "term": "2-bit saturating counter",
+            "meaning": "A counter from 0 to 3 that moves up on taken and down on not taken, stopping at the ends; values 2 and 3 predict taken."
+          }
+        ],
+        "principle": {
+          "text": "A 1-bit predictor repeats the last outcome. A 2-bit saturating counter predicts taken in states 2 and 3 and moves one step towards each actual outcome, so a single surprise does not flip a strong state. The CPI adds the average stall per instruction to the base CPI, and only mispredicted branches stall. With equal clocks, speed-up is the ratio of the two CPIs.",
+          "tex": "\\mathrm{CPI} = 1 + f_{\\text{branch}} \\times (1 - \\text{accuracy}) \\times \\text{penalty}"
+        },
+        "limits": "The CPI formula assumes a correct prediction costs nothing and a wrong one costs the full penalty. If a question gives a different cost for correct taken predictions or a target buffer miss, add that term separately.",
+        "example": {
+          "problem": "A 2-bit saturating counter starts in state 2 (weakly taken). Ten executions of one branch are T, T, N, T, T, T, N, N, T, T. Twenty percent of all instructions are branches and a misprediction costs 3 cycles. What is the CPI, against a machine that stalls on every branch?",
+          "steps": [
+            "Walk the counter: T (predicted T, ok, state 3), T (ok, 3), N (predicted T, wrong, state 2), T (ok, 3), T (ok), T (ok), N (wrong, 2), N (predicted T, wrong, 1), T (predicted N, wrong, 2), T (ok, 3).",
+            "That is 4 mispredictions in 10, so the accuracy is 60 percent.",
+            "With the predictor, CPI = 1 + 0.2 x 0.4 x 3 = 1.24.",
+            "Without it every branch stalls: CPI = 1 + 0.2 x 3 = 1.6.",
+            "Both machines have the same clock, so the speed-up is the ratio of the CPIs: 1.6 / 1.24 = 1.29."
+          ],
+          "result": "CPI 1.24 with the predictor against 1.6 without, a speed-up of 1.29."
+        },
+        "misconceptions": [
+          "The stall probability is 1 minus the accuracy, not the accuracy itself; using the accuracy makes a good predictor look costly.",
+          "The stall applies only to the branch share of instructions, not to every instruction.",
+          "A 1-bit predictor on a loop branch mispredicts twice per loop run (at the exit and again on re-entry), while a 2-bit counter mispredicts only once, at the exit."
+        ],
+        "recall": [
+          {
+            "q": "What does a 2-bit saturating counter predict in each state?",
+            "a": "States 0 and 1 predict not taken; states 2 and 3 predict taken."
+          },
+          {
+            "q": "Which fraction of branches stalls when a predictor is correct 90 percent of the time?",
+            "a": "The 10 percent that are mispredicted, each paying the full penalty."
+          },
+          {
+            "q": "How many mispredictions does a 1-bit predictor make per run of a loop branch after the first run?",
+            "a": "Two: one at the exit and one on the first iteration of the next run."
+          },
+          {
+            "q": "With the same clock, how is the speed-up from a predictor found?",
+            "a": "Divide the CPI without the predictor by the CPI with it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a program of 1000 instructions, 25 percent are branches. A predictor is correct for 90 percent of them, a correct prediction costs nothing, and each misprediction stalls 4 cycles. How many stall cycles does the program lose to branches?",
+          "answer": 100,
+          "explanation": "There are 250 branches and 10 percent, which is 25, are mispredicted. Each costs 4 cycles, so 25 x 4 = 100 stall cycles. Using the accuracy instead of the error gives 225 x 4 = 900, and charging all 250 branches gives 1000; both tempt because they ignore which branches actually stall."
+        },
+        "summary": "A predictor stalls only on wrong guesses, so CPI is 1 plus branch share times error rate times penalty. A 2-bit counter needs two surprises to flip a strong state, which suits loops."
+      }
+    },
+    {
+      "id": "coa-pipelining.out-of-order",
+      "title": "Out-of-order execution and register renaming",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        18,
+        265,
+        270
+      ],
+      "points": [
+        "Out-of-order execution lets an independent later instruction run ahead of a stalled one, which exposes WAR and WAW hazards.",
+        "Register renaming maps each new destination to a fresh physical register, removing WAR and WAW (name) dependences; RAW dependences are true data flow and remain.",
+        "Speculative execution follows the predicted path and discards its results if the prediction was wrong."
+      ],
+      "keyTerms": [
+        "register renaming",
+        "speculative execution"
+      ],
+      "lesson": {
+        "why": "Out-of-order execution questions are rare, but they use the same dependence vocabulary as hazard classification, and renaming is a short, precise idea worth getting right.",
+        "intro": "A simple pipeline runs instructions strictly in order. If one instruction has to wait for its data, everything behind it waits too, even instructions that do not need that data. Out-of-order execution lets a later independent instruction run ahead while the earlier one waits. This is safe only if the instructions do not interfere through register names. Two kinds of name clashes appear: a later instruction writing a register an earlier one still has to read (WAR), and two instructions writing the same register (WAW). Register renaming removes these clashes by giving each new write its own hidden physical register.",
+        "prerequisites": [
+          "coa-pipelining.data-hazard-types"
+        ],
+        "definitions": [
+          {
+            "term": "Register renaming",
+            "meaning": "Mapping each new destination register to a fresh physical register so that WAR and WAW clashes disappear."
+          },
+          {
+            "term": "Speculative execution",
+            "meaning": "Running instructions from a predicted path and discarding their results if the prediction was wrong."
+          }
+        ],
+        "principle": {
+          "text": "Renaming removes WAR and WAW dependences, which are only reuse of a name. RAW dependences carry real data from producer to consumer and remain, so a consumer still waits for its producer. Speculative results are kept only if the prediction is confirmed."
+        },
+        "limits": "Renaming needs spare physical registers and extra hardware to track the mapping. It does nothing for true data flow, and in an in-order five-stage pipeline WAR and WAW do not cause stalls at all.",
+        "example": {
+          "problem": "I1 DIV R1,R2,R3; I2 ADD R4,R1,R5; I3 SUB R5,R6,R7. Name each dependence, and say which renaming removes.",
+          "steps": [
+            "I2 reads R1, which I1 writes, so there is a RAW dependence from I1 to I2.",
+            "I3 writes R5, which I2 reads, so there is a WAR dependence from I2 to I3.",
+            "Renaming gives I3 a new physical register for its result, so I3 can run before I2 reads the old R5."
+          ],
+          "result": "RAW (I1, I2) remains; WAR (I2, I3) is removed by renaming."
+        },
+        "misconceptions": [
+          "Renaming does not remove RAW dependences; they are real data flow and still force the consumer to wait.",
+          "WAR and WAW do not stall an in-order five-stage pipeline; they become a problem only when instructions can complete out of order.",
+          "Speculative execution is not the same as renaming; speculation guesses a branch path, renaming resolves name clashes."
+        ],
+        "recall": [
+          {
+            "q": "Which dependences does register renaming remove?",
+            "a": "WAR and WAW, the name dependences."
+          },
+          {
+            "q": "Why does out-of-order execution expose WAR and WAW hazards?",
+            "a": "A later instruction may finish before an earlier one that still needs the old value or must write first."
+          },
+          {
+            "q": "What happens to speculative results if the prediction was wrong?",
+            "a": "They are discarded."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Count the WAR and WAW dependences, each ordered pair of instructions and register counted once per kind, in: I1 LW R1,0(R2); I2 ADD R3,R1,R4; I3 SUB R4,R5,R6; I4 MUL R1,R7,R8; I5 ADD R5,R3,R1.",
+          "answer": 4,
+          "explanation": "WAW: I1 and I4 both write R1. WAR: I2 reads R4 and I3 writes it; I2 reads R1 and I4 writes it; I3 reads R5 and I5 writes it. That is 4 in all. The RAW pairs, such as I1 to I2 on R1, are not counted, and counting them is the tempting mistake."
+        },
+        "summary": "Out-of-order execution exposes WAR and WAW name dependences, which renaming removes, while RAW data flow remains and speculation is undone if the guess was wrong."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "coa-pipelining.clock-cycle",
+      "name": "Pipeline clock cycle",
+      "tex": "\\tau = \\max_{1 \\le i \\le k} \\tau_i + d",
+      "text": "τ = max(τᵢ) + d",
+      "where": [
+        [
+          "τᵢ",
+          "delay of stage i"
+        ],
+        [
+          "d",
+          "pipeline register (latch) delay"
+        ],
+        [
+          "k",
+          "number of stages"
+        ]
+      ],
+      "note": "Use the maximum, not the sum or the average, of the stage delays.",
+      "topic": "coa-pipelining.cycle-time",
+      "origin": "source",
+      "pages": [
+        264,
+        268,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.pipelined-time",
+      "name": "Time for n instructions on a k-stage pipeline",
+      "tex": "T_{\\text{pipe}} = (k + n - 1)\\,\\tau",
+      "text": "T_pipe = (k + n − 1) · τ",
+      "where": [
+        [
+          "n",
+          "number of instructions"
+        ],
+        [
+          "k",
+          "number of stages"
+        ]
+      ],
+      "note": "Assumes no stalls; add the total stall cycles to (k + n − 1) when hazards occur.",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        17,
+        264,
+        272
+      ]
+    },
+    {
+      "id": "coa-pipelining.nonpipelined-time",
+      "name": "Time for n instructions without pipelining",
+      "tex": "T_{\\text{non-pipe}} = n \\sum_{i=1}^{k} \\tau_i",
+      "text": "T_non-pipe = n · Σ τᵢ",
+      "note": "Equals n · k · τ only when all stages take the same time τ and there are no latches; with unequal stages use the sum.",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        264
+      ]
+    },
+    {
+      "id": "coa-pipelining.speedup",
+      "name": "Pipeline speedup",
+      "tex": "S = \\frac{T_{\\text{non-pipe}}}{T_{\\text{pipe}}} = \\frac{n \\sum \\tau_i}{(k + n - 1)\\,\\tau} \\xrightarrow{\\,n \\to \\infty\\,} \\frac{\\sum \\tau_i}{\\tau} \\le k",
+      "text": "S = n·Στᵢ / ((k + n − 1)·τ), tending to Στᵢ/τ ≤ k as n grows",
+      "note": "The limit is exactly k only with equal stages and zero latch delay.",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        17,
+        264,
+        269,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.efficiency",
+      "name": "Pipeline efficiency",
+      "tex": "\\eta = \\frac{S}{k}",
+      "text": "η = S / k",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        264,
+        269
+      ]
+    },
+    {
+      "id": "coa-pipelining.throughput",
+      "name": "Pipeline throughput",
+      "tex": "\\text{Throughput} = \\frac{n}{(k + n - 1)\\,\\tau} \\approx \\frac{1}{\\tau}",
+      "text": "Throughput = n / ((k + n − 1)·τ) ≈ 1/τ",
+      "note": "The 1/τ approximation holds after the pipeline fills, i.e. for large n.",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        264,
+        270,
+        271
+      ]
+    },
+    {
+      "id": "coa-pipelining.effective-cpi",
+      "name": "Effective CPI with stalls",
+      "tex": "\\mathrm{CPI} = 1 + \\sum_{j} f_j \\, p_j \\, s_j",
+      "text": "CPI = 1 + Σ fⱼ·pⱼ·sⱼ",
+      "where": [
+        [
+          "fⱼ",
+          "fraction of instructions of class j (branches, loads)"
+        ],
+        [
+          "pⱼ",
+          "fraction of those that actually stall (taken, mispredicted, load-use)"
+        ],
+        [
+          "sⱼ",
+          "stall cycles each time"
+        ]
+      ],
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "source",
+      "pages": [
+        18,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.speedup-with-stalls",
+      "name": "Speedup with stalls",
+      "tex": "S = \\frac{T_{\\text{inst, non-pipe}}}{\\mathrm{CPI}_{\\text{pipe}} \\times \\tau}",
+      "text": "S = non-pipelined time per instruction / (CPI_pipe × τ)",
+      "note": "With balanced stages and no latch overhead this reduces to k / (1 + stalls per instruction).",
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.execution-time",
+      "name": "CPU execution time",
+      "tex": "T = \\mathrm{IC} \\times \\mathrm{CPI} \\times \\tau",
+      "text": "T = IC × CPI × τ",
+      "where": [
+        [
+          "IC",
+          "instruction count"
+        ]
+      ],
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.mips-rating",
+      "name": "MIPS rating",
+      "tex": "\\mathrm{MIPS} = \\frac{f}{\\mathrm{CPI} \\times 10^{6}}, \\qquad \\mathrm{IPC} = \\frac{1}{\\mathrm{CPI}}",
+      "text": "MIPS = f / (CPI × 10⁶), IPC = 1/CPI",
+      "where": [
+        [
+          "f",
+          "clock frequency in Hz"
+        ]
+      ],
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "source",
+      "pages": [
+        18
+      ]
+    },
+    {
+      "id": "coa-pipelining.branch-penalty",
+      "name": "Branch stall cycles per instruction",
+      "tex": "\\text{stalls}_{\\text{branch}} = f_{\\text{branch}} \\times p_{\\text{wrong}} \\times (r - 1)",
+      "text": "branch stalls per instruction = f_branch × p_wrong × (r − 1)",
+      "where": [
+        [
+          "r",
+          "stage number in which the branch resolves (IF = 1)"
+        ],
+        [
+          "p_wrong",
+          "fraction of branches whose fetched path is wrong"
+        ]
+      ],
+      "note": "r − 1 is 2 for resolution in EX (stage 3) and 1 for ID (stage 2). With freeze-on-every-branch, p_wrong = 1.",
+      "topic": "coa-pipelining.control-hazards",
+      "origin": "source",
+      "pages": [
+        266,
+        268,
+        269
+      ]
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "coa-pipelining.cycle-and-speedup",
+      "title": "Cycle time, total time and speedup from stage delays",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Cycle τ = largest stage delay + latch delay.",
+        "Pipelined time = (k + n − 1) · τ.",
+        "Non-pipelined time = n · (sum of stage delays), with no latch delay unless the question says otherwise.",
+        "Speedup = non-pipelined / pipelined; efficiency = speedup / k if asked."
+      ],
+      "trap": "Using n · k · τ for the non-pipelined time when stages are unequal, or forgetting the latch delay in τ.",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        264,
+        268,
+        269,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.effective-cpi-problem",
+      "title": "Effective CPI from branch and load statistics",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "List each stall source with its frequency, the fraction that actually stalls, and the cycles lost.",
+        "Multiply the three numbers per source and add them to the base CPI of 1.",
+        "If asked for speedup or time, combine the CPI with the cycle time: T = IC × CPI × τ."
+      ],
+      "trap": "Charging the branch penalty on all branches when only taken (or mispredicted) branches pay it.",
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "source",
+      "pages": [
+        18,
+        268,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.sequence-stalls",
+      "title": "Stall or cycle count for a code sequence",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Mark every RAW dependence: which register, which producer, how far apart.",
+        "Fix the rules given: forwarding or not, split-cycle register file, EX latency per operation.",
+        "Fill the space-time table one instruction at a time, delaying a stage until its operands and the stage itself are free.",
+        "Read the WB cycle of the last instruction as the total; subtract k + n − 1 to get the stall count."
+      ],
+      "trap": "Forgetting that a stalled instruction delays everything fetched after it, including independent instructions.",
+      "topic": "coa-pipelining.stall-counting",
+      "origin": "source",
+      "pages": [
+        266,
+        271
+      ]
+    },
+    {
+      "id": "coa-pipelining.hazard-classification",
+      "title": "Classify the dependences in an instruction sequence",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "For every ordered pair (earlier, later), compare the earlier one's destination with the later one's sources (RAW).",
+        "Compare the earlier one's sources with the later one's destination (WAR), and the two destinations (WAW).",
+        "Decide which of these can actually stall the given pipeline: in-order 5-stage pipelines stall only on RAW."
+      ],
+      "trap": "Reading the register list backwards: in ADD R1,R2,R3 the destination is R1.",
+      "topic": "coa-pipelining.data-hazard-types",
+      "origin": "source",
+      "pages": [
+        18,
+        265
+      ]
+    },
+    {
+      "id": "coa-pipelining.predictor-trace",
+      "title": "Misprediction count for a branch predictor",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the branch outcome sequence (a loop of m iterations gives m − 1 taken and one not-taken).",
+        "Track the predictor state: one bit for a 1-bit predictor, a 0–3 counter for a 2-bit one, starting from the given initial state.",
+        "At each outcome compare prediction with outcome, count mismatches, then update the state."
+      ],
+      "trap": "Moving a 2-bit counter directly from strongly taken to not-taken on a single miss.",
+      "topic": "coa-pipelining.branch-prediction",
+      "origin": "source",
+      "pages": [
+        267,
+        268,
+        271
+      ]
+    },
+    {
+      "id": "coa-pipelining.stage-split",
+      "title": "Effect of splitting or rebalancing stages",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Compute the old cycle as old maximum stage + latch.",
+        "Replace the split stage by its parts and recompute the maximum; add the latch again.",
+        "Throughput ratio = old cycle / new cycle for large n."
+      ],
+      "trap": "The latch delay is added to both cycles, so the gain is smaller than the ratio of raw stage delays.",
+      "topic": "coa-pipelining.cycle-time",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "coa-pipelining.q-cycle-time-latch",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-stage pipeline has stage delays 200, 250, 300 and 200 ps, and each pipeline register adds 50 ps. What is the clock cycle of the pipeline?",
+      "options": [
+        "300 ps",
+        "350 ps",
+        "950 ps",
+        "1150 ps"
+      ],
+      "answer": 1,
+      "explanation": "Every stage must fit in one clock, so τ = slowest stage + latch = 300 + 50 = 350 ps. 300 ps forgets the latch, 950 ps is the non-pipelined instruction time, and 1150 ps adds a latch to every stage.",
+      "difficulty": "easy",
+      "topic": "coa-pipelining.cycle-time",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2017) — Pipeline cycle",
+      "pages": [
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-four-stage-speedup",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-stage pipeline runs with a 4 ns clock. The non-pipelined version of the processor takes 16 ns per instruction. What is the speedup for a program of 1000 instructions, assuming no stalls?",
+      "options": [
+        "3.75",
+        "3.99",
+        "4.00",
+        "4.01"
+      ],
+      "answer": 1,
+      "explanation": "Pipelined time = (k + n − 1)τ = (4 + 999) × 4 = 4012 ns. Non-pipelined time = 1000 × 16 = 16000 ns. Speedup = 16000 / 4012 ≈ 3.988 ≈ 3.99, just under the ideal 4 because of the 3 fill cycles.",
+      "difficulty": "easy",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Speedup",
+      "pages": [
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-five-stage-speedup",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 5-stage pipeline has stage delays 200, 150, 250, 200 and 150 ps and a 50 ps pipeline-register delay. The non-pipelined datapath takes the sum of the stage delays per instruction and has no pipeline registers. What is the speedup of the pipeline for 100 instructions with no stalls? (2 decimals)",
+      "answer": 3.045,
+      "tolerance": 0.01,
+      "explanation": "τ = 250 + 50 = 300 ps. Pipelined time = (5 + 99) × 300 = 31200 ps. Non-pipelined time = 100 × (200 + 150 + 250 + 200 + 150) = 100 × 950 = 95000 ps. Speedup = 95000 / 31200 ≈ 3.04 to 3.05, far below 5 because the stages are unbalanced and the latch adds 50 ps. Efficiency is 3.045 / 5 ≈ 61%.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.speedup-throughput",
+      "origin": "source",
+      "pages": [
+        268,
+        269
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-effective-cpi",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 5-stage pipeline with full forwarding predicts every branch not taken and resolves branches in EX, losing 2 cycles on a taken branch. In a program, 20% of instructions are branches and 60% of branches are taken; 25% of instructions are loads, and 40% of loads are immediately followed by an instruction that uses the loaded value. What is the effective CPI? (2 decimals)",
+      "answer": 1.34,
+      "tolerance": 0.01,
+      "explanation": "Branch stalls per instruction = 0.20 × 0.60 × 2 = 0.24. Load-use stalls per instruction = 0.25 × 0.40 × 1 = 0.10 (one cycle each, since forwarding cannot help a load followed directly by its use). CPI = 1 + 0.24 + 0.10 = 1.34.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.cpi-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-no-forwarding-cycles",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 5-stage pipeline (IF, ID, EX, MEM, WB) has no operand forwarding. The register file is written in the first half of a cycle and read in the second half, so an instruction can read a register in ID during the cycle in which the producer is in WB. How many clock cycles does this sequence take, from the first IF to the last WB?\nI1: ADD R1, R2, R3\nI2: SUB R4, R1, R5\nI3: AND R6, R1, R7\nI4: OR R8, R4, R6",
+      "answer": 12,
+      "explanation": "I1: IF 1, ID 2, EX 3, MEM 4, WB 5. I2 needs R1, so its ID read waits until cycle 5 (stalled in ID during 3 and 4): EX 6, MEM 7, WB 8. I3 is held in IF until I2 leaves ID, so ID 6 (R1 already written), EX 7, MEM 8, WB 9. I4 needs R4 (WB 8) and R6 (WB 9), so ID is in cycle 9: EX 10, MEM 11, WB 12. The stall-free time is 5 + 4 − 1 = 8 cycles, so there are 4 stall cycles in total.",
+      "difficulty": "hard",
+      "topic": "coa-pipelining.stall-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-multicycle-ex",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An in-order 5-stage pipeline (IF, ID, EX, MEM, WB) has a single non-pipelined EX unit. MUL spends 3 cycles in EX; every other instruction spends 1. Full forwarding is available: a result produced at the end of EX can be used by an instruction starting EX in the next cycle. An instruction waits in ID until the EX unit is free and its operands are available, and instructions behind it wait in their stages. How many cycles does this sequence take, from the first IF to the last WB?\nI1: MUL R1, R2, R3\nI2: ADD R4, R1, R5\nI3: SUB R6, R7, R8\nI4: MUL R9, R4, R6",
+      "answer": 12,
+      "explanation": "I1: IF 1, ID 2, EX 3–5, MEM 6, WB 7. I2 needs R1 (ready after cycle 5) and the EX unit, so EX 6, MEM 7, WB 8. I3 is independent but stays in IF until I2 leaves ID: ID 6, EX 7, MEM 8, WB 9. I4: IF 6, ID 7, EX 8–10 (R4 and R6 are forwarded from the ends of cycles 6 and 7), MEM 11, WB 12. Total 12 cycles: the base 8 plus 2 cycles waiting for I1's EX and 2 extra EX cycles of I4.",
+      "difficulty": "hard",
+      "topic": "coa-pipelining.variable-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-two-bit-predictor",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The branch at the bottom of a 4-iteration loop is taken 3 times and then not taken, giving the outcome sequence T, T, T, N. The loop is executed 3 times in a row (12 branch executions). A 2-bit saturating counter starts in the strongly not-taken state and predicts taken in its two upper states. How many mispredictions occur?",
+      "answer": 5,
+      "explanation": "Counter states 0–3, predict taken when ≥ 2. First pass: T at state 0 (miss, → 1), T at 1 (miss, → 2), T at 2 (hit, → 3), N at 3 (miss, → 2). Second pass: T, T, T all hit (→ 3), N miss (→ 2). Third pass: the same, 1 miss. Total 2 + 1 + 1 + 1 = 5. A 1-bit predictor starting at not-taken would miss 6 times: the first T and then both the exit and the re-entry of every loop.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.branch-prediction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-load-use-stall",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "On the standard 5-stage pipeline with full forwarding, LW R1, 0(R2) is immediately followed by ADD R3, R1, R4. How many stall cycles does the ADD suffer?",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
+      "answer": 1,
+      "explanation": "The loaded value exists only at the end of the load's MEM stage, while the ADD would want it at the start of its EX stage in that same cycle. Forwarding from MEM/WB into EX works one cycle later, so exactly one bubble is needed. Without forwarding it would be two.",
+      "difficulty": "easy",
+      "topic": "coa-pipelining.forwarding-load-use",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2019) — Load-use",
+      "pages": [
+        266,
+        269,
+        271
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-lw-add-sw",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The sequence LW R1, 0(R2); ADD R3, R1, R4; SW R3, 0(R5) runs on a 5-stage pipeline with full forwarding (EX/MEM and MEM/WB to EX). How many clock cycles does it take from the first IF to the last WB?",
+      "options": [
+        "7",
+        "8",
+        "9",
+        "11"
+      ],
+      "answer": 1,
+      "explanation": "Without stalls 3 instructions take 5 + 3 − 1 = 7 cycles. LW → ADD is a load-use pair: 1 stall. ADD → SW is an ALU result needed by the following store, which forwarding delivers in time: 0 stalls. Total 7 + 1 = 8 cycles. 9 would charge the store a stall it does not need, and 11 is the no-forwarding count.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.forwarding-load-use",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Hazard count",
+      "pages": [
+        271
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-branch-resolution",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 5-stage pipeline predicts branches not taken. Moving branch resolution from the EX stage to the ID stage changes the penalty of a taken branch from:",
+      "options": [
+        "2 cycles to 1 cycle",
+        "3 cycles to 2 cycles",
+        "2 cycles to 0 cycles",
+        "1 cycle to 0 cycles"
+      ],
+      "answer": 0,
+      "explanation": "The penalty equals the number of instructions fetched after the branch before it resolves. Resolved in EX (stage 3), two wrong instructions are in IF and ID: 2 cycles. Resolved in ID (stage 2), only the one in IF is wrong: 1 cycle.",
+      "difficulty": "easy",
+      "topic": "coa-pipelining.control-hazards",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2015) — Branch penalty",
+      "pages": [
+        266,
+        269,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-structural-memory",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A pipelined processor has a single memory port shared by instruction fetch and data access. Which pair of stages can conflict, and what removes the conflict?",
+      "options": [
+        "IF and MEM; separate instruction and data caches",
+        "ID and WB; forwarding",
+        "EX and MEM; branch prediction",
+        "IF and ID; a branch delay slot"
+      ],
+      "answer": 0,
+      "explanation": "A load or store accesses memory in MEM in the same cycle that a later instruction is being fetched in IF, so both need the single port. Split instruction and data caches give each its own port. ID and WB share the register file but are separated by the split-cycle read and write.",
+      "difficulty": "easy",
+      "topic": "coa-pipelining.structural-hazards",
+      "origin": "source",
+      "pages": [
+        266,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-stage-split",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A 5-stage pipeline has stage delays 5, 7, 10, 8 and 6 ns and a 1 ns pipeline-register delay. The 10 ns stage is split into two 5 ns stages, giving 6 stages. For a long instruction stream with no stalls, by what factor does throughput increase?",
+      "options": [
+        "1.22",
+        "1.25",
+        "1.38",
+        "2.00"
+      ],
+      "answer": 0,
+      "explanation": "Old cycle = 10 + 1 = 11 ns. New stage delays are 5, 7, 5, 5, 8, 6, so the new cycle = 8 + 1 = 9 ns. Throughput for large n is 1/τ, so the gain is 11/9 ≈ 1.22. Ignoring the latch gives 10/8 = 1.25, and 2.00 assumes the clock halves.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.cycle-time",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-delay-slot",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A pipeline has one branch delay slot. The code is: ADD R5, R6, R7; SUB R1, R1, R3; BEQ R1, R2, L. Which is the best way for the compiler to fill the delay slot after BEQ?",
+      "options": [
+        "Move ADD R5, R6, R7 into the slot",
+        "Move SUB R1, R1, R3 into the slot",
+        "Leave the slot empty, since the hardware discards it",
+        "Put a copy of BEQ R1, R2, L into the slot"
+      ],
+      "answer": 0,
+      "explanation": "The slot always executes, so it needs an instruction that must run anyway and that the branch does not depend on. ADD writes R5, which the branch neither reads nor needs, so moving it after BEQ preserves the program. SUB produces R1, which BEQ compares, so it must stay before the branch. Hardware does not discard a delay-slot instruction; an unfillable slot gets a NOP.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.delayed-branch",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-pipelining.q-classify-dependences",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Consider I1: ADD R1, R2, R3; I2: SUB R2, R4, R5; I3: MUL R1, R6, R2, where the first register is the destination. Which statements are correct?",
+      "options": [
+        "There is a RAW dependence from I2 to I3 on R2",
+        "There is a WAR dependence from I1 to I2 on R2",
+        "There is a WAW dependence from I1 to I3 on R1",
+        "There is a RAW dependence from I1 to I3 on R1"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "I2 writes R2 and I3 reads it: RAW. I1 reads R2 and I2 later writes it: WAR. I1 and I3 both write R1: WAW. I3 does not read R1 (its sources are R6 and R2), so there is no RAW on R1.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.data-hazard-types",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Hazards",
+      "pages": [
+        265,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-ooo-renaming",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about data hazards are correct?",
+      "options": [
+        "In an in-order 5-stage pipeline that reads registers in ID and writes them in WB, WAR and WAW dependences cause no stalls",
+        "Register renaming removes WAR and WAW hazards",
+        "Full operand forwarding removes every RAW stall in the 5-stage pipeline",
+        "Register renaming removes RAW hazards"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "In order, every read in ID precedes a later instruction's write in WB, and writes happen in program order, so WAR and WAW are harmless. Renaming gives each write a fresh physical register, eliminating name dependences. Forwarding still leaves the 1-cycle load-use stall, and renaming cannot remove RAW, which is real data flow.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.out-of-order",
+      "origin": "source",
+      "pages": [
+        265,
+        266,
+        270
+      ]
+    },
+    {
+      "id": "coa-pipelining.q-predictor-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about branch predictors are correct?",
+      "options": [
+        "A 1-bit predictor mispredicts a loop branch twice per loop execution once the loop has run before: at the exit and at the next entry",
+        "A 2-bit saturating counter in the strongly-taken state needs two consecutive not-taken outcomes before it predicts not-taken",
+        "A 2-bit saturating counter never changes its prediction after a single misprediction",
+        "Static BTFN prediction predicts backward branches as not taken"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "The 1-bit predictor learns N at the loop exit and then mispredicts the first T on re-entry. From strongly taken (11), one N gives weakly taken (10), still predicting taken; a second N gives 01. But from a weak state a single miss does flip the prediction, so the third statement is false. BTFN predicts backward branches (loops) taken.",
+      "difficulty": "medium",
+      "topic": "coa-pipelining.branch-prediction",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Predictor",
+      "pages": [
+        267,
+        268,
+        269,
+        271
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The fill term: n instructions on k stages take k + n − 1 cycles, not n·k and not n + k.",
+      "origin": "source",
+      "pages": [
+        271,
+        272
+      ]
+    },
+    {
+      "text": "Forwarding does not remove the load-use stall: a use immediately after a load still waits 1 cycle.",
+      "origin": "source",
+      "pages": [
+        266,
+        271
+      ]
+    },
+    {
+      "text": "The branch penalty depends on where the branch resolves: 2 cycles in EX, 1 in ID. Charge it only on branches whose fetched path is wrong under the given policy.",
+      "origin": "source",
+      "pages": [
+        266,
+        271
+      ]
+    },
+    {
+      "text": "Effective CPI is 1 plus the stall cycles per instruction; quoting CPI = 1 for a pipeline with hazards overstates performance.",
+      "origin": "source",
+      "pages": [
+        270,
+        271
+      ]
+    },
+    {
+      "text": "The non-pipelined instruction time is the sum of the stage delays without latches, while the pipelined cycle is the maximum stage plus the latch.",
+      "origin": "source",
+      "pages": [
+        264
+      ]
+    },
+    {
+      "text": "A stalled instruction delays every instruction behind it, including independent ones; recount the later rows of the space-time table after each stall.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Timing",
+      "lines": [
+        "τ = max stage + latch",
+        "T_pipe = (k + n − 1)·τ; T_non-pipe = n·Σ stages",
+        "Speedup → k (ideal), efficiency = S/k, throughput → 1/τ",
+        "CPI = 1 + stalls per instruction; T = IC × CPI × τ"
+      ],
+      "origin": "source",
+      "pages": [
+        264,
+        270,
+        272
+      ]
+    },
+    {
+      "heading": "Hazards",
+      "lines": [
+        "Structural: same unit, fix with split I/D caches or duplicates",
+        "Data: RAW (true), WAR (anti), WAW (output); in-order 5-stage stalls only on RAW",
+        "Control: branch penalty = stages before resolution (EX: 2, ID: 1)"
+      ],
+      "origin": "source",
+      "pages": [
+        265,
+        266,
+        272
+      ]
+    },
+    {
+      "heading": "Remedies",
+      "lines": [
+        "Forwarding: ALU-to-ALU RAW costs 0, load-use costs 1",
+        "No forwarding, split register file: adjacent RAW costs 2",
+        "Delay slot: fill with an independent instruction, else NOP",
+        "Renaming removes WAR and WAW, never RAW"
+      ],
+      "origin": "source",
+      "pages": [
+        266,
+        270,
+        272
+      ]
+    },
+    {
+      "heading": "Predictors",
+      "lines": [
+        "1-bit: two misses per loop execution",
+        "2-bit: 00 SNT, 01 WNT, 10 WT, 11 ST; predict taken at 10 and 11",
+        "BTFN: backward taken, forward not taken"
+      ],
+      "origin": "source",
+      "pages": [
+        267,
+        272
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 264,
+      "claim": "Non-pipelined time is T = n · k · τ_nonpipelined, with τ_nonpipelined taken as the sum of the stage delays.",
+      "correction": "If τ_nonpipelined is the sum of the stage delays (the whole instruction time), the non-pipelined time is n · τ_nonpipelined, not n · k · τ_nonpipelined. The form n · k · τ holds only when τ is a single stage's delay and all stages are equal."
+    },
+    {
+      "page": 268,
+      "claim": "With a 2-bit saturating counter a single anomaly does not flip the prediction; it takes two consecutive wrong outcomes to flip.",
+      "correction": "This holds only from a strong state (00 or 11). From a weak state (01 or 10) one misprediction moves the counter across the threshold and flips the prediction."
+    },
+    {
+      "page": 268,
+      "claim": "The RAW dependence cannot be eliminated without forwarding.",
+      "correction": "Forwarding does not eliminate a RAW dependence; it only shortens or removes the stall it causes (and cannot remove the load-use stall). The dependence is real data flow and remains under any technique."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "coa-pipelining-hazards",
+      "status": "covered",
+      "topics": [
+        "coa-pipelining.pipeline-basics",
+        "coa-pipelining.cycle-time",
+        "coa-pipelining.speedup-throughput",
+        "coa-pipelining.cpi-performance",
+        "coa-pipelining.structural-hazards",
+        "coa-pipelining.data-hazard-types",
+        "coa-pipelining.forwarding-load-use",
+        "coa-pipelining.stall-counting",
+        "coa-pipelining.control-hazards",
+        "coa-pipelining.branch-prediction"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2449 @@
+{
+  "id": "db-transactions",
+  "summary": "A transaction is a unit of work the DBMS must make atomic, isolated and durable even when many run at once and the system can crash. GATE tests the theory side mechanically: build a precedence graph to decide conflict serializability, check view serializability when blind writes appear, classify a schedule as recoverable, cascadeless or strict, and trace a protocol (2PL and its variants, timestamp ordering with or without the Thomas write rule, wait-die and wound-wait). Log-based recovery with checkpoints closes the chapter.",
+  "highYield": [
+    "Precedence-graph test on a 2- or 3-transaction schedule: acyclic means conflict serializable, and every topological order is an equivalent serial schedule.",
+    "View serializable but not conflict serializable: only possible with blind writes; check initial reads, reads-from and final writes against each serial order.",
+    "Recoverable vs cascadeless vs strict classification from where the commits sit relative to dirty reads and dirty writes.",
+    "Properties of 2PL variants: basic 2PL gives conflict serializability but not deadlock freedom; strict 2PL adds cascadelessness; conservative 2PL is deadlock-free.",
+    "Timestamp-ordering traces: track R-TS and W-TS after every operation; the Thomas write rule ignores an obsolete write instead of aborting.",
+    "Wait-die vs wound-wait: who waits and who is rolled back, decided only by comparing timestamps."
+  ],
+  "topics": [
+    {
+      "id": "db-transactions.transaction-states",
+      "title": "Transactions and their states",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        584,
+        585,
+        586
+      ],
+      "points": [
+        "A transaction is a sequence of reads, writes and computation that the DBMS treats as one indivisible unit, ended by commit or abort.",
+        "A transfer that crashes after write(A) but before write(B) leaves A debited and B unchanged, so the partial work must be rolled back.",
+        "States: active while executing, partially committed after the last statement, committed once changes are durable; failed when it cannot continue, then aborted after rollback.",
+        "A partially committed transaction can still fail (for example, if forcing its log records to disk fails), so it can move to failed as well as to committed.",
+        "An aborted transaction may be restarted as a new transaction or killed; committed and aborted are both terminal."
+      ],
+      "keyTerms": [
+        "active",
+        "partially committed",
+        "committed",
+        "failed",
+        "aborted"
+      ],
+      "lesson": {
+        "why": "Questions on transaction states ask which transitions are legal and what the DBMS must do in each state, so the state diagram has to be known cold.",
+        "intro": "A transaction is a bundle of reads and writes that the database must treat as one unit: either all of it happens or none of it does. It ends in exactly one of two ways. Commit means its changes are made permanent. Abort means its changes are undone. Between start and end, the DBMS tracks it through named states.",
+        "analogy": {
+          "text": "Posting a letter: you write it, seal it, hand it over, and only when the post office confirms delivery is the job done; if the van breaks down, the letter is recalled.",
+          "breaksWhen": "A recalled letter is simply returned, while an aborted transaction needs its writes actively undone from the log."
+        },
+        "definitions": [
+          {
+            "term": "Active",
+            "meaning": "The initial state; the transaction is executing its reads and writes."
+          },
+          {
+            "term": "Partially committed",
+            "meaning": "The last statement has run, but the changes are not yet guaranteed durable."
+          },
+          {
+            "term": "Failed",
+            "meaning": "The transaction cannot continue, either from an error or because forcing its log to disk failed."
+          },
+          {
+            "term": "Aborted",
+            "meaning": "The transaction has been rolled back and the database is restored to its state before it began."
+          }
+        ],
+        "principle": {
+          "text": "Active leads to partially committed, then committed, or to failed from either of those two states. Failed leads only to aborted. Committed and aborted are terminal; nothing leaves them."
+        },
+        "limits": "The diagram describes one transaction in isolation. It says nothing about how concurrent transactions interleave, which is the job of schedules and locking. A committed transaction is never undone by this diagram; undoing it needs a new compensating transaction.",
+        "example": {
+          "problem": "A transfer of 100 from account A (balance 500) to account B (balance 200) runs write(A) and then the system crashes before write(B). Follow the transaction through its states.",
+          "steps": [
+            "The transaction starts in the active state. After write(A), A holds 400 and B still holds 200, so the total is 600 instead of 700.",
+            "The crash stops it before its last statement, so it cannot reach partially committed. It moves from active to failed.",
+            "Rollback restores A to 500 using the logged old value, and the transaction moves from failed to aborted."
+          ],
+          "result": "The transaction ends aborted, A is 500 and B is 200, so the total is 700 again."
+        },
+        "misconceptions": [
+          "Partially committed does not mean committed: a failure at this point, such as the log not reaching disk, still sends the transaction to failed.",
+          "Aborted is not the same as failed. Failed means it cannot proceed; aborted means rollback is finished.",
+          "A committed transaction cannot move to aborted, even if a later fault occurs."
+        ],
+        "recall": [
+          {
+            "q": "Which two states are terminal?",
+            "a": "Committed and aborted. No transition leaves either of them."
+          },
+          {
+            "q": "Can a partially committed transaction fail?",
+            "a": "Yes. If its log records cannot be forced to disk, it moves to failed and then to aborted."
+          },
+          {
+            "q": "What can an aborted transaction be offered afterwards?",
+            "a": "It may be restarted as a new transaction, or killed."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which transition between transaction states is NOT allowed?",
+          "options": [
+            "Active to failed",
+            "Partially committed to failed",
+            "Partially committed to aborted",
+            "Failed to aborted"
+          ],
+          "answer": 2,
+          "explanation": "A transaction reaches aborted only through failed, because rollback happens after the failure is recognised. Partially committed to failed is allowed since a final log flush can still fail, which is why that option tempts as a mistaken exclusion."
+        },
+        "summary": "A transaction moves from active to partially committed to committed, or to failed and then aborted. Committed and aborted are terminal, and only failed leads to aborted."
+      }
+    },
+    {
+      "id": "db-transactions.acid",
+      "title": "ACID properties and the mechanism behind each",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        586,
+        587
+      ],
+      "points": [
+        "Atomicity: all of the transaction's effects appear or none do; the recovery manager enforces it by undoing changes from the log on abort or crash.",
+        "Consistency: a transaction run alone on a consistent database leaves it consistent; declared constraints are checked by the DBMS, deeper invariants are the application's job.",
+        "Isolation: concurrent execution must look like some serial execution; the concurrency-control manager (locks, timestamps, MVCC) enforces it.",
+        "Durability: once committed, effects survive crashes; write-ahead logging plus redo enforces it.",
+        "Scenario mapping: a half-done transfer after a crash violates atomicity; a committed update lost after power failure violates durability; a dirty read between two transfers violates isolation."
+      ],
+      "keyTerms": [
+        "atomicity",
+        "consistency",
+        "isolation",
+        "durability"
+      ],
+      "lesson": {
+        "why": "ACID questions ask which property a failure or anomaly breaks, and each property is kept by a different part of the DBMS, so the right name and the right mechanism are both tested.",
+        "intro": "A transaction is a group of reads and writes that the DBMS must treat as one unit. Four promises make that safe. Atomicity: all of its effects happen or none do. Consistency: run alone on a valid database, it leaves a valid database. Isolation: running together with other transactions must look like running them one after another. Durability: once the system reports the transaction as committed, its effects stay even after a crash. The log is a record of every change, written before the data itself is changed; the recovery manager uses it to undo or redo work after a crash.",
+        "prerequisites": [
+          "db-transactions.transaction-states"
+        ],
+        "principle": {
+          "text": "Match the symptom to the promise: partial effects after a crash break atomicity, a rule-breaking final state breaks consistency, interference between concurrent transactions breaks isolation, and a lost committed result breaks durability."
+        },
+        "limits": "Consistency is only partly the DBMS's job: it checks declared constraints such as keys and CHECK rules, but an application rule such as \"total money is conserved\" holds only if the transaction code is correct. One failure can break several properties at once, so read what the question says is certain.",
+        "example": {
+          "problem": "Accounts A = 500 and B = 200. A transfer of 100 runs write(A) and then write(B), and the system crashes between the two writes. What state is left, and which property is at stake?",
+          "steps": [
+            "After write(A), A holds 400 while B still holds 200.",
+            "The total is now 600, but it was 700 before, so 100 has vanished.",
+            "Only part of the transaction took effect, which atomicity forbids. On restart the recovery manager undoes write(A) using the log."
+          ],
+          "result": "After recovery A = 500 and B = 200 again; without that undo, atomicity would be violated."
+        },
+        "misconceptions": [
+          "A crash in the middle of a transaction is an atomicity problem, not a durability one; durability concerns a transaction that has already committed and must not lose its result.",
+          "Isolation and consistency are not the same: isolation is about concurrent transactions interfering, while consistency is about the database obeying its rules after a transaction.",
+          "A property counts as broken only when the scenario shows it. Two transfers that both read the same balance and overwrite each other lose an update, which breaks isolation, and the wrong money total also breaks consistency; atomicity is at stake only if a transaction is shown to be partly applied."
+        ],
+        "recall": [
+          {
+            "q": "Which part of the DBMS enforces atomicity and durability?",
+            "a": "The recovery manager, using the write-ahead log: undo for atomicity and redo for durability."
+          },
+          {
+            "q": "Which part of the DBMS enforces isolation?",
+            "a": "The concurrency-control manager, through locks, timestamps or multiversion schemes."
+          },
+          {
+            "q": "A half-finished transfer is left after a crash. Which property failed?",
+            "a": "Atomicity, because only part of the transaction took effect."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The DBMS tells a shopper that an order is committed. The power fails, and on restart the order is missing from the database. Which property was violated, and what repairs it?",
+          "options": [
+            "Durability; redo of the committed work from the log",
+            "Atomicity; undo of the uncommitted work from the log",
+            "Isolation; locks held until the end of the transaction",
+            "Consistency; checking declared constraints at commit"
+          ],
+          "answer": 0,
+          "explanation": "The order was committed and then lost, which is the definition of a durability failure, and the log is replayed forward (redo) to restore it. Atomicity is tempting because the changes are missing, but atomicity concerns a transaction that did only part of its work, and undo applies to uncommitted work."
+        },
+        "summary": "Atomicity and durability are kept by logging and recovery, isolation by concurrency control, and consistency by constraints plus correct transaction code; name the property by the symptom."
+      }
+    },
+    {
+      "id": "db-transactions.isolation-anomalies",
+      "title": "Concurrency anomalies and SQL isolation levels",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        587
+      ],
+      "points": [
+        "Lost update: two transactions read X, both write, and the second write silently discards the first (w-w on a value both read).",
+        "Dirty read: a transaction reads a value written by a transaction that has not committed and may still abort.",
+        "Non-repeatable read: reading X twice in one transaction returns different values because another transaction updated and committed X in between.",
+        "Phantom: re-running a predicate query returns new rows because another transaction inserted rows matching the predicate.",
+        "SQL levels: READ UNCOMMITTED allows dirty reads; READ COMMITTED stops them; REPEATABLE READ also stops non-repeatable reads; SERIALIZABLE also stops phantoms."
+      ],
+      "keyTerms": [
+        "lost update",
+        "dirty read",
+        "non-repeatable read",
+        "phantom",
+        "isolation level"
+      ],
+      "lesson": {
+        "why": "Questions describe an interleaving or a result and ask which anomaly occurred or which isolation level would prevent it, so you must tell the four anomalies apart quickly.",
+        "intro": "When transactions run at the same time, they can see each other's half-finished work or overwrite each other. Four named problems cover most cases. A lost update: two transactions read a value, both write, and the later write erases the earlier one. A dirty read: reading a value written by a transaction that has not committed yet. A non-repeatable read: reading the same row twice and getting different values. A phantom: running the same search twice and getting extra rows. SQL offers four isolation levels, each stopping more of these than the one before.",
+        "prerequisites": [
+          "db-transactions.acid"
+        ],
+        "principle": {
+          "text": "Each anomaly is stopped by a stricter level in a fixed ladder: READ UNCOMMITTED allows dirty reads, READ COMMITTED stops them, REPEATABLE READ also stops non-repeatable reads, and SERIALIZABLE also stops phantoms."
+        },
+        "limits": "The ladder is the textbook SQL rule. A real product may stop more than the standard requires at a given level, and the lost update is not named in the SQL ladder, so a question about it is about the interleaving itself.",
+        "example": {
+          "problem": "X = 100. T1 adds 10 to X and T2 adds 20 to X. Both read X before either writes, then T1 writes and T2 writes. What is the final value, and what should it be?",
+          "steps": [
+            "Both transactions read 100.",
+            "T1 writes 100 + 10 = 110, then T2 writes 100 + 20 = 120.",
+            "T2 overwrote T1's result without ever seeing it. Run one after the other, the answer would be 100 + 10 + 20 = 130."
+          ],
+          "result": "The final value is 120, not 130; T1's update was lost."
+        },
+        "misconceptions": [
+          "A dirty read needs the writer to be uncommitted. Reading a committed value, then reading it again after another transaction changed and committed it, is a non-repeatable read, not a dirty read.",
+          "A phantom is not a changed value in a row already read; it is a new row that matches the search, which is why locking the rows already read cannot stop it."
+        ],
+        "recall": [
+          {
+            "q": "What separates a non-repeatable read from a phantom?",
+            "a": "A non-repeatable read sees a changed value in a row already read; a phantom sees new rows matching the predicate."
+          },
+          {
+            "q": "Which is the lowest SQL level that forbids dirty reads?",
+            "a": "READ COMMITTED."
+          },
+          {
+            "q": "Which level forbids phantoms?",
+            "a": "SERIALIZABLE."
+          },
+          {
+            "q": "What makes an update \"lost\"?",
+            "a": "Two transactions read the same old value and the later write overwrites the earlier one."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "T1 runs SELECT COUNT(*) FROM Emp WHERE dept = 'CS' twice. Between the two runs T2 inserts a CS employee and commits, so the second count is larger. Which anomaly is this, and what is the lowest standard level that prevents it?",
+          "options": [
+            "Dirty read; READ COMMITTED",
+            "Non-repeatable read; REPEATABLE READ",
+            "Phantom; SERIALIZABLE",
+            "Lost update; READ UNCOMMITTED"
+          ],
+          "answer": 2,
+          "explanation": "A new row matching the predicate appeared, which is a phantom, and only SERIALIZABLE forbids it. Non-repeatable read is tempting because the same query returned different results, but no value in a row already read changed. The inserting transaction committed, so nothing was dirty."
+        },
+        "summary": "Lost update, dirty read, non-repeatable read and phantom are told apart by what changed between the reads; the isolation levels stop them in that order from READ COMMITTED up to SERIALIZABLE."
+      }
+    },
+    {
+      "id": "db-transactions.schedules",
+      "title": "Schedules and notions of equivalence",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        53,
+        587,
+        588
+      ],
+      "points": [
+        "A schedule interleaves the operations of several transactions while keeping each transaction's own operation order.",
+        "A serial schedule runs transactions one after another; n transactions have n! serial schedules, all of which are correct by definition.",
+        "Serializable means equivalent to some serial schedule. Conflict equivalence is easy to test; view equivalence is more general but NP-complete to test.",
+        "Result equivalence (same final state for one particular initial state) is too weak to guarantee correctness and is not used.",
+        "Notation: $r_i(X)$ and $w_i(X)$ are a read and a write of X by $T_i$; $c_i$ and $a_i$ are its commit and abort."
+      ],
+      "keyTerms": [
+        "serial schedule",
+        "serializable",
+        "conflict equivalence",
+        "view equivalence"
+      ],
+      "lesson": {
+        "why": "Every serializability and recoverability question starts from a schedule, so you must read the notation and know what counts as correct before anything else.",
+        "intro": "When several transactions run together, the DBMS interleaves their operations in one timeline. That timeline is a schedule. A schedule may mix the transactions freely, but each transaction's own operations must stay in their original order. A schedule where one transaction finishes completely before the next begins is called serial.",
+        "definitions": [
+          {
+            "term": "r_i(X), w_i(X)",
+            "meaning": "A read or write of item X by transaction T_i."
+          },
+          {
+            "term": "c_i, a_i",
+            "meaning": "The commit or abort of transaction T_i."
+          },
+          {
+            "term": "Serial schedule",
+            "meaning": "One where transactions run one after another with no interleaving."
+          }
+        ],
+        "principle": {
+          "text": "A serial schedule is correct by definition. A schedule is serializable when it is equivalent to some serial schedule, and equivalence can be judged by conflicts or by views. With n transactions there are n! serial schedules.",
+          "tex": "N_{\\text{serial}} = n!"
+        },
+        "limits": "Equivalence by result, meaning same final state for one particular starting database, is not used: two different schedules can agree by accident on one input and differ on another.",
+        "example": {
+          "problem": "T1 = r1(A), w1(A) and T2 = r2(A), w2(A). Count all schedules, the serial ones and the rest.",
+          "steps": [
+            "Each transaction has 2 operations, so the interleavings number 4!/(2!·2!) = 6.",
+            "Serial schedules are T1 then T2 and T2 then T1, which is 2! = 2.",
+            "The remaining 6 − 2 = 4 schedules interleave the two transactions."
+          ],
+          "result": "6 schedules in all: 2 serial and 4 interleaved."
+        },
+        "misconceptions": [
+          "Serial does not mean fast or typical; it is the slow reference every other schedule is compared against.",
+          "A non-serial schedule is not automatically wrong. It is acceptable exactly when it is serializable.",
+          "Reordering a transaction's own operations is never allowed inside a schedule."
+        ],
+        "recall": [
+          {
+            "q": "What must every schedule preserve about each transaction?",
+            "a": "The order of that transaction's own operations."
+          },
+          {
+            "q": "How many serial schedules do n transactions have?",
+            "a": "n!, one for each order of the transactions."
+          },
+          {
+            "q": "Why is result equivalence not used?",
+            "a": "It depends on one particular starting state and can match by accident, so it does not guarantee correctness."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Four transactions T1, T2, T3, T4 run concurrently. How many serial schedules exist?",
+          "answer": 24,
+          "explanation": "Each serial schedule is one ordering of the four transactions, so the count is 4! = 24. A tempting wrong answer is 4, counting only which transaction goes first, but the order of the rest also varies."
+        },
+        "summary": "A schedule interleaves transactions while keeping each one's operation order. Serial schedules number n! and are correct by definition; serializable means equivalent to one of them."
+      }
+    },
+    {
+      "id": "db-transactions.schedule-counting",
+      "title": "Counting schedules",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Transactions with $n_1, n_2, \\dots, n_k$ operations have $(n_1 + \\dots + n_k)!/(n_1! \\cdots n_k!)$ schedules, because each transaction's internal order is fixed.",
+        "Two transactions with 3 operations each have C(6, 3) = 20 schedules, of which 2 are serial and 18 are non-serial (concurrent).",
+        "To count conflict-serializable schedules, fix the conflicting pairs: a schedule qualifies only if every conflict between the two transactions points the same way.",
+        "To count serial schedules conflict equivalent to a given schedule, count the topological orders of its precedence graph."
+      ],
+      "lesson": {
+        "why": "Counting questions give two or three short transactions and ask how many schedules, or how many conflict serializable ones, exist; the method is mechanical once you see it.",
+        "intro": "A schedule is one way of interleaving the operations of several transactions into a single sequence. Each transaction's own operations must stay in their original order, so only the mixing is free. If one transaction has 2 operations and another has 3, a schedule is fixed by choosing which 2 of the 5 positions hold the first transaction's operations; the rest go to the second in order.",
+        "prerequisites": [
+          "db-transactions.schedules"
+        ],
+        "principle": {
+          "text": "With $k$ transactions of $n_1, \\dots, n_k$ operations, the number of schedules is the multinomial coefficient. To count conflict serializable ones, require that the precedence graph over all the transactions has no cycle; for two transactions this means every conflict points the same way.",
+          "tex": "\\frac{(n_1 + n_2 + \\cdots + n_k)!}{n_1!\\, n_2!\\cdots n_k!}"
+        },
+        "limits": "The formula counts all interleavings, serializable or not. It also assumes no operation is shared and that each transaction's order is fixed; it says nothing about which schedules are conflict serializable.",
+        "example": {
+          "problem": "T1 is w1(X) w1(Y) and T2 is w2(X) w2(Y). How many schedules exist, and how many are conflict serializable?",
+          "steps": [
+            "Total schedules: 4! / (2! 2!) = 6.",
+            "Both transactions write both items, so every X pair and every Y pair conflicts. A schedule is conflict serializable only if T1 comes first on both items or T2 comes first on both.",
+            "Two schedules are serial. The interleavings w1(X) w2(X) w1(Y) w2(Y) and w2(X) w1(X) w2(Y) w1(Y) also agree on both items. The other two disagree and form a cycle."
+          ],
+          "result": "6 schedules in total, of which 4 are conflict serializable."
+        },
+        "misconceptions": [
+          "Writing the total as (n1 + n2)! forgets that each transaction's operations keep their order; divide by the factorials of each transaction's size.",
+          "Serial schedules number k!, not the total; with two transactions there are always exactly 2 serial schedules, however long they are."
+        ],
+        "recall": [
+          {
+            "q": "How many schedules do transactions of sizes n1 and n2 have?",
+            "a": "C(n1 + n2, n1), the number of ways to choose positions for the first transaction's operations."
+          },
+          {
+            "q": "How many serial schedules do k transactions have?",
+            "a": "k!, one for each order of the transactions."
+          },
+          {
+            "q": "When is a schedule conflict serializable?",
+            "a": "When its precedence graph over all transactions has no cycle; with two transactions, when every conflicting pair is ordered the same way."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Transaction T1 has 3 operations, T2 has 2 operations and T3 has 1 operation. How many schedules (interleavings that keep each transaction's own order) are there?",
+          "answer": 60,
+          "explanation": "The count is 6! / (3! 2! 1!) = 720 / 12 = 60. The value 720 is tempting, but it treats the operations of one transaction as freely reorderable, which the fixed internal order forbids."
+        },
+        "summary": "The number of schedules is the multinomial (sum of sizes)! over the product of size factorials; a schedule is conflict serializable when its precedence graph has no cycle, which for two transactions means all conflicts point one way."
+      }
+    },
+    {
+      "id": "db-transactions.conflicting-operations",
+      "title": "Conflicting operations",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        588,
+        589
+      ],
+      "points": [
+        "Two operations conflict when they belong to different transactions, touch the same data item, and at least one of them is a write.",
+        "Read-read pairs never conflict; read-write, write-read and write-write pairs do, because swapping them changes a value read or the final value.",
+        "Operations of the same transaction never conflict with each other: the transaction fixes their order.",
+        "Swapping two adjacent non-conflicting operations leaves the schedule's effect unchanged; that is the basis of conflict serializability."
+      ],
+      "lesson": {
+        "why": "Every serializability question begins by listing which pairs of operations conflict, so a slip here spoils the whole answer.",
+        "intro": "Two operations conflict if swapping their order could change what some transaction reads or what ends up in the database. That happens only when three things hold together: they belong to different transactions, they touch the same data item, and at least one of them is a write. Two reads of the same item can be swapped freely, because neither changes the value.",
+        "prerequisites": [
+          "db-transactions.schedules"
+        ],
+        "principle": {
+          "text": "Operations $a$ and $b$ conflict if and only if they are from different transactions, act on the same item, and at least one is a write. Adjacent operations that do not conflict can be swapped without changing the effect of the schedule."
+        },
+        "limits": "Conflict is judged by item and kind of operation, not by the values involved. Two writes that happen to store the same value still count as a conflict, and a conflict only makes the order matter; it does not mean the schedule is wrong.",
+        "example": {
+          "problem": "In the schedule r1(A) w2(A) r3(A) w3(B) r1(B), which pairs of operations on the same item from different transactions conflict?",
+          "steps": [
+            "Item A has three operations from three transactions, giving the pairs (r1(A), w2(A)), (r1(A), r3(A)) and (w2(A), r3(A)).",
+            "The pair r1(A), r3(A) is read-read, so it does not conflict. The other two each contain the write w2(A), so they conflict.",
+            "Item B gives the pair (w3(B), r1(B)), which contains a write, so it conflicts."
+          ],
+          "result": "Of 4 cross-transaction pairs on a shared item, 3 conflict; only the two reads of A do not."
+        },
+        "misconceptions": [
+          "Two operations of the same transaction never conflict, even if one is a write; the transaction itself fixes their order.",
+          "Operations on different items never conflict, even when one is a write, so w1(X) and r2(Y) can always be swapped."
+        ],
+        "recall": [
+          {
+            "q": "What three conditions make two operations conflict?",
+            "a": "Different transactions, the same data item, and at least one of them is a write."
+          },
+          {
+            "q": "Do two reads of the same item conflict?",
+            "a": "No, because swapping them changes no value."
+          },
+          {
+            "q": "Why does conflict matter for serializability?",
+            "a": "Only conflicting pairs must keep their order; any other adjacent pair can be swapped freely."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which pair of operations conflicts?",
+          "options": [
+            "r1(X) and r2(X)",
+            "r1(X) and w1(X)",
+            "w1(X) and r2(Y)",
+            "r1(X) and w2(X)"
+          ],
+          "answer": 3,
+          "explanation": "r1(X) and w2(X) come from different transactions, share item X, and one is a write. The first pair is read-read. The second pair is from the same transaction, which is tempting because it is a read-write pair. The third pair touches different items."
+        },
+        "summary": "Operations conflict only when they come from different transactions, share an item, and include a write; every other adjacent pair may be swapped."
+      }
+    },
+    {
+      "id": "db-transactions.conflict-serializability",
+      "title": "Conflict serializability and the precedence graph",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        589,
+        590,
+        591,
+        604,
+        612
+      ],
+      "points": [
+        "A schedule is conflict serializable if non-conflicting adjacent swaps can turn it into a serial schedule, that is, if it orders every conflicting pair as some serial schedule does.",
+        "Precedence graph: one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with a later operation of $T_j$.",
+        "The schedule is conflict serializable if and only if this graph is acyclic; every topological order of the graph is an equivalent serial schedule.",
+        "Scan all conflicting pairs, not just adjacent ones: in r1(X); r2(Y); r1(Y); r2(X); w2(Y); w1(X), r1(Y)–w2(Y) gives T1 → T2 and r2(X)–w1(X) gives T2 → T1, a cycle.",
+        "The test runs in polynomial time: build edges in O(m²) over m operations, then detect a cycle with DFS in O(V + E)."
+      ],
+      "keyTerms": [
+        "precedence graph",
+        "serialization graph",
+        "topological order"
+      ],
+      "lesson": {
+        "why": "Deciding whether a schedule is conflict serializable, and which serial orders it matches, is a precedence-graph check: draw an edge for each conflict and look for a cycle.",
+        "intro": "A serial schedule runs one transaction completely before the next. A schedule is conflict serializable if it has the same effect as some serial schedule, in the sense that every conflicting pair appears in the same order in both. To test it, draw a precedence graph: one node per transaction, and an arrow from Ti to Tj whenever an operation of Ti conflicts with a later operation of Tj. The arrows say who must come first.",
+        "prerequisites": [
+          "db-transactions.conflicting-operations"
+        ],
+        "principle": {
+          "text": "A schedule is conflict serializable if and only if its precedence graph has no cycle. Every topological order of the graph is a serial schedule that is conflict equivalent to it."
+        },
+        "limits": "The test checks conflicts only. A schedule that fails it may still be view serializable, which happens when blind writes make some conflicts harmless. Commits and aborts play no part, so this test says nothing about recoverability.",
+        "example": {
+          "problem": "Is r1(X) w1(X) r2(X) w2(Y) r3(Y) conflict serializable? If so, which serial order is equivalent?",
+          "steps": [
+            "Compare every pair: w1(X) comes before r2(X) and conflicts with it, giving T1 -> T2. (r1(X) and r2(X) are both reads and give no edge.)",
+            "w2(Y) comes before r3(Y) and conflicts with it, giving T2 -> T3.",
+            "The graph T1 -> T2 -> T3 has no cycle, and its only topological order is T1, T2, T3."
+          ],
+          "result": "Conflict serializable, equivalent to the serial schedule T1 T2 T3 and to no other."
+        },
+        "misconceptions": [
+          "Checking only adjacent operations misses edges; scan every pair of operations, because a conflict between two operations far apart still creates an edge.",
+          "A cycle is not fixed by reordering the diagram: if T1 -> T2 and T2 -> T1 both appear, no serial order matches, so the schedule is not conflict serializable.",
+          "The number of equivalent serial schedules can be more than one: transactions with no path between them in the graph can appear in either order."
+        ],
+        "recall": [
+          {
+            "q": "When is there an edge Ti -> Tj in the precedence graph?",
+            "a": "When an operation of Ti conflicts with, and comes before, an operation of Tj."
+          },
+          {
+            "q": "What decides conflict serializability?",
+            "a": "Whether the precedence graph is acyclic."
+          },
+          {
+            "q": "How do you find the equivalent serial schedules?",
+            "a": "List the topological orders of the precedence graph; each is an equivalent serial schedule."
+          },
+          {
+            "q": "What does a cycle in the graph tell you?",
+            "a": "No serial schedule has the same conflict order, so the schedule is not conflict serializable."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Consider the schedule w1(A) r2(A) w3(B) r4(B) over four transactions. How many serial schedules are conflict equivalent to it?",
+          "answer": 6,
+          "explanation": "The conflicts give two edges, T1 -> T2 on A and T3 -> T4 on B, so the graph is acyclic. Each pair keeps its internal order, and the two pairs can be interleaved in 4! / (2 x 2) = 6 ways. Answering 1 is tempting if you assume the schedule order is the only valid one, and 24 if you ignore the edges."
+        },
+        "summary": "Build the precedence graph from every conflicting pair; acyclic means conflict serializable, and each topological order is an equivalent serial schedule."
+      }
+    },
+    {
+      "id": "db-transactions.view-serializability",
+      "title": "View serializability",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        591,
+        592,
+        604,
+        605
+      ],
+      "points": [
+        "Two schedules are view equivalent when they have the same initial reads, the same reads-from pairs for every read, and the same final writer of every item.",
+        "A schedule is view serializable if it is view equivalent to some serial schedule; every conflict-serializable schedule is view serializable, but not conversely.",
+        "A schedule that is view serializable but not conflict serializable must contain a blind write, a write of an item the transaction never read.",
+        "r1(X); w2(X); w1(X); w3(X) has a T1 ⇄ T2 cycle, yet it is view equivalent to T1, T2, T3: T1 reads the initial X in both and T3 writes X last in both.",
+        "Shortcut: if a schedule is not conflict serializable and has no blind writes, it is not view serializable either.",
+        "Testing view serializability is NP-complete, so real systems enforce conflict serializability."
+      ],
+      "keyTerms": [
+        "initial read",
+        "reads-from",
+        "final write",
+        "blind write"
+      ],
+      "lesson": {
+        "why": "View serializability appears as the case where a schedule is not conflict serializable yet is still correct, and spotting it quickly depends on one trick about blind writes.",
+        "intro": "Conflict serializability judges a schedule by which operations clash. View serializability asks a different question: does every transaction see the same values, and does the database end in the same state, as in some serial run? It accepts everything conflict serializability does and a few schedules more. A blind write is a write to an item that the transaction never read.",
+        "prerequisites": [
+          "db-transactions.conflict-serializability"
+        ],
+        "definitions": [
+          {
+            "term": "Initial read",
+            "meaning": "A read of an item that no earlier transaction in the schedule has written."
+          },
+          {
+            "term": "Reads-from",
+            "meaning": "The pairing of a read with the transaction whose write supplied the value it sees."
+          },
+          {
+            "term": "Final write",
+            "meaning": "The last write to an item in the schedule."
+          },
+          {
+            "term": "Blind write",
+            "meaning": "A write to an item the writing transaction has not read."
+          }
+        ],
+        "principle": {
+          "text": "Two schedules are view equivalent when they have the same initial reads, the same reads-from pairs, and the same final writer for every item. A schedule is view serializable if it is view equivalent to some serial schedule.",
+          "tex": "\\text{Conflict serializable} \\subsetneq \\text{View serializable}"
+        },
+        "limits": "Testing view serializability is NP-complete, so real systems enforce conflict serializability instead. The blind-write shortcut only rules schedules out: a blind write permits view serializability without guaranteeing it.",
+        "example": {
+          "problem": "Schedule S = r2(X), w1(X), w2(X), w3(X). Is it conflict serializable? Is it view serializable?",
+          "steps": [
+            "Precedence edges on X: r2 before w1 gives T2 to T1, and w1 before w2 gives T1 to T2. That is a cycle, so S is not conflict serializable.",
+            "T1 and T3 write X without reading it, so blind writes exist and view serializability is still possible.",
+            "Try the serial order T2, T1, T3. T2 reads the initial X in both. T3 writes X last in both. Nobody else reads X.",
+            "So the three conditions match."
+          ],
+          "result": "S is view serializable (equivalent to T2, T1, T3) though not conflict serializable."
+        },
+        "misconceptions": [
+          "A cycle in the precedence graph does not by itself prove the schedule is wrong; with blind writes it may still be view serializable.",
+          "Matching final writes is not enough. Initial reads and every reads-from pair must match too.",
+          "View serializable does not imply conflict serializable; only the reverse holds."
+        ],
+        "recall": [
+          {
+            "q": "What three things must match for view equivalence?",
+            "a": "The initial reads, the reads-from pairs, and the final writer of each item."
+          },
+          {
+            "q": "What must a schedule contain to be view serializable but not conflict serializable?",
+            "a": "A blind write, a write by a transaction that never read that item."
+          },
+          {
+            "q": "A schedule has a precedence cycle and no blind writes. Is it view serializable?",
+            "a": "No. Without blind writes the two notions agree, so it is not view serializable either."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Schedule S = r1(X), r2(X), w1(X), w2(X). Which statement is true?",
+          "options": [
+            "Conflict serializable and view serializable",
+            "View serializable but not conflict serializable",
+            "Neither conflict serializable nor view serializable",
+            "Conflict serializable but not view serializable"
+          ],
+          "answer": 2,
+          "explanation": "Edges T2 to T1 (r2 before w1) and T1 to T2 (r1 before w2) form a cycle. Both writes follow a read of X by the same transaction, so there is no blind write, and a cycle without blind writes means not view serializable. A reader tempted by option 2 forgets that blind writes are what create the gap. Direct check: T1 then T2 makes T2 read T1's value, T2 then T1 makes T1 read T2's, but in S both read the initial X."
+        },
+        "summary": "View equivalence compares initial reads, reads-from pairs and final writers. View serializability includes all conflict serializable schedules, and any extra ones must contain a blind write."
+      }
+    },
+    {
+      "id": "db-transactions.recoverable-schedules",
+      "title": "Recoverable schedules",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        592,
+        593
+      ],
+      "points": [
+        "A schedule is recoverable if, whenever $T_j$ reads a value written by $T_i$, $T_i$ commits before $T_j$ commits.",
+        "w1(A); r2(A); w2(B); c2; a1 is not recoverable: T2 committed on a value that T1's abort erases, and a committed transaction cannot be rolled back.",
+        "Recoverability depends only on the order of commits relative to reads-from pairs, not on serializability; a schedule can be serializable and still not recoverable."
+      ],
+      "lesson": {
+        "why": "A schedule can be perfectly serializable and still be unsafe to run, and GATE asks you to separate the two ideas using commit order.",
+        "intro": "Suppose T2 reads a value that T1 wrote. T2 now depends on T1: if T1 aborts, its write is undone and T2 has used a value that never officially existed. If T2 has already committed, it cannot be undone, and the database is left wrong. A schedule avoids this trouble when each transaction that reads from another commits only after that other one commits.",
+        "prerequisites": [
+          "db-transactions.conflict-serializability"
+        ],
+        "principle": {
+          "text": "A schedule is recoverable if, whenever $T_j$ reads a value written by $T_i$, $T_i$ commits before $T_j$ commits."
+        },
+        "limits": "Recoverability looks only at reads-from pairs and the order of commits; it does not look at conflicts in general. It also does not prevent cascading aborts, which need the stricter cascadeless condition.",
+        "example": {
+          "problem": "Is w1(A) r2(A) c2 c1 recoverable? What changes if the commits are swapped to c1 c2?",
+          "steps": [
+            "T2 reads A after T1 wrote it, so T2 reads from T1 and T1 must commit first.",
+            "In w1(A) r2(A) c2 c1, T2 commits before T1, so the rule fails. If T1 had aborted after c2, T2 would hold a result built on a value that was erased.",
+            "With c1 c2 the order is correct, so the schedule is recoverable."
+          ],
+          "result": "w1(A) r2(A) c2 c1 is not recoverable; w1(A) r2(A) c1 c2 is recoverable."
+        },
+        "misconceptions": [
+          "Serializable does not imply recoverable: w1(A) r2(A) c2 c1 has a single edge T1 -> T2 and is conflict serializable, yet it is not recoverable.",
+          "Recoverable does not mean no transaction ever aborts; it only means that an abort never forces a committed transaction to be undone."
+        ],
+        "recall": [
+          {
+            "q": "What is the rule for a recoverable schedule?",
+            "a": "If Tj reads a value written by Ti, then Ti must commit before Tj commits."
+          },
+          {
+            "q": "Why is committing first on a read from an aborted writer a problem?",
+            "a": "The reader has committed work based on a value that the abort erases, and a commit cannot be undone."
+          },
+          {
+            "q": "Does conflict serializability guarantee recoverability?",
+            "a": "No; the two conditions are independent."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following schedules is recoverable?",
+          "options": [
+            "w1(A) r2(A) c2 a1",
+            "w1(A) r2(A) c1 c2",
+            "w1(A) r2(A) c2 c1",
+            "w2(B) r1(B) c1 c2"
+          ],
+          "answer": 1,
+          "explanation": "In the second schedule T2 reads from T1 and T1 commits first. In the other three the reader commits before the writer, or the writer aborts after the reader committed, so each fails the rule. The third is tempting because it is serializable, but serializability is a different property."
+        },
+        "summary": "A schedule is recoverable when every reader commits after the writer it read from; check the reads-from pairs and compare the commit positions."
+      }
+    },
+    {
+      "id": "db-transactions.cascadeless-strict",
+      "title": "Cascadeless and strict schedules",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        53,
+        593
+      ],
+      "points": [
+        "Cascading rollback: when $T_i$ aborts, every transaction that read its uncommitted data must abort too, and so on transitively.",
+        "Cascadeless (avoids cascading aborts): a transaction reads only values written by committed transactions, so the writer's commit precedes the read.",
+        "Strict: after $w_i(X)$, no other transaction reads or writes X until $T_i$ commits or aborts, so undo can simply restore before-images.",
+        "Strict ⊂ cascadeless ⊂ recoverable, each inclusion proper. r1(X); w1(X); r2(X); w2(X); c1; c2 is recoverable but not cascadeless.",
+        "A dirty write without a dirty read, as in w1(X); w2(X); c1; c2, is cascadeless but not strict."
+      ],
+      "keyTerms": [
+        "cascading rollback",
+        "cascadeless",
+        "strict schedule"
+      ],
+      "lesson": {
+        "why": "GATE asks which transaction must roll back when another aborts, and which class a given schedule belongs to. Both questions come down to when each read and write happens relative to commits.",
+        "intro": "A dirty read means reading a value that a transaction wrote but has not yet committed. If that writer later aborts, its value is erased, so the reader used a value that never really existed and must be rolled back too. Anyone who read from the reader must then go as well. This chain reaction is a cascading rollback. Schedules can be sorted by how strictly they keep other transactions away from uncommitted writes.",
+        "prerequisites": [
+          "db-transactions.recoverable-schedules"
+        ],
+        "definitions": [
+          {
+            "term": "Dirty read",
+            "meaning": "Reading an item that another transaction has written but not yet committed."
+          },
+          {
+            "term": "Before-image",
+            "meaning": "The value an item had before a transaction changed it; undoing a write means restoring it."
+          }
+        ],
+        "principle": {
+          "text": "Cascadeless: every read sees only committed writes. Strict: after $w_i(X)$, no other transaction reads or writes $X$ until $T_i$ ends. The classes nest, and each inclusion is proper.",
+          "tex": "\\text{strict} \\subset \\text{cascadeless} \\subset \\text{recoverable}"
+        },
+        "limits": "These classes say nothing about serializability: a strict schedule can still be non-serializable. The rules also look only at the order of operations and commits, so a transaction that only reads items nobody wrote creates no dependency at all.",
+        "example": {
+          "problem": "Classify w1(A) r2(A) c1 c2, w1(A) w2(A) c1 c2 and w1(A) c1 r2(A) w2(A) c2 as recoverable, cascadeless or strict.",
+          "steps": [
+            "In w1(A) r2(A) c1 c2, T2 reads A before T1 commits, so it is not cascadeless. T1 commits first, so it is recoverable.",
+            "In w1(A) w2(A) c1 c2 nobody reads uncommitted data, so it is cascadeless. T2 overwrites A before T1 commits, so it is not strict.",
+            "In w1(A) c1 r2(A) w2(A) c2 every access to A comes after T1 commits, so it is strict."
+          ],
+          "result": "The first is recoverable only, the second is cascadeless but not strict, and the third is strict."
+        },
+        "misconceptions": [
+          "A recoverable schedule is not automatically free of cascading aborts: in w1(A) r2(A) c1 c2 an abort of T1 before c1 would still drag T2 down.",
+          "Blind writes do not make a schedule cascadeless-unsafe, but they do break strictness, so do not treat the two conditions as the same."
+        ],
+        "recall": [
+          {
+            "q": "What is a cascading rollback?",
+            "a": "An abort of one transaction forces every transaction that read its uncommitted data to abort, and then those that read from them, and so on."
+          },
+          {
+            "q": "What extra rule does a strict schedule add over a cascadeless one?",
+            "a": "Uncommitted writes may not be overwritten either, not only not read."
+          },
+          {
+            "q": "How do the three classes nest?",
+            "a": "Strict is inside cascadeless, which is inside recoverable."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following schedules is cascadeless but not strict?",
+          "options": [
+            "r1(A) w1(A) r2(A) c1 c2",
+            "w1(A) w2(A) c1 c2",
+            "w1(A) c1 r2(A) w2(A) c2",
+            "w1(A) r2(A) c2 c1"
+          ],
+          "answer": 1,
+          "explanation": "In w1(A) w2(A) c1 c2 no transaction reads uncommitted data, so it is cascadeless, but T2 overwrites A before T1 commits, so it is not strict. The first and fourth read A before the writer commits, so neither is cascadeless; the fourth is not even recoverable. The third is strict, which tempts because it is also cascadeless, but the question excludes strict ones."
+        },
+        "summary": "Cascadeless forbids reading uncommitted writes; strict also forbids overwriting them. Strict implies cascadeless implies recoverable, and the converses fail."
+      }
+    },
+    {
+      "id": "db-transactions.lock-modes",
+      "title": "Shared and exclusive locks",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        53,
+        593,
+        594,
+        613
+      ],
+      "points": [
+        "A shared (S) lock is needed to read an item and may be held by many transactions at once; an exclusive (X) lock is needed to write and is held by one.",
+        "Compatibility: only S with S is compatible; a request incompatible with a held lock makes the requester wait.",
+        "Granularity runs from database to table, page and row: finer locks allow more concurrency at a higher lock-management cost.",
+        "Locking by itself does not ensure serializability (a transaction may unlock too early), and it can cause deadlock and starvation."
+      ],
+      "lesson": {
+        "why": "Locking questions rest on the compatibility rule for shared and exclusive locks, which decides who waits, so it is used in every trace and in the deadlock topics.",
+        "intro": "To stop two transactions from clashing on the same item, the DBMS makes a transaction ask for a lock before it touches the item. There are two kinds. A shared lock lets you read, and many transactions can hold one on the same item together. An exclusive lock lets you write, and only one transaction can hold it. If a request clashes with a lock already held, the requester waits.",
+        "analogy": {
+          "text": "A library book: many people can read the same reference copy together, but when someone borrows it to annotate it, nobody else can use it.",
+          "breaksWhen": "A library reader can walk away holding the book indefinitely, while a transaction must also follow a protocol about when it may release locks."
+        },
+        "definitions": [
+          {
+            "term": "Shared lock (S)",
+            "meaning": "Permission to read an item; compatible with other shared locks."
+          },
+          {
+            "term": "Exclusive lock (X)",
+            "meaning": "Permission to read and write an item; compatible with no other lock."
+          }
+        ],
+        "principle": {
+          "text": "Only S with S is compatible. A request for S waits if another transaction holds X, and a request for X waits if any other transaction holds S or X."
+        },
+        "limits": "Taking locks alone does not guarantee serializability: a transaction that unlocks too early can still produce a non-serializable schedule, which is why locking protocols such as two-phase locking exist. Locks can also cause deadlock and starvation.",
+        "example": {
+          "problem": "T1 holds S(A). T2 asks for S(A), then T3 asks for X(A). Which requests are granted?",
+          "steps": [
+            "T2 wants S, and S is compatible with the S that T1 holds, so T2 is granted.",
+            "T3 wants X, and X is compatible with nothing, so T3 must wait for both T1 and T2 to release."
+          ],
+          "result": "T2 is granted at once; T3 waits until T1 and T2 have released their shared locks."
+        },
+        "misconceptions": [
+          "Two readers never block each other under shared locks; waiting happens only when at least one side wants X.",
+          "A finer lock granularity, such as row instead of table, allows more concurrency but costs more lock management; it does not change the compatibility rule."
+        ],
+        "recall": [
+          {
+            "q": "Which pair of lock modes is compatible?",
+            "a": "Only shared with shared."
+          },
+          {
+            "q": "What happens when a request clashes with a held lock?",
+            "a": "The requester waits until the conflicting locks are released."
+          },
+          {
+            "q": "Does holding the right locks always give a serializable schedule?",
+            "a": "No. Releasing a lock too early can break serializability, so a protocol such as two-phase locking is needed."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "T1 and T2 both hold S(A). Which new request is granted immediately?",
+          "options": [
+            "T3 requests X(A)",
+            "T3 requests S(A)",
+            "T1 requests X(A)",
+            "T2 requests X(A)"
+          ],
+          "answer": 1,
+          "explanation": "S is compatible with S, so a third reader is granted. T3's X request clashes with both shared locks. The upgrade requests by T1 or T2 also wait, because each would clash with the other transaction's shared lock; they tempt because the requester already holds a lock."
+        },
+        "summary": "Shared locks allow many readers; an exclusive lock allows one writer. Only S with S is compatible, and an incompatible request waits."
+      }
+    },
+    {
+      "id": "db-transactions.two-phase-locking",
+      "title": "Two-phase locking",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        54,
+        594,
+        595,
+        605
+      ],
+      "points": [
+        "Under 2PL each transaction has a growing phase in which it only acquires locks and a shrinking phase in which it only releases them: no lock after the first unlock.",
+        "The lock point is the instant a transaction acquires its last lock; every 2PL schedule is conflict equivalent to the serial order of lock points.",
+        "Lock upgrades (S to X) are allowed only in the growing phase and downgrades (X to S) only in the shrinking phase.",
+        "Basic 2PL does not prevent deadlock: T1 holds X(A) and wants B while T2 holds X(B) and wants A.",
+        "Basic 2PL allows cascading aborts, since an X lock released before commit lets others read uncommitted data.",
+        "2PL is sufficient, not necessary: some conflict-serializable schedules cannot be produced by any 2PL locking."
+      ],
+      "keyTerms": [
+        "growing phase",
+        "shrinking phase",
+        "lock point"
+      ],
+      "lesson": {
+        "why": "GATE asks what two-phase locking guarantees and what it does not: serializability yes, deadlock freedom no. Spotting whether a lock sequence obeys the two phases is a quick mark.",
+        "intro": "A lock lets one transaction use a data item while others wait. Two-phase locking adds one discipline on top of locks: a transaction first only takes locks (the growing phase) and later only gives them up (the shrinking phase). Once it releases its first lock, it may never take another. The moment it holds its last lock is its lock point. Because of this single rule, the transactions behave as if they ran one after another in the order of their lock points.",
+        "prerequisites": [
+          "db-transactions.conflict-serializability"
+        ],
+        "definitions": [
+          {
+            "term": "Growing phase",
+            "meaning": "The part of a transaction before its first unlock, in which it only acquires locks."
+          },
+          {
+            "term": "Lock point",
+            "meaning": "The instant a transaction holds its last lock, just before the shrinking phase starts."
+          },
+          {
+            "term": "Exclusive (X) lock",
+            "meaning": "A lock needed to write an item; only one transaction can hold it, and no shared lock can coexist with it."
+          },
+          {
+            "term": "Deadlock",
+            "meaning": "A cycle of transactions, each waiting for a lock another in the cycle holds, so none can proceed."
+          }
+        ],
+        "principle": {
+          "text": "A transaction obeys 2PL when no lock operation follows an unlock operation. Every schedule that all transactions produce under 2PL is conflict serializable, in the order of the lock points."
+        },
+        "limits": "2PL does not prevent deadlock, since two transactions can each hold a lock the other wants. Basic 2PL also allows cascading aborts when locks are released before commit. It is sufficient but not necessary: some conflict serializable schedules cannot arise under any 2PL locking.",
+        "example": {
+          "problem": "Decide whether the lock sequence lock(A) lock(B) unlock(A) lock(C) unlock(B) unlock(C) obeys 2PL, and find the lock point of one that does.",
+          "steps": [
+            "Scan for the first unlock: it is unlock(A), at position 3.",
+            "A lock follows it, lock(C) at position 4. A lock after an unlock breaks the rule, so this sequence is not 2PL.",
+            "Now take lock(A) lock(B) lock(C) unlock(C) unlock(B) unlock(A). All locks come first, so it obeys 2PL, and the lock point is lock(C), the third operation."
+          ],
+          "result": "The first sequence is not 2PL; the second is, with its lock point at lock(C)."
+        },
+        "misconceptions": [
+          "Releasing a lock early is not forbidden; releasing a lock and then acquiring another is. Unlocking in the shrinking phase is fine.",
+          "2PL does not mean deadlock freedom: one transaction holding X on A and wanting B, while another holds B and wants A, is a valid 2PL execution that deadlocks."
+        ],
+        "recall": [
+          {
+            "q": "What single rule defines 2PL?",
+            "a": "No transaction may acquire a lock after it has released any lock."
+          },
+          {
+            "q": "In what order does 2PL make transactions serializable?",
+            "a": "The order of their lock points."
+          },
+          {
+            "q": "Can 2PL deadlock?",
+            "a": "Yes, because the growing phase lets transactions wait for each other in a cycle."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Each line is the lock and unlock sequence of one transaction, where L is lock and U is unlock. How many of the five transactions obey 2PL? (1) LA LB UA UB  (2) LA UA LB UB  (3) LB LA UA UB  (4) LA UA LB LC UB UC  (5) LA LB LC UC UB UA",
+          "answer": 3,
+          "explanation": "Sequences 1, 3 and 5 take every lock before the first unlock, so they obey 2PL. Sequences 2 and 4 take a lock after UA, so they break it. Sequence 2 is tempting because it looks like it handles each item cleanly, but locking B after unlocking A is exactly what 2PL forbids."
+        },
+        "summary": "2PL means all lock operations come before the first unlock. It guarantees conflict serializability in lock-point order but allows deadlock and, in basic form, cascading aborts."
+      }
+    },
+    {
+      "id": "db-transactions.2pl-variants",
+      "title": "Strict, rigorous and conservative 2PL",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        54,
+        595,
+        596,
+        612
+      ],
+      "points": [
+        "Strict 2PL holds every X lock until commit or abort; S locks may be released earlier. Its schedules are conflict serializable, cascadeless and strict.",
+        "Rigorous 2PL holds all locks until commit or abort, so transactions are serializable in their commit order.",
+        "Conservative (static) 2PL acquires every lock before the first operation, waiting while holding nothing; it is deadlock-free but needs the read and write sets in advance.",
+        "Strict and rigorous 2PL can still deadlock, because their growing phase is ordinary 2PL."
+      ],
+      "lesson": {
+        "why": "GATE compares basic, strict, rigorous and conservative 2PL on three properties: serializability, cascade freedom and deadlock freedom. Knowing which variant gives which is a direct question.",
+        "intro": "Basic two-phase locking lets a transaction release a lock any time after its last acquisition, even before it commits. That can expose uncommitted writes to others. The variants change when locks are released or acquired. Strict 2PL keeps every exclusive lock until the transaction ends. Rigorous 2PL keeps every lock, shared and exclusive, until the end. Conservative 2PL takes all its locks before it starts doing anything.",
+        "prerequisites": [
+          "db-transactions.two-phase-locking",
+          "db-transactions.cascadeless-strict"
+        ],
+        "principle": {
+          "text": "Strict and rigorous 2PL release locks only at commit or abort, so their schedules are conflict serializable and strict, hence cascadeless and recoverable. Conservative 2PL acquires all locks up front, so it is deadlock-free."
+        },
+        "limits": "Strict and rigorous 2PL still use an ordinary growing phase, so they can deadlock. Conservative 2PL needs the full set of items in advance, which is often unknown, and it can hold locks for a long time before they are used.",
+        "example": {
+          "problem": "T1 writes A and then B. T2 wants to read A. Under basic 2PL T1 unlocks A right after writing it. What changes if T1 follows strict 2PL?",
+          "steps": [
+            "Under basic 2PL, T1 can release X(A) after its last lock is taken, so T2 may read A while T1 is still active.",
+            "If T1 then aborts, T2 has read a value that is erased, so T2 must abort too: a cascading rollback.",
+            "Under strict 2PL T1 keeps X(A) until it commits or aborts, so T2 waits and reads only the committed value."
+          ],
+          "result": "Strict 2PL makes T2 wait, so no cascading rollback occurs."
+        },
+        "misconceptions": [
+          "Strict 2PL does not prevent deadlock; it only delays the release of exclusive locks, so two transactions can still wait on each other.",
+          "Strict 2PL is not the same as rigorous 2PL: strict may release shared locks early, rigorous keeps those too."
+        ],
+        "recall": [
+          {
+            "q": "Which locks does strict 2PL hold until commit or abort?",
+            "a": "All exclusive locks. Shared locks may be released earlier."
+          },
+          {
+            "q": "Which 2PL variant is deadlock-free, and why?",
+            "a": "Conservative 2PL, because a transaction waits for all its locks while holding none."
+          },
+          {
+            "q": "What schedule classes does strict 2PL guarantee?",
+            "a": "Conflict serializable and strict, so also cascadeless and recoverable."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which variant of two-phase locking is free of deadlock?",
+          "options": [
+            "Basic 2PL",
+            "Strict 2PL",
+            "Rigorous 2PL",
+            "Conservative 2PL"
+          ],
+          "answer": 3,
+          "explanation": "Conservative 2PL gets all its locks before it runs, waiting while holding none, so no cycle of waiting can form. Strict and rigorous 2PL are tempting because they give cleaner schedules, but their growing phase is ordinary and can deadlock, as can basic 2PL."
+        },
+        "summary": "Strict and rigorous 2PL give strict, serializable schedules but can deadlock. Conservative 2PL avoids deadlock by locking everything up front.",
+        "definitions": [
+          {
+            "term": "Shared (S) lock",
+            "meaning": "A lock needed to read an item; many transactions can hold it on the same item at once."
+          },
+          {
+            "term": "Exclusive (X) lock",
+            "meaning": "A lock needed to write an item; only one transaction can hold it, and no shared lock can coexist with it."
+          }
+        ]
+      }
+    },
+    {
+      "id": "db-transactions.multiple-granularity",
+      "title": "Multiple-granularity locking and intention locks",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        596,
+        597
+      ],
+      "points": [
+        "Locks are taken on a hierarchy (database, table, page, row); locking a node implicitly locks its whole subtree.",
+        "Intention locks mark plans lower down: IS before S on a descendant, IX before X on a descendant, and SIX = S on this node plus IX.",
+        "Compatibility: IS is compatible with all except X; IX with IS and IX; S with IS and S; SIX only with IS; X with nothing.",
+        "Locks are acquired root to leaf and released leaf to root, so a table-level S request is blocked quickly when another transaction holds IX on that table."
+      ],
+      "keyTerms": [
+        "IS",
+        "IX",
+        "SIX"
+      ],
+      "lesson": {
+        "why": "Intention locks come up as a compatibility-matrix question: which lock request on a table is blocked by another transaction's lock on a row below it.",
+        "intro": "Data is organised as a hierarchy: database, tables, pages, rows. A transaction may lock a whole table or a single row. Locking a node covers its whole subtree. The trouble is that a table-level request must discover quickly whether any row inside is locked. Intention locks solve this: before locking a row, the transaction marks each ancestor with a note of its plan.",
+        "definitions": [
+          {
+            "term": "IS",
+            "meaning": "Intention shared: a descendant will be locked in S."
+          },
+          {
+            "term": "IX",
+            "meaning": "Intention exclusive: a descendant will be locked in X."
+          },
+          {
+            "term": "SIX",
+            "meaning": "Shared plus intention exclusive: this node is read in full and some descendants will be written."
+          }
+        ],
+        "principle": {
+          "text": "Before taking S or IS on a node, hold IS or IX on its parent. Before taking X, IX or SIX, hold IX or SIX on its parent. Locks are acquired root to leaf and released leaf to root. IS is compatible with all but X; IX with IS and IX; S with IS and S; SIX only with IS; X with none."
+        },
+        "limits": "The hierarchy rules apply only to a lock hierarchy; they say nothing about timing, so two-phase behaviour is still needed for serializability. Intention locks never conflict with each other for plain updates, only with whole-node S, SIX and X.",
+        "example": {
+          "problem": "T1 updates one row r of table t in database db. T2 then asks for a shared lock on all of t. What happens?",
+          "steps": [
+            "T1 locks root to leaf: IX on db, IX on t, then X on r.",
+            "T2 needs S on t. The compatibility table says S is not compatible with IX.",
+            "T2 sees the clash at t itself, without scanning any row."
+          ],
+          "result": "T2 waits at table t until T1 releases its IX lock."
+        },
+        "misconceptions": [
+          "IX on a table does not lock the table against other row writers; two IX holders coexist, and conflicts are settled at the rows.",
+          "SIX is not S and IX held separately by two transactions; it is one lock on one node held by one transaction."
+        ],
+        "recall": [
+          {
+            "q": "What does an intention lock on a node announce?",
+            "a": "That a transaction plans to take S or X locks on some descendant of that node."
+          },
+          {
+            "q": "In what order are locks acquired and released in the hierarchy?",
+            "a": "Acquired from root to leaf, released from leaf to root."
+          },
+          {
+            "q": "Which lock modes does X conflict with?",
+            "a": "All of them: X is compatible with nothing."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Transaction T1 holds SIX on table t. Which request by another transaction on t is granted?",
+          "options": [
+            "IX",
+            "S",
+            "IS",
+            "X"
+          ],
+          "answer": 2,
+          "explanation": "SIX is compatible only with IS. IX is tempting because SIX contains an intention to write, but SIX also includes a full shared lock on t, and S clashes with IX. S clashes with the IX part of SIX, and X clashes with everything."
+        },
+        "summary": "Intention locks IS, IX and SIX mark plans on ancestors so that table-level requests can be checked quickly. Learn the compatibility matrix and the root-to-leaf order."
+      }
+    },
+    {
+      "id": "db-transactions.timestamp-ordering",
+      "title": "Timestamp-ordering protocol",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        54,
+        597,
+        605,
+        606,
+        612
+      ],
+      "points": [
+        "Each transaction gets a unique timestamp at start; each item X keeps R-TS(X) and W-TS(X), the largest timestamps that read and wrote it.",
+        "Read by T: if TS(T) < W-TS(X), roll T back; otherwise read and set R-TS(X) = max(R-TS(X), TS(T)).",
+        "Write by T: if TS(T) < R-TS(X) or TS(T) < W-TS(X), roll T back; otherwise write and set W-TS(X) = TS(T).",
+        "The result is conflict equivalent to the serial order of timestamps; no transaction waits, so deadlock is impossible.",
+        "A rolled-back transaction restarts with a new, larger timestamp. Basic TO can starve a transaction and can produce non-recoverable schedules."
+      ],
+      "keyTerms": [
+        "R-TS",
+        "W-TS",
+        "rollback"
+      ],
+      "lesson": {
+        "why": "Timestamp-ordering questions give transaction timestamps and a schedule, and ask which transactions are rolled back, so you must apply the read and write rules against R-TS and W-TS.",
+        "intro": "Instead of locks, this protocol gives every transaction a timestamp when it starts, so smaller means older. The schedule must behave as if transactions ran in timestamp order. Each item X keeps two numbers: R-TS(X), the largest timestamp that has read it, and W-TS(X), the largest timestamp that has written it. An operation that would contradict the timestamp order forces its transaction to roll back.",
+        "definitions": [
+          {
+            "term": "R-TS(X)",
+            "meaning": "The largest timestamp of any transaction that has read X."
+          },
+          {
+            "term": "W-TS(X)",
+            "meaning": "The largest timestamp of any transaction that has written X."
+          }
+        ],
+        "principle": {
+          "text": "A read by T is rejected if TS(T) is below W-TS(X), since a younger transaction has already overwritten X. A write by T is rejected if TS(T) is below R-TS(X) or W-TS(X), since a younger transaction has read or written X. Accepted operations update R-TS by max, or set W-TS to TS(T).",
+          "tex": "w_T(X)\\text{ rolls back } T \\iff TS(T) < R\\text{-}TS(X) \\lor TS(T) < W\\text{-}TS(X)"
+        },
+        "limits": "The protocol has no waiting, so it cannot deadlock, but a transaction can be rolled back repeatedly and starve, and basic timestamp ordering can produce non-recoverable schedules. The Thomas write rule changes only the case of an obsolete write.",
+        "example": {
+          "problem": "TS(T1) = 5 and TS(T2) = 8, with R-TS(X) = W-TS(X) = 0. Schedule: r2(X), w1(X). What happens?",
+          "steps": [
+            "r2(X): TS(T2) = 8 is not below W-TS(X) = 0, so the read is allowed and R-TS(X) becomes 8.",
+            "w1(X): TS(T1) = 5 is below R-TS(X) = 8, so the write is rejected.",
+            "The younger T2 already read X, so T1's write would arrive too late in timestamp order."
+          ],
+          "result": "T1 is rolled back and restarts with a new, larger timestamp."
+        },
+        "misconceptions": [
+          "Equal timestamps never cause a rollback: only a strictly smaller timestamp does.",
+          "A read by an older transaction does not lower R-TS; it is the maximum that is kept.",
+          "No waiting does not mean no cost: rolled-back transactions repeat their work."
+        ],
+        "recall": [
+          {
+            "q": "When is a read by T rejected?",
+            "a": "When TS(T) is less than W-TS(X)."
+          },
+          {
+            "q": "When is a write by T rejected?",
+            "a": "When TS(T) is less than R-TS(X) or less than W-TS(X)."
+          },
+          {
+            "q": "Why can timestamp ordering not deadlock?",
+            "a": "No transaction ever waits; a conflicting one is rolled back instead."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "TS(T1) = 10, TS(T2) = 20, TS(T3) = 30, with R-TS and W-TS of X and Y initially 0. Schedule: r2(X), r3(Y), w1(Y), w3(X), w2(Y), r1(X). How many transactions are rolled back under basic timestamp ordering?",
+          "answer": 2,
+          "explanation": "r2(X) sets R-TS(X) to 20 and r3(Y) sets R-TS(Y) to 30. w1(Y) has 10 below 30 and rolls T1 back. w3(X) has 30 not below 20 or 0, so it succeeds. w2(Y) has 20 below 30 and rolls T2 back. T1's later r1(X) is not run. A tempting answer of 1 forgets that w2(Y) conflicts with T3's earlier read."
+        },
+        "summary": "Each item stores R-TS and W-TS. A read fails if TS is below W-TS; a write fails if TS is below either. Failures roll back and restart with a new timestamp, and nothing ever waits."
+      }
+    },
+    {
+      "id": "db-transactions.thomas-write-rule",
+      "title": "Thomas write rule",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        597,
+        598,
+        606
+      ],
+      "points": [
+        "Changes only the write test: if TS(T) < R-TS(X), still roll T back; if TS(T) < W-TS(X) but not less than R-TS(X), ignore the write and let T continue.",
+        "The ignored write is obsolete: a younger transaction has already written X and nobody has read the older value in between.",
+        "Schedules allowed are view serializable but may not be conflict serializable, so the rule admits more schedules than basic TO."
+      ],
+      "lesson": {
+        "why": "Thomas write rule questions ask which writes a timestamp-ordering run ignores, which transactions it still rolls back, or whether the allowed schedules are conflict or only view serializable.",
+        "intro": "Basic timestamp ordering rolls a transaction back whenever its write arrives after a younger transaction has written the same item. Often that rollback is wasteful: the younger write has already replaced the value, and nobody read the older one in between, so the late write would be overwritten at once anyway. The Thomas write rule keeps everything else in timestamp ordering and changes only this case: the late write is skipped and its transaction carries on.",
+        "prerequisites": [
+          "db-transactions.timestamp-ordering"
+        ],
+        "definitions": [
+          {
+            "term": "Obsolete write",
+            "meaning": "A write by T on X where a younger transaction has already written X and no younger transaction has read X before T's turn."
+          }
+        ],
+        "principle": {
+          "text": "On w_T(X): if TS(T) is below R-TS(X), roll T back as before. Otherwise, if TS(T) is below W-TS(X), ignore the write and let T continue. Otherwise perform the write and set W-TS(X) to TS(T). Reads follow the basic rule unchanged.",
+          "tex": "R\\text{-}TS(X) \\le TS(T) < W\\text{-}TS(X) \\implies \\text{ignore } w_T(X)"
+        },
+        "limits": "The rule saves only writes that no one has read. A write below R-TS(X) is still rejected, and reads are never skipped. Schedules it admits are view serializable but may not be conflict serializable, so it is not a way to get more conflict serializable schedules.",
+        "example": {
+          "problem": "TS(T1) = 5 and TS(T2) = 8, with R-TS(X) = W-TS(X) = 0. Schedule: w2(X), w1(X). What does the Thomas write rule do with w1(X)?",
+          "steps": [
+            "w2(X): TS(T2) = 8 is not below R-TS(X) = 0 or W-TS(X) = 0, so the write happens and W-TS(X) becomes 8.",
+            "w1(X): TS(T1) = 5 is not below R-TS(X) = 0, so there is no reader that T1 would disturb.",
+            "But 5 is below W-TS(X) = 8, so T2 has already written a newer value and T1's write would be overwritten in timestamp order."
+          ],
+          "result": "w1(X) is ignored and T1 continues. Basic timestamp ordering would have rolled T1 back."
+        },
+        "misconceptions": [
+          "The Thomas rule does not ignore every late write: if a younger transaction has read X, TS(T) is below R-TS(X) and T is still rolled back.",
+          "Ignoring a write is not a rollback; the transaction keeps running and commits normally.",
+          "Because it admits more schedules than basic timestamp ordering, it is wrong to conclude they are all conflict serializable; only view serializability is guaranteed."
+        ],
+        "recall": [
+          {
+            "q": "Which single case does the Thomas write rule change compared with basic timestamp ordering?",
+            "a": "A write with R-TS(X) <= TS(T) < W-TS(X): it is ignored instead of rolling T back."
+          },
+          {
+            "q": "When does a write still roll back under the Thomas rule?",
+            "a": "When TS(T) is below R-TS(X), because a younger transaction has read X."
+          },
+          {
+            "q": "What serializability do Thomas-rule schedules guarantee?",
+            "a": "View serializability, not necessarily conflict serializability."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "TS(T1) = 10, TS(T2) = 20, TS(T3) = 30, with R-TS and W-TS of X and Y initially 0. Schedule: w3(X), w1(X), w2(X), r2(Y), w1(Y). Under the Thomas write rule, how many writes are ignored?",
+          "answer": 2,
+          "explanation": "w3(X) succeeds and W-TS(X) becomes 30. w1(X) has 10 below W-TS(X) = 30 and not below R-TS(X) = 0, so it is ignored. w2(X) is likewise ignored since 20 is below 30. r2(Y) sets R-TS(Y) to 20. w1(Y) has 10 below R-TS(Y) = 20, so T1 is rolled back, not ignored. A tempting answer of 3 counts that rollback as an ignored write."
+        },
+        "summary": "The Thomas rule changes one case of timestamp ordering: a write with TS between R-TS and W-TS is obsolete and skipped, not rolled back. A write below R-TS still rolls back, and the result is view serializable only."
+      }
+    },
+    {
+      "id": "db-transactions.mvcc-optimistic",
+      "title": "Multiversion and optimistic concurrency control",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        54,
+        598,
+        599,
+        612
+      ],
+      "points": [
+        "MVCC keeps several versions of each item; a transaction reads the version with the largest write timestamp not exceeding its own timestamp.",
+        "A write creates a new version; in multiversion timestamp ordering it is rejected if a younger transaction has already read the version it would supersede.",
+        "Readers never block writers and writers never block readers; old versions are garbage-collected once no active transaction can see them.",
+        "Snapshot isolation (PostgreSQL, Oracle) is weaker than serializability: write skew lets two transactions each check a constraint and both commit, violating it.",
+        "Optimistic (validation-based) control runs a read phase on local copies, a validation phase at commit, then a write phase; it suits low-contention, read-heavy workloads."
+      ],
+      "keyTerms": [
+        "MVCC",
+        "snapshot isolation",
+        "write skew",
+        "validation"
+      ],
+      "lesson": {
+        "why": "Questions test which version a read returns under multiversion timestamp ordering, which write is rejected, and what snapshot isolation or optimistic validation does and does not guarantee.",
+        "intro": "Instead of overwriting a data item, a multiversion system keeps every old value as a separate version, each tagged with the timestamp of its writer. A reader picks the version that was current at its own timestamp, so it never has to wait for a writer and a writer never has to wait for a reader. Optimistic control takes a different route: let transactions work on private copies without locking, and check for conflicts only when they try to commit.",
+        "prerequisites": [
+          "db-transactions.timestamp-ordering"
+        ],
+        "definitions": [
+          {
+            "term": "Version",
+            "meaning": "One stored value of an item together with the timestamp of the transaction that wrote it and the largest timestamp that has read it."
+          },
+          {
+            "term": "Snapshot isolation",
+            "meaning": "Each transaction reads the database as it was when it started; it is weaker than serializability."
+          },
+          {
+            "term": "Write skew",
+            "meaning": "Two transactions read overlapping data, write different items, and both commit, breaking a constraint that either alone would keep."
+          },
+          {
+            "term": "Validation",
+            "meaning": "The check at commit time in optimistic control that decides whether the transaction conflicted with others that ran concurrently."
+          }
+        ],
+        "principle": {
+          "text": "A read by T returns the version with the largest write timestamp not above TS(T), and raises that version's read timestamp to at least TS(T). A write by T is rejected if TS(T) is below the read timestamp of the version it would supersede; otherwise it creates a new version stamped TS(T).",
+          "tex": "r_T(X) \\text{ returns } X_k,\\quad W\\text{-}TS(X_k)=\\max\\{\\,W\\text{-}TS(X_j)\\le TS(T)\\,\\}"
+        },
+        "limits": "Reads never roll back, but writes can. Snapshot isolation allows write skew, so it is not serializable. Optimistic control suits low contention and read-heavy work; under heavy conflict many transactions fail validation and repeat their work.",
+        "example": {
+          "problem": "TS(T1) = 5 and TS(T2) = 8. Item X has only its initial version, with write timestamp 0. Schedule: r2(X), w1(X). What happens under multiversion timestamp ordering?",
+          "steps": [
+            "r2(X): the version with the largest write timestamp not above 8 is the initial one (0), so T2 reads it and its read timestamp becomes 8.",
+            "w1(X): the version T1 would supersede is also the initial one, since 0 is the largest write timestamp not above 5.",
+            "That version was read by TS 8, and 5 is below 8, so T1's write would change a value T2 should have seen differently."
+          ],
+          "result": "w1(X) is rejected and T1 is rolled back; the read by T2 was never delayed."
+        },
+        "misconceptions": [
+          "A read is never rejected under multiversion timestamp ordering; only writes can cause a rollback.",
+          "Snapshot isolation is not the same as serializability: write skew can commit and violate a constraint.",
+          "Optimistic control is not lock-free in effect on correctness; it still must detect conflicts, just at validation instead of at each operation."
+        ],
+        "recall": [
+          {
+            "q": "Which version does a read by T return?",
+            "a": "The one with the largest write timestamp that is not above TS(T)."
+          },
+          {
+            "q": "When is a write rejected in multiversion timestamp ordering?",
+            "a": "When TS(T) is below the read timestamp of the version it would supersede."
+          },
+          {
+            "q": "What are the three phases of optimistic concurrency control?",
+            "a": "Read on local copies, validation at commit, then write."
+          },
+          {
+            "q": "What anomaly does snapshot isolation allow?",
+            "a": "Write skew, where two transactions each preserve a constraint alone but break it together."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "TS(T1) = 10, TS(T2) = 20, TS(T3) = 30. Item X starts with one version, write timestamp 0. Schedule under multiversion timestamp ordering: r2(X), w3(X), r1(X), w1(X), w2(X). How many transactions are rolled back?",
+          "answer": 1,
+          "explanation": "r2(X) reads the initial version and sets its read timestamp to 20. w3(X) has 30 not below 20, so it creates version 30. r1(X) reads the initial version, the largest write timestamp not above 10; the read timestamp stays 20. w1(X) would supersede that version, and 10 is below 20, so T1 is rolled back. w2(X) also supersedes the initial version, but 20 is not below 20, so it creates version 20. A tempting answer of 2 assumes w2(X) fails because T3 already wrote X; that matters only under basic timestamp ordering."
+        },
+        "summary": "Multiversion control keeps versions so reads pick the one visible at their timestamp and never wait or fail; a write fails only if a younger transaction has read the version it would replace. Snapshot isolation permits write skew, and optimistic control validates at commit."
+      }
+    },
+    {
+      "id": "db-transactions.deadlock-prevention",
+      "title": "Deadlock prevention: wait-die and wound-wait",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        54,
+        599,
+        600,
+        605,
+        613
+      ],
+      "points": [
+        "Both schemes compare timestamps when $T_i$ requests a lock held by $T_j$; a smaller timestamp means an older transaction.",
+        "Wait-die (non-preemptive): an older requester waits; a younger requester dies, that is, it is rolled back.",
+        "Wound-wait (preemptive): an older requester wounds the holder, which is rolled back; a younger requester waits.",
+        "Waiting happens in one timestamp direction only (old waits for young in wait-die, young waits for old in wound-wait), so no cycle can form.",
+        "A rolled-back transaction restarts with its original timestamp, so it eventually becomes the oldest and cannot starve."
+      ],
+      "keyTerms": [
+        "wait-die",
+        "wound-wait"
+      ],
+      "lesson": {
+        "why": "GATE asks whether a timestamp rule is deadlock-free and starvation-free, and what happens to a given requester. Both follow from comparing two timestamps.",
+        "intro": "A deadlock is a cycle of transactions, each waiting for a lock held by the next. Prevention schemes give every transaction a unique timestamp when it starts; a smaller timestamp means an older transaction. When a requester wants a lock that a holder has, the scheme compares ages and decides who waits and who is rolled back. Because waiting is allowed in only one direction of age, a cycle cannot form.",
+        "prerequisites": [
+          "db-transactions.two-phase-locking"
+        ],
+        "definitions": [
+          {
+            "term": "Wait-die",
+            "meaning": "Non-preemptive: an older requester waits for a younger holder; a younger requester is rolled back."
+          },
+          {
+            "term": "Wound-wait",
+            "meaning": "Preemptive: an older requester rolls back a younger holder; a younger requester waits."
+          }
+        ],
+        "principle": {
+          "text": "Let $TS(T_i)$ be the requester and $TS(T_j)$ the holder. Wait-die: $T_i$ waits if $TS(T_i)<TS(T_j)$, else it dies. Wound-wait: $T_i$ wounds $T_j$ if $TS(T_i)<TS(T_j)$, else it waits. A restarted transaction keeps its original timestamp.",
+          "tex": "\\text{wait-die: } TS(T_i)<TS(T_j)\\Rightarrow \\text{wait}\\qquad \\text{wound-wait: } TS(T_i)<TS(T_j)\\Rightarrow \\text{wound}"
+        },
+        "limits": "Both schemes may roll back transactions that were never part of a deadlock, which wastes work. They apply only when timestamps are unique and a restarted transaction keeps its old one; with a fresh timestamp each time, starvation is possible.",
+        "example": {
+          "problem": "T5 has timestamp 5 and T9 has timestamp 9. Each requests a lock held by the other, in two separate cases. What happens under wait-die and under wound-wait?",
+          "steps": [
+            "Case 1: requester T5 (older), holder T9 (younger). Wait-die: older waits. Wound-wait: older wounds, so T9 is rolled back.",
+            "Case 2: requester T9 (younger), holder T5 (older). Wait-die: younger dies. Wound-wait: younger waits.",
+            "In each scheme every wait goes in one age direction only, so a cycle of waits is impossible."
+          ],
+          "result": "Case 1: wait-die waits, wound-wait rolls back the holder. Case 2: wait-die rolls back the requester, wound-wait waits."
+        },
+        "misconceptions": [
+          "Wait-die and wound-wait are not mirror images in who gets rolled back: wait-die kills the requester, wound-wait kills the holder.",
+          "A restart with a new timestamp does not keep the scheme starvation-free; the same old timestamp is what lets a victim eventually become the oldest."
+        ],
+        "recall": [
+          {
+            "q": "In wait-die, what happens to a younger requester?",
+            "a": "It is rolled back (dies) and restarts with its original timestamp."
+          },
+          {
+            "q": "In wound-wait, who waits?",
+            "a": "Only a younger requester waits for an older holder."
+          },
+          {
+            "q": "Why can neither scheme deadlock?",
+            "a": "Waits go in one timestamp direction only, so no cycle of waiting can close."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Transactions have timestamps 10, 20 and 30. Four independent lock requests are made, each written as (requester, holder): (10,20), (10,30), (20,30), (30,10). Under wound-wait, how many requests cause the holder to be rolled back?",
+          "answer": 3,
+          "explanation": "Under wound-wait an older requester wounds a younger holder. Requests (10,20), (10,30) and (20,30) have an older requester, so each rolls back the holder. In (30,10) the requester is younger and simply waits. Counting (30,10) is tempting if you assume every conflict rolls someone back, but here the younger requester just waits. Under wait-die it is the requester that would be rolled back, never the holder."
+        },
+        "summary": "Compare timestamps: wait-die has the older wait and the younger die, wound-wait has the older wound and the younger wait. Both prevent deadlock, and keeping the original timestamp prevents starvation."
+      }
+    },
+    {
+      "id": "db-transactions.deadlock-detection",
+      "title": "Deadlock detection with the wait-for graph",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        54,
+        600,
+        601,
+        613
+      ],
+      "points": [
+        "The wait-for graph has a node per active transaction and an edge $T_i \\to T_j$ when $T_i$ waits for a lock $T_j$ holds.",
+        "With single-instance locks, a cycle in the wait-for graph means deadlock; the system checks periodically or when a wait runs long.",
+        "A victim is rolled back to break the cycle, preferring the one that has done least work or holds fewest locks, while avoiding picking the same one repeatedly.",
+        "Detection causes fewer aborts than prevention under low contention, which is why most commercial systems use it."
+      ],
+      "lesson": {
+        "why": "Deadlock detection questions give a set of lock waits, ask you to draw the wait-for graph, decide whether a deadlock exists, and sometimes how many transactions must be rolled back to clear it.",
+        "intro": "When transactions wait for each other's locks, some can end up waiting in a ring where each holds what the next needs, and none can ever proceed. Detection lets this happen, then looks for it. The system draws a graph with one node per active transaction and an arrow from a waiting transaction to the one holding the lock it wants. A ring of arrows is a deadlock, and the system breaks it by rolling back one transaction in the ring.",
+        "prerequisites": [
+          "db-transactions.two-phase-locking"
+        ],
+        "definitions": [
+          {
+            "term": "Wait-for graph",
+            "meaning": "A directed graph with a node per active transaction and an edge Ti to Tj when Ti waits for a lock that Tj holds."
+          },
+          {
+            "term": "Victim",
+            "meaning": "The transaction chosen to be rolled back so that a deadlock cycle is broken."
+          }
+        ],
+        "principle": {
+          "text": "With one instance of each lock, the system is deadlocked exactly when the wait-for graph has a cycle. Every transaction on a cycle is stuck; one transaction on each cycle must be rolled back as a victim, chosen to cost least, such as the one with least work done.",
+          "tex": "\\text{deadlock} \\iff G_{\\text{wait-for}} \\text{ has a directed cycle}"
+        },
+        "limits": "A transaction that waits for a deadlocked one but is not on the cycle is blocked, not deadlocked, and it resumes once the cycle is broken. Always choosing the same victim can starve it, so repeated victims should be avoided. Detection allows deadlock to occur, unlike prevention.",
+        "example": {
+          "problem": "T1 waits for a lock held by T2, T2 waits for T3, T3 waits for T1, and T4 waits for T1. Is there a deadlock, and which transactions are in it?",
+          "steps": [
+            "Draw the edges T1 to T2, T2 to T3, T3 to T1 and T4 to T1.",
+            "Follow T1 to T2 to T3 and back to T1: that is a directed cycle, so there is a deadlock.",
+            "T4 has an edge into the cycle but nothing waits for T4, so no path leads back to T4 and it is not on a cycle."
+          ],
+          "result": "T1, T2 and T3 are deadlocked. T4 is only blocked and resumes after a victim among the three is rolled back."
+        },
+        "misconceptions": [
+          "A transaction that is waiting is not necessarily deadlocked; only transactions on a cycle are.",
+          "A wait-for graph edge points from the waiter to the holder, not the other way round, though the cycle test is unaffected by consistent reversal.",
+          "Rolling back one transaction does not clear every deadlock: each separate cycle needs its own victim unless one transaction lies on several."
+        ],
+        "recall": [
+          {
+            "q": "What do the nodes and edges of a wait-for graph represent?",
+            "a": "Nodes are active transactions; an edge Ti to Tj means Ti waits for a lock Tj holds."
+          },
+          {
+            "q": "When is there a deadlock with single-instance locks?",
+            "a": "Exactly when the wait-for graph contains a directed cycle."
+          },
+          {
+            "q": "How is a victim usually chosen?",
+            "a": "By least cost, such as least work done or fewest locks held, avoiding the same victim repeatedly."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A wait-for graph has edges T1 to T2, T2 to T1, T3 to T4, T4 to T5, T5 to T3, T6 to T1 and T6 to T3. What is the minimum number of transactions that must be rolled back to remove every deadlock?",
+          "answer": 2,
+          "explanation": "The graph has two disjoint cycles: T1, T2 and T3, T4, T5. They share no node, so each needs its own victim and at least 2 rollbacks are required; one victim from each cycle is enough. T6 waits on both cycles but lies on neither, so rolling it back removes no cycle. A tempting answer of 1 assumes one rollback clears the whole graph."
+        },
+        "summary": "Build a wait-for graph with an edge from each waiter to its holder; a directed cycle is a deadlock. Break each cycle by rolling back a low-cost victim, and note that transactions outside every cycle only wait."
+      }
+    },
+    {
+      "id": "db-transactions.log-recovery",
+      "title": "Log-based recovery, checkpoints and ARIES",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        54,
+        601,
+        602,
+        603,
+        606
+      ],
+      "points": [
+        "Write-ahead logging: the log record for an update reaches stable storage before the data page it describes, and a transaction commits only after its commit record is on disk.",
+        "Update records <T, X, old, new> carry the before-image for UNDO and the after-image for REDO.",
+        "After a crash, redo transactions whose commit record is in the log and undo the rest, scanning backward and restoring old values.",
+        "A checkpoint flushes dirty pages and then writes a checkpoint record listing active transactions; recovery starts from the last checkpoint, and transactions committed before it need no redo.",
+        "ARIES runs analysis (rebuild the transaction and dirty-page tables), redo (repeat history from the oldest dirty-page LSN) and undo (roll back losers, writing redo-only compensation log records)."
+      ],
+      "keyTerms": [
+        "WAL",
+        "undo",
+        "redo",
+        "checkpoint",
+        "ARIES",
+        "CLR"
+      ],
+      "lesson": {
+        "why": "GATE asks which transactions are redone or undone after a crash and what the data values are afterwards. The answer follows mechanically from the log and the last checkpoint.",
+        "intro": "A system can crash with some updates written to disk and others lost. To recover, the DBMS first writes every change to a log on stable storage, recording the old value and the new value. After a crash it reads the log. A transaction whose commit record is present is a winner: its new values are applied again (redo). A transaction with no commit record is a loser: its changes are reversed using the old values (undo).",
+        "prerequisites": [
+          "db-transactions.cascadeless-strict"
+        ],
+        "definitions": [
+          {
+            "term": "Write-ahead logging",
+            "meaning": "The log record of an update reaches stable storage before the changed data page does."
+          },
+          {
+            "term": "Checkpoint",
+            "meaning": "A log record, written after dirty pages are flushed, that lists the transactions active at that moment."
+          }
+        ],
+        "principle": {
+          "text": "After a crash, redo every transaction whose commit record is in the log and undo every transaction without one. Recovery starts at the last checkpoint: transactions that committed before it need no redo. Transactions still active at the checkpoint are not skipped: they are redone or undone as usual, which can require reading back to their start records.",
+          "tex": "\\text{value}(X)=\\begin{cases}\\text{new value} & T \\text{ committed}\\\\ \\text{old value} & T \\text{ uncommitted}\\end{cases}"
+        },
+        "limits": "This is the simple log scheme. Real systems such as ARIES redo every logged change first and then undo losers, and they write compensation records so that a crash during recovery is also safe. Redo and undo must be repeatable so that recovery can be rerun any number of times.",
+        "example": {
+          "problem": "Initially A=10 and B=5. The log is: T1 start, T1 writes A from 10 to 20, T2 start, T2 writes B from 5 to 7, T1 commit. The system then crashes. What are A and B after recovery?",
+          "steps": [
+            "T1 has a commit record, so it is a winner and its write is redone: A becomes 20.",
+            "T2 has no commit record, so it is a loser and its write is undone: B returns to its old value, 5.",
+            "The database now shows only the effect of the committed transaction."
+          ],
+          "result": "A = 20 and B = 5."
+        },
+        "misconceptions": [
+          "Not every logged transaction is redone: only those with a commit record. A transaction that started and wrote but did not commit is undone.",
+          "Recovery is idempotent: redo and undo can be repeated, so after a crash during recovery the same redo and undo lists are used again and the database stays consistent."
+        ],
+        "recall": [
+          {
+            "q": "What does write-ahead logging require?",
+            "a": "The log record for an update must reach stable storage before the updated data page does."
+          },
+          {
+            "q": "Which transactions are redone after a crash?",
+            "a": "Those with a commit record in the log, after the last checkpoint."
+          },
+          {
+            "q": "Which value is used to undo a write?",
+            "a": "The old value (before-image) stored in the update record."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Initially A=100, B=200, C=300. The log is: T1 start; T1 A 100 to 150; T2 start; T2 B 200 to 260; checkpoint {T1,T2}; T1 commit; T3 start; T3 C 300 to 310; T2 A 150 to 170; T2 commit. The system crashes here. After recovery, what is A + B + C?",
+          "answer": 730,
+          "explanation": "T1 and T2 have commit records, so their writes are redone, giving A=170 (T2's later write) and B=260. T3 has none, so its write to C is undone and C=300. The sum is 170 + 260 + 300 = 730. Answering 740 is tempting if you keep T3's write to C as if it were durable."
+        },
+        "summary": "Redo transactions with a commit record, undo those without, and begin at the last checkpoint. Old values restore losers and new values rebuild winners."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "db-transactions.serial-schedules",
+      "name": "Number of serial schedules",
+      "tex": "N_{\\text{serial}} = n!",
+      "text": "N_serial = n!",
+      "where": [
+        [
+          "n",
+          "number of transactions"
+        ]
+      ],
+      "topic": "db-transactions.schedules",
+      "origin": "source",
+      "pages": [
+        588
+      ]
+    },
+    {
+      "id": "db-transactions.total-schedules",
+      "name": "Number of schedules (interleavings)",
+      "tex": "N = \\frac{(n_1 + n_2 + \\cdots + n_k)!}{n_1!\\, n_2! \\cdots n_k!}",
+      "text": "N = (n1 + n2 + … + nk)! / (n1! · n2! · … · nk!)",
+      "where": [
+        [
+          "n_i",
+          "number of operations of transaction T_i"
+        ],
+        [
+          "k",
+          "number of transactions"
+        ]
+      ],
+      "note": "Concurrent (non-serial) schedules are N − k!. Two transactions of 3 operations each give 20 − 2 = 18.",
+      "topic": "db-transactions.schedule-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.conflict-condition",
+      "name": "When two operations conflict",
+      "tex": "p \\text{ conflicts with } q \\iff T(p) \\ne T(q) \\,\\land\\, \\mathrm{item}(p) = \\mathrm{item}(q) \\,\\land\\, (p = w \\lor q = w)",
+      "text": "p conflicts with q ⟺ different transactions ∧ same item ∧ at least one is a write",
+      "topic": "db-transactions.conflicting-operations",
+      "origin": "source",
+      "pages": [
+        53,
+        588,
+        589
+      ]
+    },
+    {
+      "id": "db-transactions.precedence-test",
+      "name": "Conflict-serializability test",
+      "tex": "S \\text{ is conflict serializable} \\iff G(S) \\text{ is acyclic}",
+      "text": "S is conflict serializable ⟺ precedence graph G(S) is acyclic",
+      "where": [
+        [
+          "G(S)",
+          "precedence graph: edge Ti → Tj when an op of Ti conflicts with a later op of Tj"
+        ]
+      ],
+      "note": "Equivalent serial schedules are exactly the topological orders of G(S).",
+      "topic": "db-transactions.conflict-serializability",
+      "origin": "source",
+      "pages": [
+        53,
+        590
+      ]
+    },
+    {
+      "id": "db-transactions.schedule-hierarchy",
+      "name": "Recoverability hierarchy",
+      "tex": "\\text{Strict} \\subsetneq \\text{Cascadeless} \\subsetneq \\text{Recoverable}",
+      "text": "Strict ⊊ Cascadeless ⊊ Recoverable",
+      "note": "Independent of serializability: a serial schedule is strict, but a conflict-serializable schedule need not even be recoverable.",
+      "topic": "db-transactions.cascadeless-strict",
+      "origin": "source",
+      "pages": [
+        593,
+        610
+      ]
+    },
+    {
+      "id": "db-transactions.serializability-hierarchy",
+      "name": "Serializability hierarchy",
+      "tex": "\\text{Serial} \\subsetneq \\text{Conflict serializable} \\subsetneq \\text{View serializable}",
+      "text": "Serial ⊊ Conflict serializable ⊊ View serializable",
+      "note": "The gap between conflict and view serializability consists of schedules with blind writes.",
+      "topic": "db-transactions.view-serializability",
+      "origin": "source",
+      "pages": [
+        591,
+        609
+      ]
+    },
+    {
+      "id": "db-transactions.to-read-rule",
+      "name": "Timestamp ordering: read rule",
+      "tex": "r_T(X) \\text{ rolls back } T \\iff TS(T) < W\\text{-}TS(X); \\text{ else } R\\text{-}TS(X) \\leftarrow \\max(R\\text{-}TS(X), TS(T))",
+      "text": "r_T(X) rolls T back iff TS(T) < W-TS(X); else R-TS(X) ← max(R-TS(X), TS(T))",
+      "topic": "db-transactions.timestamp-ordering",
+      "origin": "source",
+      "pages": [
+        54,
+        597
+      ]
+    },
+    {
+      "id": "db-transactions.to-write-rule",
+      "name": "Timestamp ordering: write rule",
+      "tex": "w_T(X) \\text{ rolls back } T \\iff TS(T) < R\\text{-}TS(X) \\lor TS(T) < W\\text{-}TS(X); \\text{ else } W\\text{-}TS(X) \\leftarrow TS(T)",
+      "text": "w_T(X) rolls T back iff TS(T) < R-TS(X) or TS(T) < W-TS(X); else W-TS(X) ← TS(T)",
+      "note": "Equality never causes a rollback: a transaction may read or rewrite its own write.",
+      "topic": "db-transactions.timestamp-ordering",
+      "origin": "source",
+      "pages": [
+        54,
+        597
+      ]
+    },
+    {
+      "id": "db-transactions.thomas-rule",
+      "name": "Thomas write rule",
+      "tex": "R\\text{-}TS(X) \\le TS(T) < W\\text{-}TS(X) \\implies \\text{ignore } w_T(X)",
+      "text": "R-TS(X) ≤ TS(T) < W-TS(X) ⟹ ignore w_T(X) and continue",
+      "note": "TS(T) < R-TS(X) still rolls T back; only the obsolete-write case changes.",
+      "topic": "db-transactions.thomas-write-rule",
+      "origin": "source",
+      "pages": [
+        597,
+        598
+      ]
+    },
+    {
+      "id": "db-transactions.mvcc-read",
+      "name": "Multiversion read rule",
+      "tex": "r_T(X) \\text{ returns } X_k, \\quad W\\text{-}TS(X_k) = \\max\\{\\, W\\text{-}TS(X_j) \\le TS(T) \\,\\}",
+      "text": "r_T(X) returns the version X_k with the largest W-TS(X_k) ≤ TS(T)",
+      "note": "Reads never wait and never roll back under multiversion timestamp ordering.",
+      "topic": "db-transactions.mvcc-optimistic",
+      "origin": "source",
+      "pages": [
+        598
+      ]
+    },
+    {
+      "id": "db-transactions.wait-die",
+      "name": "Wait-die decision",
+      "tex": "T_i \\text{ requests from } T_j: \\; TS(T_i) < TS(T_j) \\Rightarrow T_i \\text{ waits; else } T_i \\text{ dies}",
+      "text": "Ti requests a lock held by Tj: TS(Ti) < TS(Tj) ⇒ Ti waits; else Ti is rolled back",
+      "topic": "db-transactions.deadlock-prevention",
+      "origin": "source",
+      "pages": [
+        599
+      ]
+    },
+    {
+      "id": "db-transactions.wound-wait",
+      "name": "Wound-wait decision",
+      "tex": "T_i \\text{ requests from } T_j: \\; TS(T_i) < TS(T_j) \\Rightarrow T_j \\text{ is wounded; else } T_i \\text{ waits}",
+      "text": "Ti requests a lock held by Tj: TS(Ti) < TS(Tj) ⇒ Tj is rolled back; else Ti waits",
+      "note": "In both schemes the older transaction is never rolled back; only the younger one ever is.",
+      "topic": "db-transactions.deadlock-prevention",
+      "origin": "source",
+      "pages": [
+        599,
+        600
+      ]
+    },
+    {
+      "id": "db-transactions.lock-point-order",
+      "name": "2PL serial order",
+      "tex": "\\text{lockpoint}(T_i) < \\text{lockpoint}(T_j) \\implies T_i \\text{ precedes } T_j \\text{ in the equivalent serial order}",
+      "text": "lockpoint(Ti) < lockpoint(Tj) ⟹ Ti precedes Tj in the equivalent serial schedule",
+      "topic": "db-transactions.two-phase-locking",
+      "origin": "source",
+      "pages": [
+        594,
+        595
+      ]
+    },
+    {
+      "id": "db-transactions.wal-rule",
+      "name": "Write-ahead logging rule",
+      "tex": "t(\\text{log record of } X \\text{ on disk}) < t(\\text{page of } X \\text{ on disk})",
+      "text": "log record of an update is on stable storage before the data page it changes",
+      "note": "Also: the commit record must be on disk before the transaction is reported committed.",
+      "topic": "db-transactions.log-recovery",
+      "origin": "source",
+      "pages": [
+        601
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "db-transactions.conflict-test-cost",
+      "name": "Conflict-serializability test (precedence graph)",
+      "worst": "O(m² + n + e)",
+      "notes": "m operations, n transactions, e edges: pairwise scan for conflicts, then DFS cycle detection in O(n + e).",
+      "topic": "db-transactions.conflict-serializability",
+      "origin": "source",
+      "pages": [
+        591
+      ]
+    },
+    {
+      "id": "db-transactions.view-test-cost",
+      "name": "View-serializability test",
+      "worst": "NP-complete",
+      "notes": "The brute-force check compares the schedule against all n! serial orders.",
+      "topic": "db-transactions.view-serializability",
+      "origin": "source",
+      "pages": [
+        592
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "db-transactions.precedence-graph",
+      "title": "Decide conflict serializability from a schedule",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Write each item's operations in schedule order and mark every pair from different transactions with at least one write.",
+        "Add an edge from the earlier operation's transaction to the later one's for each such pair.",
+        "Look for a cycle; if none, read off the equivalent serial schedules as the topological orders."
+      ],
+      "trap": "Checking only adjacent operations misses edges; two reads never add an edge.",
+      "topic": "db-transactions.conflict-serializability",
+      "origin": "source",
+      "pages": [
+        590,
+        591,
+        604,
+        614
+      ]
+    },
+    {
+      "id": "db-transactions.view-check",
+      "title": "View serializable but not conflict serializable",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Run the precedence-graph test first; if acyclic, the schedule is also view serializable.",
+        "If cyclic and there is no blind write, stop: it is not view serializable.",
+        "Otherwise list initial reads, reads-from pairs and the final writer of each item, then test candidate serial orders against all three."
+      ],
+      "trap": "A cyclic precedence graph does not settle view serializability when blind writes are present.",
+      "topic": "db-transactions.view-serializability",
+      "origin": "source",
+      "pages": [
+        591,
+        592,
+        604,
+        605
+      ]
+    },
+    {
+      "id": "db-transactions.recoverability-class",
+      "title": "Classify a schedule as recoverable, cascadeless or strict",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Find every dirty read: Tj reads X after Ti wrote it and before Ti committed. If Tj commits before Ti, the schedule is not recoverable.",
+        "If any dirty read exists, the schedule is not cascadeless.",
+        "If there is no dirty read, also look for dirty writes; none means strict."
+      ],
+      "trap": "Recoverable only constrains commit order; a dirty read with the right commit order is still recoverable.",
+      "topic": "db-transactions.cascadeless-strict",
+      "origin": "source",
+      "pages": [
+        592,
+        593,
+        614
+      ]
+    },
+    {
+      "id": "db-transactions.protocol-properties",
+      "title": "Which protocol guarantees which property",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Serializability: every 2PL variant, timestamp ordering (conflict), Thomas rule (view only).",
+        "Deadlock freedom: conservative 2PL, timestamp ordering, wait-die, wound-wait; not basic, strict or rigorous 2PL.",
+        "Cascadelessness: strict and rigorous 2PL; not basic 2PL or basic timestamp ordering."
+      ],
+      "trap": "Strict 2PL holds only X locks to commit, yet it can still deadlock.",
+      "topic": "db-transactions.2pl-variants",
+      "origin": "source",
+      "pages": [
+        595,
+        596,
+        597,
+        613
+      ]
+    },
+    {
+      "id": "db-transactions.timestamp-trace",
+      "title": "Timestamp-ordering trace",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Keep a small table of R-TS and W-TS per item, all starting at 0.",
+        "For each operation apply the read or write test, update the table, and stop at the first rollback.",
+        "Under the Thomas rule, a write with R-TS ≤ TS < W-TS is skipped, and the trace continues."
+      ],
+      "trap": "Forgetting that a read raises R-TS only to the maximum, so an older reader leaves it unchanged.",
+      "topic": "db-transactions.timestamp-ordering",
+      "origin": "source",
+      "pages": [
+        597,
+        605,
+        606,
+        614
+      ]
+    },
+    {
+      "id": "db-transactions.deadlock-schemes",
+      "title": "Wait-die and wound-wait outcomes",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Identify requester and holder and compare timestamps: smaller is older.",
+        "Wait-die: older requester waits, younger requester is rolled back.",
+        "Wound-wait: older requester rolls back the holder, younger requester waits."
+      ],
+      "trap": "In wound-wait the victim is the holder, not the requester.",
+      "topic": "db-transactions.deadlock-prevention",
+      "origin": "source",
+      "pages": [
+        599,
+        600,
+        605,
+        614
+      ]
+    },
+    {
+      "id": "db-transactions.log-replay",
+      "title": "Recover the database from a log with a checkpoint",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Split transactions into committed (commit record present) and uncommitted.",
+        "Undo uncommitted updates scanning backward, restoring each old value, all the way back to each loser's start.",
+        "Redo committed updates after the last checkpoint scanning forward; those committed before it are already on disk."
+      ],
+      "trap": "Undoing the uncommitted updates in forward order leaves an intermediate value when two losers wrote the same item.",
+      "topic": "db-transactions.log-recovery",
+      "origin": "source",
+      "pages": [
+        602,
+        606,
+        614
+      ]
+    },
+    {
+      "id": "db-transactions.schedule-count",
+      "title": "Count schedules or conflict-serializable schedules",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Total interleavings: multinomial coefficient over the transactions' operation counts.",
+        "For conflict-serializable ones, find the conflicting pairs and keep only interleavings where every conflict points one way.",
+        "Count each direction separately and add, remembering the serial schedules are included."
+      ],
+      "topic": "db-transactions.schedule-counting",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "db-transactions.q-nonserial-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Transaction T1 has 3 operations and transaction T2 has 3 operations. How many non-serial schedules of T1 and T2 are possible?",
+      "answer": 18,
+      "explanation": "Each transaction keeps its own order, so a schedule is a choice of which 3 of the 6 positions belong to T1: C(6, 3) = 20. Exactly 2 of them are serial (T1 T2 and T2 T1), leaving 20 − 2 = 18.",
+      "difficulty": "easy",
+      "topic": "db-transactions.schedule-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-precedence-cycle",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Consider the schedule S: r1(X); r2(Y); r1(Y); r2(X); w2(Y); w1(X); c1; c2. Which statement is correct?",
+      "options": [
+        "S is conflict serializable, equivalent to T1 then T2",
+        "S is conflict serializable, equivalent to T2 then T1",
+        "S is view serializable but not conflict serializable",
+        "S is neither conflict serializable nor view serializable"
+      ],
+      "answer": 3,
+      "explanation": "Conflicts: r1(Y) before w2(Y) gives T1 → T2; r2(X) before w1(X) gives T2 → T1. The precedence graph has a cycle, so S is not conflict serializable. Both writes follow a read of the same item by the same transaction, so there is no blind write; then view serializability coincides with conflict serializability. Directly: in T1 T2, T2 would read X written by T1, and in T2 T1, T1 would read Y written by T2, but in S both read initial values.",
+      "difficulty": "medium",
+      "topic": "db-transactions.conflict-serializability",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Precedence graph",
+      "pages": [
+        612
+      ]
+    },
+    {
+      "id": "db-transactions.q-equivalent-serial-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "How many serial schedules are conflict equivalent to S: r1(X); w1(X); r2(X); r3(X); w3(Y); r4(Y); w4(Z)?",
+      "answer": 3,
+      "explanation": "Edges: w1(X)→r2(X) gives T1 → T2, w1(X)→r3(X) gives T1 → T3, and w3(Y)→r4(Y) gives T3 → T4. r2(X) and r3(X) are both reads, so no edge between T2 and T3. Topological orders: T1 first, then T2 placed anywhere relative to the chain T3 → T4: T1 T2 T3 T4, T1 T3 T2 T4, T1 T3 T4 T2. That is 3.",
+      "difficulty": "medium",
+      "topic": "db-transactions.conflict-serializability",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-view-blind-write",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Consider S: r1(X); w2(X); w1(X); w3(X). Which of the following statements are true?",
+      "options": [
+        "S is conflict serializable",
+        "S is view serializable",
+        "S is view equivalent to the serial schedule T1, T2, T3",
+        "S is view equivalent to the serial schedule T2, T1, T3"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "r1(X) before w2(X) gives T1 → T2 and w2(X) before w1(X) gives T2 → T1, a cycle, so S is not conflict serializable. In S, T1 reads the initial X and T3 writes X last. Serial T1, T2, T3 matches both (T2's blind write is overwritten unread), so S is view serializable. In T2, T1, T3, T1 would read T2's value of X instead of the initial one, so that order fails.",
+      "difficulty": "medium",
+      "topic": "db-transactions.view-serializability",
+      "origin": "source",
+      "pages": [
+        604,
+        605
+      ]
+    },
+    {
+      "id": "db-transactions.q-recoverable-not-cascadeless",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Classify the schedule S: r1(X); w1(X); r2(X); w2(X); c1; c2.",
+      "options": [
+        "Strict",
+        "Cascadeless but not strict",
+        "Recoverable but not cascadeless",
+        "Not recoverable"
+      ],
+      "answer": 2,
+      "explanation": "T2 reads X after T1 wrote it and before c1: a dirty read, so S is not cascadeless (if T1 aborted, T2 would have to abort too). T1 commits before T2 commits, so the abort could still be handled: S is recoverable.",
+      "difficulty": "easy",
+      "topic": "db-transactions.cascadeless-strict",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-strict-2pl",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following hold for every schedule produced by strict two-phase locking?",
+      "options": [
+        "It is conflict serializable",
+        "It is cascadeless",
+        "No deadlock can occur while producing it",
+        "A transaction may release a shared lock before it commits"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Strict 2PL is 2PL, so its schedules are conflict serializable. Holding X locks until commit means nobody can read or overwrite uncommitted data, so schedules are cascadeless (in fact strict). It only restricts X locks, so S locks may go early in the shrinking phase. Its growing phase is ordinary 2PL, so two transactions requesting each other's locks still deadlock.",
+      "difficulty": "medium",
+      "topic": "db-transactions.2pl-variants",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Strict 2PL",
+      "pages": [
+        595,
+        596,
+        612
+      ]
+    },
+    {
+      "id": "db-transactions.q-follows-2pl",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which lock sequence for a single transaction obeys two-phase locking?",
+      "options": [
+        "lock-S(A); read(A); unlock(A); lock-X(B); write(B); unlock(B)",
+        "lock-X(A); lock-S(B); read(B); write(A); unlock(A); unlock(B)",
+        "lock-S(A); read(A); lock-X(B); unlock(A); lock-X(C); write(B); write(C); unlock(B); unlock(C)",
+        "lock-X(A); write(A); unlock(A); lock-X(A); write(A); unlock(A)"
+      ],
+      "answer": 1,
+      "explanation": "2PL forbids any lock request after the first unlock. Sequence 2 acquires both locks before releasing anything. Sequence 1 locks B after unlocking A, sequence 3 locks C after unlocking A, and sequence 4 relocks A after unlocking it.",
+      "difficulty": "easy",
+      "topic": "db-transactions.two-phase-locking",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-to-trace",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Under basic timestamp ordering, TS(T1) = 5, TS(T2) = 10, TS(T3) = 15, and every read and write timestamp starts at 0. The schedule is r1(A); r2(B); w2(A); w3(B); r2(A); w1(B). Which operation is the first to cause a rollback?",
+      "options": [
+        "w2(A)",
+        "r2(A)",
+        "w1(B)",
+        "None; every operation succeeds"
+      ],
+      "answer": 2,
+      "explanation": "r1(A): 5 ≥ W-TS(A) = 0, R-TS(A) = 5. r2(B): R-TS(B) = 10. w2(A): 10 ≥ R-TS(A) = 5 and ≥ W-TS(A) = 0, so W-TS(A) = 10. w3(B): 15 ≥ 10 and ≥ 0, W-TS(B) = 15. r2(A): 10 ≥ W-TS(A) = 10, fine (T2 reads its own write). w1(B): 5 < R-TS(B) = 10, so T1 is rolled back. The Thomas rule would not help, because the failure is against R-TS, not W-TS.",
+      "difficulty": "medium",
+      "topic": "db-transactions.timestamp-ordering",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-thomas-rule",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "TS(T1) = 5 and TS(T2) = 10, with R-TS(X) = W-TS(X) = 0 initially. The schedule is r1(X); w2(X); w1(X). Under timestamp ordering with the Thomas write rule, what happens at w1(X)?",
+      "options": [
+        "T1 is rolled back because TS(T1) < W-TS(X)",
+        "The write is ignored and T1 continues; X keeps the value T2 wrote",
+        "T2 is rolled back so that T1's write can be applied",
+        "The write is applied and W-TS(X) becomes 5"
+      ],
+      "answer": 1,
+      "explanation": "After r1(X), R-TS(X) = 5; after w2(X), W-TS(X) = 10. At w1(X), TS(T1) = 5 is not less than R-TS(X) = 5, but it is less than W-TS(X) = 10. Basic TO would roll T1 back; the Thomas rule treats the write as obsolete, skips it, and lets T1 go on.",
+      "difficulty": "easy",
+      "topic": "db-transactions.thomas-write-rule",
+      "origin": "source",
+      "pages": [
+        605,
+        606
+      ]
+    },
+    {
+      "id": "db-transactions.q-wound-wait",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "TS(T1) = 5, TS(T2) = 10, TS(T3) = 15. T2 holds an exclusive lock on Q. First T3 and then T1 request a lock on Q. Under wound-wait, what happens?",
+      "options": [
+        "T3 is rolled back; T1 waits",
+        "T3 waits; T2 is rolled back and T1 gets the lock",
+        "T3 waits; T1 is rolled back",
+        "T3 is rolled back; T2 is rolled back and T1 gets the lock"
+      ],
+      "answer": 1,
+      "explanation": "T3 is younger than the holder T2 (15 > 10), so it waits. T1 is older than T2 (5 < 10), so it wounds T2, which is rolled back and releases Q; T1 is granted the lock and T3 keeps waiting, now for T1. Under wait-die the outcome would be the reverse pattern: T3 dies and T1 waits.",
+      "difficulty": "easy",
+      "topic": "db-transactions.deadlock-prevention",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Deadlock",
+      "pages": [
+        600,
+        605,
+        613
+      ]
+    },
+    {
+      "id": "db-transactions.q-deadlock-free",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following concurrency-control schemes can never deadlock?",
+      "options": [
+        "Conservative two-phase locking",
+        "Strict two-phase locking",
+        "Basic timestamp ordering",
+        "Two-phase locking with wait-die"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Conservative 2PL takes every lock before starting and waits holding none, so no hold-and-wait. Timestamp ordering never waits; it only proceeds or rolls back. Wait-die lets only older transactions wait for younger ones, so a cycle cannot form. Strict 2PL acquires locks incrementally and can deadlock exactly as basic 2PL does.",
+      "difficulty": "medium",
+      "topic": "db-transactions.2pl-variants",
+      "origin": "source",
+      "pages": [
+        596,
+        597,
+        600,
+        610
+      ]
+    },
+    {
+      "id": "db-transactions.q-recovery-sum",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A system uses immediate update with undo/redo logging. The log at the crash is: <T1 start>; <T1, A, 100, 150>; <T2 start>; <T2, B, 200, 180>; <T1 commit>; <checkpoint {T2}>; <T3 start>; <T3, A, 150, 120>; <T2, C, 50, 70>; <T3 commit>; <T4 start>; <T4, B, 180, 300>. Records are <T, item, old, new>. After recovery, what is A + B + C?",
+      "answer": 370,
+      "explanation": "Committed: T1 (before the checkpoint, already on disk) and T3. Uncommitted: T2 and T4. Undo backward: T4's B ← 180, T2's C ← 50, T2's B ← 200. Redo after the checkpoint: T3's A ← 120. Final A = 120, B = 200, C = 50, so A + B + C = 370.",
+      "difficulty": "hard",
+      "topic": "db-transactions.log-recovery",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-cs-schedule-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "T1: r1(A); w1(A); r1(B); w1(B) and T2: r2(B); w2(B). How many of the possible schedules of T1 and T2 are conflict serializable?",
+      "answer": 7,
+      "explanation": "There are 6!/(4!·2!) = 15 schedules. Only B is shared. If both T2 operations come before r1(B), all conflicts give T2 → T1: the 2 operations go into the 3 gaps before r1(B) in C(4, 2) = 6 ways. If both come after w1(B), all give T1 → T2: 1 way. Any split of T2's operations around r1(B) or w1(B) creates edges in both directions. Total 6 + 1 = 7.",
+      "difficulty": "hard",
+      "topic": "db-transactions.schedule-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-transactions.q-acid-crash",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A transfer transaction executes write(A) with A reduced by 100 and the system crashes before write(B). On restart the debit to A is still visible. Which property has been violated?",
+      "options": [
+        "Atomicity",
+        "Consistency",
+        "Isolation",
+        "Durability"
+      ],
+      "answer": 0,
+      "explanation": "The transaction never committed, so all of its effects must disappear; leaving half of it in place breaks all-or-nothing execution. Durability concerns committed work, and isolation concerns interference between concurrent transactions.",
+      "difficulty": "easy",
+      "topic": "db-transactions.acid",
+      "origin": "source",
+      "pages": [
+        585,
+        586
+      ]
+    },
+    {
+      "id": "db-transactions.q-repeatable-read",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Under the SQL standard's REPEATABLE READ isolation level, which anomaly can still occur?",
+      "options": [
+        "Dirty read",
+        "Non-repeatable read",
+        "Phantom read",
+        "Lost update of a row the transaction has read"
+      ],
+      "answer": 2,
+      "explanation": "REPEATABLE READ keeps every row already read stable, which rules out dirty reads, non-repeatable reads and lost updates on those rows. Rows newly inserted by others that match a predicate can still appear on a re-run query: phantoms. Only SERIALIZABLE excludes them.",
+      "difficulty": "easy",
+      "topic": "db-transactions.isolation-anomalies",
+      "origin": "source",
+      "pages": [
+        587
+      ]
+    },
+    {
+      "id": "db-transactions.q-intention-lock",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Transaction T1 holds an IX lock on table R. Which lock on R can another transaction T2 be granted immediately?",
+      "options": [
+        "S",
+        "SIX",
+        "IS",
+        "X"
+      ],
+      "answer": 2,
+      "explanation": "IX is compatible only with IS and IX. S would conflict with the X locks T1 intends to take on rows, SIX contains S, and X conflicts with everything.",
+      "difficulty": "medium",
+      "topic": "db-transactions.multiple-granularity",
+      "origin": "source",
+      "pages": [
+        596,
+        597
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Two reads of the same item never conflict, and operations of the same transaction never conflict; neither adds a precedence edge.",
+      "origin": "source",
+      "pages": [
+        589,
+        613
+      ]
+    },
+    {
+      "text": "Build the precedence graph from all conflicting pairs, not only adjacent operations.",
+      "origin": "source",
+      "pages": [
+        613
+      ]
+    },
+    {
+      "text": "2PL guarantees conflict serializability, not deadlock freedom; only conservative 2PL is deadlock-free.",
+      "origin": "source",
+      "pages": [
+        595,
+        613
+      ]
+    },
+    {
+      "text": "Strict 2PL holds X locks until commit; rigorous 2PL holds all locks until commit. Read the question for which one is meant.",
+      "origin": "source",
+      "pages": [
+        613
+      ]
+    },
+    {
+      "text": "Wait-die and wound-wait are easy to swap: the younger transaction is the one rolled back in both, but in wound-wait the victim is the lock holder.",
+      "origin": "source",
+      "pages": [
+        614
+      ]
+    },
+    {
+      "text": "Recoverable does not imply cascadeless: a dirty read with the writer committing first is recoverable yet still cascades on abort.",
+      "origin": "source",
+      "pages": [
+        614
+      ]
+    },
+    {
+      "text": "WAL means the log record goes to disk before the data page, never the reverse.",
+      "origin": "source",
+      "pages": [
+        614
+      ]
+    },
+    {
+      "text": "Under timestamp ordering a restarted transaction needs a new timestamp; keeping the old one is the wait-die and wound-wait rule.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Serializability",
+      "lines": [
+        "Conflict: different T, same item, at least one write",
+        "Conflict serializable ⟺ precedence graph acyclic; serial order = topological order",
+        "View: same initial reads, reads-from, final writes",
+        "View but not conflict ⇒ blind write present; view test is NP-complete",
+        "Schedules of n1, …, nk ops: (Σnᵢ)!/Πnᵢ!; serial ones: k!"
+      ],
+      "origin": "source",
+      "pages": [
+        615
+      ]
+    },
+    {
+      "heading": "Recoverability",
+      "lines": [
+        "Recoverable: the writer commits before the reader commits",
+        "Cascadeless: read only committed data",
+        "Strict: no read or write of X until its writer ends",
+        "Strict ⊊ Cascadeless ⊊ Recoverable"
+      ],
+      "origin": "source",
+      "pages": [
+        615
+      ]
+    },
+    {
+      "heading": "Protocols",
+      "lines": [
+        "2PL: growing then shrinking; serial order = lock points; can deadlock",
+        "Strict 2PL: X till commit; rigorous: all till commit; conservative: all upfront, no deadlock",
+        "TO read: TS < W-TS ⇒ roll back; write: TS < R-TS or TS < W-TS ⇒ roll back",
+        "Thomas: R-TS ≤ TS < W-TS ⇒ ignore write",
+        "Wait-die: old waits, young dies. Wound-wait: old wounds holder, young waits"
+      ],
+      "origin": "source",
+      "pages": [
+        615,
+        616
+      ]
+    },
+    {
+      "heading": "Recovery",
+      "lines": [
+        "WAL: log before data, commit record before commit",
+        "Redo committed after the checkpoint, undo uncommitted backward",
+        "ARIES: analysis, redo (repeat history), undo with CLRs"
+      ],
+      "origin": "source",
+      "pages": [
+        616
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 592,
+      "claim": "w1(X); w2(X); w3(X) is offered as a schedule that is view serializable but not conflict serializable.",
+      "correction": "Its precedence graph has only T1 → T2, T2 → T3 and T1 → T3, which is acyclic, so it is conflict serializable (equivalent to T1, T2, T3). A correct example needs a read that creates a cycle, such as r1(X); w2(X); w1(X); w3(X), which is view equivalent to T1, T2, T3 but not conflict serializable."
+    },
+    {
+      "page": 596,
+      "claim": "The 2PL comparison table marks strict 2PL as not producing strict schedules.",
+      "correction": "Strict 2PL holds every exclusive lock until commit or abort, so no other transaction can read or write an item written by an uncommitted transaction: its schedules are strict, as stated on page 593. Rigorous 2PL differs by also holding shared locks, which makes the serialization order equal the commit order."
+    },
+    {
+      "page": 597,
+      "claim": "Starvation under timestamp ordering is mitigated by re-using the transaction's timestamp on restart.",
+      "correction": "A transaction rolled back by timestamp ordering must restart with a new, larger timestamp; with its old timestamp it would fail the same test again, because the item timestamps that rejected it only grow. Keeping the original timestamp is the starvation fix for wait-die and wound-wait."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "db-transactions-concurrency",
+      "status": "covered",
+      "topics": [
+        "db-transactions.acid",
+        "db-transactions.schedules",
+        "db-transactions.conflict-serializability",
+        "db-transactions.view-serializability",
+        "db-transactions.recoverable-schedules",
+        "db-transactions.cascadeless-strict",
+        "db-transactions.two-phase-locking",
+        "db-transactions.2pl-variants",
+        "db-transactions.timestamp-ordering",
+        "db-transactions.deadlock-prevention"
+      ]
+    }
+  ]
+}

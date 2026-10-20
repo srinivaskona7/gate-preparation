@@ -1,0 +1,2483 @@
+{
+  "id": "algo-complexity-sorting",
+  "summary": "This chapter is the measuring kit of the Algorithms section: asymptotic notation, recurrences and the master theorem tell you how a running time grows, and searching and sorting are where GATE applies that kit most often. Expect one recurrence to solve, one property question on the sorting table (best, average, worst, space, stability, in-place) and one count: comparisons in binary search, merge sort or a decision tree, inversions for insertion sort, or the number of times a loop body runs.",
+  "highYield": [
+    "Solve T(n) = aT(n/b) + f(n) by comparing f(n) with n^(log_b a); know the log-factor case 2 and the regularity check of case 3.",
+    "The sorting table: quick sort is Θ(n²) worst and Θ(n log n) average, merge sort is Θ(n log n) always and heap sort on distinct keys, insertion sort is Θ(n) on sorted input, build-heap is Θ(n).",
+    "Stability and in-place: merge, insertion, bubble, counting and radix are stable; selection, quick and heap are not; merge sort needs Θ(n) extra space.",
+    "Counts: binary search uses ⌊log₂ n⌋ + 1 probes, a comparison sort needs at least ⌈log₂ n!⌉ comparisons, merge sort on n = 2ᵏ uses at most n log₂ n − n + 1.",
+    "Recurrences outside the master theorem: T(n − 1) + n gives Θ(n²), 2T(n − 1) + 1 gives Θ(2ⁿ), √n·T(√n) + n gives Θ(n log log n).",
+    "Loop-counting questions: a doubling outer loop with an inner loop to i runs about 2n times in total, not n log n."
+  ],
+  "topics": [
+    {
+      "id": "algo-complexity-sorting.asymptotic-notation",
+      "title": "Asymptotic notation: O, Ω, Θ, o, ω",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        28,
+        347,
+        348
+      ],
+      "points": [
+        "f(n) = O(g(n)) when some constants c > 0 and n₀ give 0 ≤ f(n) ≤ c·g(n) for every n ≥ n₀: g is an upper bound up to a constant factor.",
+        "f(n) = Ω(g(n)) when c·g(n) ≤ f(n) for all large n, and f(n) = Θ(g(n)) when both hold, so 3n² + 5n + 2 = Θ(n²) with c₁ = 3, c₂ = 10, n₀ = 1.",
+        "Little-o and little-ω are strict: f = o(g) means f(n)/g(n) → 0 (n = o(n²)), f = ω(g) means the ratio → ∞. For every c, not just one, the inequality must eventually hold.",
+        "Limit test: if lim f/g is a finite positive constant then f = Θ(g); 0 gives o (hence O but not Ω); ∞ gives ω (hence Ω but not O). If the limit does not exist, fall back to the definitions."
+      ],
+      "keyTerms": [
+        "upper bound",
+        "lower bound",
+        "tight bound",
+        "limit test"
+      ],
+      "lesson": {
+        "why": "Almost every complexity question in the exam is a claim written with O, Ω or Θ, and each symbol makes a different promise about the function.",
+        "intro": "An algorithm's running time is a function of the input size $n$, such as $5n+20$ steps. We rarely care about the exact formula, only how fast it grows when $n$ is large. Asymptotic notation compares two functions $f$ and $g$ by ignoring constant factors and small inputs. $O$ says $f$ grows no faster than $g$, $\\Omega$ says no slower, and $\\Theta$ says both, so they grow alike.",
+        "definitions": [
+          {
+            "term": "Upper bound",
+            "meaning": "A function that the running time stays below, up to a constant factor, once $n$ is large enough."
+          },
+          {
+            "term": "Tight bound",
+            "meaning": "A bound that is both an upper and a lower bound, written $\\Theta$."
+          }
+        ],
+        "principle": {
+          "text": "$f=O(g)$ means a constant $c>0$ and a threshold $n_0$ exist with $f(n)\\le c\\,g(n)$ for every $n\\ge n_0$. $\\Omega$ reverses the inequality and $\\Theta$ needs both. The strict forms $o$ and $\\omega$ ask that the ratio $f/g$ tends to $0$ or to $\\infty$.",
+          "tex": "\\lim_{n\\to\\infty}\\frac{f(n)}{g(n)}=\\begin{cases}0 & f=o(g)\\\\ c\\in(0,\\infty) & f=\\Theta(g)\\\\ \\infty & f=\\omega(g)\\end{cases}"
+        },
+        "limits": "The limit test needs the limit to exist; for a ratio that keeps oscillating, return to the definition with explicit constants. Every statement is about large $n$ only, so it says nothing about which function is smaller at $n=10$.",
+        "example": {
+          "problem": "Show that $5n+20=O(n)$ by finding $c$ and $n_0$, and say whether $5n+20=o(n)$.",
+          "steps": [
+            "Try $c=6$. We need $5n+20\\le 6n$, which simplifies to $20\\le n$.",
+            "So $n_0=20$ works: at $n=19$ the inequality fails ($115>114$), at $n=20$ it holds ($120\\le120$) and it holds for every larger $n$.",
+            "For $o(n)$ look at the ratio: $(5n+20)/n=5+20/n$ tends to $5$, not to $0$."
+          ],
+          "result": "$5n+20=O(n)$ with $c=6$ and $n_0=20$; it is $\\Theta(n)$ but not $o(n)$."
+        },
+        "misconceptions": [
+          "Writing $f=O(g)$ does not mean $f$ and $g$ grow alike. $n=O(n^2)$ is true even though $n^2$ grows far faster, so $O$ alone never proves a bound is tight.",
+          "Little $o$ is not the same as big $O$. If the ratio $f/g$ settles at a positive constant, $f=O(g)$ holds but $f=o(g)$ does not."
+        ],
+        "recall": [
+          {
+            "q": "What does $f=\\Theta(g)$ say about the ratio $f/g$?",
+            "a": "For large $n$ it stays between two positive constants, so $f$ is both $O(g)$ and $\\Omega(g)$."
+          },
+          {
+            "q": "What does a limit of $f/g$ equal to $0$ tell you?",
+            "a": "$f=o(g)$, so $f=O(g)$ holds but $f=\\Omega(g)$ does not."
+          },
+          {
+            "q": "What do the constants $c$ and $n_0$ do in the definition of $O$?",
+            "a": "$c$ absorbs constant factors and $n_0$ discards small inputs, so only the growth for large $n$ matters."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Let $f(n)=n\\log_2 n$ and $g(n)=n^{1.5}$. Which statement is TRUE?",
+          "options": [
+            "$f=\\Theta(g)$",
+            "$f=o(g)$",
+            "$f=\\omega(g)$",
+            "$g=O(f)$"
+          ],
+          "answer": 1,
+          "explanation": "The ratio is $f/g=\\log_2 n/\\sqrt n$, and a logarithm grows slower than any positive power of $n$, so the ratio tends to $0$ and $f=o(g)$. $\\Theta$ tempts because both functions look like $n$ times something small, but the extra factor $\\sqrt n$ separates them. $g=O(f)$ is the reverse claim and is false."
+        },
+        "summary": "$O$ bounds growth from above, $\\Omega$ from below and $\\Theta$ from both sides; $o$ and $\\omega$ are the strict versions, and the limit of $f/g$ usually decides which holds."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.notation-properties",
+      "title": "Properties of asymptotic notation",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        28,
+        348,
+        349
+      ],
+      "points": [
+        "All five notations are transitive; O, Ω and Θ are reflexive (f = Θ(f)); only Θ is symmetric.",
+        "Transpose symmetry: f = O(g) exactly when g = Ω(f), and f = o(g) exactly when g = ω(f).",
+        "Sum rule O(f) + O(g) = O(max(f, g)) and product rule O(f)·O(g) = O(f·g); constant factors vanish, O(5f) = O(f).",
+        "Constants inside an exponent do not vanish: 2ⁿ⁺¹ = 2·2ⁿ = Θ(2ⁿ), but 2²ⁿ = 4ⁿ is not O(2ⁿ) because 4ⁿ/2ⁿ = 2ⁿ → ∞."
+      ],
+      "lesson": {
+        "why": "Exam options often apply a rule such as transitivity or a changed exponent to a function, and one wrong rule makes a tempting option false.",
+        "intro": "Asymptotic notation obeys a few simple laws that let you simplify a bound without redoing the definition. Constant multipliers disappear, a sum is as large as its larger part, and the relations chain together. The one place where a constant does not disappear is inside an exponent, because there it changes the growth rate.",
+        "prerequisites": [
+          "algo-complexity-sorting.asymptotic-notation"
+        ],
+        "principle": {
+          "text": "$O$, $\\Omega$ and $\\Theta$ are reflexive and transitive, only $\\Theta$ is symmetric, and $f=O(g)$ exactly when $g=\\Omega(f)$. Sums keep the larger term and products multiply the bounds. A constant factor outside a function is free, but a constant inside an exponent is not.",
+          "tex": "O(f)+O(g)=O(\\max(f,g)),\\qquad O(f)\\cdot O(g)=O(fg),\\qquad 2^{n+k}=\\Theta(2^n),\\ \\ 2^{2n}\\ne O(2^n)"
+        },
+        "limits": "The rules hold for the notation itself, not for any claim about a particular $f$. A statement such as $f(n^2)=\\Theta(f(n)^2)$ is not a rule: it holds for polynomials and fails for exponentials, so test it on examples.",
+        "example": {
+          "problem": "Decide whether $2^{n+3}=\\Theta(2^n)$ and whether $2^{2n}=O(2^n)$.",
+          "steps": [
+            "Rewrite $2^{n+3}=8\\cdot2^n$. The ratio $2^{n+3}/2^n$ is exactly $8$ for every $n$, a positive constant, so $2^{n+3}=\\Theta(2^n)$.",
+            "Rewrite $2^{2n}=(2^n)^2$. The ratio $2^{2n}/2^n=2^n$ grows without bound.",
+            "No constant $c$ satisfies $2^{2n}\\le c\\,2^n$ for all large $n$, so $2^{2n}$ is not $O(2^n)$."
+          ],
+          "result": "$2^{n+3}=\\Theta(2^n)$, but $2^{2n}$ is not $O(2^n)$."
+        },
+        "misconceptions": [
+          "A constant dropped from a base is not a constant factor. $2^{2n}=4^n$ is a different growth class from $2^n$, even though the exponent only has a factor $2$.",
+          "Do not conclude $g=O(f)$ from $f=O(g)$; only $\\Theta$ is symmetric. Chaining $f=O(g)$ and $g=O(h)$ gives just $f=O(h)$."
+        ],
+        "recall": [
+          {
+            "q": "Which of $O$, $\\Omega$ and $\\Theta$ is symmetric?",
+            "a": "Only $\\Theta$: $f=\\Theta(g)$ exactly when $g=\\Theta(f)$."
+          },
+          {
+            "q": "How is $O$ related to $\\Omega$ under swapping the two functions?",
+            "a": "$f=O(g)$ holds exactly when $g=\\Omega(f)$."
+          },
+          {
+            "q": "Why does $(n+1)!=\\Theta(n!)$ fail?",
+            "a": "The ratio is $n+1$, which grows without bound instead of staying at a constant."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement is TRUE?",
+          "options": [
+            "$5^{n+2}=\\Theta(5^n)$",
+            "$5^{2n}=O(5^n)$",
+            "$(n+1)!=O(n!)$",
+            "$(2n)!=\\Theta(n!)$"
+          ],
+          "answer": 0,
+          "explanation": "$5^{n+2}=25\\cdot5^n$, a constant multiple, so $\\Theta(5^n)$ holds. $5^{2n}/5^n=5^n$ is unbounded, so the second option fails even though it looks like a factor of $2$ in the exponent. The ratio $(n+1)!/n!=n+1$ is unbounded, and $(2n)!/n!$ is larger still, so the last two fail."
+        },
+        "summary": "Constant factors vanish, sums keep the larger term and transpose symmetry links $O$ with $\\Omega$, but a constant added to or multiplied into an exponent changes the growth class."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.growth-hierarchy",
+      "title": "The growth-rate hierarchy",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        28,
+        349,
+        350
+      ],
+      "points": [
+        "From slowest to fastest: 1 ≪ log log n ≪ log n ≪ (log n)² ≪ n^0.1 ≪ √n ≪ n ≪ n log n ≪ n^1.5 ≪ n² ≪ n³ ≪ 1.1ⁿ ≪ 2ⁿ ≪ n! ≪ nⁿ.",
+        "Any power of a log loses to any positive power of n: (log n)^a = o(n^b) for a, b > 0. Any polynomial loses to any exponential: n^a = o(bⁿ) for b > 1.",
+        "log(n!) = Θ(n log n) by Stirling, since n! lies between (n/2)^(n/2) and nⁿ.",
+        "To compare two awkward functions such as n^(log n) and 2^√n, take logs of both: (log n)² against √n, and √n wins, so 2^√n grows faster.",
+        "Constants can dominate at small n: 100n is larger than 0.01n² until n = 10 000, which is why hybrid sorts switch to insertion sort on short runs."
+      ],
+      "lesson": {
+        "why": "Ordering functions by growth is a standard question, and the quickest way to answer it is to know the ladder and the one trick for awkward exponents.",
+        "intro": "Functions can be placed on a ladder from slowest to fastest growing: constants, then logarithms, then powers of $n$, then exponentials, then factorials. To order two awkward functions, take the logarithm of both and compare those, since the logarithm keeps the order of positive growing functions and turns powers and exponents into simple products.",
+        "prerequisites": [
+          "algo-complexity-sorting.asymptotic-notation"
+        ],
+        "principle": {
+          "text": "A power of $\\log n$ loses to every positive power of $n$, every polynomial loses to every exponential $b^n$ with $b>1$, and exponentials lose to $n!$. When two functions are hard to compare, compare their logarithms.",
+          "tex": "1\\prec\\log n\\prec n^{c}\\prec n\\log n\\prec n^{k}\\prec b^{n}\\prec n!\\prec n^{n}\\qquad(0<c<1<k,\\ b>1)"
+        },
+        "limits": "The ladder describes large $n$. A faster-growing function can be smaller for a long stretch, and $1.01^n$ stays below $n^{10}$ until $n$ is in the thousands. A function that shrinks, such as $100/n$, sits below the constants. The logarithm trick decides only when the two logarithms differ by more than a constant factor: $2^n$ and $4^n$ have logarithms $n$ and $2n$, so compare the ratio $4^n/2^n=2^n$ instead.",
+        "example": {
+          "problem": "Order $2^{\\sqrt n}$, $n^{10}$ and $2^{(\\log_2 n)^2}$ from slowest to fastest growth.",
+          "steps": [
+            "Take $\\log_2$ of each. This gives $\\sqrt n$, $10\\log_2 n$ and $(\\log_2 n)^2$.",
+            "A power of $\\log n$ loses to $\\sqrt n$, and the constant multiple of $\\log n$ loses to $(\\log n)^2$ once $\\log n>10$. So the logarithms order as $10\\log n\\prec(\\log n)^2\\prec\\sqrt n$.",
+            "Check at $n=2^{40}$: the logarithms are $400$, $1600$ and $1\\,048\\,576$, in that order."
+          ],
+          "result": "$n^{10}\\prec 2^{(\\log_2 n)^2}\\prec 2^{\\sqrt n}$."
+        },
+        "misconceptions": [
+          "Logarithms are not interchangeable with constants. $\\log n$ is unbounded, so it sits above every constant and below every positive power of $n$.",
+          "A comparison at a small $n$ proves nothing. Judge by the ratio for large $n$ or by the logarithms, not by the values at $n=10$."
+        ],
+        "recall": [
+          {
+            "q": "Where does $\\log(n!)$ sit on the ladder?",
+            "a": "It is $\\Theta(n\\log n)$, so above $n$ and below $n^2$."
+          },
+          {
+            "q": "What do you do to compare $n^{\\log n}$ with $2^{\\sqrt n}$?",
+            "a": "Take logarithms of both and compare the simpler expressions $(\\log n)^2$ and $\\sqrt n$."
+          },
+          {
+            "q": "How does $2^{\\log_2 n}$ simplify?",
+            "a": "It equals $n$, because the exponential undoes the logarithm."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which option lists the functions $n^{0.1}$, $(\\log_2 n)^5$, $1.01^n$ and $n^{10}$ in increasing order of asymptotic growth?",
+          "options": [
+            "$n^{0.1},\\ (\\log_2 n)^5,\\ n^{10},\\ 1.01^n$",
+            "$(\\log_2 n)^5,\\ n^{0.1},\\ n^{10},\\ 1.01^n$",
+            "$(\\log_2 n)^5,\\ n^{0.1},\\ 1.01^n,\\ n^{10}$",
+            "$n^{0.1},\\ (\\log_2 n)^5,\\ 1.01^n,\\ n^{10}$"
+          ],
+          "answer": 1,
+          "explanation": "A power of the logarithm loses to any positive power of $n$, even $n^{0.1}$, so $(\\log_2 n)^5\\prec n^{0.1}$; any exponential $b^n$ with $b>1$ beats every polynomial, so $n^{10}\\prec1.01^n$. The first option tempts because $(\\log_2 n)^5$ is larger for every $n$ from a small constant up to about $2^{439}$, but only the limit counts."
+        },
+        "summary": "The ladder is constants, logarithms, powers of $n$, exponentials, factorials; for anything unusual take logarithms of both sides and compare those."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.case-analysis",
+      "title": "Best, worst, average and amortized cost",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        351
+      ],
+      "points": [
+        "Best and worst case are the minimum and maximum cost over all inputs of size n; average case is the expected cost under a stated input distribution.",
+        "Linear search is Θ(1) best and Θ(n) worst; binary search Θ(1) best and Θ(log n) worst; insertion sort Θ(n) best and Θ(n²) worst.",
+        "A worst-case O bound is the informative statement; for a lower bound on the best case use Ω, because a best-case O bound says little.",
+        "Amortized cost averages over a sequence of operations, not over random inputs: appending to a doubling dynamic array is O(1) amortized though one append may cost Θ(n)."
+      ],
+      "lesson": {
+        "why": "Questions state a bound for the worst case, best case or average case, and picking the wrong one flips the answer.",
+        "intro": "One algorithm can take different amounts of time on different inputs of the same size $n$. The worst case is the most expensive input, the best case the cheapest, and the average case the expected cost when inputs follow a stated distribution. A separate idea, amortized cost, averages over a whole sequence of operations instead of over random inputs.",
+        "prerequisites": [
+          "algo-complexity-sorting.asymptotic-notation"
+        ],
+        "principle": {
+          "text": "The best, worst and average cost are three functions of $n$, and $O$, $\\Omega$ and $\\Theta$ can each be applied to any of them. Amortized cost is the total cost of $m$ operations divided by $m$, valid for every possible sequence.",
+          "tex": "\\text{amortized cost}=\\frac{T(m\\text{ operations})}{m}"
+        },
+        "limits": "An average needs a stated input distribution; without one the phrase is undefined. Amortized cost gives no promise for a single operation, which may still be expensive.",
+        "example": {
+          "problem": "A linear search scans an array of $8$ distinct values for a target that is equally likely to be at any of the $8$ positions. Give the best, worst and average number of comparisons.",
+          "steps": [
+            "If the target is at position $k$, the search makes exactly $k$ comparisons.",
+            "The best case is $k=1$ and the worst case is $k=8$.",
+            "The average is the mean of $1,2,\\dots,8$, which is $36/8=4.5$, equal to $(n+1)/2$."
+          ],
+          "result": "Best $1$, worst $8$, average $4.5$ comparisons; asymptotically $\\Theta(1)$, $\\Theta(n)$ and $\\Theta(n)$."
+        },
+        "misconceptions": [
+          "The worst case is not tied to a large $\\Omega$ or small $O$. Both bounds can be applied to the worst-case function, and when they match you get a $\\Theta$ for it.",
+          "Amortized $O(1)$ does not mean every operation is $O(1)$. One append to a full doubling array copies every element, but the cost spreads over the cheap appends before it."
+        ],
+        "recall": [
+          {
+            "q": "What is the best case of insertion sort, and on which input?",
+            "a": "$\\Theta(n)$, on an array that is already sorted."
+          },
+          {
+            "q": "How does amortized analysis differ from average-case analysis?",
+            "a": "It averages over a sequence of operations with no assumption about the input, while average-case averages over a distribution of inputs."
+          },
+          {
+            "q": "A scan stops at the first zero in an array. What are its best and worst cases, and which bounds fit the worst case?",
+            "a": "Best $\\Theta(1)$ with a zero first; worst $\\Theta(n)$ with no zero, so $O(n)$ and $\\Omega(n)$ both hold for the worst case."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A dynamic array starts with capacity $1$. When an append finds the array full, it allocates double the capacity and copies every element to the new space. Counting only these copies, how many elements are copied in total over $32$ appends?",
+          "answer": 31,
+          "explanation": "Resizes happen when appending the 2nd, 3rd, 5th, 9th and 17th elements, copying $1,2,4,8$ and $16$ elements, which total $31$. Copying $32$ elements happens only on the 33rd append. The tempting answer $32$ treats the total as $n$ copies of $1$ each, but the geometric sum is $n-1$, so the amortized copy cost per append is below $1$."
+        },
+        "summary": "Best, worst and average are three different functions of $n$; amortized cost is a guarantee over a sequence of operations rather than over random inputs."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.loop-analysis",
+      "title": "Counting loop iterations",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Nested loops with independent bounds multiply: an outer loop to n and an inner loop to n run n² times; an inner loop to i (triangular) runs n(n + 1)/2 times, still Θ(n²).",
+        "A loop whose variable doubles or halves (i = 2i, i = i/2) runs ⌊log₂ n⌋ + 1 times; one that squares its variable (i = i²) runs about log log n times.",
+        "When the inner bound depends on a doubling outer variable, sum a geometric series: for i = 1, 2, 4, …, n with an inner loop to i the total is 2n − 1, which is Θ(n), not Θ(n log n).",
+        "Harmonic pattern: for each i from 1 to n, an inner loop stepping j by i runs n/i times, and Σ n/i = Θ(n log n)."
+      ],
+      "keyTerms": [
+        "geometric series",
+        "harmonic sum"
+      ],
+      "lesson": {
+        "why": "Reading a nest of loops and giving its $\\Theta$ is a mechanical skill, and the three loop shapes below cover nearly all of them.",
+        "intro": "To find the running time of a loop nest, count how many times the innermost statement runs. When the inner loop's length does not depend on the outer variable, multiply. When it does, add the inner count over every value of the outer variable. A loop whose variable doubles runs about $\\log_2 n$ times, because the variable needs that many doublings to pass $n$.",
+        "prerequisites": [
+          "algo-complexity-sorting.asymptotic-notation"
+        ],
+        "principle": {
+          "text": "Add the inner counts over the outer variable. Three sums decide almost every case: a triangle $1+2+\\dots+n$ is $\\Theta(n^2)$, a doubling series $1+2+4+\\dots+n$ is $\\Theta(n)$, and a step of size $i$ gives the harmonic sum $n/1+n/2+\\dots+n/n$, which is $\\Theta(n\\log n)$.",
+          "tex": "\\sum_{i=1}^{n} i=\\frac{n(n+1)}{2},\\qquad \\sum_{k=0}^{m}2^k=2^{m+1}-1,\\qquad \\sum_{i=1}^{n}\\frac{n}{i}=nH_n=\\Theta(n\\log n)"
+        },
+        "limits": "A loop with a data-dependent exit, such as a `break` or a bound that changes inside the body, cannot be counted from the header alone. Count what the statements do, not what the header suggests.",
+        "example": {
+          "problem": "Count the executions of the body for $n=64$: `for (i = 1; i <= n; i = 2*i) for (j = 1; j <= i; j++) body;`",
+          "steps": [
+            "The outer variable takes the values $1,2,4,8,16,32,64$, seven values.",
+            "For each value of $i$ the inner loop runs $i$ times, so the total is $1+2+4+8+16+32+64$.",
+            "This doubling series sums to $2\\cdot64-1=127$, close to $2n$, so the nest is $\\Theta(n)$ and not $\\Theta(n\\log n)$."
+          ],
+          "result": "The body runs $127$ times; in general $2n-1$ times, which is $\\Theta(n)$."
+        },
+        "misconceptions": [
+          "Two nested loops are not automatically $\\Theta(n^2)$. A doubling outer loop with an inner loop to $i$ is $\\Theta(n)$, and a step of $i$ in the inner loop gives $\\Theta(n\\log n)$.",
+          "Do not count the outer iterations ($\\log n$) and multiply by the largest inner count ($n$) for a doubling nest. That product overcounts, because most outer values have a short inner loop.",
+          "A lower bound does not come from the loop header alone. It comes from showing every element must be read, or that the body runs that many times on a valid input."
+        ],
+        "recall": [
+          {
+            "q": "How many times does a loop with `i = 2*i` run up to $n$?",
+            "a": "About $\\log_2 n$ times, precisely $\\lfloor\\log_2 n\\rfloor+1$ from $i=1$."
+          },
+          {
+            "q": "What is the order of $\\sum_{i=1}^{n} n/i$?",
+            "a": "$\\Theta(n\\log n)$, since the harmonic number $H_n$ is about $\\ln n$."
+          },
+          {
+            "q": "What is $1+2+4+\\dots+2^m$?",
+            "a": "$2^{m+1}-1$, so it is dominated by its last term."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the running time in $\\Theta$ notation of: `for (i = 1; i <= n; i++) for (j = 1; j <= n; j += 2*i) body;`",
+          "options": [
+            "$\\Theta(n)$",
+            "$\\Theta(n\\log n)$",
+            "$\\Theta(n^2)$",
+            "$\\Theta(n^2\\log n)$"
+          ],
+          "answer": 1,
+          "explanation": "For each $i$ the inner loop runs about $n/(2i)$ times, so the total is about $\\tfrac n2(1+\\tfrac12+\\dots+\\tfrac1n)=\\tfrac n2H_n=\\Theta(n\\log n)$. For $n=1000$ the exact count is $4178$, about $0.42\\,n\\log_2 n$. $\\Theta(n^2)$ tempts because both loops run to $n$, but the step grows with $i$ and most inner loops are short."
+        },
+        "summary": "Count the innermost statement by adding inner counts over the outer variable: a triangle gives $n^2$, a doubling series gives $n$, and a step of $i$ gives $n\\log n$.",
+        "definitions": [
+          {
+            "term": "Harmonic number",
+            "meaning": "$H_n=1+\\tfrac12+\\tfrac13+\\dots+\\tfrac1n$, which is about $\\ln n$ and so $\\Theta(\\log n)$."
+          }
+        ]
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.recurrence-methods",
+      "title": "Substitution, recursion tree and expansion",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        28,
+        351,
+        352,
+        353
+      ],
+      "points": [
+        "Substitution: guess the form, then prove it by induction. For T(n) = 2T(n/2) + n, assuming T(n/2) ≤ c(n/2)log(n/2) gives T(n) ≤ cn log n − cn + n ≤ cn log n whenever c ≥ 1. That is only the inductive step: with T(1) = 1, the base case T(2) = 4 ≤ 2c needs c ≥ 2.",
+        "Recursion tree: sum the work level by level. For T(n) = 3T(n/4) + n the levels cost n, 3n/4, 9n/16, …, a decreasing geometric series, so T(n) = Θ(n).",
+        "A tree for aT(n/b) has log_b n levels and a^(log_b n) = n^(log_b a) leaves; compare the leaf total with the root's f(n).",
+        "Subtract-and-conquer recurrences expand into sums: T(n − 1) + 1 is Θ(n), T(n − 1) + n is Θ(n²), T(n − 1) + log n is Θ(n log n), and 2T(n − 1) + 1 with T(0) = 1 is 2ⁿ⁺¹ − 1.",
+        "T(n) = T(n − 1) + T(n − 2) grows like the Fibonacci numbers, Θ(φⁿ) with φ ≈ 1.618."
+      ],
+      "lesson": {
+        "why": "Recurrences with $n-1$ or $n-2$ rather than $n/2$ cannot use the master theorem, and the exam solves them by dividing out a factor or by a characteristic equation.",
+        "intro": "A recurrence gives the cost $T(n)$ in terms of smaller inputs, such as $T(n)=2T(n-1)+1$. Solving it means finding a closed form or at least its order of growth. Three methods cover the exam: guess a form and prove it by induction (substitution), draw the calls as a tree and add up the work level by level (recursion tree), and unroll the recurrence into a sum (expansion).",
+        "prerequisites": [
+          "algo-complexity-sorting.growth-hierarchy"
+        ],
+        "principle": {
+          "text": "For $T(n)=aT(n-1)+f(n)$, divide by $a^n$: $S(n)=T(n)/a^n$ satisfies $S(n)=S(n-1)+f(n)/a^n$, a plain running sum. For $T(n)=cT(n-1)+dT(n-2)$ try $T(n)=r^n$, solve $r^2=cr+d$, and the growth follows the largest root whose coefficient is not zero.",
+          "tex": "S(n)=\\frac{T(n)}{a^{n}}=S(n-1)+\\frac{f(n)}{a^{n}},\\qquad r^{2}=c\\,r+d"
+        },
+        "limits": "A repeated root $r$ gives solutions $r^n$ and $n\\,r^n$, so the pure $r^n$ form is not enough. Substitution only proves a guess, so a wrong guess cannot be repaired by it.",
+        "example": {
+          "problem": "Solve $T(n)=3T(n-1)+2\\cdot3^n$ with $T(0)=1$.",
+          "steps": [
+            "Divide both sides by $3^n$. With $S(n)=T(n)/3^n$ this gives $S(n)=S(n-1)+2$, and $S(0)=1$.",
+            "Unrolling adds $2$ at each of $n$ steps, so $S(n)=1+2n$.",
+            "Multiply back: $T(n)=(2n+1)3^n$. Check: $T(1)=3\\cdot1+6=9=3\\cdot3$ and $T(2)=27+18=45=5\\cdot9$."
+          ],
+          "result": "$T(n)=(2n+1)3^n=\\Theta(n\\,3^n)$."
+        },
+        "misconceptions": [
+          "The master theorem is not for $T(n-1)$ recurrences. It needs $T(n/b)$, so use division by $a^n$ or the characteristic equation instead.",
+          "The growth is not decided by the roots alone. If the coefficient of the larger root is $0$ because of the starting values, the smaller root governs."
+        ],
+        "recall": [
+          {
+            "q": "What does dividing $T(n)=aT(n-1)+f(n)$ by $a^n$ achieve?",
+            "a": "It removes the multiplier, leaving $S(n)=S(n-1)+f(n)/a^n$, which is just a sum."
+          },
+          {
+            "q": "How do you solve $T(n)=7T(n-1)-12T(n-2)$?",
+            "a": "Solve $r^2=7r-12$ for the roots $3$ and $4$, then fix the constants from the starting values."
+          },
+          {
+            "q": "What is the order of $T(n)=T(n-1)+n$?",
+            "a": "$\\Theta(n^2)$, because it unrolls into $1+2+\\dots+n$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Let $T(0)=1$, $T(1)=5$ and $T(n)=4T(n-1)-3T(n-2)$ for $n\\ge2$. Which statement is TRUE?",
+          "options": [
+            "$T(n)=\\Theta(n)$",
+            "$T(n)=\\Theta(3^n)$",
+            "$T(n)=\\Theta(n3^n)$",
+            "$T(n)=\\Theta(4^n)$"
+          ],
+          "answer": 1,
+          "explanation": "The characteristic equation $r^2-4r+3=0$ has roots $1$ and $3$, so $T(n)=\\alpha+\\beta3^n$. The starting values give $\\alpha+\\beta=1$ and $\\alpha+3\\beta=5$, so $\\beta=2$ and $\\alpha=-1$, which means $T(n)=2\\cdot3^n-1$. The multiplier $4$ tempts as the base, but it is a coefficient and not a root, and the roots are distinct so no factor $n$ appears."
+        },
+        "summary": "For $aT(n-1)+f(n)$ divide by $a^n$ and sum; for a linear two-term recurrence solve the characteristic equation and take the largest root with a nonzero coefficient."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.master-theorem",
+      "title": "The master theorem",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        28,
+        353,
+        354
+      ],
+      "points": [
+        "For T(n) = aT(n/b) + f(n) with a ≥ 1 and b > 1, compute the watershed exponent c* = log_b a and compare f(n) with n^c*.",
+        "Case 1: f(n) = O(n^(c* − ε)) for some ε > 0, so the leaves dominate and T(n) = Θ(n^c*). Example: 8T(n/2) + n² gives Θ(n³).",
+        "Case 2: f(n) = Θ(n^c* logᵏ n) with k ≥ 0, so every level costs the same and T(n) = Θ(n^c* logᵏ⁺¹ n). Example: 2T(n/2) + n log n gives Θ(n log² n).",
+        "Case 3: f(n) = Ω(n^(c* + ε)) and a·f(n/b) ≤ k·f(n) for some k < 1, so the root dominates and T(n) = Θ(f(n)). Example: 4T(n/2) + n³ gives Θ(n³).",
+        "It does not apply when f falls in the gap between cases without a polynomial margin (2T(n/2) + n/log n), when regularity fails, or when the recurrence subtracts instead of dividing (T(n − 1) + 1)."
+      ],
+      "keyTerms": [
+        "watershed exponent",
+        "regularity condition"
+      ],
+      "lesson": {
+        "why": "Divide-and-conquer recurrences are a standard exam question, and the master theorem turns each one into a three-step comparison instead of an expansion by hand.",
+        "intro": "A divide-and-conquer algorithm splits a problem of size $n$ into $a$ subproblems of size $n/b$, solves them, and spends $f(n)$ extra work to combine the answers. Its running time satisfies $T(n) = aT(n/b) + f(n)$. Picture the calls as a tree: the first call is the root, each call has $a$ children of size $n/b$, one row of calls is a level, and the smallest calls are the leaves. The tree has about $\\log_b n$ levels and $a^{\\log_b n} = n^{\\log_b a}$ leaves. The theorem asks which is bigger: the work at the leaves, $n^{\\log_b a}$, or the work $f(n)$ done by the root.",
+        "prerequisites": [
+          "algo-complexity-sorting.recurrence-methods"
+        ],
+        "definitions": [
+          {
+            "term": "Watershed exponent",
+            "meaning": "The number $c^* = \\log_b a$. The leaves of the recursion tree cost $\\Theta(n^{c^*})$ in total."
+          }
+        ],
+        "principle": {
+          "text": "Compare $f(n)$ with $n^{c^*}$. If $f$ is polynomially smaller (smaller by a factor $n^{\\varepsilon}$ for some $\\varepsilon > 0$), the leaves win. If $f$ matches, every level costs the same and a log factor appears. If $f$ is polynomially larger (and $a f(n/b) \\le k f(n)$ for some $k < 1$), the root wins.",
+          "tex": "T(n)=\\begin{cases}\\Theta(n^{c^*}) & f(n)=O(n^{c^*-\\varepsilon})\\\\ \\Theta(n^{c^*}\\log^{k+1} n) & f(n)=\\Theta(n^{c^*}\\log^{k} n),\\ k\\ge 0\\\\ \\Theta(f(n)) & f(n)=\\Omega(n^{c^*+\\varepsilon}),\\ \\text{regularity}\\end{cases}"
+        },
+        "limits": "The theorem needs $a \\ge 1$ and $b > 1$ with $n/b$ shrinking by a factor. It fails for $T(n) = T(n-1) + 1$, which subtracts instead of dividing, and for an $f$ in the gap between cases, such as $n/\\log n$ against $n$, where the difference is only a log factor and not a power of $n$.",
+        "example": {
+          "problem": "Solve $T(n) = 4T(n/2) + n$ with $T(1) = 1$.",
+          "steps": [
+            "Here $a = 4$ and $b = 2$, so $c^* = \\log_2 4 = 2$ and the leaves cost $\\Theta(n^2)$.",
+            "Compare $f(n) = n$ with $n^2$: $n = O(n^{2-1})$, so $f$ is polynomially smaller and case 1 applies.",
+            "Check with exact values: $T(2) = 6$, $T(4) = 28$, $T(1024) = 2096128$, which equals $2n^2 - n$ each time."
+          ],
+          "result": "$T(n) = \\Theta(n^2)$; the exact solution is $2n^2 - n$."
+        },
+        "misconceptions": [
+          "Case 2 is not \"$f(n)$ is about $n$\". It means $f$ is the same order as $n^{c^*}$, so $2T(n/2) + n$ has the log factor but $4T(n/2) + n$ does not.",
+          "A bigger $f$ does not always mean case 3. The regularity condition must hold, and $f$ must beat $n^{c^*}$ by a power, not just by a log."
+        ],
+        "recall": [
+          {
+            "q": "What is the watershed exponent of $T(n) = aT(n/b) + f(n)$?",
+            "a": "$c^* = \\log_b a$, the exponent of the total leaf cost $n^{c^*}$."
+          },
+          {
+            "q": "Which case gives an extra $\\log n$ factor?",
+            "a": "Case 2, where $f(n)$ is $\\Theta(n^{c^*})$, because every level of the tree costs the same."
+          },
+          {
+            "q": "Why can the master theorem not solve $T(n) = T(n-1) + n$?",
+            "a": "The subproblem is $n-1$, not a fraction $n/b$ with $b > 1$, so the form does not match."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the solution of $T(n) = 3T(n/3) + n^2$ with $T(1) = 1$?",
+          "options": [
+            "$\\Theta(n)$",
+            "$\\Theta(n \\log n)$",
+            "$\\Theta(n^2)$",
+            "$\\Theta(n^2 \\log n)$"
+          ],
+          "answer": 2,
+          "explanation": "Here $c^* = \\log_3 3 = 1$ and $f(n) = n^2 = \\Omega(n^{1+1})$, so the root dominates. Regularity holds because $3(n/3)^2 = n^2/3 \\le \\tfrac{1}{3} n^2$. Hence $T(n) = \\Theta(n^2)$; at $n = 3^{11}$ the ratio $T(n)/n^2$ is already 1.4999. $\\Theta(n)$ tempts because $c^* = 1$, and $\\Theta(n \\log n)$ is the pattern of $2T(n/2) + n$, where $f$ matches the leaves."
+        },
+        "summary": "Compute $c^* = \\log_b a$, then compare $f(n)$ with $n^{c^*}$: smaller gives the leaf cost, equal adds a log, larger gives $f(n)$ itself."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.irregular-recurrences",
+      "title": "Uneven splits, Akra–Bazzi and change of variable",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        354,
+        355,
+        367,
+        374
+      ],
+      "points": [
+        "Akra–Bazzi handles T(n) = Σ aᵢT(bᵢn) + f(n): find p with Σ aᵢbᵢᵖ = 1, then T(n) = Θ(nᵖ(1 + ∫₁ⁿ f(u)/uᵖ⁺¹ du)).",
+        "T(n) = T(n/3) + T(2n/3) + n has p = 1 and solves to Θ(n log n); the recursion tree agrees, with n work per level over log₃/₂ n levels.",
+        "When the argument shrinks by a root, substitute n = 2ᵐ. For T(n) = √n·T(√n) + n, dividing by n gives S(n) = S(√n) + 1 for S(n) = T(n)/n, which has log log n levels, so T(n) = Θ(n log log n).",
+        "Likewise T(n) = 2T(√n) + log n becomes S(m) = 2S(m/2) + m with m = log n, so T(n) = Θ(log n · log log n)."
+      ],
+      "lesson": {
+        "why": "Papers ask recurrences that the master theorem refuses: unequal splits like $T(n/2) + T(2n/5)$ and square-root arguments. Both have short routes once you know them.",
+        "intro": "Two shapes break the master theorem. In the first, the subproblems have different sizes, for example $T(n) = T(n/5) + T(4n/5) + n$. The recursion tree is lopsided, but each level still adds up to a multiple of $n$. In the second, the argument shrinks by a root, as in $T(\\sqrt{n})$. Writing $n = 2^m$ turns $\\sqrt{n}$ into $2^{m/2}$, so $m$ halves and the recurrence becomes an ordinary one in $m$. A third shape has a coefficient that shrinks with the argument, as in $T(n) = \\sqrt{n}\\,T(\\sqrt{n}) + n$. Dividing by $n$ and writing $S(n) = T(n)/n$ gives $S(n) = S(\\sqrt{n}) + 1$, which only counts square roots.",
+        "prerequisites": [
+          "algo-complexity-sorting.recurrence-methods",
+          "algo-complexity-sorting.master-theorem"
+        ],
+        "principle": {
+          "text": "For $T(n) = \\sum T(b_i n) + n$, add the fractions $s = \\sum b_i$. If $s < 1$ each level costs less than the one above and $T(n) = \\Theta(n)$. If $s = 1$ each level costs $n$ and there are $\\Theta(\\log n)$ levels, so $T(n) = \\Theta(n \\log n)$. For a root argument, substitute $n = 2^m$ and $S(m) = T(2^m)$, then solve $S$.",
+          "tex": "T(n)=T(b_1 n)+T(b_2 n)+n:\\quad \\sum b_i<1\\Rightarrow\\Theta(n),\\quad \\sum b_i=1\\Rightarrow\\Theta(n\\log n)"
+        },
+        "limits": "The sum rule is for a linear $f(n) = n$. With a different $f$, or fractions summing above 1, use Akra–Bazzi: find $p$ with $\\sum b_i^{p} = 1$ and integrate $f(u)/u^{p+1}$. The substitution works only when the argument is a power or root of $n$. For $T(n) = \\sqrt{n}\\,T(\\sqrt{n}) + n$ divide by $n$: $S(n) = S(\\sqrt{n}) + 1$ takes $\\log\\log n$ steps, so $T(n) = \\Theta(n \\log\\log n)$. For $T(n) = T(n^{1/a}) + 1$ the count is $\\log_a$ of $\\log n$ taken to the base of the stopping size, again a double logarithm.",
+        "example": {
+          "problem": "Solve $T(n) = 2T(\\sqrt{n}) + \\log_2 n$ with $T(2) = 1$.",
+          "steps": [
+            "Put $n = 2^m$ and $S(m) = T(2^m)$. Then $\\sqrt{n} = 2^{m/2}$ and $\\log_2 n = m$, so $S(m) = 2S(m/2) + m$.",
+            "This is the master theorem with $a = 2$, $b = 2$, $f(m) = m = \\Theta(m^{c^*})$, case 2, so $S(m) = \\Theta(m \\log m)$.",
+            "Substitute back, $m = \\log_2 n$: $T(n) = \\Theta(\\log n \\cdot \\log\\log n)$. Exact check: $T(2^4) = 12$, $T(2^8) = 32$, $T(2^{16}) = 80$, which is $m(\\log_2 m + 1)$ for $m = 4, 8, 16$."
+          ],
+          "result": "$T(n) = \\Theta(\\log n \\cdot \\log\\log n)$."
+        },
+        "misconceptions": [
+          "The depth of $T(n/5) + T(4n/5) + n$ is set by the larger fraction $4/5$, not the smaller one, but both give $\\Theta(\\log n)$ levels, so the answer is still $\\Theta(n \\log n)$.",
+          "Fractions that sum below 1 do not give $n \\log n$. For $T(n) = T(n/4) + T(n/2) + n$ the sum is $3/4$, the levels cost $n, \\tfrac{3}{4}n, \\tfrac{9}{16}n, \\dots$, and $T(n)$ stays below $4n$, so it is $\\Theta(n)$."
+        ],
+        "recall": [
+          {
+            "q": "How does a recursion tree with unequal branches still give a clean bound?",
+            "a": "Each level adds up to the same multiple of $n$ when the fractions sum to 1, and the tree has $\\Theta(\\log n)$ levels."
+          },
+          {
+            "q": "What substitution handles $T(\\sqrt{n})$?",
+            "a": "Let $n = 2^m$ and $S(m) = T(2^m)$, so the square root becomes $m/2$."
+          },
+          {
+            "q": "How many times can you take square roots of $n$ before reaching a constant?",
+            "a": "About $\\log\\log n$ times, since each root halves $\\log n$."
+          },
+          {
+            "q": "How is $T(n) = \\sqrt{n}\\,T(\\sqrt{n}) + n$ solved?",
+            "a": "Divide by $n$ to get $S(n) = S(\\sqrt{n}) + 1$ with $S = T/n$; about $\\log\\log n$ roots follow, so $T(n) = \\Theta(n \\log\\log n)$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the solution of $T(n) = T(n/5) + T(4n/5) + n$ with $T(1) = 1$?",
+          "options": [
+            "$\\Theta(n)$",
+            "$\\Theta(n \\log n)$",
+            "$\\Theta(n^2)$",
+            "$\\Theta(\\log n)$"
+          ],
+          "answer": 1,
+          "explanation": "The fractions sum to $1/5 + 4/5 = 1$, so every full level costs $n$. The longest path shrinks by $4/5$ each step, giving $\\Theta(\\log n)$ levels, hence $\\Theta(n \\log n)$. Numerically $T(n)/(n \\log_2 n)$ is 1.31 at $n = 10^4$ and 1.33 at $n = 10^6$. $\\Theta(n)$ tempts because the work per call is linear, but that counts only one level."
+        },
+        "summary": "Unequal splits: add the fractions, below 1 gives $\\Theta(n)$ and equal to 1 gives $\\Theta(n \\log n)$. Root arguments: substitute $n = 2^m$ and solve in $m$."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.linear-binary-search",
+      "title": "Linear and binary search",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        30,
+        355
+      ],
+      "points": [
+        "Linear search works on any array and costs Θ(n) in the worst case; binary search needs a sorted array with random access and costs Θ(log n), from T(n) = T(n/2) + 1.",
+        "A successful or unsuccessful binary search on n elements probes at most ⌊log₂ n⌋ + 1 middle elements: 10 for n = 1000, 11 for n = 1024.",
+        "Compute the midpoint as lo + (hi − lo)/2 to avoid integer overflow, and keep the loop condition (lo ≤ hi or lo < hi) consistent with how lo and hi are updated.",
+        "On a linked list binary search loses its advantage: reaching the middle costs Θ(n), so the total is Θ(n)."
+      ],
+      "lesson": {
+        "why": "Searching is the base case of algorithm analysis, and the probe count of binary search is a direct numerical question.",
+        "intro": "Linear search looks at the elements one by one until it finds the target or reaches the end. It works on any array. Binary search needs a sorted array. It looks at the middle element, and because the array is sorted, it can throw away the half that cannot contain the target. Repeating this halves the range each time, so the number of looks grows with the logarithm of the size, not the size.",
+        "prerequisites": [
+          "algo-complexity-sorting.recurrence-methods"
+        ],
+        "principle": {
+          "text": "Each probe of binary search halves the range, so $T(n) = T(n/2) + 1$ and the worst case is $\\Theta(\\log n)$. On $n$ elements the exact worst-case number of probes is $\\lfloor \\log_2 n \\rfloor + 1$, whether the search succeeds or fails.",
+          "tex": "T(n)=T(n/2)+1\\ \\Rightarrow\\ T(n)=\\lfloor\\log_2 n\\rfloor+1"
+        },
+        "limits": "Binary search needs sorted data and constant-time access to the middle. On a linked list, reaching the middle costs $\\Theta(n)$, so the whole search is $\\Theta(n)$. Linear search is the right tool for unsorted data.",
+        "example": {
+          "problem": "The sorted array is $[3, 8, 12, 17, 21, 25, 30, 34, 39, 44, 50, 57, 61]$ with 13 elements. How many probes does binary search need for 61, and for 27, which is absent?",
+          "steps": [
+            "Index the array from 0 and take mid $= lo + (hi - lo)/2$ rounded down. The first probe is index 6, value 30, and $61 > 30$, so continue on indices 7 to 12.",
+            "The next probes are index 9 (value 44), index 11 (value 57) and index 12 (value 61): 4 probes in total.",
+            "For 27 the probes are 30, 12, 21 and 25 before the range becomes empty: also 4 probes. Every element needs between 1 and 4 probes, and $\\lfloor \\log_2 13 \\rfloor + 1 = 4$."
+          ],
+          "result": "Both searches take 4 probes, the worst case for 13 elements."
+        },
+        "misconceptions": [
+          "Binary search is not $\\Theta(\\log n)$ on every input shape. It needs a sorted array, and on a linked list it costs $\\Theta(n)$.",
+          "The count is $\\lfloor \\log_2 n \\rfloor + 1$, not $\\log_2 n$. For 100 elements that is 7 probes, not 6.64."
+        ],
+        "recall": [
+          {
+            "q": "What recurrence describes the worst case of binary search?",
+            "a": "$T(n) = T(n/2) + 1$, which solves to $\\Theta(\\log n)$."
+          },
+          {
+            "q": "Why is $lo + (hi - lo)/2$ preferred over $(lo + hi)/2$?",
+            "a": "The sum $lo + hi$ can overflow a fixed-size integer, while $lo + (hi - lo)/2$ cannot."
+          },
+          {
+            "q": "Why does binary search not help on a linked list?",
+            "a": "Reaching the middle node takes $\\Theta(n)$ steps, so halving does not reduce the total cost."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sorted array holds 100 distinct elements. What is the maximum number of probes binary search makes over all targets, present or absent?",
+          "answer": 7,
+          "explanation": "The formula gives $\\lfloor \\log_2 100 \\rfloor + 1 = 6 + 1 = 7$, and a simulation over every target from below the minimum to above the maximum confirms 7. The value 6 tempts because $\\log_2 100 \\approx 6.64$ rounds down, but the final probe after six halvings still has to be counted."
+        },
+        "summary": "Linear search is $\\Theta(n)$ on any array; binary search is $\\Theta(\\log n)$ on a sorted array with random access, at most $\\lfloor \\log_2 n \\rfloor + 1$ probes."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.search-variants",
+      "title": "Binary-search variants and other searches",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        30,
+        356
+      ],
+      "points": [
+        "Lower bound (first index with a[i] ≥ x) and upper bound (first index with a[i] > x) keep searching after a match; their difference counts the occurrences of x in Θ(log n).",
+        "Binary search on the answer: when a predicate such as 'capacity C suffices' is monotone in C, search the smallest C that passes, at log(range) predicate evaluations.",
+        "A peak of an array, or the maximum of a unimodal function, is found by comparing a[mid] with a[mid + 1] and moving uphill, in Θ(log n).",
+        "Ternary search makes ⌈log₃ n⌉ rounds of 2 comparisons, more comparisons than binary search. Interpolation search averages O(log log n) on uniform keys but degrades to O(n). Exponential search finds position i in O(log i)."
+      ],
+      "lesson": {
+        "why": "Exam questions also ask for the first match, the count of matches, or a search on a shape that is not a sorted list, and each of these keeps the $\\log n$ cost.",
+        "intro": "Plain binary search stops at the first match it sees. In an array with repeated values that match may be anywhere among the equal entries. The variants keep searching after a match. The lower bound is the first index whose value is at least $x$. The upper bound is the first index whose value is greater than $x$. The same idea works whenever a yes/no test flips only once along a line: you binary search for the place where it flips.",
+        "prerequisites": [
+          "algo-complexity-sorting.linear-binary-search"
+        ],
+        "principle": {
+          "text": "If a predicate is false and then true along an ordered range (monotone), binary search finds the first true position with $\\lceil \\log_2 k \\rceil$ tests for $k$ candidates (count every possible flip position, including \"none\" when the test may never be true), and no method can use fewer in the worst case, since $k$ outcomes need a decision tree with at least $k$ leaves.",
+          "tex": "\\#\\text{occurrences of }x=\\text{upper}(x)-\\text{lower}(x),\\qquad \\text{tests}=\\lceil\\log_2 k\\rceil"
+        },
+        "limits": "Monotonicity is required: if the predicate flips more than once, discarding half the range can discard the answer. A bitonic or unimodal array is searched by finding the peak first, comparing $a[mid]$ with $a[mid+1]$, then binary searching each monotone side; the total is still $\\Theta(\\log n)$. Interpolation search averages $O(\\log\\log n)$ only on uniformly spread keys.",
+        "example": {
+          "problem": "Count the occurrences of 4 in the sorted array $[2, 4, 4, 4, 4, 7, 9, 9, 12, 15]$ in $O(\\log n)$ time.",
+          "steps": [
+            "The lower bound is the first index with value at least 4. That is index 1.",
+            "The upper bound is the first index with value greater than 4. That is index 5, where 7 sits.",
+            "The count is $5 - 1 = 4$. The same two bounds for 9 give indices 6 and 8, so 9 occurs twice. Each bound is one binary search."
+          ],
+          "result": "The value 4 occurs 4 times, found with two searches of cost $\\Theta(\\log n)$ each."
+        },
+        "misconceptions": [
+          "Stopping at the first match does not give the count or the first occurrence, because equal values may lie on both sides of the probe.",
+          "Searching for a threshold is not a linear scan. Whenever the test is monotone, $\\lceil \\log_2 k \\rceil$ evaluations suffice, even when each evaluation is costly."
+        ],
+        "recall": [
+          {
+            "q": "How do lower and upper bound count the copies of $x$?",
+            "a": "The count is upper$(x)$ minus lower$(x)$, each found by one binary search."
+          },
+          {
+            "q": "When can you binary search on an answer rather than on an array?",
+            "a": "When a yes/no test is monotone in the candidate value, so it changes from false to true exactly once."
+          },
+          {
+            "q": "How is a peak of a unimodal array found in $\\Theta(\\log n)$?",
+            "a": "Compare $a[mid]$ with $a[mid+1]$: if it rises, the peak is to the right, otherwise it is at mid or to the left."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A test is false for every capacity below some unknown value and true from that value on. The capacity lies in $1, 2, \\dots, 1000$ and the true region is known to be non-empty. What is the minimum worst-case number of tests needed to find the smallest passing capacity?",
+          "answer": 10,
+          "explanation": "There are 1000 possible answers, so a decision tree needs at least 1000 leaves, which requires depth $\\lceil \\log_2 1000 \\rceil = 10$ since $2^{9} = 512 < 1000 \\le 1024$. Binary search reaches that depth, and a dynamic program over the number of candidates confirms 10. The value 9 tempts because $2^{9}$ looks close to 1000, but it falls short; 1000 tests is the cost of a linear scan."
+        },
+        "summary": "Binary search finds a flip point of a monotone test in $\\lceil \\log_2 k \\rceil$ evaluations; lower and upper bound count duplicates, and unimodal data needs a peak search."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.sorting-properties",
+      "title": "Sorting taxonomy: stable, in-place, adaptive",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        29,
+        356,
+        357,
+        365,
+        366
+      ],
+      "points": [
+        "A stable sort keeps equal keys in their input order. Bubble, insertion, merge, counting and radix sort are stable; selection, quick and heap sort are not.",
+        "Stability enables multi-key sorting: sort by the secondary key first, then stably by the primary key, and ties on the primary key stay in secondary order.",
+        "In-place means O(1) extra memory, often relaxed to O(log n) for a recursion stack: bubble, insertion, selection, heap and quick sort qualify; merge sort needs Θ(n).",
+        "Adaptive sorts run faster on nearly sorted input: insertion sort and bubble sort with an early-exit flag. Stability and in-place are independent: merge sort is stable but not in-place, heap sort is in-place but not stable.",
+        "Library choices follow the trade-offs: introsort (quick sort with a heap-sort fallback) for unstable sorting, Timsort (merge plus insertion) where stability is required."
+      ],
+      "lesson": {
+        "why": "Stable, in-place and adaptive are asked as true or false claims about named algorithms, and the right answer is a fact you either hold or do not.",
+        "intro": "Three words describe a sorting algorithm beyond its running time. A sort is stable if two records with equal keys leave in the same order they entered. A sort is in-place if it uses only a constant amount of extra memory, beyond the array itself. A sort is adaptive if it runs faster when the input is already nearly sorted. These are separate properties: knowing one tells you nothing about the others. A different question is how far an array is from sorted. A non-decreasing subsequence is a set of elements, taken in their array order, whose values never drop; the elements outside it are the ones that must be overwritten.",
+        "principle": {
+          "text": "Stable: bubble, insertion, merge, counting and radix. Not stable: selection, quick and heap. In-place: bubble, insertion, selection, heap and quick (quick uses a recursion stack of $O(\\log n)$ at best). Merge sort needs $\\Theta(n)$ extra space. Adaptive: insertion sort, and bubble sort with an early exit."
+        },
+        "limits": "Stability matters only when records carry more than the sort key. These labels describe how an algorithm behaves, not how disordered an array is. The fewest values to overwrite so that an array becomes sorted is $n$ minus the length of its longest non-decreasing subsequence. For $[2,5,3,1,4,2,6]$ the longest is $2,3,4,6$, of length 4, so $7-4=3$ values must change.",
+        "example": {
+          "problem": "Sort the records $A_2, B_1, C_2, D_1$ (letter, key) by key with selection sort, which repeatedly finds the smallest remaining key and swaps it to the front. Does the result keep $A$ before $C$?",
+          "steps": [
+            "Pass 1 finds the smallest key at $B_1$ (index 1) and swaps it with $A_2$: $B_1, A_2, C_2, D_1$.",
+            "Pass 2 finds $D_1$ at index 3 and swaps it with $A_2$: $B_1, D_1, C_2, A_2$.",
+            "Pass 3 sees $C_2, A_2$ with equal keys and leaves them. A stable sort would give $B_1, D_1, A_2, C_2$."
+          ],
+          "result": "The output is $B_1, D_1, C_2, A_2$, so $C$ ended before $A$ and selection sort is not stable."
+        },
+        "misconceptions": [
+          "Stable and in-place are not linked. Merge sort is stable but not in-place, and heap sort is in-place but not stable.",
+          "A sort being $O(n \\log n)$ says nothing about stability: quick sort and heap sort are fast and unstable."
+        ],
+        "recall": [
+          {
+            "q": "What does a stable sort guarantee?",
+            "a": "Records with equal keys appear in the output in the same relative order as in the input."
+          },
+          {
+            "q": "Which common sorts need $\\Theta(n)$ extra space?",
+            "a": "Merge sort needs $\\Theta(n)$ extra space; counting and radix sort also need extra arrays."
+          },
+          {
+            "q": "How many values must be overwritten to sort an array of $n$ values?",
+            "a": "$n$ minus the length of the longest non-decreasing subsequence, because those elements can stay unchanged."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about sorting algorithms is correct?",
+          "options": [
+            "Heap sort is stable and in-place.",
+            "Merge sort is stable and in-place.",
+            "Insertion sort is stable and adaptive.",
+            "Quick sort is stable and uses no recursion stack."
+          ],
+          "answer": 2,
+          "explanation": "Insertion sort moves an element left only past strictly larger keys, so equal keys never cross, and it runs in $\\Theta(n)$ on sorted input. Heap sort is in-place but its swaps break stability. Merge sort is stable but needs $\\Theta(n)$ extra space. Quick sort partitioning swaps distant elements, so it is unstable, and its recursion uses stack space. The merge sort option tempts because stability is its famous property."
+        },
+        "summary": "Stable keeps equal keys in order, in-place uses constant extra space, adaptive speeds up on nearly sorted input; the three are independent for each algorithm."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.elementary-sorts",
+      "title": "Bubble, insertion and selection sort",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        357,
+        358,
+        359
+      ],
+      "points": [
+        "Bubble sort swaps adjacent out-of-order pairs; each pass fixes the largest remaining element. With an early-exit flag it is Θ(n) on sorted input; worst case n(n − 1)/2 comparisons and swaps.",
+        "Insertion sort grows a sorted prefix, shifting larger elements right. It performs exactly one shift per inversion, so it runs in Θ(n + I), where I is the number of inversions: 0 when sorted, n(n − 1)/2 when reversed.",
+        "Selection sort scans the unsorted part for its minimum and swaps it into place: always n(n − 1)/2 comparisons, even on sorted input, but at most n − 1 swaps.",
+        "Selection sort is unstable because the long-distance swap can jump an element past an equal one: [2a, 2b, 1] becomes [1, 2b, 2a]."
+      ],
+      "keyTerms": [
+        "inversion",
+        "early exit"
+      ],
+      "lesson": {
+        "why": "Bubble, insertion and selection sort are asked as exact counts of swaps, shifts and comparisons, which are plain arithmetic once you know what each one does.",
+        "intro": "These three sorts all take time proportional to $n^2$ in the worst case, but they behave differently on the way. Bubble sort walks along the array swapping neighbours that are in the wrong order, and each pass leaves the largest remaining value at the end. Insertion sort keeps a sorted prefix and slides each new element left into place. Selection sort scans the unsorted part for its minimum and swaps it to the front.",
+        "prerequisites": [
+          "algo-complexity-sorting.sorting-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Inversion",
+            "meaning": "A pair of positions $i < j$ with $a[i] > a[j]$, that is, two elements in the wrong order."
+          }
+        ],
+        "principle": {
+          "text": "Bubble and insertion sort each fix exactly one inversion per swap or shift, so both perform exactly $I$ swaps or shifts for an array with $I$ inversions, at most $n(n-1)/2$. Selection sort always makes $n(n-1)/2$ comparisons whatever the input, but at most $n-1$ swaps.",
+          "tex": "I_{\\max}=\\binom{n}{2}=\\frac{n(n-1)}{2},\\qquad T_{\\text{insertion}}=\\Theta(n+I)"
+        },
+        "limits": "The swap count equals the inversion count only for adjacent swaps, as in bubble sort. Selection sort swaps over a distance, so its swaps do not count inversions. Comparison counts of bubble sort depend on whether it stops early when a pass makes no swap.",
+        "example": {
+          "problem": "Insertion sort is run on $[4, 3, 1, 2]$. How many shifts happen?",
+          "steps": [
+            "List the inversions: $(4,3), (4,1), (4,2), (3,1), (3,2)$. The pair $(1,2)$ is in order. So $I = 5$.",
+            "Inserting 3 shifts 4 once. Inserting 1 shifts 4 and 3, so two more. Inserting 2 shifts 4 and 3, so two more.",
+            "The shifts are $1 + 2 + 2 = 5$. Running the algorithm confirms 5 shifts and 6 comparisons."
+          ],
+          "result": "Insertion sort makes 5 shifts, equal to the number of inversions."
+        },
+        "misconceptions": [
+          "Selection sort is not faster on sorted input: it still does $n(n-1)/2$ comparisons, while insertion sort does only $n-1$.",
+          "Fewer swaps does not mean fewer comparisons. Selection sort makes $n(n-1)/2$ comparisons even on sorted input, where insertion sort makes only $n-1$."
+        ],
+        "recall": [
+          {
+            "q": "What is the largest possible number of inversions in an array of $n$ elements?",
+            "a": "$n(n-1)/2$, reached by a strictly descending array."
+          },
+          {
+            "q": "How many comparisons does selection sort make on $n$ elements?",
+            "a": "Always $n(n-1)/2$, because it scans the whole unsorted part every time."
+          },
+          {
+            "q": "What is the cost of insertion sort in terms of inversions?",
+            "a": "$\\Theta(n + I)$, since it does one shift per inversion plus one comparison per element."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Bubble sort, swapping adjacent out-of-order elements, is run on $[5, 1, 4, 2, 8, 3]$. How many swaps are performed in total?",
+          "answer": 7,
+          "explanation": "Each adjacent swap removes exactly one inversion, so the swap count is the inversion count: 5 is above 1, 4, 2, 3 (4), 4 is above 2, 3 (2), and 8 is above 3 (1), giving 7. A simulation of the algorithm also gives 7. The value 15 tempts because it is $n(n-1)/2$, but that is only the worst case for a descending array."
+        },
+        "summary": "Bubble and insertion sort do one swap or shift per inversion, selection sort always makes $n(n-1)/2$ comparisons with at most $n-1$ swaps."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.merge-sort",
+      "title": "Merge sort",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        359,
+        360
+      ],
+      "points": [
+        "Split into halves, sort each recursively, then merge: T(n) = 2T(n/2) + Θ(n) = Θ(n log n) in every case, with Θ(n) auxiliary space.",
+        "Merging sorted lists of sizes m and k takes at most m + k − 1 comparisons and at least min(m, k).",
+        "For n = 2ᵏ the worst case is n log₂ n − n + 1 comparisons (17 for n = 8) and the best case is (n/2)·log₂ n (12 for n = 8).",
+        "Using ≤ when the two heads are equal takes the left element first and keeps the sort stable. Merge sort suits linked lists and external sorting of data larger than memory."
+      ],
+      "lesson": {
+        "why": "Merge sort is the standard example of divide and conquer. GATE asks for its merge counts, comparison counts and stability, so you should be able to trace one run by hand.",
+        "intro": "Merge sort sorts a list by cutting it in half, sorting each half the same way, and then merging the two sorted halves into one. A list of one element is already sorted, so the cutting stops there. Merging is the real work: look at the first element of each sorted half, take the smaller one into the output, and repeat until one half is empty, then copy the rest of the other half.",
+        "prerequisites": [
+          "algo-complexity-sorting.recurrence-methods"
+        ],
+        "definitions": [
+          {
+            "term": "Merge",
+            "meaning": "Combining two sorted lists into one sorted list by repeatedly taking the smaller of the two front elements."
+          },
+          {
+            "term": "Stable sort",
+            "meaning": "A sort that keeps equal keys in the order they had in the input."
+          }
+        ],
+        "principle": {
+          "text": "Merging lists of sizes $m$ and $k$ takes at most $m+k-1$ comparisons, and as few as $\\min(m,k)$, reached when every element of the shorter list precedes every element of the longer one. If every element of $L$ precedes every element of $R$, the merge costs $|L|$ comparisons and outputs $L$ followed by $R$. Each level of the recursion merges $n$ elements in total, so the worst-case recurrence solves to $\\Theta(n\\log n)$ in every case, using $\\Theta(n)$ extra space.",
+          "tex": "T(n)=2T(n/2)+n-1,\\qquad T(2^k)=n\\log_2 n-n+1"
+        },
+        "limits": "The $n\\log_2 n-n+1$ form is exact only when $n$ is a power of 2. The best and worst cases differ only in the constant: the time is $\\Theta(n\\log n)$ either way. Stability needs the merge to take the left element when the two front elements are equal.",
+        "example": {
+          "problem": "Merge sort is run on $[6,2,9,4,1,8,3,5]$. How many element comparisons are made in total?",
+          "steps": [
+            "The first level merges four pairs: $[6][2]$, $[9][4]$, $[1][8]$, $[3][5]$. Each pair needs 1 comparison, so 4 in all.",
+            "The second level merges $[2,6]$ with $[4,9]$, which compares 2:4, 6:4, 6:9 for 3 comparisons, and $[1,8]$ with $[3,5]$, which compares 1:3, 8:3, 8:5 for 3 more. That is 6.",
+            "The last merge joins $[2,4,6,9]$ and $[1,3,5,8]$. The comparisons are 2:1, 2:3, 4:3, 4:5, 6:5, 6:8, 9:8, which is 7. After 9:8 the right half is empty, so $[9]$ is copied with no further comparison.",
+            "Add the levels: $4+6+7=17$, which equals $8\\log_2 8-8+1$."
+          ],
+          "result": "17 comparisons, the worst case for $n=8$."
+        },
+        "misconceptions": [
+          "Merge sort does not get cheaper in time on already sorted input. It still splits and merges at every level, so the time stays $\\Theta(n\\log n)$, although the comparison count drops to $(n/2)\\log_2 n$.",
+          "Merging two lists of total size $m+k$ does not always take $m+k$ comparisons. When one list runs out, the rest is copied with no comparison, so the maximum is $m+k-1$."
+        ],
+        "recall": [
+          {
+            "q": "How many extra memory cells does merge sort on an array need?",
+            "a": "$\\Theta(n)$ for the merge buffer. Merge sort on arrays is not in-place."
+          },
+          {
+            "q": "What is the maximum number of comparisons to merge sorted lists of sizes $m$ and $k$?",
+            "a": "$m+k-1$, reached when the two lists interleave so that neither empties until the last step."
+          },
+          {
+            "q": "How many merge operations does merge sort perform on $n$ elements?",
+            "a": "Exactly $n-1$, one for each internal node of the merge tree."
+          },
+          {
+            "q": "When does merging a sorted list $L$ with a sorted list $R$ just output $L$ followed by $R$?",
+            "a": "Exactly when the largest element of $L$ is smaller than the smallest element of $R$. The merge then costs $|L|$ comparisons, because $L$ empties first and $R$ is copied."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Merge sort is run on 16 distinct elements, arranged so that every merge needs the largest possible number of comparisons. How many comparisons does the whole sort make?",
+          "answer": 49,
+          "explanation": "Let $W(n)$ be the worst-case count. $W(1)=0$ and $W(n)=2W(n/2)+n-1$, so $W(2)=1$, $W(4)=5$, $W(8)=17$, $W(16)=49$, which matches $16\\log_2 16-16+1$. The value 64 tempts because it is $n\\log_2 n$, but each merge saves one comparison, and over the whole tree that saving adds up to $n-1$."
+        },
+        "summary": "Merge sort halves, sorts and merges. It makes $n-1$ merges and at most $n\\log_2 n-n+1$ comparisons for $n$ a power of 2, in $\\Theta(n\\log n)$ time and $\\Theta(n)$ space."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.quick-sort",
+      "title": "Quick sort and partitioning",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        29,
+        361,
+        362
+      ],
+      "points": [
+        "Lomuto partition takes the last element as pivot, sweeps j left to right and grows a block of elements ≤ pivot; Hoare partition moves two pointers inward and swaps fewer times.",
+        "Balanced splits give T(n) = 2T(n/2) + n = Θ(n log n). Maximally unbalanced splits give T(n) = T(n − 1) + n = Θ(n²), exactly n(n − 1)/2 comparisons.",
+        "With a first- or last-element pivot the worst case is already sorted or reverse-sorted input; with the ≤ test in Lomuto, an array of all-equal keys is also quadratic.",
+        "Random or median-of-three pivots give expected Θ(n log n) on every input, but the worst case stays Θ(n²). Choosing the true median by a linear-time selection algorithm makes the worst case Θ(n log n).",
+        "Quick sort is in-place and unstable; its recursion stack is O(log n) on average and O(n) in the worst case unless it always recurses on the smaller side first."
+      ],
+      "keyTerms": [
+        "Lomuto",
+        "Hoare",
+        "pivot",
+        "median-of-three"
+      ],
+      "lesson": {
+        "why": "Quick sort questions ask what one partition leaves behind, which inputs make it quadratic, and how a pivot's rank sets the two sub-problem sizes. All of it follows from understanding a single partition step.",
+        "intro": "Quick sort picks one element, the pivot, and rearranges the array so that everything smaller sits to its left and everything larger to its right. The pivot is then in its final sorted place. The two sides are sorted the same way. The rearranging step is called partitioning. In the Lomuto version the pivot is the last element, and a scan from left to right moves each element that is at most the pivot into a growing block at the front.",
+        "prerequisites": [
+          "algo-complexity-sorting.recurrence-methods"
+        ],
+        "definitions": [
+          {
+            "term": "Pivot",
+            "meaning": "The element whose final position one partition fixes; smaller keys go left of it and larger keys go right."
+          },
+          {
+            "term": "Rank",
+            "meaning": "The position an element would take in the sorted array, counting from 1 for the smallest."
+          }
+        ],
+        "principle": {
+          "text": "A pivot of rank $r$ splits an array of $n$ elements into parts of size $r-1$ and $n-r$. Partitioning costs $n-1$ comparisons. Even splits give $\\Theta(n\\log n)$, while a pivot that is always the smallest or largest gives $\\Theta(n^2)$.",
+          "tex": "T(n)=T(r-1)+T(n-r)+n-1,\\qquad T_{\\text{worst}}(n)=\\frac{n(n-1)}{2}"
+        },
+        "limits": "The quadratic case depends on the pivot rule. With a fixed first or last pivot, sorted input is the worst case; with a random pivot no particular input is bad, although the worst case is still possible. Quick sort is not stable and not guaranteed $O(n\\log n)$.",
+        "example": {
+          "problem": "Apply one Lomuto partition, with the last element as pivot, to $[5,2,8,1,9,3,6]$. What is the array afterwards, and how many comparisons were made?",
+          "steps": [
+            "The pivot is 6. Compare each of the other six elements with it, which is 6 comparisons.",
+            "The elements at most 6 are 5, 2, 1, 3, in their original order, and the elements above 6 are 8 and 9.",
+            "The pivot is swapped into the slot after the small block, so the array becomes $[5,2,1,3,6,8,9]$.",
+            "The pivot has rank 5, so the sides have sizes 4 and 2 and are still unsorted."
+          ],
+          "result": "$[5,2,1,3,6,8,9]$ after 6 comparisons, with 6 now at its final position."
+        },
+        "misconceptions": [
+          "Partitioning does not sort either side. Only the pivot is guaranteed to be in its final place; the left and right parts are in arbitrary order.",
+          "Random pivots do not remove the worst case, they only make it improbable on every input. The worst case remains $\\Theta(n^2)$."
+        ],
+        "recall": [
+          {
+            "q": "What is the exact worst-case comparison count of quick sort on $n$ elements?",
+            "a": "$n(n-1)/2$, when each partition leaves one side empty."
+          },
+          {
+            "q": "Which input is worst for quick sort with the last element as pivot?",
+            "a": "Already sorted or reverse sorted input, since the pivot is then always an extreme value."
+          },
+          {
+            "q": "Is quick sort stable, and is it in-place?",
+            "a": "It is in-place apart from the recursion stack, and it is not stable because partitioning swaps over a distance."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Quick sort with the Lomuto partition (last element as pivot) is run on the ascending array $[1,2,3,4,5,6,7,8,9]$. How many comparisons between an element and the pivot are made in total?",
+          "answer": 36,
+          "explanation": "The last element is the largest, so each partition leaves a left part of size one less and an empty right part. The comparisons are $8+7+6+5+4+3+2+1+0=36=9\\cdot8/2$. The value 72 tempts because it is $9\\cdot8$, the cost if every partition compared all nine elements, but each partition handles one element fewer than the last, which halves the sum to 36."
+        },
+        "summary": "Partitioning puts the pivot in its final place with $n-1$ comparisons. Pivot rank sets the split sizes: balanced gives $\\Theta(n\\log n)$, extreme gives $n(n-1)/2$ comparisons."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.heap-sort",
+      "title": "Heap sort and build-heap",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        362,
+        363
+      ],
+      "points": [
+        "In a 0-indexed array heap the children of i are 2i + 1 and 2i + 2 and its parent is ⌊(i − 1)/2⌋; leaves occupy indices ⌊n/2⌋ to n − 1.",
+        "Bottom-up build-heap sifts down every internal node from index ⌊n/2⌋ − 1 to 0; a node at height h costs O(h), and Σ h·n/2ʰ⁺¹ = O(n), so build-heap is Θ(n), not Θ(n log n).",
+        "The sort phase swaps the root with the last heap element and sifts down n − 1 times, Θ(n log n) in total; extracting the maximum costs O(log n), about 2 comparisons per level.",
+        "Heap sort is Θ(n log n) in every case on distinct keys, in-place with O(1) extra space, and unstable; with all keys equal the sift-downs stop at once and it makes only Θ(n) comparisons (3066 for n = 1024)."
+      ],
+      "lesson": {
+        "why": "Heap sort is the one in-place sort that is $\\Theta(n\\log n)$ in every case on distinct keys and uses no extra array. GATE asks you to trace build-heap on a small array and to explain why building a heap is linear.",
+        "intro": "A heap is an array read as a binary tree: the element at index $i$ has its children at $2i+1$ and $2i+2$. In a max-heap every parent is at least as large as its children, so the largest value sits at index 0. Sifting down means swapping a too-small parent with its larger child, again and again, until it is no smaller than its children. Heap sort first turns the array into a max-heap, then repeatedly swaps the root with the last heap element, shrinks the heap by one and sifts the new root down.",
+        "prerequisites": [
+          "algo-complexity-sorting.sorting-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Sift-down",
+            "meaning": "Moving a node down the tree by swapping it with its larger child until both children are no larger than it."
+          },
+          {
+            "term": "Build-heap",
+            "meaning": "Turning an arbitrary array into a heap by sifting down every internal node, from index $\\lfloor n/2\\rfloor-1$ down to 0."
+          }
+        ],
+        "principle": {
+          "text": "Build-heap sifts down each internal node. A node of height $h$ moves at most $h$ levels, and about $n/2^{h+1}$ nodes have height $h$, so the total work is a convergent sum and build-heap is $\\Theta(n)$. The sort phase then does $n-1$ extractions of $O(\\log n)$ each, so heap sort is $\\Theta(n\\log n)$ in total.",
+          "tex": "\\sum_{h=0}^{\\lfloor\\log_2 n\\rfloor}\\left\\lceil\\frac{n}{2^{h+1}}\\right\\rceil O(h)=O\\!\\left(n\\sum_{h\\ge 0}\\frac{h}{2^{h}}\\right)=O(n)"
+        },
+        "limits": "The $\\Theta(n)$ bound is for build-heap only; the sort phase still costs $\\Theta(n\\log n)$. Heap sort is not stable, because swapping the root with the last element moves equal keys past each other. With all keys equal the sift-downs stop at once, so the comparison count falls to $\\Theta(n)$.",
+        "example": {
+          "problem": "Build a max-heap from the array $[3,9,2,1,4,5]$ by bottom-up build-heap. How many swaps are made, and what is the final array?",
+          "steps": [
+            "$n=6$, so the internal nodes are indices 2, 1, 0 and we sift them in that order.",
+            "Index 2 holds 2 with a single child, 5 at index 5. Since $5>2$, swap: $[3,9,5,1,4,2]$.",
+            "Index 1 holds 9; its children are 1 and 4, both smaller, so nothing moves.",
+            "Index 0 holds 3; its children are 9 and 5. Swap with the larger, 9: $[9,3,5,1,4,2]$. The 3 is now at index 1 with children 1 and 4, so swap with 4: $[9,4,5,1,3,2]$. It is now at index 4, a leaf, and the sift stops."
+          ],
+          "result": "3 swaps; final heap $[9,4,5,1,3,2]$."
+        },
+        "misconceptions": [
+          "Build-heap is not $\\Theta(n\\log n)$. Most nodes are near the leaves and sink only a level or two, so the total is linear. Inserting the elements one by one is the version that costs $\\Theta(n\\log n)$.",
+          "Stopping a sift-down after one swap is wrong: the moved element may still be smaller than its new children, as the 3 above is."
+        ],
+        "recall": [
+          {
+            "q": "Where are the children and the parent of index $i$ in a 0-indexed array heap?",
+            "a": "The children are at $2i+1$ and $2i+2$, and the parent is at $\\lfloor (i-1)/2\\rfloor$."
+          },
+          {
+            "q": "At which index does build-heap start, and in which direction does it go?",
+            "a": "It starts at $\\lfloor n/2\\rfloor-1$, the last internal node, and moves down to index 0."
+          },
+          {
+            "q": "Is heap sort stable, and does it need extra space?",
+            "a": "It is not stable, and it needs only $O(1)$ extra space because it sorts in place."
+          },
+          {
+            "q": "What is the time of the sort phase, and why?",
+            "a": "$\\Theta(n\\log n)$: it does $n-1$ extractions, each a sift-down of $O(\\log n)$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Bottom-up build-heap for a max-heap is run on the array $[1,2,3,4,5,6,7]$. How many swaps does it make in total?",
+          "answer": 4,
+          "explanation": "The internal nodes are indices 2, 1, 0. Index 2 (value 3) swaps with 7: $[1,2,7,4,5,6,3]$. Index 1 (value 2) swaps with 5: $[1,5,7,4,2,6,3]$. Index 0 (value 1) swaps with 7 and then with 6, giving $[7,5,6,4,2,1,3]$. That is $1+1+2=4$ swaps. The answer 3 tempts because there are three internal nodes, but the root's element sinks two levels."
+        },
+        "summary": "Heap sort builds a max-heap in $\\Theta(n)$ with bottom-up sift-downs, then extracts the root $n-1$ times. It is $\\Theta(n\\log n)$ in every case on distinct keys, in place and not stable."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.non-comparison-sorts",
+      "title": "Counting, radix and bucket sort",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        29,
+        363,
+        364
+      ],
+      "points": [
+        "Counting sort on n integers in [0, k] tallies counts, takes prefix sums and places elements from right to left; Θ(n + k) time, Θ(n + k) space, stable.",
+        "It is linear only when k = O(n): sorting n integers from [1, 100] is Θ(n), but keys up to n³ make the count array dominate.",
+        "Radix sort runs a stable sort on each of d digits, least significant first: Θ(d(n + k)) for base k. LSD radix sort is correct only because each pass is stable.",
+        "Bucket sort spreads n keys drawn uniformly from [0, 1) over n buckets, sorts each and concatenates: Θ(n) expected, Θ(n²) if every key lands in one bucket.",
+        "These sorts read key values directly instead of only comparing them, so the Ω(n log n) comparison bound does not apply to them."
+      ],
+      "lesson": {
+        "why": "Counting and radix sort beat the $n\\log n$ barrier when keys are small integers. GATE asks which sort is best for a given key range, and why radix sort needs a stable pass.",
+        "intro": "The sorts met so far learn the order only by comparing two keys. Counting sort instead reads the key value itself and uses it as an array index. It counts how many times each value occurs, adds the counts up so that each value knows where its block ends in the output, and then places the elements one by one. Radix sort sorts numbers digit by digit, starting from the least significant digit, with a stable sort on each digit. Bucket sort spreads the keys over many buckets by value, sorts each bucket and joins them.",
+        "prerequisites": [
+          "algo-complexity-sorting.sorting-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Stable pass",
+            "meaning": "A sorting pass that keeps equal keys in their earlier relative order; radix sort relies on it."
+          },
+          {
+            "term": "Key range $k$",
+            "meaning": "The number of distinct key values, such as $k=10$ for decimal digits."
+          }
+        ],
+        "principle": {
+          "text": "Counting sort on $n$ integers in $[0,k)$ takes $\\Theta(n+k)$ time and space and is stable when it fills the output from right to left. Radix sort with $d$ digits in base $k$ runs $d$ stable passes, so it takes $\\Theta(d(n+k))$. Bucket sort on keys spread uniformly over $[0,1)$ takes $\\Theta(n)$ expected time and $\\Theta(n^2)$ if all keys land in one bucket.",
+          "tex": "T_{\\text{count}}=\\Theta(n+k),\\qquad T_{\\text{radix}}=\\Theta\\big(d\\,(n+k)\\big)"
+        },
+        "limits": "These sorts are linear only when $k$ is small: for $k=O(n)$ counting sort is $\\Theta(n)$, but for keys up to $n^3$ the count array dominates. They cannot sort arbitrary comparable objects, and counting sort is not in place. The $\\Omega(n\\log n)$ comparison bound does not apply, because they do not work by comparing keys.",
+        "example": {
+          "problem": "Counting sort is run on the keys $[2,5,3,0,2,3,0,3]$, which lie in $[0,5]$. Show the counts, the prefix sums and the output.",
+          "steps": [
+            "Tally each value 0 to 5. Value 0 occurs twice, 1 not at all, 2 twice, 3 three times, 4 not at all, 5 once: counts $[2,0,2,3,0,1]$.",
+            "Take running totals: $[2,2,4,7,7,8]$. The entry for value $v$ is the number of keys at most $v$, so it is one past the last slot for $v$.",
+            "Scan the input from right to left. For each key, decrement its entry and write the key at that position. Scanning right to left keeps equal keys in input order, which makes the sort stable.",
+            "The filled output is $[0,0,2,2,3,3,3,5]$."
+          ],
+          "result": "Output $[0,0,2,2,3,3,3,5]$ in $\\Theta(n+k)=\\Theta(8+6)$ steps."
+        },
+        "misconceptions": [
+          "Counting sort is not always linear. The time is $\\Theta(n+k)$, so a huge key range makes it slower than a comparison sort.",
+          "LSD radix sort does not work with any inner sort. If a digit pass is not stable, it destroys the order established by the earlier digits, and the output can be wrong."
+        ],
+        "recall": [
+          {
+            "q": "What is the time of counting sort on $n$ integers in $[0,k]$?",
+            "a": "$\\Theta(n+k)$ time and $\\Theta(n+k)$ space; it is stable when the output is filled from right to left."
+          },
+          {
+            "q": "In which order does LSD radix sort process the digits, and why must each pass be stable?",
+            "a": "Least significant digit first. Stability keeps the ordering from earlier digits among keys that tie on the current digit."
+          },
+          {
+            "q": "When is bucket sort $\\Theta(n^2)$?",
+            "a": "When all keys land in one bucket, for example when the input is far from uniform, so that bucket is sorted alone."
+          },
+          {
+            "q": "Why does the $\\Omega(n\\log n)$ bound not cover these sorts?",
+            "a": "The bound counts comparisons, and these sorts read key values directly rather than comparing pairs."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "LSD radix sort in base 10 sorts $n=100$ numbers of 3 decimal digits each, using counting sort for each digit pass. If one pass costs $n+k$ steps, how many steps do all passes take in total?",
+          "answer": 330,
+          "explanation": "Here $k=10$ and $d=3$, so one pass costs $100+10=110$ steps and three passes cost $3\\times110=330$. The value 300 tempts because it forgets the counter array of size $k$ on each pass, and 1000 is the product $n\\times k=100\times10$, which tempts because it multiplies where the passes add."
+        },
+        "summary": "Counting sort is $\\Theta(n+k)$ and stable, radix sort is $\\Theta(d(n+k))$ using stable passes, and bucket sort is $\\Theta(n)$ expected on uniform keys. They avoid the comparison lower bound, but only when keys are small integers or uniformly spread."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.comparison-lower-bound",
+      "title": "The Ω(n log n) lower bound for comparison sorting",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        29,
+        364
+      ],
+      "points": [
+        "Model any comparison sort as a binary decision tree: each internal node is a comparison and each leaf one output permutation, so a correct tree has at least n! leaves.",
+        "A binary tree with L leaves has height at least ⌈log₂ L⌉, so the worst case needs at least ⌈log₂ n!⌉ comparisons: 3 for n = 3, 5 for n = 4, 7 for n = 5.",
+        "log₂ n! = n log₂ n − n log₂ e + Θ(log n), which makes merge sort and heap sort asymptotically optimal comparison sorts.",
+        "The same argument gives Ω(log n) for searching a sorted array by comparisons, since n + 1 outcomes need log₂(n + 1) levels."
+      ],
+      "lesson": {
+        "why": "This is the argument that no comparison sort can beat $n\\log n$, so merge sort and heap sort are optimal. GATE uses it to ask for the minimum number of comparisons needed to sort a small number of elements.",
+        "intro": "A comparison sort learns about the input only by asking questions of the form 'is $a$ smaller than $b$?'. Draw every possible sequence of questions as a tree. Each internal node is one comparison with two outcomes, and each leaf is a final answer, meaning one particular ordering of the input. Any correct sort must be able to reach every one of the $n!$ possible orderings, so the tree needs at least $n!$ leaves. A binary tree with that many leaves must be tall, and its height is the worst-case number of comparisons.",
+        "prerequisites": [
+          "algo-complexity-sorting.sorting-properties"
+        ],
+        "definitions": [
+          {
+            "term": "Decision tree",
+            "meaning": "A binary tree whose internal nodes are comparisons and whose leaves are the possible outputs of the algorithm."
+          }
+        ],
+        "principle": {
+          "text": "A binary tree of height $H$ has at most $2^H$ leaves. Needing $n!$ leaves forces $2^H\\ge n!$, so the worst case needs at least $\\lceil\\log_2 n!\\rceil$ comparisons. Since $\\log_2 n!=n\\log_2 n-n\\log_2 e+\\Theta(\\log n)$, every comparison sort needs $\\Omega(n\\log n)$ comparisons in the worst case.",
+          "tex": "C_{\\text{worst}}(n)\\ \\ge\\ \\lceil\\log_2 n!\\rceil=\\Omega(n\\log n)"
+        },
+        "limits": "The bound is about the worst case of algorithms that only compare keys. It does not apply to counting or radix sort. It is a lower bound, so it does not promise that $\\lceil\\log_2 n!\\rceil$ comparisons are enough for every $n$, although they are for $n=5$. The same idea gives $\\Omega(\\log n)$ for searching a sorted array, since $n+1$ outcomes need $\\lceil\\log_2(n+1)\\rceil$ levels.",
+        "example": {
+          "problem": "What is the smallest number of comparisons that any comparison sort needs in the worst case to sort 4 distinct elements?",
+          "steps": [
+            "There are $4!=24$ possible orderings, so the decision tree needs at least 24 leaves.",
+            "A tree of height $H$ has at most $2^H$ leaves. Height 4 allows 16 leaves, which is too few.",
+            "Height 5 allows 32 leaves, which is at least 24.",
+            "So $H\\ge\\lceil\\log_2 24\\rceil=\\lceil 4.585\\rceil=5$."
+          ],
+          "result": "At least 5 comparisons are needed in the worst case."
+        },
+        "misconceptions": [
+          "The bound does not say sorting needs $n\\log_2 n$ comparisons exactly. The exact lower bound is $\\lceil\\log_2 n!\\rceil$, which is smaller, for example 5 for $n=4$ against $4\\log_2 4=8$.",
+          "It is not a bound on every sort. Counting sort runs in $\\Theta(n+k)$ because it never compares two keys."
+        ],
+        "recall": [
+          {
+            "q": "How many leaves must the decision tree of a correct comparison sort have?",
+            "a": "At least $n!$, one for each possible ordering of the input."
+          },
+          {
+            "q": "What is the minimum worst-case number of comparisons to sort $n$ elements?",
+            "a": "At least $\\lceil\\log_2 n!\\rceil$, which is $\\Omega(n\\log n)$."
+          },
+          {
+            "q": "Why are merge sort and heap sort called asymptotically optimal?",
+            "a": "They run in $O(n\\log n)$ comparisons, which meets the $\\Omega(n\\log n)$ lower bound up to a constant."
+          },
+          {
+            "q": "Which lower bound does the same argument give for searching a sorted array by comparisons?",
+            "a": "$\\Omega(\\log n)$, because the search has $n+1$ outcomes and needs $\\lceil\\log_2(n+1)\\rceil$ levels."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the information-theoretic lower bound, $\\lceil\\log_2 n!\\rceil$, on the worst-case number of comparisons needed to sort 6 distinct elements?",
+          "answer": 10,
+          "explanation": "$6!=720$. Since $2^9=512<720\\le 1024=2^{10}$, the height is at least 10. The value 16 tempts because $\\lceil 6\\log_2 6\\rceil=16$, but $n\\log_2 n$ overstates $\\log_2 n!$ by roughly $n\\log_2 e$ (the exact gap at $n=6$ is about 6)."
+        },
+        "summary": "A comparison sort is a binary decision tree with at least $n!$ leaves, so its height is at least $\\lceil\\log_2 n!\\rceil=\\Omega(n\\log n)$. Merge sort and heap sort meet this bound."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.selection-order-statistics",
+      "title": "Selection: k-th smallest and the median",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        30
+      ],
+      "points": [
+        "Quickselect partitions as quick sort does but recurses into one side only: expected Θ(n), from T(n) = T(n/2) + n on average, and worst case Θ(n²).",
+        "Median of medians splits the input into groups of 5, takes the median of the group medians as pivot and guarantees T(n) ≤ T(n/5) + T(7n/10) + O(n) = Θ(n) in the worst case.",
+        "Using that linear-time median as quick sort's pivot gives T(n) = 2T(n/2) + Θ(n), so quick sort becomes Θ(n log n) in the worst case.",
+        "Finding the k smallest elements in sorted order costs Θ(n + k log k): select the k-th, partition around it, then sort the k survivors."
+      ],
+      "keyTerms": [
+        "quickselect",
+        "median of medians"
+      ],
+      "lesson": {
+        "why": "Finding the median or the k-th smallest without sorting is a recurring GATE idea, and the question is usually whether the time is linear or $n\\log n$.",
+        "intro": "The k-th smallest element of a list is the one that would sit in position k after sorting. Sorting the whole list finds it but does more work than needed. Quickselect borrows quick sort's partition: pick a pivot, rearrange so smaller keys come first, and look at where the pivot lands. If it lands at position k, you are done. If not, the answer lies on only one side, so you continue there and ignore the other side. Median of medians is a way to choose the pivot with a guarantee: split the list into groups of 5, take the median of each group, and use the median of those group medians as the pivot. That pivot always has a constant fraction of the elements on each side.",
+        "prerequisites": [
+          "algo-complexity-sorting.quick-sort"
+        ],
+        "definitions": [
+          {
+            "term": "Order statistic",
+            "meaning": "The k-th smallest element of a collection; the minimum is the first and the median is the middle one."
+          }
+        ],
+        "principle": {
+          "text": "Quickselect recurses into one side only. With balanced pivots the sizes shrink geometrically, so the work is $n+n/2+n/4+\\dots=\\Theta(n)$ on average, and a bad pivot gives $\\Theta(n^2)$ in the worst case. Median of medians picks a pivot good enough to guarantee $\\Theta(n)$ even in the worst case.",
+          "tex": "T(n)=T(n/2)+n=\\Theta(n),\\qquad T(n)\\le T(n/5)+T(7n/10)+O(n)"
+        },
+        "limits": "The linear bound for plain quickselect is an average, not a guarantee. Sorting stays the right tool when many different ranks are needed from the same data. The worst-case linear algorithm has a large constant factor.",
+        "example": {
+          "problem": "Use quickselect with the last element as pivot to find the 3rd smallest of $[9,4,7,1,8,3,6]$. How many comparisons with a pivot are made?",
+          "steps": [
+            "The pivot is 6. Six comparisons give the smaller block $[4,1,3]$ and the larger block $[9,7,8]$. The pivot has rank 4, and we want rank 3, so we continue in $[4,1,3]$.",
+            "The pivot is 3. Two comparisons give the smaller block $[1]$. The pivot has rank 2 in this block, and we want rank 3, so we continue in the larger block $[4]$ with target rank 1.",
+            "A block of one element needs no comparison, and 4 is the answer. The total is $6+2+0=8$ comparisons, against many more for a full sort."
+          ],
+          "result": "The 3rd smallest is 4, found with 8 comparisons."
+        },
+        "misconceptions": [
+          "Quickselect does not sort the array. After it finishes, only the chosen rank is in its final place.",
+          "Linear time does not hold for plain quickselect in the worst case. A sorted array with a last-element pivot gives $\\Theta(n^2)$; only median of medians guarantees linear time.",
+          "Repeating a linear-time selection on many arrays multiplies the cost. Taking the median of each of $n$ separate arrays of size $n$ costs $n\\cdot O(n)=\\Theta(n^2)$, and the final median of those $n$ medians adds only $O(n)$."
+        ],
+        "recall": [
+          {
+            "q": "What is the expected running time of quickselect on $n$ elements?",
+            "a": "$\\Theta(n)$, because the expected work shrinks geometrically as the search keeps one side."
+          },
+          {
+            "q": "What does median of medians guarantee?",
+            "a": "A pivot with at least about $3n/10$ elements on each side, so selection takes $\\Theta(n)$ in the worst case."
+          },
+          {
+            "q": "What is the cost of finding the k smallest elements in sorted order?",
+            "a": "$\\Theta(n+k\\log k)$: select the k-th, partition around it, then sort the k survivors."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Quickselect with the last element as pivot finds the 5th smallest of the ascending array $[1,2,3,4,5,6,7,8,9]$. How many comparisons with a pivot are made in total?",
+          "answer": 30,
+          "explanation": "The pivot 9 needs 8 comparisons and has rank 9, so we continue on the first 8 elements. The pivot 8 needs 7, then 7 needs 6, 6 needs 5 and 5 needs 4. The pivot 5 has rank 5, which is the target, so the search stops. The total is $8+7+6+5+4=30$. The value 8 tempts because it is the cost of the first partition alone, but the pivot 9 sits at rank 9, not rank 5, so the search must go on through four more partitions."
+        },
+        "summary": "Quickselect keeps one side after each partition, giving expected $\\Theta(n)$ and worst case $\\Theta(n^2)$. Median of medians makes the worst case $\\Theta(n)$."
+      }
+    },
+    {
+      "id": "algo-complexity-sorting.min-max-comparisons",
+      "title": "Exact comparison counts for minimum, maximum and second largest",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Finding the minimum (or maximum) of n elements needs exactly n − 1 comparisons: every element except the winner must lose at least once.",
+        "Finding both by processing elements in pairs uses 3 comparisons per pair, ⌈3n/2⌉ − 2 in total: 148 for n = 100, against 2n − 3 = 197 for two separate scans.",
+        "The second largest needs n + ⌈log₂ n⌉ − 2 comparisons with a knockout tournament: the runner-up must have lost directly to the winner, and the winner played ⌈log₂ n⌉ matches.",
+        "These counts are adversary lower bounds as well as algorithms, so GATE asks for them as exact numbers."
+      ],
+      "lesson": {
+        "why": "These questions ask for exact comparison counts, so a formula such as $\\lceil 3n/2\\rceil-2$ must be known together with the reason for it.",
+        "intro": "A comparison asks which of two elements is larger. To find the smallest of $n$ elements, every other element has to lose a comparison at least once, otherwise it could still be the smallest. The same argument applies to the largest. These loser-and-winner arguments are what give exact counts, not only upper bounds.",
+        "definitions": [
+          {
+            "term": "Knockout tournament",
+            "meaning": "Pairing elements, keeping the winners and pairing them again until one remains; it finds the maximum in $n-1$ matches."
+          }
+        ],
+        "principle": {
+          "text": "The minimum or maximum needs exactly $n-1$ comparisons. Both together need $\\lceil 3n/2\\rceil-2$ by comparing in pairs first. The second largest needs $n+\\lceil\\log_2 n\\rceil-2$, because it is one of the $\\lceil\\log_2 n\\rceil$ elements that lost directly to the champion.",
+          "tex": "C_{\\min}=n-1,\\quad C_{\\min,\\max}=\\left\\lceil\\frac{3n}{2}\\right\\rceil-2,\\quad C_{2\\text{nd}}=n+\\lceil\\log_2 n\\rceil-2"
+        },
+        "limits": "These are worst-case counts for comparison-based methods on distinct, unordered values. Reading the question matters: a weaker goal, such as finding any element that is not the largest, needs far fewer comparisons.",
+        "example": {
+          "problem": "Find both the minimum and the maximum of 10 distinct numbers using the pairing method. How many comparisons are needed, and how many would two separate scans need?",
+          "steps": [
+            "Compare the 10 numbers in 5 pairs. That is 5 comparisons, and it splits them into 5 winners and 5 losers.",
+            "The maximum is among the 5 winners, which takes 4 comparisons. The minimum is among the 5 losers, which takes 4 more.",
+            "The total is $5+4+4=13=\\lceil 30/2\\rceil-2$. Two separate scans cost $9+9=18=2n-2$."
+          ],
+          "result": "13 comparisons with pairing, against 18 for two scans."
+        },
+        "misconceptions": [
+          "Finding the minimum and the maximum does not cost $2n-2$ at best. Pairing saves about $n/2$ comparisons by letting one pair comparison serve both searches.",
+          "The second largest is not found with $2n-3$ comparisons by scanning twice. The tournament method needs only $n+\\lceil\\log_2 n\\rceil-2$."
+        ],
+        "recall": [
+          {
+            "q": "How many comparisons are needed to find the maximum of $n$ distinct elements?",
+            "a": "Exactly $n-1$, since every element except the maximum must lose at least once."
+          },
+          {
+            "q": "How many comparisons find both the minimum and the maximum?",
+            "a": "$\\lceil 3n/2\\rceil-2$, using 3 comparisons per pair of elements."
+          },
+          {
+            "q": "Why does the second largest need only a few comparisons after the tournament?",
+            "a": "It must have lost directly to the champion, so it is the maximum of the $\\lceil\\log_2 n\\rceil$ elements the champion beat."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Using a knockout tournament followed by a search among the elements that lost directly to the winner, how many comparisons does it take, in the worst case, to find the second largest of 20 distinct numbers?",
+          "answer": 23,
+          "explanation": "The tournament finds the largest in $n-1=19$ comparisons. The winner played at most $\\lceil\\log_2 20\\rceil=5$ matches, so 5 elements lost to it directly, and the maximum of those 5 needs 4 more comparisons. The total is $19+4=23=20+5-2$. The value 38 tempts because it is $2n-2$, the cost of two full scans."
+        },
+        "summary": "The maximum or minimum needs $n-1$ comparisons, both together $\\lceil 3n/2\\rceil-2$, and the second largest $n+\\lceil\\log_2 n\\rceil-2$."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "algo-complexity-sorting.big-o-definition",
+      "name": "Big-O definition",
+      "tex": "f(n) = O(g(n)) \\iff \\exists\\, c > 0,\\ n_0:\\ 0 \\le f(n) \\le c\\,g(n)\\ \\ \\forall n \\ge n_0",
+      "text": "f(n) = O(g(n)) iff there exist c > 0 and n₀ with 0 ≤ f(n) ≤ c·g(n) for all n ≥ n₀",
+      "note": "Ω flips the inequality; Θ needs both with constants c₁ ≤ c₂.",
+      "topic": "algo-complexity-sorting.asymptotic-notation",
+      "origin": "source",
+      "pages": [
+        28,
+        347
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.limit-test",
+      "name": "Limit test for growth rates",
+      "tex": "L = \\lim_{n\\to\\infty} \\frac{f(n)}{g(n)}:\\quad L = 0 \\Rightarrow f = o(g),\\quad 0 < L < \\infty \\Rightarrow f = \\Theta(g),\\quad L = \\infty \\Rightarrow f = \\omega(g)",
+      "text": "L = lim f/g: L = 0 gives f = o(g); 0 < L < ∞ gives f = Θ(g); L = ∞ gives f = ω(g)",
+      "note": "If the limit does not exist (f oscillating, such as n^(1 + sin n)), the test says nothing; use the definitions.",
+      "topic": "algo-complexity-sorting.asymptotic-notation",
+      "origin": "source",
+      "pages": [
+        348
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.stirling-log-factorial",
+      "name": "Stirling's estimate of log n!",
+      "tex": "\\log_2 n! = n\\log_2 n - n\\log_2 e + \\Theta(\\log n) = \\Theta(n \\log n)",
+      "text": "log₂ n! = n log₂ n − n log₂ e + Θ(log n) = Θ(n log n)",
+      "topic": "algo-complexity-sorting.growth-hierarchy",
+      "origin": "source",
+      "pages": [
+        349,
+        350,
+        364
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.master-theorem-cases",
+      "name": "Master theorem",
+      "tex": "T(n) = aT(n/b) + f(n):\\ \\ T(n) = \\begin{cases} \\Theta(n^{\\log_b a}) & f = O(n^{\\log_b a - \\varepsilon}) \\\\ \\Theta(n^{\\log_b a}\\log^{k+1} n) & f = \\Theta(n^{\\log_b a}\\log^k n),\\ k \\ge 0 \\\\ \\Theta(f(n)) & f = \\Omega(n^{\\log_b a + \\varepsilon}),\\ a f(n/b) \\le c f(n),\\ c < 1 \\end{cases}",
+      "text": "T(n) = aT(n/b) + f(n): case 1 Θ(n^(log_b a)); case 2 Θ(n^(log_b a)·log^(k+1) n); case 3 Θ(f(n)) with regularity",
+      "where": [
+        [
+          "a",
+          "number of subproblems, a ≥ 1"
+        ],
+        [
+          "b",
+          "shrink factor, b > 1"
+        ],
+        [
+          "ε",
+          "a positive constant: the polynomial gap"
+        ]
+      ],
+      "note": "Case 3 also needs the regularity condition; the polynomial gap ε is needed in cases 1 and 3, so n/log n against n is not case 1.",
+      "topic": "algo-complexity-sorting.master-theorem",
+      "origin": "source",
+      "pages": [
+        28,
+        353
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.recursion-tree-sum",
+      "name": "Recursion-tree total",
+      "tex": "T(n) = \\sum_{i=0}^{\\log_b n - 1} a^i f\\!\\left(\\frac{n}{b^i}\\right) + \\Theta\\!\\left(n^{\\log_b a}\\right)",
+      "text": "T(n) = Σ (i = 0 to log_b n − 1) aⁱ·f(n/bⁱ) + Θ(n^(log_b a))",
+      "note": "The leaf count a^(log_b n) equals n^(log_b a); a decreasing geometric series is dominated by its first term, an increasing one by its last.",
+      "topic": "algo-complexity-sorting.recurrence-methods",
+      "origin": "source",
+      "pages": [
+        28,
+        352,
+        354
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.subtract-recurrences",
+      "name": "Subtract-and-conquer expansions",
+      "tex": "T(n) = T(n-1) + n \\Rightarrow \\tfrac{n(n+1)}{2};\\qquad T(n) = 2T(n-1) + 1,\\ T(0) = 1 \\Rightarrow 2^{n+1} - 1",
+      "text": "T(n) = T(n − 1) + n gives n(n + 1)/2; T(n) = 2T(n − 1) + 1 with T(0) = 1 gives 2^(n+1) − 1",
+      "note": "With T(0) = 0 the second recurrence gives 2ⁿ − 1, the Towers of Hanoi move count; read the base case before writing an exact value.",
+      "topic": "algo-complexity-sorting.recurrence-methods",
+      "origin": "source",
+      "pages": [
+        353,
+        367
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.akra-bazzi",
+      "name": "Akra–Bazzi",
+      "tex": "\\sum_i a_i b_i^{\\,p} = 1 \\ \\Rightarrow\\ T(n) = \\Theta\\!\\left(n^p\\left(1 + \\int_1^n \\frac{f(u)}{u^{p+1}}\\,du\\right)\\right)",
+      "text": "Σ aᵢ·bᵢ^p = 1 gives T(n) = Θ(n^p·(1 + ∫₁ⁿ f(u)/u^(p+1) du))",
+      "where": [
+        [
+          "aᵢ",
+          "coefficient of the i-th recursive call, aᵢ > 0"
+        ],
+        [
+          "bᵢ",
+          "fraction of n passed to it, 0 < bᵢ < 1"
+        ]
+      ],
+      "note": "Applies only to calls on constant fractions bᵢ·n; T(√n) is not of this form and needs a change of variable.",
+      "topic": "algo-complexity-sorting.irregular-recurrences",
+      "origin": "source",
+      "pages": [
+        354
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.loop-geometric",
+      "name": "Doubling outer loop with inner loop to i",
+      "tex": "\\sum_{j=0}^{\\lfloor \\log_2 n \\rfloor} 2^j = 2^{\\lfloor \\log_2 n \\rfloor + 1} - 1 \\le 2n - 1",
+      "text": "Σ (j = 0 to ⌊log₂ n⌋) 2ʲ = 2^(⌊log₂ n⌋ + 1) − 1 ≤ 2n − 1",
+      "note": "Equality 2n − 1 holds when n is a power of 2: n = 64 gives 127.",
+      "topic": "algo-complexity-sorting.loop-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-complexity-sorting.harmonic-sum",
+      "name": "Harmonic sum",
+      "tex": "\\sum_{i=1}^{n} \\frac{n}{i} = n H_n = \\Theta(n \\log n)",
+      "text": "Σ (i = 1 to n) n/i = n·Hₙ = Θ(n log n)",
+      "topic": "algo-complexity-sorting.loop-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-complexity-sorting.binary-search-probes",
+      "name": "Binary search worst-case probes",
+      "tex": "C_{\\max}(n) = \\lfloor \\log_2 n \\rfloor + 1",
+      "text": "C_max(n) = ⌊log₂ n⌋ + 1",
+      "note": "Counts loop iterations (middle elements examined). ⌈log₂ n⌉ + 1 agrees only when n is a power of 2: n = 1000 gives 10, not 11.",
+      "topic": "algo-complexity-sorting.linear-binary-search",
+      "origin": "source",
+      "pages": [
+        355
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.decision-tree-bound",
+      "name": "Comparison-sort lower bound",
+      "tex": "C_{\\text{worst}}(n) \\ge \\lceil \\log_2 n! \\rceil",
+      "text": "C_worst(n) ≥ ⌈log₂ n!⌉",
+      "note": "n = 5 gives ⌈log₂ 120⌉ = 7, and 7 comparisons do suffice for 5 elements.",
+      "topic": "algo-complexity-sorting.comparison-lower-bound",
+      "origin": "source",
+      "pages": [
+        364,
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.merge-comparisons",
+      "name": "Merge sort comparisons for n = 2ᵏ",
+      "tex": "C_{\\text{worst}} = n\\log_2 n - n + 1,\\qquad C_{\\text{best}} = \\tfrac{n}{2}\\log_2 n",
+      "text": "C_worst = n log₂ n − n + 1; C_best = (n/2)·log₂ n",
+      "note": "One merge of sizes m and k costs at most m + k − 1 comparisons; summing over levels gives the worst case.",
+      "topic": "algo-complexity-sorting.merge-sort",
+      "origin": "source",
+      "pages": [
+        360,
+        368,
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.quicksort-worst-comparisons",
+      "name": "Quick sort worst-case comparisons",
+      "tex": "T(n) = T(n-1) + (n-1) \\Rightarrow \\frac{n(n-1)}{2}",
+      "text": "T(n) = T(n − 1) + (n − 1) gives n(n − 1)/2",
+      "topic": "algo-complexity-sorting.quick-sort",
+      "origin": "source",
+      "pages": [
+        361
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.build-heap-sum",
+      "name": "Build-heap cost",
+      "tex": "\\sum_{h=0}^{\\lfloor \\log_2 n \\rfloor} \\left\\lceil \\frac{n}{2^{h+1}} \\right\\rceil O(h) = O\\!\\left(n \\sum_{h \\ge 0} \\frac{h}{2^h}\\right) = O(n)",
+      "text": "Σ ⌈n/2^(h+1)⌉·O(h) = O(n·Σ h/2ʰ) = O(n), since Σ h/2ʰ = 2",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "pages": [
+        362,
+        363
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.insertion-inversions",
+      "name": "Insertion sort and inversions",
+      "tex": "T(n) = \\Theta(n + I),\\qquad 0 \\le I \\le \\binom{n}{2}",
+      "text": "T(n) = Θ(n + I), with 0 ≤ I ≤ n(n − 1)/2",
+      "where": [
+        [
+          "I",
+          "number of pairs i < j with a[i] > a[j]"
+        ]
+      ],
+      "note": "The number of shifts equals I exactly; the number of comparisons lies between I and I + n − 1.",
+      "topic": "algo-complexity-sorting.elementary-sorts",
+      "origin": "source",
+      "pages": [
+        358,
+        373
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.radix-time",
+      "name": "Counting and radix sort time",
+      "tex": "T_{\\text{count}} = \\Theta(n + k),\\qquad T_{\\text{radix}} = \\Theta(d\\,(n + k))",
+      "text": "T_count = Θ(n + k); T_radix = Θ(d·(n + k))",
+      "where": [
+        [
+          "k",
+          "key range (counting) or digit base (radix)"
+        ],
+        [
+          "d",
+          "number of digits per key"
+        ]
+      ],
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        363,
+        364
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.min-max-pairs",
+      "name": "Simultaneous minimum and maximum",
+      "tex": "C(n) = \\left\\lceil \\tfrac{3n}{2} \\right\\rceil - 2",
+      "text": "C(n) = ⌈3n/2⌉ − 2",
+      "note": "Second largest instead needs n + ⌈log₂ n⌉ − 2 comparisons.",
+      "topic": "algo-complexity-sorting.min-max-comparisons",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "algo-complexity-sorting.cx-linear-search",
+      "name": "Linear search",
+      "best": "Θ(1)",
+      "average": "Θ(n)",
+      "worst": "Θ(n)",
+      "space": "O(1)",
+      "notes": "Works on unsorted data and linked lists.",
+      "topic": "algo-complexity-sorting.linear-binary-search",
+      "origin": "source",
+      "pages": [
+        351,
+        355
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-binary-search",
+      "name": "Binary search (sorted array)",
+      "best": "Θ(1)",
+      "average": "Θ(log n)",
+      "worst": "Θ(log n)",
+      "space": "O(1) iterative, O(log n) recursive",
+      "notes": "At most ⌊log₂ n⌋ + 1 probes.",
+      "topic": "algo-complexity-sorting.linear-binary-search",
+      "origin": "source",
+      "pages": [
+        30,
+        351,
+        355
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-interpolation-search",
+      "name": "Interpolation search",
+      "average": "O(log log n)",
+      "worst": "O(n)",
+      "space": "O(1)",
+      "notes": "Average holds for uniformly distributed keys.",
+      "topic": "algo-complexity-sorting.search-variants",
+      "origin": "source",
+      "pages": [
+        356
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-bubble",
+      "name": "Bubble sort (early exit)",
+      "best": "Θ(n)",
+      "average": "Θ(n²)",
+      "worst": "Θ(n²)",
+      "space": "O(1)",
+      "notes": "Stable, in-place, adaptive.",
+      "topic": "algo-complexity-sorting.elementary-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        358
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-insertion",
+      "name": "Insertion sort",
+      "best": "Θ(n)",
+      "average": "Θ(n²)",
+      "worst": "Θ(n²)",
+      "space": "O(1)",
+      "notes": "Stable, in-place, adaptive; Θ(n + inversions).",
+      "topic": "algo-complexity-sorting.elementary-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        358
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-selection",
+      "name": "Selection sort",
+      "best": "Θ(n²)",
+      "average": "Θ(n²)",
+      "worst": "Θ(n²)",
+      "space": "O(1)",
+      "notes": "Unstable, in-place, at most n − 1 swaps.",
+      "topic": "algo-complexity-sorting.elementary-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        359
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-merge",
+      "name": "Merge sort",
+      "best": "Θ(n log n)",
+      "average": "Θ(n log n)",
+      "worst": "Θ(n log n)",
+      "space": "Θ(n)",
+      "notes": "Stable, not in-place.",
+      "topic": "algo-complexity-sorting.merge-sort",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        360
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-quick",
+      "name": "Quick sort",
+      "best": "Θ(n log n)",
+      "average": "Θ(n log n)",
+      "worst": "Θ(n²)",
+      "space": "O(log n) average stack, O(n) worst",
+      "notes": "Unstable, in-place; worst case on sorted input with an end pivot.",
+      "topic": "algo-complexity-sorting.quick-sort",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        361,
+        362
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-heap",
+      "name": "Heap sort",
+      "best": "Θ(n log n) on distinct keys",
+      "average": "Θ(n log n)",
+      "worst": "Θ(n log n)",
+      "space": "O(1)",
+      "notes": "Unstable, in-place, not adaptive. With all keys equal every sift-down stops at once and the sort makes only Θ(n) comparisons.",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        363
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-build-heap",
+      "name": "Build-heap (bottom-up)",
+      "worst": "Θ(n)",
+      "space": "O(1)",
+      "notes": "Inserting the n keys one at a time costs Θ(n log n) worst case instead.",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "pages": [
+        362,
+        363
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-counting",
+      "name": "Counting sort (keys in 0..k)",
+      "best": "Θ(n + k)",
+      "average": "Θ(n + k)",
+      "worst": "Θ(n + k)",
+      "space": "Θ(n + k)",
+      "notes": "Stable, not in-place.",
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        363
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-radix",
+      "name": "Radix sort (d digits, base k)",
+      "best": "Θ(d(n + k))",
+      "average": "Θ(d(n + k))",
+      "worst": "Θ(d(n + k))",
+      "space": "Θ(n + k)",
+      "notes": "Stable digit passes, least significant first.",
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        357,
+        364
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-bucket",
+      "name": "Bucket sort (uniform keys)",
+      "average": "Θ(n)",
+      "worst": "Θ(n²)",
+      "space": "Θ(n)",
+      "notes": "Worst case when every key falls in one bucket.",
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "pages": [
+        29,
+        364
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-quickselect",
+      "name": "Quickselect (k-th smallest)",
+      "best": "Θ(n)",
+      "average": "Θ(n)",
+      "worst": "Θ(n²)",
+      "space": "O(1) iterative",
+      "topic": "algo-complexity-sorting.selection-order-statistics",
+      "origin": "source",
+      "pages": [
+        30
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.cx-median-of-medians",
+      "name": "Median of medians selection",
+      "worst": "Θ(n)",
+      "notes": "Groups of 5; large constant factor.",
+      "topic": "algo-complexity-sorting.selection-order-statistics",
+      "origin": "source",
+      "pages": [
+        30
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "algo-complexity-sorting.pt-master-theorem",
+      "title": "Solve a divide-and-conquer recurrence",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Read off a, b and f(n), and compute c* = log_b a.",
+        "Compare f(n) with n^c*: polynomially smaller is case 1, equal up to logᵏ n is case 2, polynomially larger is case 3.",
+        "In case 2 multiply by one more log; in case 3 check a·f(n/b) ≤ c·f(n) with c < 1 before answering Θ(f(n)).",
+        "If the form is T(n − 1) or T(√n), switch to expansion or a change of variable."
+      ],
+      "trap": "Calling 2T(n/2) + n log n case 3 because n log n exceeds n: the excess is only a log factor, so it is case 2 with k = 1 and the answer is Θ(n log² n).",
+      "topic": "algo-complexity-sorting.master-theorem",
+      "origin": "source",
+      "pages": [
+        353,
+        354,
+        371,
+        374,
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.pt-order-functions",
+      "title": "Order functions by growth or test an asymptotic statement",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Place each function on the hierarchy: logs, then polynomials, then exponentials, then factorials.",
+        "For two functions in the same band, take logarithms or compute lim f/g.",
+        "Watch constants in exponents: 2ⁿ⁺¹ = Θ(2ⁿ) but 2²ⁿ = 4ⁿ."
+      ],
+      "trap": "Treating n^(log n) as polynomial: its log is (log n)², so it outgrows every polynomial yet loses to 2^√n.",
+      "topic": "algo-complexity-sorting.growth-hierarchy",
+      "origin": "source",
+      "pages": [
+        350,
+        367,
+        376
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.pt-loop-count",
+      "title": "Count how often a statement in nested loops executes",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the outer loop's values explicitly (1, 2, 4, … for doubling).",
+        "For each outer value, count the inner iterations as a function of it.",
+        "Sum the series: arithmetic, geometric or harmonic, and check with n = 4 or 8 by hand."
+      ],
+      "trap": "Multiplying log n outer iterations by n inner iterations when the inner bound is i, not n: the geometric sum gives 2n − 1.",
+      "topic": "algo-complexity-sorting.loop-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-complexity-sorting.pt-sort-properties",
+      "title": "Best, worst, stability and in-place facts of a sort",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Recall the master table row for each sort named.",
+        "For stability, ask whether an element can jump past an equal key: long-distance swaps (selection, quick, heap) break it.",
+        "For a special input (sorted, reversed, all equal), trace the pivot or the inner loop on n = 4."
+      ],
+      "trap": "Assuming random-pivot quick sort has an O(n log n) worst case: only its expected time is n log n.",
+      "topic": "algo-complexity-sorting.sorting-properties",
+      "origin": "source",
+      "pages": [
+        357,
+        365,
+        372,
+        373,
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.pt-comparison-count",
+      "title": "Exact number of comparisons",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Identify the counted operation and the case (worst, best).",
+        "Use the matching count: ⌊log₂ n⌋ + 1 for binary search, n log₂ n − n + 1 for merge sort, ⌈log₂ n!⌉ for the decision-tree bound, ⌈3n/2⌉ − 2 for min and max.",
+        "Sanity-check the formula on a tiny n by hand."
+      ],
+      "trap": "Dropping the +1 in n log₂ n − n + 1, or writing ⌈log₂ n⌉ + 1 for binary search when n is not a power of 2.",
+      "topic": "algo-complexity-sorting.comparison-lower-bound",
+      "origin": "source",
+      "pages": [
+        355,
+        360,
+        374,
+        375,
+        376
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.pt-trace-pass",
+      "title": "Trace one pass of a sort or a heap build",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Write the array with indices and follow the exact pseudocode the question gives.",
+        "For Lomuto, track i and swap on every a[j] ≤ pivot; for build-heap, sift down from index ⌊n/2⌋ − 1 to 0, continuing each sift until the node settles.",
+        "Compare the final array with each option position by position."
+      ],
+      "trap": "Stopping a sift-down after one swap: the moved element may need to sink further, as 3 does when the root of [3, 6, 9, …] is fixed.",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "pages": [
+        368
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.pt-best-sort",
+      "title": "Pick the asymptotically best method for given data",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Check the key type and range: small integer ranges allow counting or radix sort in Θ(n).",
+        "Check the input shape: nearly sorted favours insertion sort; a linked list favours merge sort.",
+        "Check constraints: stability needs merge or counting; O(1) space with guaranteed n log n needs heap sort."
+      ],
+      "trap": "Answering Θ(n log n) for integers from a constant range: counting sort makes it Θ(n).",
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "pages": [
+        364,
+        366,
+        375
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "algo-complexity-sorting.q-master-nlogn",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The recurrence T(n) = 2T(n/2) + n log n with T(1) = 1 has which solution?",
+      "options": [
+        "Θ(n log n)",
+        "Θ(n log² n)",
+        "Θ(n²)",
+        "Θ(n log log n)"
+      ],
+      "answer": 1,
+      "explanation": "a = 2, b = 2, so c* = log₂ 2 = 1 and n^c* = n. f(n) = n log n = Θ(n¹ · log¹ n), which is master-theorem case 2 with k = 1, giving Θ(n log² n). It is not case 3: n log n exceeds n only by a log factor, not by a polynomial n^ε. Equivalently, each of the log₂ n levels costs about n·log(n/2ⁱ), and those sum to Θ(n log² n).",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.master-theorem",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Master",
+      "pages": [
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-sqrt-recurrence",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Solve T(n) = √n · T(√n) + n for n > 2, with T(2) = 1.",
+      "options": [
+        "Θ(n)",
+        "Θ(n log n)",
+        "Θ(n log log n)",
+        "Θ(n √n)"
+      ],
+      "answer": 2,
+      "explanation": "Divide by n: T(n)/n = T(√n)/√n + 1. With S(n) = T(n)/n this is S(n) = S(√n) + 1. Taking square roots repeatedly, n = 2^(2ᵏ) reaches 2 after k = log₂ log₂ n steps, so S(n) = Θ(log log n) and T(n) = Θ(n log log n). The master theorem and Akra–Bazzi do not apply because the subproblem size √n is not a constant fraction of n.",
+      "difficulty": "hard",
+      "topic": "algo-complexity-sorting.irregular-recurrences",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Recursion",
+      "pages": [
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-asymptotic-truths",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements are true?",
+      "options": [
+        "2ⁿ⁺¹ = O(2ⁿ)",
+        "2²ⁿ = O(2ⁿ)",
+        "log(n!) = Θ(n log n)",
+        "n^(log₂ n) = O(n¹⁰⁰)"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "2ⁿ⁺¹ = 2·2ⁿ, a constant multiple, so it is O(2ⁿ). 2²ⁿ = 4ⁿ and 4ⁿ/2ⁿ = 2ⁿ → ∞, so it is not O(2ⁿ). Stirling gives log(n!) = n log n − Θ(n), which is Θ(n log n). n^(log₂ n) = 2^((log₂ n)²), and (log₂ n)² eventually exceeds 100 log₂ n, so it outgrows every fixed polynomial.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.notation-properties",
+      "origin": "curated",
+      "pages": [
+        349,
+        350
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-loop-doubling",
+      "type": "nat",
+      "marks": 2,
+      "stem": "How many times is count++ executed by the following code when n = 64?\nfor (i = 1; i <= n; i = i * 2)\n    for (j = 1; j <= i; j++)\n        count++;",
+      "answer": 127,
+      "explanation": "The outer loop takes i = 1, 2, 4, 8, 16, 32, 64 (seven values). For each, the inner loop runs i times, so the total is 1 + 2 + 4 + … + 64 = 2⁷ − 1 = 127. In general the total is 2n − 1 for n a power of 2, which is Θ(n), not Θ(n log n).",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.loop-analysis",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "algo-complexity-sorting.q-binary-search-probes",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Iterative binary search (lo ≤ hi, mid = ⌊(lo + hi)/2⌋, one three-way comparison per iteration) runs on a sorted array of 1000 distinct elements. What is the maximum number of loop iterations over all search keys, present or absent?",
+      "answer": 10,
+      "explanation": "Each iteration roughly halves the live range, and the worst case takes ⌊log₂ n⌋ + 1 iterations. log₂ 1000 ≈ 9.97, so the answer is 9 + 1 = 10. Check: 10 iterations can distinguish up to 2¹⁰ − 1 = 1023 positions, and 9 can handle only 511 < 1000. Writing ⌈log₂ n⌉ + 1 would give 11, which is wrong for n that is not a power of 2.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.linear-binary-search",
+      "origin": "curated",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Binary search",
+      "pages": [
+        355,
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-count-occurrences",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A sorted array of n integers may contain duplicates. What is the best worst-case time to count how many times a given value x occurs?",
+      "options": [
+        "Θ(1)",
+        "Θ(log n)",
+        "Θ(log² n)",
+        "Θ(n)"
+      ],
+      "answer": 1,
+      "explanation": "Two binary searches find the first index with a[i] ≥ x and the first index with a[i] > x; their difference is the count. Each takes Θ(log n). Finding one copy of x and then scanning outward is Θ(n) when most of the array equals x.",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.search-variants",
+      "origin": "curated",
+      "pages": [
+        30
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-stable-sorts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following sorting algorithms, in their standard textbook form, are stable?",
+      "options": [
+        "Insertion sort",
+        "Merge sort",
+        "Heap sort",
+        "Quick sort"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Insertion sort shifts an element left only past strictly larger keys, and merge sort takes from the left half on ties, so both keep equal keys in input order. Heap sort's root-to-end swaps and quick sort's partition swaps can move an element past an equal one: quick sort on [2a, 2b, 1] with pivot 1 swaps 2a to the end, giving [1, 2b, 2a].",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.sorting-properties",
+      "origin": "source",
+      "sourceLabel": "PYQ-13 (GATE 2017) — Stability",
+      "pages": [
+        365,
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-insertion-shifts",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Insertion sort (shift larger elements right, then drop the key into the gap) sorts the array [4, 3, 2, 10, 12, 1, 5, 6] into ascending order. How many element shifts (assignments a[j + 1] = a[j]) are performed in total?",
+      "answer": 12,
+      "explanation": "Each shift fixes exactly one inversion, so the number of shifts equals the number of pairs i < j with a[i] > a[j]. Counting per element against everything to its right: 4 > 3, 2, 1 gives 3; 3 > 2, 1 gives 2; 2 > 1 gives 1; 10 > 1, 5, 6 gives 3; 12 > 1, 5, 6 gives 3; 1, 5 and 6 give 0. Total = 3 + 2 + 1 + 3 + 3 = 12.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.elementary-sorts",
+      "origin": "curated",
+      "pages": [
+        358,
+        373
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-merge-comparisons",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Top-down merge sort splits 8 elements into halves until single elements remain, then merges. What is the maximum number of key comparisons it can make over all inputs of 8 distinct keys?",
+      "answer": 17,
+      "explanation": "A merge of sizes m and k makes at most m + k − 1 comparisons. Level 1: four merges of 1 + 1, 1 each, so 4. Level 2: two merges of 2 + 2, 3 each, so 6. Level 3: one merge of 4 + 4, 7. Total 4 + 6 + 7 = 17, matching n log₂ n − n + 1 = 24 − 8 + 1. Every merge can hit its maximum at once, so 17 is reached.",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.merge-sort",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Merge sort",
+      "pages": [
+        360,
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-quicksort-bad-inputs",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Quick sort uses Lomuto partitioning: the pivot is the last element, and every a[j] ≤ pivot is swapped into the left block. On n keys, which inputs make it perform Θ(n²) comparisons?",
+      "options": [
+        "Keys already in ascending order",
+        "Keys in descending order",
+        "All n keys equal",
+        "A uniformly random permutation of distinct keys (expected count)"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Ascending: the pivot is the maximum, so the split is n − 1 and 0 every time, giving n(n − 1)/2 comparisons. Descending: the first pivot is the minimum, the swap leaves the maximum last, and the splits stay n − 1 against 0 at every level, again n(n − 1)/2. All equal: every key passes the ≤ test, so the pivot lands at the right end and the split is n − 1 against 0. A random permutation gives expected Θ(n log n), about 2n ln n comparisons.",
+      "difficulty": "hard",
+      "topic": "algo-complexity-sorting.quick-sort",
+      "origin": "curated",
+      "pages": [
+        361,
+        362
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-median-pivot",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Quick sort is modified so that each partition uses as pivot the exact median of the subarray, found by a worst-case Θ(n) selection algorithm. What is the worst-case running time on n elements?",
+      "options": [
+        "Θ(n)",
+        "Θ(n log n)",
+        "Θ(n²)",
+        "Θ(n log² n)"
+      ],
+      "answer": 1,
+      "explanation": "Selection and partition each cost Θ(n), and the median pivot splits the array into two halves of size about n/2, so T(n) = 2T(n/2) + Θ(n) = Θ(n log n) for every input. No algorithm can do better, since any comparison sort needs Ω(n log n).",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.selection-order-statistics",
+      "origin": "curated",
+      "pages": [
+        30
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-build-heap-trace",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Bottom-up build-max-heap (sift down each node from index ⌊n/2⌋ − 1 down to 0, 0-indexed) is run on [3, 1, 4, 1, 5, 9, 2, 6]. What is the resulting array?",
+      "options": [
+        "[9, 6, 4, 1, 5, 3, 2, 1]",
+        "[9, 6, 3, 1, 5, 4, 2, 1]",
+        "[9, 5, 6, 3, 1, 4, 2, 1]",
+        "[9, 6, 4, 3, 5, 1, 2, 1]"
+      ],
+      "answer": 0,
+      "explanation": "Index 3 (1) swaps with child 6: [3, 1, 4, 6, 5, 9, 2, 1]. Index 2 (4) swaps with 9: [3, 1, 9, 6, 5, 4, 2, 1]. Index 1 (1) swaps with the larger child 6, then stops against the equal child 1: [3, 6, 9, 1, 5, 4, 2, 1]. Index 0 (3) swaps with 9, landing at index 2, then swaps with its larger child 4: [9, 6, 4, 1, 5, 3, 2, 1]. Option B stops the last sift-down one swap early.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "pages": [
+        368
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-build-heap-time",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the worst-case time to build a binary max-heap from an unordered array of n elements using bottom-up heapify?",
+      "options": [
+        "Θ(log n)",
+        "Θ(n)",
+        "Θ(n log n)",
+        "Θ(n²)"
+      ],
+      "answer": 1,
+      "explanation": "About n/2ʰ⁺¹ nodes sit at height h and each sift-down costs O(h), so the total is O(n·Σ h/2ʰ) = O(2n) = O(n); reading every element makes it Ω(n). Θ(n log n) is the cost of n successive inserts, not of bottom-up heapify.",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.heap-sort",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Heap sort",
+      "pages": [
+        362,
+        363,
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-small-range-integers",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the smallest asymptotic worst-case time to sort n integers, each in the range 1 to 100?",
+      "options": [
+        "Θ(log n)",
+        "Θ(n)",
+        "Θ(n log n)",
+        "Θ(n²)"
+      ],
+      "answer": 1,
+      "explanation": "Counting sort with k = 100 runs in Θ(n + 100) = Θ(n), and every element must be read, so Θ(n) is optimal. The Ω(n log n) bound applies only to sorts that learn the order by comparisons.",
+      "difficulty": "easy",
+      "topic": "algo-complexity-sorting.non-comparison-sorts",
+      "origin": "source",
+      "sourceLabel": "PYQ-15 (GATE 2022) — Sorting performance",
+      "pages": [
+        375
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-sort-five-lower-bound",
+      "type": "nat",
+      "marks": 1,
+      "stem": "What is the minimum number of comparisons that any comparison-based algorithm needs in the worst case to sort 5 distinct elements?",
+      "answer": 7,
+      "explanation": "The decision tree must have at least 5! = 120 leaves, so its height is at least ⌈log₂ 120⌉ = 7, since 2⁶ = 64 < 120 ≤ 128 = 2⁷. Merge insertion sorts 5 elements in 7 comparisons, so the bound is tight.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.comparison-lower-bound",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Lower bound",
+      "pages": [
+        374
+      ]
+    },
+    {
+      "id": "algo-complexity-sorting.q-min-max",
+      "type": "nat",
+      "marks": 2,
+      "stem": "What is the minimum number of comparisons needed in the worst case to find both the minimum and the maximum of 100 distinct numbers?",
+      "answer": 148,
+      "explanation": "Compare the elements in 50 pairs (50 comparisons). The 50 smaller ones compete for the minimum (49 comparisons) and the 50 larger ones for the maximum (49 comparisons). Total 50 + 49 + 49 = 148 = ⌈3·100/2⌉ − 2. Two separate scans would use 99 + 98 = 197.",
+      "difficulty": "medium",
+      "topic": "algo-complexity-sorting.min-max-comparisons",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "f = O(n²) is only an upper bound: n = O(n²) is true. When a question asks for the tight order, answer with Θ.",
+      "origin": "source",
+      "pages": [
+        375
+      ]
+    },
+    {
+      "text": "The master theorem needs a polynomial gap in cases 1 and 3. A log-factor difference such as n log n against n is case 2 with k = 1, not case 3.",
+      "origin": "source",
+      "pages": [
+        354,
+        375
+      ]
+    },
+    {
+      "text": "Case 3 also needs the regularity condition a·f(n/b) ≤ c·f(n) with c < 1; it holds for polynomials but must be checked for oscillating f.",
+      "origin": "source",
+      "pages": [
+        353,
+        375
+      ]
+    },
+    {
+      "text": "Build-heap is Θ(n), not Θ(n log n); heap sort as a whole is still Θ(n log n) because of the n − 1 extractions.",
+      "origin": "source",
+      "pages": [
+        363,
+        375
+      ]
+    },
+    {
+      "text": "Random or median-of-three pivots improve the expected time only; quick sort's worst case stays Θ(n²) unless the pivot is the exact median.",
+      "origin": "source",
+      "pages": [
+        375
+      ]
+    },
+    {
+      "text": "Selection sort is Θ(n²) even on sorted input, while insertion and early-exit bubble sort are Θ(n) there.",
+      "origin": "source",
+      "pages": [
+        376
+      ]
+    },
+    {
+      "text": "Stable and in-place are independent properties: merge sort is stable but not in-place, heap sort is in-place but not stable.",
+      "origin": "source",
+      "pages": [
+        375
+      ]
+    },
+    {
+      "text": "Counting sort is linear only when the key range k is O(n); for keys up to n² it costs Θ(n²) time and space.",
+      "origin": "source",
+      "pages": [
+        375
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Notation and growth",
+      "lines": [
+        "O ≤, Ω ≥, Θ =, o <, ω > (by lim f/g: finite, positive, 0, ∞)",
+        "1 ≪ log log n ≪ log n ≪ logᵏ n ≪ n^ε ≪ n ≪ n log n ≪ n² ≪ 2ⁿ ≪ n! ≪ nⁿ",
+        "log n! = Θ(n log n); 2ⁿ⁺¹ = Θ(2ⁿ) but 4ⁿ ≠ O(2ⁿ)"
+      ],
+      "origin": "source",
+      "pages": [
+        350,
+        377
+      ]
+    },
+    {
+      "heading": "Recurrences",
+      "lines": [
+        "aT(n/b) + f, c* = log_b a: f smaller → n^c*; f = n^c* logᵏ → n^c* logᵏ⁺¹; f larger + regular → f",
+        "T(n − 1) + 1 → n; T(n − 1) + n → n²; 2T(n − 1) + 1 → 2ⁿ",
+        "T(n/3) + T(2n/3) + n → n log n; √n·T(√n) + n → n log log n"
+      ],
+      "origin": "source",
+      "pages": [
+        374,
+        377
+      ]
+    },
+    {
+      "heading": "Sorting table",
+      "lines": [
+        "Bubble, insertion: n | n² | n², O(1), stable, in-place",
+        "Selection: n² always, O(1), unstable, ≤ n − 1 swaps",
+        "Merge: n log n always, Θ(n) space, stable; Heap: n log n (distinct keys), O(1), unstable",
+        "Quick: n log n avg, n² worst, O(log n) stack, unstable",
+        "Counting n + k, radix d(n + k): stable, beat Ω(n log n)"
+      ],
+      "origin": "source",
+      "pages": [
+        377
+      ]
+    },
+    {
+      "heading": "Counts",
+      "lines": [
+        "Binary search ⌊log₂ n⌋ + 1 probes; sorting ≥ ⌈log₂ n!⌉ comparisons",
+        "Merge sort n = 2ᵏ: worst n log₂ n − n + 1, best (n/2) log₂ n",
+        "Build-heap Θ(n); insertion sort shifts = inversions",
+        "Min and max ⌈3n/2⌉ − 2; second largest n + ⌈log₂ n⌉ − 2"
+      ],
+      "origin": "curated",
+      "pages": [
+        355,
+        360,
+        363,
+        364
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 350,
+      "claim": "n^(1/log n) is a constant equal to e.",
+      "correction": "n^(1/log_b n) = b, the base of the logarithm. It equals e only for the natural log; with log₂, the usual convention in algorithm analysis, it equals 2. It is Θ(1) in every case."
+    },
+    {
+      "page": 374,
+      "claim": "PYQ-7 and practice Q12: the maximum number of binary-search comparisons on n elements is ⌈log₂ n⌉ + 1, giving 11 for n = 1024.",
+      "correction": "The worst case is ⌊log₂ n⌋ + 1, as section 8.3 states. The two agree for n = 1024 (both give 11), but the ceiling form is wrong whenever n is not a power of 2: for n = 1000 the maximum is 10, not 11."
+    },
+    {
+      "page": 374,
+      "claim": "PYQ-8: T(n) = √n·T(√n) + n is solved by Akra–Bazzi or expansion.",
+      "correction": "Akra–Bazzi does not apply, because it requires subproblems of size bᵢ·n for constants bᵢ < 1, and √n is not of that form. Divide by n and set S(n) = T(n)/n to get S(n) = S(√n) + 1, so T(n) = Θ(n log log n)."
+    },
+    {
+      "page": 29,
+      "claim": "Counting sort uses O(k) space.",
+      "correction": "The version given (count array plus a separate output array) uses Θ(n + k) extra space, as section 17.1 states. Only the count array is Θ(k)."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "algo-searching-sorting",
+      "status": "covered",
+      "topics": [
+        "algo-complexity-sorting.linear-binary-search",
+        "algo-complexity-sorting.search-variants",
+        "algo-complexity-sorting.sorting-properties",
+        "algo-complexity-sorting.elementary-sorts",
+        "algo-complexity-sorting.merge-sort",
+        "algo-complexity-sorting.quick-sort",
+        "algo-complexity-sorting.heap-sort",
+        "algo-complexity-sorting.non-comparison-sorts",
+        "algo-complexity-sorting.comparison-lower-bound",
+        "algo-complexity-sorting.selection-order-statistics"
+      ]
+    },
+    {
+      "item": "algo-asymptotic-complexity",
+      "status": "covered",
+      "topics": [
+        "algo-complexity-sorting.asymptotic-notation",
+        "algo-complexity-sorting.notation-properties",
+        "algo-complexity-sorting.growth-hierarchy",
+        "algo-complexity-sorting.case-analysis",
+        "algo-complexity-sorting.recurrence-methods",
+        "algo-complexity-sorting.master-theorem",
+        "algo-complexity-sorting.irregular-recurrences",
+        "algo-complexity-sorting.loop-analysis"
+      ]
+    }
+  ]
+}

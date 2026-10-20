@@ -1,0 +1,2127 @@
+{
+  "id": "pds-c-programming",
+  "summary": "GATE tests C by asking for the output of short programs. The traps repeat: C passes everything by value, an array passed to a function decays to a pointer, pointer arithmetic scales by the element size, structs carry padding, and static locals survive between calls. Recursion questions ask you to trace a call tree, count calls or moves, or turn the code into a recurrence. Trace every program line by line and write down each variable's value at every step.",
+  "highYield": [
+    "Output of a short program mixing static locals, globals and recursion: a 2-mark NAT in most papers.",
+    "Pointer arithmetic on 1D and 2D arrays: a+1, *a+1 and &a+1 move by a row, an element and the whole array.",
+    "Call by value versus passing a pointer: a swap that exchanges copies, or exchanges the pointers themselves, changes nothing in the caller.",
+    "sizeof of a struct with padding, of an array parameter (pointer size) and of a string literal (length + 1).",
+    "Counting recursive calls or moves: Hanoi needs 2ⁿ − 1 moves, and naive fib(n) makes 2F(n+1) − 1 calls."
+  ],
+  "topics": [
+    {
+      "id": "pds-c-programming.types-conversions",
+      "title": "Data types, ranges and type conversion",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        21,
+        22,
+        294,
+        295
+      ],
+      "points": [
+        "Typical sizes: char 1, short 2, int 4, float 4, double 8 bytes; long is 4 or 8 and a pointer is 8 on a 64-bit machine. Only sizeof(char) = 1 is guaranteed by the standard.",
+        "An n-bit signed type in two's complement holds −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1 and an unsigned one 0 to 2ⁿ − 1, so signed char runs −128..127 and unsigned char 0..255.",
+        "In a mixed expression, char and short are first promoted to int, then the operand of lower rank converts to the higher one: int → long → long long → float → double.",
+        "When int meets unsigned int, the int converts to unsigned: −1 becomes 4294967295 with a 32-bit int, so (-1 < 1u) is false.",
+        "Integer division truncates toward zero (7/2 = 3, −7/2 = −3), and the sign of a % b follows a. Signed overflow is undefined behaviour; unsigned arithmetic wraps modulo 2ⁿ."
+      ],
+      "keyTerms": [
+        "integer promotion",
+        "usual arithmetic conversions",
+        "two's complement",
+        "cast"
+      ],
+      "lesson": {
+        "why": "Output questions often hide a signed-versus-unsigned comparison or an integer division, and the printed value changes completely if you miss the silent conversion.",
+        "intro": "Every C value has a type, and the type fixes how many bits it uses and how those bits are read. When an expression mixes types, the compiler converts one operand silently so both match. A signed int that meets an unsigned int becomes unsigned, so a negative number turns into a very large positive one. Small types such as char are first widened to int before any arithmetic. Dividing two integers drops the fraction, so 6 / 12 is 0 and 7 / 2 is 3; the division is real only when one operand is a float or double.",
+        "definitions": [
+          {
+            "term": "Integer promotion",
+            "meaning": "The widening of char and short operands to int before arithmetic is done."
+          },
+          {
+            "term": "Wrap-around",
+            "meaning": "An unsigned result that does not fit in n bits is reduced modulo $2^n$."
+          }
+        ],
+        "principle": {
+          "text": "In a mixed expression the lower-ranked operand converts to the higher-ranked one, and when signed and unsigned int of equal size meet, the signed operand converts to unsigned.",
+          "tex": "x_{\\text{unsigned}} = x + 2^{n} \\quad (x < 0)"
+        },
+        "limits": "The rule changes bit meaning only for equal-size operands. A cast written by the programmer overrides the default, and signed overflow is undefined behaviour rather than wrap-around, so only unsigned arithmetic is safe to reduce modulo $2^n$.",
+        "example": {
+          "problem": "With a 32-bit int, what does the expression (i < u) give for int i = -1 and unsigned int u = 1?",
+          "steps": [
+            "The operands differ in signedness, so i converts to unsigned int.",
+            "The value $-1$ becomes $-1 + 2^{32} = 4294967295$.",
+            "The test is now $4294967295 < 1$, which is false."
+          ],
+          "result": "The expression is 0, although $-1 < 1$ holds in ordinary arithmetic."
+        },
+        "misconceptions": [
+          "Division of negative integers truncates toward zero, so -7/2 is -3 and not -4, and -7%3 is -1 because the remainder takes the sign of the left operand.",
+          "The result of adding two char values is an int, not a char, so overflow of the char range does not happen until the sum is stored back into a char.",
+          "strlen and sizeof give an unsigned size_t, so strlen(a) - strlen(b) is never negative: a shorter a makes the difference wrap to a huge positive number, and a test such as > 0 or < 0 on it misleads."
+        ],
+        "recall": [
+          {
+            "q": "What happens to a signed int compared with an unsigned int?",
+            "a": "The signed value converts to unsigned, so a negative number becomes a large positive one."
+          },
+          {
+            "q": "What is the range of an n-bit unsigned type?",
+            "a": "It runs from 0 to $2^n - 1$, and results wrap modulo $2^n$."
+          },
+          {
+            "q": "Which values are widened to int before arithmetic?",
+            "a": "char and short operands, through integer promotion."
+          },
+          {
+            "q": "What is 6 / 12 for int operands, and how do you get 0.5?",
+            "a": "It is 0, because int division drops the fraction; making one operand a double, as in 6 / 12.0, gives 0.5."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What does the following fragment print on a machine where char is 8 bits?\n\nunsigned char c = 250; c = c + 10; printf(\"%d\", c);",
+          "options": [
+            "260",
+            "4",
+            "-6",
+            "250"
+          ],
+          "answer": 1,
+          "explanation": "The sum 260 is computed as an int, then stored in an 8-bit unsigned char, so it is reduced modulo 256 to give 4. The value 260 tempts because the addition itself does not overflow; the loss happens at the store."
+        },
+        "summary": "Mixed expressions convert silently: small types widen to int, signed turns unsigned against unsigned, and unsigned results wrap modulo $2^n$."
+      }
+    },
+    {
+      "id": "pds-c-programming.operators-precedence",
+      "title": "Operators, precedence and associativity",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        294,
+        295
+      ],
+      "points": [
+        "From high to low: postfix () [] -> . ++ --, then unary ! ~ ++ -- + - * & sizeof and casts, then * / %, + −, << >>, relational, == !=, &, ^, |, &&, ||, ?:, assignments, and the comma last.",
+        "Unary operators, ?: and assignment associate right to left, so a = b = 5 sets b first and *p++ means *(p++). All binary arithmetic operators associate left to right.",
+        "&& and || short-circuit: in (x > 0 && ++y), y is incremented only when x > 0. The bitwise & and | always evaluate both sides.",
+        "The bitwise operators bind looser than ==, so x & 1 == 0 parses as x & (1 == 0), which is always 0.",
+        "The comma operator evaluates left to right and yields its right operand: x = (a = 2, a + 3) sets x to 5. The commas separating function arguments are not this operator."
+      ],
+      "keyTerms": [
+        "short-circuit",
+        "associativity",
+        "comma operator",
+        "ternary"
+      ],
+      "lesson": {
+        "why": "Output questions hide their answer in how an expression is grouped and which operands are evaluated at all. Misreading precedence or short-circuiting changes the printed value, so this is a reliable source of marks.",
+        "intro": "An expression such as 2 + 3 * 4 has more than one operator, so C needs rules for which one acts first. Precedence ranks operators: the higher one grabs its operands first, so * beats +. When two operators of the same rank meet, associativity decides the order: left to right for most binary operators, right to left for assignment, the conditional ?: and the unary operators. Separately, && and || stop as soon as the result is known, so their right side may never run.",
+        "definitions": [
+          {
+            "term": "Short-circuit",
+            "meaning": "In a && b, b is skipped when a is false; in a || b, b is skipped when a is true."
+          },
+          {
+            "term": "Comma operator",
+            "meaning": "Evaluates its left operand, discards it, and yields the value of its right operand."
+          }
+        ],
+        "principle": {
+          "text": "Parenthesise mentally from the highest rank down: postfix, unary, * / %, + -, shifts, relational, == !=, then & ^ | in that order, then && ||, ?:, assignment and finally the comma. Equal ranks group by associativity. Precedence fixes the grouping, not the order in which operands are evaluated."
+        },
+        "limits": "Precedence does not say which operand is evaluated first, so an expression that modifies and reads the same variable without a sequence point, such as i + i++, is undefined behaviour. Only &&, ||, ?: and the comma operator guarantee left-to-right evaluation.",
+        "example": {
+          "problem": "With int i = 1, j = 0, a, b; the statements a = (i > 0 && ++j); b = (j > 0 || ++i); run in order. What are i, j, a and b?",
+          "steps": [
+            "In the first statement i > 0 is true, so && must still evaluate ++j: j becomes 1 and the result a is 1.",
+            "In the second statement j > 0 is now true, so || already knows the answer is 1 and skips ++i. b is 1.",
+            "Because ++i never ran, i keeps its value 1."
+          ],
+          "result": "i = 1, j = 1, a = 1, b = 1; the increment on the right of || was skipped."
+        },
+        "misconceptions": [
+          "x & 1 == 0 is not (x & 1) == 0. The == binds tighter than &, so it parses as x & (1 == 0), which is always 0.",
+          "Writing a = b = 5 does not assign left to right; assignment associates right to left, so b is set first and then a.",
+          "The commas between function arguments are not the comma operator, and the order in which those arguments are evaluated is not fixed."
+        ],
+        "recall": [
+          {
+            "q": "Which rank is higher, == or &?",
+            "a": "== is higher, so x & y == z groups as x & (y == z)."
+          },
+          {
+            "q": "When does the right side of || run?",
+            "a": "Only when the left side is false (zero)."
+          },
+          {
+            "q": "What is the value of (a = 2, a + 3)?",
+            "a": "5, because the comma operator yields its right operand after evaluating the left."
+          },
+          {
+            "q": "How does ?: associate?",
+            "a": "Right to left, so a ? b : c ? d : e groups as a ? b : (c ? d : e)."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What does the following program print?\n\nint a = 2, b = 3, c = 4;\nint r = a + b * c - c / a % 3;\nprintf(\"%d\", r);",
+          "answer": 12,
+          "explanation": "* / % share one rank and group left to right, so c / a % 3 is (4 / 2) % 3 = 2 % 3 = 2, and b * c is 12. The sum is then 2 + 12 - 2 = 12. Evaluating strictly left to right, ((2 + 3) * 4 - 4) / 2 % 3, tempts and gives 2 instead."
+        },
+        "summary": "Rank decides grouping and associativity breaks ties; && and || skip their right side when the left settles the result, and bitwise operators rank below == so they need parentheses."
+      }
+    },
+    {
+      "id": "pds-c-programming.side-effects-ub",
+      "title": "Increments, sequence points and undefined behaviour",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        22,
+        303,
+        308
+      ],
+      "points": [
+        "++x increments and then yields the new value; x++ yields the old value and increments later. After int x = 5; y = x++ + 10; y is 15 and x is 6.",
+        "Modifying a variable twice, or modifying it and reading it for another purpose, with no sequence point in between is undefined: i = i++ + 1, x++ * ++x and a[i] = i++ have no defined output.",
+        "Sequence points sit at ;, after the left operand of &&, || and the comma operator, after the condition of ?:, and just before a function call. The order in which function arguments are evaluated is unspecified.",
+        "Other undefined behaviour GATE uses: dereferencing NULL or an uninitialised pointer, reading past an array's end, and modifying a string literal."
+      ],
+      "keyTerms": [
+        "sequence point",
+        "unspecified order",
+        "undefined behaviour"
+      ],
+      "lesson": {
+        "why": "Expressions such as x++ + ++x or a call with two side effects look like ordinary arithmetic, yet the exam expects you to tell a defined result from an undefined one.",
+        "intro": "A side effect is a change to a variable made while an expression is evaluated, such as x++ or an assignment. Post-increment x++ gives the old value and bumps x afterwards, while pre-increment ++x bumps first and gives the new value. A sequence point is a place in the code where all earlier side effects must be finished. If one variable is changed twice, or changed and read for another purpose, between two sequence points, the standard gives no answer at all.",
+        "definitions": [
+          {
+            "term": "Sequence point",
+            "meaning": "A point in execution, such as the end of a statement, where earlier side effects are complete."
+          },
+          {
+            "term": "Undefined behaviour",
+            "meaning": "Code for which the standard places no requirement, so any output is allowed."
+          }
+        ],
+        "principle": {
+          "text": "A value is well defined only when each variable is modified at most once between sequence points and is read only to compute its own new value. The operators && , || , ?: and the comma impose an order, so the right side of && runs only if the left side is true."
+        },
+        "limits": "Separate statements, each ending in a semicolon, are always ordered. The order in which function arguments are evaluated is unspecified, so a question must state it, as the right-to-left assumption does in some papers.",
+        "example": {
+          "problem": "What are a, b and m after int m = 3; int a = m++; int b = ++m;?",
+          "steps": [
+            "m++ yields the old value 3, so a becomes 3 and m becomes 4.",
+            "++m raises m to 5 first and yields 5, so b becomes 5.",
+            "Each statement ends in a semicolon, so the order is fixed."
+          ],
+          "result": "a is 3, b is 5 and m is 5."
+        },
+        "misconceptions": [
+          "In a && b the right operand is not evaluated when a is false, so a side effect such as i++ on the right does not happen at all.",
+          "i = i++ + 1 is not simply i + 1; it modifies i twice with no sequence point, so no output is defined."
+        ],
+        "recall": [
+          {
+            "q": "What does x++ yield compared with ++x?",
+            "a": "x++ yields the old value and increments afterwards; ++x increments first and yields the new value."
+          },
+          {
+            "q": "Why is i = i++ + 1 undefined?",
+            "a": "It modifies i twice between sequence points, and the standard fixes no order."
+          },
+          {
+            "q": "When does the right side of && execute?",
+            "a": "Only when the left side is non-zero, because a sequence point follows the left operand."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What does the following program print?\n\nint a = 0, b = 5, c, d, e;\nc = (a++ && b++);\nd = (a++ || b++);\ne = (a-- && b++);\nprintf(\"%d\", a * 10000 + b * 1000 + c * 100 + d * 10 + e);",
+          "answer": 16011,
+          "explanation": "a is 0, so a++ yields 0, the && stops there and b++ never runs: c is 0, a is 1. Next a++ yields 1, so the || is already true and b++ is skipped: d is 1, a is 2. Then a-- yields 2, which is true, so b++ does run and yields 5: e is 1, a is 1, b is 6. The output is 10000 + 6000 + 0 + 10 + 1 = 16011. It is tempting to run every b++ because it appears in the text; the right side of && and || runs only when the left side has not already decided the result."
+        },
+        "summary": "Post-increment yields the old value, && and || skip their right side when the left decides, and two modifications of one variable between sequence points are undefined."
+      }
+    },
+    {
+      "id": "pds-c-programming.control-flow",
+      "title": "Control flow: switch fall-through and loops",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        296
+      ],
+      "points": [
+        "switch jumps to the matching case label and keeps executing the cases below it until a break or the end of the block. default is the jump target only when no case label matches, wherever it sits; like any label, it is also reached by falling through from the case above it.",
+        "do-while runs its body at least once; while and for test first. continue in a for loop still executes the update expression.",
+        "break leaves only the innermost loop or switch. A stray semicolon, as in for (i = 0; i < n; i++);, gives the loop an empty body.",
+        "Any non-zero value is true. if (x = 0) assigns 0 and is always false, while if (x == 0) compares."
+      ],
+      "lesson": {
+        "why": "Loops and switches in output questions turn on small details: a missing break, a stray semicolon or an off-by-one test changes the answer, so careful tracing is the skill being tested.",
+        "intro": "Control flow decides which statements run and how often. A for or while loop tests its condition before each pass, while do-while runs the body once before testing. A switch jumps to the case whose label matches and then keeps running every statement below it until a break, which is called falling through. In a condition, any non-zero value counts as true and zero counts as false.",
+        "definitions": [
+          {
+            "term": "Fall-through",
+            "meaning": "Execution of a case body continuing into the next case because no break ended it."
+          }
+        ],
+        "principle": {
+          "text": "Trace control flow by writing the variables in a table and updating them one pass at a time. A switch enters at the matching label and exits only at a break or at its closing brace; default is the entry point only if no label matches."
+        },
+        "limits": "The table method fails on loops with hundreds of passes, where you must find the pattern, for example a quantity that halves each pass runs about $\\log_2 n$ times. A break leaves only the innermost loop or switch.",
+        "example": {
+          "problem": "What is s after int n = 2763, s = 0; while (n > 0) { s += n % 10; n /= 10; }?",
+          "steps": [
+            "Each pass adds the last digit n % 10 to s, then n /= 10 drops that digit with integer division.",
+            "Pass by pass (n at the test, s afterwards): 2763 gives 3, 276 gives 9, 27 gives 16, 2 gives 18.",
+            "After the pass with n = 2, n becomes 0, the test n > 0 fails and the loop ends."
+          ],
+          "result": "The final value of s is 18, the digit sum of 2763."
+        },
+        "misconceptions": [
+          "A semicolon right after for (...) is an empty loop body, so the statement on the next line runs once, after the loop, and not on every pass.",
+          "if (x = 0) assigns 0 and is always false; it does not compare, so the else branch runs whatever x was."
+        ],
+        "recall": [
+          {
+            "q": "What does a switch do after the matching case body ends without break?",
+            "a": "It falls through and runs the body of the next case."
+          },
+          {
+            "q": "How does do-while differ from while?",
+            "a": "do-while runs its body once before the first test, so the body executes at least once."
+          },
+          {
+            "q": "Does continue in a for loop skip the update expression?",
+            "a": "No, the update still runs before the next test."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What does the following program print?\n\nint a = 17, b = 5, q = 0;\nwhile (a >= b) { a -= b; q++; }\nprintf(\"%d\", q * 10 + a);",
+          "answer": 32,
+          "explanation": "Tracing (a, q): start (17, 0), then (12, 1), (7, 2), (2, 3). Now 2 >= 5 is false and the loop stops, so q = 3 and a = 2, giving 3 * 10 + 2 = 32. It is tempting to stop one pass early or late; the table of (a, q) pins the exit down, and the loop leaves the quotient and remainder of 17 / 5."
+        },
+        "summary": "Trace loops pass by pass in a table, with integer division and % for digit work; a switch falls through until break, and stray semicolons and assignments inside conditions change the answer."
+      }
+    },
+    {
+      "id": "pds-c-programming.parameter-passing",
+      "title": "Parameter passing: everything by value",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        22,
+        296,
+        297,
+        302
+      ],
+      "points": [
+        "C copies every argument into the parameter, so assigning to a parameter never changes the caller's variable. swap(int a, int b) exchanges two copies and has no visible effect.",
+        "Pass-by-reference is simulated by passing an address: swap(&x, &y) with void swap(int *a, int *b) { int t = *a; *a = *b; *b = t; } works because it writes through the pointers.",
+        "Swapping the pointer parameters themselves (int *t = a; a = b; b = t;) changes nothing either, because the pointers are copies too.",
+        "An array argument decays to a pointer to its first element: void f(int a[]) means void f(int *a), so writes to a[i] reach the caller's array but sizeof(a) is the pointer size.",
+        "To change a caller's pointer, such as a list head, pass its address as int ** or return the new value."
+      ],
+      "keyTerms": [
+        "call by value",
+        "pointer parameter",
+        "array decay"
+      ],
+      "lesson": {
+        "why": "Swap functions and pointer parameters appear often, and the answer hinges on whether the function changed the caller's variable or only its own copy.",
+        "intro": "When a function is called, C copies each argument into the matching parameter, so the function works on its own copies. Changing a parameter therefore never changes the variable in the caller. To let a function change a caller's variable, pass its address; the function then follows that address with * and writes to the original. The address itself is still a copy, but both copies point to the same place.",
+        "definitions": [
+          {
+            "term": "Pass by value",
+            "meaning": "The function receives a copy of the argument, and the caller's variable is unaffected."
+          },
+          {
+            "term": "Dereference",
+            "meaning": "Following a pointer with * to reach the object it points to."
+          }
+        ],
+        "principle": {
+          "text": "A write to a parameter is lost when the function returns, while a write through a pointer parameter reaches the caller's object. Changing a pointer parameter itself, as in p = q, is again lost; to change a caller's pointer, pass a pointer to it."
+        },
+        "limits": "An array argument is passed as the address of its first element, so a function can change the caller's array through it. The rule about copies still holds, because the address is what is copied.",
+        "example": {
+          "problem": "What is x in the caller after void inc(int n) { n = n + 1; } void incp(int *n) { *n = *n + 1; } with int x = 4; inc(x); incp(&x); inc(x);?",
+          "steps": [
+            "inc(x) adds one to a copy, so x stays 4.",
+            "incp(&x) writes through the address, so x becomes 5.",
+            "The second inc(x) again changes only a copy."
+          ],
+          "result": "The caller's x ends as 5."
+        },
+        "misconceptions": [
+          "Swapping two pointer parameters inside a function, as in char *t = s1; s1 = s2; s2 = t;, leaves the caller's pointers unchanged because only the copies were swapped.",
+          "Passing &x does not mean the function receives x itself; it receives a copy of the address, which is enough to reach x."
+        ],
+        "recall": [
+          {
+            "q": "Why does swap(int a, int b) not swap the caller's values?",
+            "a": "It exchanges copies of the arguments, which vanish when the function returns."
+          },
+          {
+            "q": "How does a function change a caller's pointer?",
+            "a": "It takes a pointer to the pointer, such as char **, and writes through it."
+          },
+          {
+            "q": "What does an array parameter really receive?",
+            "a": "The address of the first element, so writes to its elements reach the caller's array."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "With void f(int *p, int v) { v = v + *p; *p = v * 2; } and int a = 3, b = 4; the call f(&a, b) is made. What is a + b afterwards?",
+          "answer": 18,
+          "explanation": "Inside f, v is a copy of b and becomes 4 + 3 = 7. Then *p = 14 writes through the address, so a becomes 14. b is unchanged at 4, so a + b = 18. Assuming b also changes to 7 is the tempting error, since v is only a copy."
+        },
+        "summary": "Arguments are copied; only writes through a passed address reach the caller, and changing a pointer parameter itself is lost unless you pass its address.",
+        "prerequisites": [
+          "pds-c-programming.pointer-arithmetic"
+        ]
+      }
+    },
+    {
+      "id": "pds-c-programming.pointer-arithmetic",
+      "title": "Pointers and pointer arithmetic",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        22,
+        298,
+        302
+      ],
+      "points": [
+        "&x yields the address of x and *p the object p points to; with int x = 10, *p = &x, **pp = &p, the expression **pp is 10.",
+        "p + n moves n elements forward, n × sizeof(*p) bytes. For int *p at address 1000 with 4-byte int, p + 3 is 1012.",
+        "Subtracting two pointers into the same array gives the number of elements between them, not bytes: &a[7] − &a[2] is 5.",
+        "a[i] is defined as *(a + i), so *(i + a) and i[a] mean the same; 2[a] is legal and equals a[2].",
+        "void * holds any object address but must be converted before it is dereferenced. NULL points nowhere, a wild pointer is uninitialised, and a dangling pointer refers to memory that was freed or went out of scope."
+      ],
+      "keyTerms": [
+        "dereference",
+        "address-of",
+        "void *",
+        "NULL",
+        "dangling pointer",
+        "wild pointer"
+      ],
+      "lesson": {
+        "why": "Pointer questions test whether you count in elements rather than bytes, and they decide many output questions at 1 or 2 marks.",
+        "intro": "A pointer holds the address of a variable. The address-of operator & produces that address, so p = &x makes p point to x, and *p follows the address back to the value stored there; *(&x) is just x. Adding a number to a pointer moves it by that many elements of its own type, not by that many bytes, so for an int pointer p + 1 is the next int. Subtracting two pointers into the same array gives how many elements lie between them. The array name a behaves like the address of its first element, and a[i] is just *(a + i).",
+        "definitions": [
+          {
+            "term": "Address-of operator &",
+            "meaning": "Gives the address of its operand; it is the inverse of *, so *(&x) is x and &*p is p."
+          },
+          {
+            "term": "Pointer difference",
+            "meaning": "For two pointers into one array, q - p is the number of elements between them, not the number of bytes."
+          }
+        ],
+        "principle": {
+          "text": "For a pointer p to type T, p + n is the address of p plus n times the size of T, and q - p for two pointers into one array is the element count between them.",
+          "tex": "\\text{address}(p+n) = \\text{address}(p) + n \\cdot \\text{sizeof}(T)"
+        },
+        "limits": "Subtracting pointers is defined only inside one array, or one past its end. Dereferencing a NULL, wild or dangling pointer, or going past the array, is undefined behaviour.",
+        "example": {
+          "problem": "For int a[] = {10, 20, 30, 40, 50}; int *p = a + 1, *q = p + 2; give q - p, *q and *(q - 1).",
+          "steps": [
+            "p points to a[1] and q is two elements further, so q points to a[3].",
+            "q - p counts elements, so it is 2.",
+            "*q is a[3] = 40 and *(q - 1) is a[2] = 30."
+          ],
+          "result": "q - p is 2, *q is 40 and *(q - 1) is 30."
+        },
+        "misconceptions": [
+          "q - p is a count of elements, not bytes, so for ints it is not multiplied by 4.",
+          "Writing (*p)++ changes the pointed value, whereas p++ moves the pointer; the two are different statements with different effects."
+        ],
+        "recall": [
+          {
+            "q": "By how many bytes does p + 1 move an int pointer?",
+            "a": "By sizeof(int) bytes, which is 4 on a typical machine."
+          },
+          {
+            "q": "What is a[i] equivalent to?",
+            "a": "*(a + i), which is why i[a] is also legal."
+          },
+          {
+            "q": "What does subtracting two pointers into one array give?",
+            "a": "The number of elements between them, as an integer."
+          },
+          {
+            "q": "What do p = &x and *p do?",
+            "a": "&x is the address of x, so p points to x; *p follows p back to x, so *(&x) equals x."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For int a[] = {5, 10, 15, 20, 25, 30}; int *p = a + 1, *q = a + 5; what does (q - p) + *(q - 2) evaluate to?",
+          "answer": 24,
+          "explanation": "p points to a[1] and q to a[5], so q - p is 4. The pointer q - 2 points to a[3], whose value is 20. The sum is 4 + 20 = 24. Using the values 10 and 30 in the subtraction instead of the positions is the usual slip."
+        },
+        "summary": "Pointer arithmetic counts in elements of the pointed type, a[i] equals *(a + i), and pointer differences give element counts within one array."
+      }
+    },
+    {
+      "id": "pds-c-programming.declarations",
+      "title": "Reading declarations: arrays of pointers, function pointers, const",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        22,
+        297,
+        298,
+        302,
+        307
+      ],
+      "points": [
+        "Read from the name outward, taking [] and () before *, with parentheses overriding: int *arr[10] is an array of 10 pointers to int, while int (*pa)[10] is a pointer to an array of 10 ints.",
+        "int (*fp)(int) is a pointer to a function taking int and returning int; int *fp(int) declares a function returning int *. A call can be written fp(4) or (*fp)(4).",
+        "int *(*f[5])(int) is an array of 5 pointers to functions that take an int and return an int *.",
+        "const int *p (or int const *p) forbids *p = …, but p can move. int *const p forbids moving p, but *p can be written. const int *const p forbids both.",
+        "For int (*p)[5] = &a, sizeof(*p) is 20 (a whole int[5]), and p + 1 skips 20 bytes."
+      ],
+      "keyTerms": [
+        "function pointer",
+        "pointer to array",
+        "array of pointers",
+        "const qualifier"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "pds-c-programming.pointer-arithmetic",
+          "pds-c-programming.arrays-2d"
+        ],
+        "why": "Declaration-reading questions ask what a variable is, or what sizeof and pointer steps give, for types like a pointer to an array. One misplaced parenthesis changes the type completely, so a fixed reading procedure saves marks.",
+        "intro": "A C declaration describes a variable by how it is used, so it is read from the name outward. The name sits in the middle; the brackets [] (array) and parentheses () (function) next to it bind before the star * (pointer to), and parentheses can override that order. The base type such as int is read last. A function pointer holds the address of a function, and the keyword const marks something as read-only.",
+        "definitions": [
+          {
+            "term": "Pointer to array",
+            "meaning": "A pointer whose target is a whole array, as in int (*p)[5]; adding 1 steps over the entire array."
+          },
+          {
+            "term": "Array of pointers",
+            "meaning": "An array whose elements are pointers, as in int *a[5]."
+          }
+        ],
+        "principle": {
+          "text": "Start at the name. Read right through [] or (), then left through *, and repeat outward, closing each pair of parentheses before leaving it. For const, the qualifier applies to what is on its left, or to the type on its right when it comes first: const int *p makes *p read-only, int *const p makes p itself read-only."
+        },
+        "limits": "This reading only describes the type. It tells nothing about initialisation or storage, and a typedef name hides the structure, so expand it first. Ranges and sizeof values still depend on the size of int and of a pointer on the machine.",
+        "example": {
+          "problem": "Read int *(*g[3])(int) and say what g is.",
+          "steps": [
+            "Start at g: the nearest operator on the right is [3], so g is an array of 3 elements.",
+            "The closing parenthesis ends that group and the * on its left applies next: each element is a pointer.",
+            "Outside the parentheses comes (int): the pointer points to a function taking an int. The remaining int * in front is the return type, a pointer to int."
+          ],
+          "result": "g is an array of 3 pointers to functions that take an int and return an int *."
+        },
+        "misconceptions": [
+          "int *a[5] and int (*a)[5] are different: the first is an array of 5 pointers, the second one pointer to an array of 5 ints.",
+          "int *f(int) is not a function pointer; it declares a function that returns an int *. The parentheses around *f are what make it a pointer.",
+          "const int *p does not freeze p. It forbids writing *p, while p can still move; only int *const p freezes p."
+        ],
+        "recall": [
+          {
+            "q": "How do you read a declaration?",
+            "a": "Start at the name, take [] and () before *, close each parenthesis pair, and read the base type last."
+          },
+          {
+            "q": "What does const int *p forbid?",
+            "a": "Assigning through p (*p = ...); p itself may still be changed to point elsewhere."
+          },
+          {
+            "q": "How can a function pointer fp be called?",
+            "a": "Either as fp(4) or as (*fp)(4); both call the function it points to."
+          },
+          {
+            "q": "For int (*p)[5], what does p + 1 skip?",
+            "a": "A whole array of 5 ints, which is sizeof(int[5]) bytes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "On a machine where int is 4 bytes, int a[3][6]; int (*p)[6] = a; holds the address 1000 in p. How many bytes does the address p + 2 exceed the address p?",
+          "answer": 48,
+          "explanation": "p points to an object of type int[6], which is 6 * 4 = 24 bytes. Adding 2 steps over two such rows, so the address grows by 2 * 24 = 48 and p + 2 is 1048. Counting 2 * 4 = 8 bytes tempts because p looks like an int pointer, but the parentheses make its target the whole row."
+        },
+        "summary": "Read from the name outward with [] and () before *, so int *a[5] is an array of pointers and int (*a)[5] a pointer to an array; const on the left of * guards the target, const after it guards the pointer."
+      }
+    },
+    {
+      "id": "pds-c-programming.arrays-2d",
+      "title": "Arrays and multi-dimensional layout",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        22,
+        297,
+        306
+      ],
+      "points": [
+        "C stores arrays in row-major order: for T m[R][C], element m[i][j] sits at base + (i·C + j)·sizeof(T) bytes.",
+        "In int a[3][4], a + 1 skips a whole row (16 bytes), *a + 1 skips one int (4 bytes) and &a + 1 skips the whole array (48 bytes). All three of a, *a and &a print the same address.",
+        "*(*(a + i) + j) is a[i][j], and **a is a[0][0]. sizeof(a) is 48 and sizeof(a[0]) is 16.",
+        "int c[] = {1, 2, 3, 4} has size 4. When an initialiser lists fewer values than the size, the rest are zero, and a local array with no initialiser holds garbage.",
+        "A 2D array parameter must give every dimension except the first, as in void f(int m[][4]), because the compiler needs the row length to compute addresses."
+      ],
+      "keyTerms": [
+        "row-major",
+        "array of arrays",
+        "decay"
+      ],
+      "lesson": {
+        "why": "Address calculations and expressions such as *(*(a + i) + j) recur in the exam, and both rest on knowing that C lays arrays out row by row.",
+        "intro": "A two-dimensional array in C is a single block of memory in which row 0 comes first, then row 1, and so on. This is row-major order. An element m[i][j] therefore sits after i complete rows and j more elements. The name m stands for the first row, so m + 1 skips a whole row, while m[i] is the address of row i, whose elements are reached by adding to it. The same idea extends to more indices: in T a[P][R][C], a[i][j][k] sits (i*R*C + j*C + k) elements from the start, and a brace initializer simply fills memory in this order.",
+        "prerequisites": [
+          "pds-c-programming.pointer-arithmetic"
+        ],
+        "principle": {
+          "text": "For T m[R][C], the element m[i][j] lies at the base address plus the number of elements before it times the element size, and m[i][j] is the same as *(*(m + i) + j).",
+          "tex": "\\text{address}(m[i][j]) = \\text{base} + (i \\cdot C + j)\\cdot \\text{sizeof}(T)"
+        },
+        "limits": "The formula gives byte addresses only when the base is a byte address and sizeof(T) is known. Indexing is zero-based unless the question says otherwise, and a function parameter needs every dimension except the first so that C is known. Strictly, the C standard forbids stepping past the end of a row, so m[1] + 6 above is not guaranteed; GATE questions assume the rows are contiguous and read it as flat memory.",
+        "example": {
+          "problem": "Let int m[3][4] be filled with m[i][j] = 10*i + j. What are *(m[1] + 6) and *(*(m + 2) + 1)?",
+          "steps": [
+            "m[1] is the start of row 1, and adding 6 moves 6 elements; row 1 has only 4, so the walk continues into row 2 at position 2.",
+            "That element is m[2][2] = 22.",
+            "*(m + 2) is row 2, and adding 1 gives m[2][1] = 21."
+          ],
+          "result": "The values are 22 and 21."
+        },
+        "misconceptions": [
+          "m + 1 skips a whole row of C elements, not one element, so it moves by C times sizeof(T) bytes.",
+          "The row index is multiplied by the number of columns, not the number of rows, when computing the offset."
+        ],
+        "recall": [
+          {
+            "q": "What is row-major order?",
+            "a": "The rows are stored one after another, so the last index changes fastest in memory."
+          },
+          {
+            "q": "Which dimensions must a 2D array parameter name?",
+            "a": "All except the first, because the compiler needs the row length to find addresses."
+          },
+          {
+            "q": "What is *(*(m + i) + j) in index form?",
+            "a": "It is m[i][j]."
+          },
+          {
+            "q": "Where is a[i][j][k] in T a[P][R][C]?",
+            "a": "It is (i*R*C + j*C + k) elements from the start, and an initializer list fills those elements in memory order."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A two-dimensional array short c[5][6] is stored in row-major order with c[0][0] at byte address 2000, and a short takes 2 bytes. What is the byte address of c[3][4]?",
+          "answer": 2044,
+          "explanation": "Row 3 begins after 3 * 6 = 18 elements, and column 4 adds 4 more, so the element has index 22. Its address is 2000 + 22 * 2 = 2044. Multiplying the row index by 5, the number of rows, gives a wrong offset."
+        },
+        "summary": "Elements are stored row by row, m[i][j] sits (i*C + j) elements from the start, and m + 1 moves a whole row."
+      }
+    },
+    {
+      "id": "pds-c-programming.strings",
+      "title": "Strings, sizeof and strlen",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        22,
+        297,
+        303,
+        304,
+        307
+      ],
+      "points": [
+        "A string is a char array ending in '\\0'. char s[] = \"Hello\" occupies 6 bytes, so sizeof(s) is 6 while strlen(s) is 5.",
+        "strlen counts characters up to the first '\\0': for \"Hello\\0World\" it returns 5, though the array is 12 bytes long.",
+        "char s[10] = \"Hi\" gives strlen 2 and sizeof 10. char *s = \"hi\" gives sizeof(s) = 8, the size of the pointer, and the literal must not be modified.",
+        "strcpy and strcat do no bounds checking, and the destination must have room for the terminator. strcmp returns a negative, zero or positive value by comparing the first differing characters."
+      ],
+      "keyTerms": [
+        "null terminator",
+        "string literal",
+        "strlen",
+        "strcmp"
+      ],
+      "lesson": {
+        "why": "Output questions on strings hinge on where the terminating zero byte sits, so sizeof, strlen and pointer walks over a char array must be told apart quickly.",
+        "intro": "A C string is just an array of char whose last meaningful element is the byte '\\0', written as a zero. Library functions such as strlen and printf with %s start at a given address and move forward until they meet that zero byte. The array itself can be longer than the string it holds, and the zero can appear in the middle, so the length of the string and the size of the array are two different numbers. Because a string is reached through an address, code often walks it with a pointer, as in while (*t) *s++ = *t++;, which copies characters until the zero is met. Indexing is defined as p[i] being *(p + i), so 2[p] means the same as p[2].",
+        "definitions": [
+          {
+            "term": "Null terminator",
+            "meaning": "The byte '\\0' with value 0 that marks the end of a string."
+          },
+          {
+            "term": "String literal",
+            "meaning": "A quoted text such as \"hi\" stored in read-only memory; modifying it is undefined."
+          }
+        ],
+        "principle": {
+          "text": "sizeof reports the bytes of the whole array, terminator and unused space included, and is fixed at compile time. strlen counts the characters before the first '\\0' and is found at run time. For char *p, sizeof(p) is the size of the pointer, not of the text.",
+          "tex": "\\texttt{strlen}(s) \\le \\texttt{sizeof}(s) - 1 \\quad \\text{for a char array } s"
+        },
+        "limits": "The inequality holds only when the array really contains a '\\0'. If an array is filled with no terminator, strlen reads past its end, which is undefined. After the array decays to a pointer inside a function, sizeof no longer gives the array size.",
+        "example": {
+          "problem": "What are sizeof(s) and strlen(s) for char s[] = \"Hi\\0There\";?",
+          "steps": [
+            "The compiler counts every character of the literal: H, i, the explicit zero, T, h, e, r, e, which is 8, then adds the implicit terminator, giving 9 bytes.",
+            "So sizeof(s) is 9, whatever the content is.",
+            "strlen starts at s[0] and stops at the first zero byte, which is s[2], so it counts only H and i."
+          ],
+          "result": "sizeof(s) is 9 and strlen(s) is 2."
+        },
+        "misconceptions": [
+          "Thinking strlen and sizeof agree: char s[10] = \"Hi\" has strlen 2 but sizeof 10.",
+          "Counting the terminator in strlen. It is excluded from strlen but included in sizeof for a char array initialised from a literal."
+        ],
+        "recall": [
+          {
+            "q": "Why does char s[] = \"Hello\" have sizeof 6?",
+            "a": "The five letters plus the implicit '\\0' terminator take 6 bytes."
+          },
+          {
+            "q": "Where does strlen stop?",
+            "a": "At the first '\\0' byte it meets, so an embedded zero shortens the length."
+          },
+          {
+            "q": "What does sizeof give for char *p = \"hi\"?",
+            "a": "The size of the pointer itself, not the length of the text."
+          },
+          {
+            "q": "What does while (*t) *s++ = *t++; do?",
+            "a": "It copies characters from t to s one at a time and stops when *t is zero, before the terminator is copied."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "After char s[10] = \"data\"; strcat(s, \"base\"); what are strlen(s) and sizeof(s)?",
+          "options": [
+            "8 and 10",
+            "8 and 9",
+            "4 and 10",
+            "8 and 8"
+          ],
+          "answer": 0,
+          "explanation": "strcat appends the four letters after \"data\" and writes a new terminator at index 8, so strlen is 8. The array was declared with 10 bytes and strcat does not change that, so sizeof stays 10. Option B treats sizeof as the text plus its terminator, option D treats sizeof as equal to strlen, and option C forgets that strcat appended anything."
+        },
+        "summary": "sizeof measures the array, strlen counts characters up to the first zero byte, and a char pointer's sizeof is the pointer size.",
+        "prerequisites": [
+          "pds-c-programming.pointer-arithmetic"
+        ]
+      }
+    },
+    {
+      "id": "pds-c-programming.structs-unions",
+      "title": "Structures, unions, padding and bit-fields",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        23,
+        299,
+        302,
+        304
+      ],
+      "points": [
+        "Each member is placed at the next offset that is a multiple of its alignment, which is usually its size, so struct { char c; int i; char c2; } lays out as 1 + 3 padding + 4 + 1 + 3 tail padding = 12 bytes.",
+        "The total size is rounded up to a multiple of the largest member alignment, so that every element of an array of structs stays aligned. Reordering members from largest to smallest minimises the padding.",
+        "All members of a union start at offset 0 and share storage. Its size is the largest member rounded up to the largest alignment: union { char c[5]; int i; } is 8 bytes, not 5.",
+        "p->m means (*p).m. A bit-field such as unsigned a : 3 holds values 0–7, and its address cannot be taken.",
+        "typedef creates an alias for a type, not a new type: after typedef int *IP;, the declaration IP a, b makes both a and b pointers."
+      ],
+      "keyTerms": [
+        "alignment",
+        "padding",
+        "union",
+        "bit-field",
+        "typedef"
+      ],
+      "lesson": {
+        "why": "Questions on sizeof for structures and unions need the padding rule applied member by member, and a single missed gap changes the answer.",
+        "intro": "A processor reads a value most efficiently when its address is a multiple of its size, so the compiler places each member of a structure at such an address. If the previous member ends earlier, unused bytes called padding are inserted. Members of a structure follow one another, while members of a union all begin at the same address and share one block of storage. The first member always sits at the address of the structure itself, and a char needs no alignment, so consecutive chars have no padding between them. Casting a structure pointer to char * and stepping by bytes therefore walks the members at their offsets.",
+        "definitions": [
+          {
+            "term": "Alignment",
+            "meaning": "The multiple an address must be divisible by; usually the size of the type."
+          },
+          {
+            "term": "Padding",
+            "meaning": "Unused bytes the compiler inserts between members or at the end to keep alignment."
+          }
+        ],
+        "principle": {
+          "text": "Place each member at the next offset divisible by its alignment, then round the total size up to a multiple of the largest member alignment. A union has size equal to its largest member, rounded up to its largest alignment.",
+          "tex": "\\text{offset}_k = \\left\\lceil \\frac{\\text{end}_{k-1}}{a_k} \\right\\rceil a_k"
+        },
+        "limits": "The numbers assume the usual alignment equal to size (char 1, short 2, int 4, double 8). Compilers may pack structures or use other alignments, so a question must state its assumptions. Padding values are never specified by the language.",
+        "example": {
+          "problem": "Find sizeof(struct { char a; double b; char c; }) when double has size and alignment 8.",
+          "steps": [
+            "a takes offset 0 and ends at 1.",
+            "b needs an offset divisible by 8, so 7 padding bytes follow a and b occupies offsets 8 to 15.",
+            "c takes offset 16 and ends at 17.",
+            "The largest alignment is 8, so the size rounds up from 17 to 24."
+          ],
+          "result": "The structure occupies 24 bytes, of which 14 are padding."
+        },
+        "misconceptions": [
+          "Adding the member sizes: 1 + 8 + 1 = 10 ignores both the gap before b and the tail padding.",
+          "Forgetting the tail padding. Without it, the second element of an array of these structures would start misaligned."
+        ],
+        "recall": [
+          {
+            "q": "Why is there padding between members?",
+            "a": "Each member must sit at an offset that is a multiple of its alignment."
+          },
+          {
+            "q": "Why is a structure's size rounded up at the end?",
+            "a": "So that every element of an array of the structure starts correctly aligned."
+          },
+          {
+            "q": "What decides the size of a union?",
+            "a": "Its largest member, rounded up to the largest alignment among the members."
+          },
+          {
+            "q": "Where is the first member of a structure?",
+            "a": "At offset 0, the same address as the structure; padding appears only before later members or at the end."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "With char 1, short 2 and int 4 bytes, each aligned to its size, what is sizeof(struct { char a; short b; int c; char d; })?",
+          "answer": 12,
+          "explanation": "a is at offset 0. b needs a multiple of 2, so it sits at 2 to 3. c needs a multiple of 4, so it sits at 4 to 7. d sits at 8. The largest alignment is 4, so 9 rounds up to 12. Answering 9 or 8 comes from forgetting the tail padding or the padding before b."
+        },
+        "summary": "Align every member by its own size, round the total up to the largest alignment, and let a union take the size of its largest member."
+      }
+    },
+    {
+      "id": "pds-c-programming.storage-classes",
+      "title": "Storage classes, scope and the memory layout",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        22,
+        23,
+        301,
+        302,
+        304,
+        307
+      ],
+      "points": [
+        "auto locals live on the stack for one execution of their block and start with garbage values. A static local is initialised once, before the program starts, and keeps its value between calls.",
+        "Globals and statics live in the data segment, or in BSS when they are uninitialised, and are zero by default. Code sits in a read-only text segment, and the heap grows from malloc.",
+        "static on a global or a function restricts its linkage to its own file. extern declares an object defined elsewhere and allocates nothing. register is only a hint, and the address of a register variable cannot be taken.",
+        "C uses static (lexical) scope: a name refers to the innermost enclosing declaration, so a local int x hides the global x for the rest of its block.",
+        "Returning the address of an auto local leaves the caller holding a dangling pointer, because the frame is gone. Returning the address of a static local is safe."
+      ],
+      "keyTerms": [
+        "auto",
+        "static",
+        "extern",
+        "register",
+        "BSS",
+        "lexical scope"
+      ],
+      "lesson": {
+        "why": "Static locals, shadowed names and state carried between calls decide what an output question prints, and each one reduces to knowing how long a variable lives and which declaration a name refers to.",
+        "intro": "Every variable has a lifetime, the span of time its storage exists, and a scope, the region of text where its name is visible. An ordinary local variable is created when its block starts and discarded when the block ends. A static local variable is created once, before the program runs, and keeps its value from one call to the next, though its name is still visible only inside the function. An ordinary local is called auto, the default storage for a local. Where a variable lives follows from this: locals sit on the stack, static locals and globals sit in a fixed static area that exists for the whole run, and malloc blocks sit on the heap. The keyword register asks the compiler to keep a variable in a CPU register; the compiler may ignore the request, and a register variable has no address to take.",
+        "definitions": [
+          {
+            "term": "Static local",
+            "meaning": "A local variable declared static; initialised once and retained between calls."
+          },
+          {
+            "term": "Shadowing",
+            "meaning": "An inner declaration hiding an outer variable of the same name inside its block."
+          },
+          {
+            "term": "register",
+            "meaning": "A request, which the compiler may ignore, to keep a variable in a CPU register instead of memory."
+          }
+        ],
+        "principle": {
+          "text": "An auto local (an ordinary local) is reinitialised on every entry to its block, while a static local's initialiser runs once and its value persists. A name refers to the innermost enclosing declaration, and leaving the inner block restores the outer variable unchanged."
+        },
+        "limits": "static on a global or a function means something different: it limits the name to its own file. Two declarations of the same name in the same block are an error, whereas an inner block may reuse a name. Static locals are shared by recursive calls, so there is only one copy no matter the depth.",
+        "example": {
+          "problem": "With int f() { static int n = 2; n = n * 2; return n; }, what is the value of f() + f()?",
+          "steps": [
+            "The initialiser n = 2 runs once, before the first call.",
+            "The first call sets n to 4 and returns 4.",
+            "The second call starts from the remembered 4, sets n to 8 and returns 8.",
+            "The sum of the two returned values is 4 + 8."
+          ],
+          "result": "f() + f() is 12."
+        },
+        "misconceptions": [
+          "Believing static int n = 2; assigns 2 on every call. It is initialisation, not an assignment statement, and runs once.",
+          "Thinking the name of a static local is visible everywhere. Only its storage persists; the name stays local."
+        ],
+        "recall": [
+          {
+            "q": "When is a static local initialised?",
+            "a": "Once, before the program starts, and never again."
+          },
+          {
+            "q": "What happens to an outer variable when an inner block declares the same name?",
+            "a": "The inner one hides it inside that block, and the outer one is unchanged and visible again afterwards."
+          },
+          {
+            "q": "Do recursive calls each get their own static local?",
+            "a": "No, they all share the single copy."
+          },
+          {
+            "q": "Where do locals, static or global variables, and malloc blocks live?",
+            "a": "Locals on the stack, static and global variables in the static data area, and malloc blocks on the heap."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "With int g() { int a = 1; static int b = 1; a++; b++; return a * b; }, what is the sum of the values returned by three successive calls g() + g() + g()?",
+          "answer": 18,
+          "explanation": "Each call restarts a at 1 and raises it to 2, while b persists and becomes 2, 3, 4. The returns are 2*2 = 4, 2*3 = 6 and 2*4 = 8, so the sum is 18. Treating a as persistent as well would give 2*2, 3*3, 4*4, which tempts as 29."
+        },
+        "summary": "Auto locals restart on every entry, static locals remember across calls, and an inner declaration hides an outer one only inside its block."
+      }
+    },
+    {
+      "id": "pds-c-programming.dynamic-memory",
+      "title": "Dynamic memory: malloc, calloc, realloc, free",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        22,
+        23,
+        301
+      ],
+      "points": [
+        "malloc(n) returns n uninitialised bytes, while calloc(k, s) returns k·s bytes set to zero. Both return NULL on failure.",
+        "realloc(p, m) resizes the block. It may move it, copying the old contents, so assign the result to a temporary before overwriting p.",
+        "free(p) releases the block but leaves p unchanged and now dangling. Freeing twice, or using the block after free, is undefined.",
+        "A leak happens when the last pointer to a block is lost before free, for example by overwriting p = malloc(…) inside a loop.",
+        "sizeof is evaluated at compile time for everything except variable-length arrays, and it does not evaluate its operand: after sizeof(i++), i is unchanged."
+      ],
+      "keyTerms": [
+        "heap",
+        "memory leak",
+        "double free",
+        "use-after-free"
+      ],
+      "lesson": {
+        "why": "Heap questions ask what a program leaks, what a pointer still points to after free, and how many bytes an allocation takes, and all three follow from a few fixed rules.",
+        "intro": "Memory obtained with malloc or calloc comes from the heap, the region of storage that lives until it is freed, and stays allocated until the program calls free on it, regardless of which function made it. The only handle on the block is the pointer value returned. If the last copy of that value is overwritten or goes out of scope, the block can no longer be freed, which is called a leak.",
+        "definitions": [
+          {
+            "term": "Leak",
+            "meaning": "A heap block that is still allocated but no longer reachable through any pointer."
+          },
+          {
+            "term": "Dangling pointer",
+            "meaning": "A pointer that still holds the address of a block already freed."
+          }
+        ],
+        "principle": {
+          "text": "malloc(n) gives n uninitialised bytes, calloc(k, s) gives k*s bytes set to zero, and free(p) releases the block without changing p. The number of leaked blocks is the number allocated minus the number freed, when each freed one was freed once."
+        },
+        "limits": "The rule of counting assumes no block is freed twice and each free receives a pointer that malloc returned. Freeing twice or using a block after free is undefined behaviour, not just a leak. sizeof does not evaluate its operand, so an increment inside it never happens.",
+        "example": {
+          "problem": "On a machine with 4-byte int, after int i = 3; int n = sizeof(i++) + 2; int *p = calloc(n, sizeof(int)); what are i, the bytes allocated and p[0]?",
+          "steps": [
+            "sizeof does not evaluate i++, so i stays 3, and sizeof(i++) is 4.",
+            "n = 4 + 2 = 6 elements.",
+            "calloc reserves 6 * 4 = 24 bytes and sets all of them to zero."
+          ],
+          "result": "i is 3, 24 bytes are allocated and p[0] is 0."
+        },
+        "misconceptions": [
+          "Believing free(p) sets p to NULL. The pointer keeps its old address, and using it is undefined.",
+          "Reading malloc'd memory as zero. Only calloc clears it."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between malloc and calloc?",
+            "a": "calloc zeroes the memory and takes a count and an element size; malloc leaves it uninitialised."
+          },
+          {
+            "q": "How does a leak arise?",
+            "a": "The last pointer to a block is overwritten or lost before free is called."
+          },
+          {
+            "q": "Does sizeof(i++) change i?",
+            "a": "No, the operand of sizeof is not evaluated."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "int *p = malloc(sizeof(int)); for (int i = 0; i < 3; i++) p = malloc(sizeof(int)); free(p); How many allocated blocks are leaked when the program ends?",
+          "answer": 3,
+          "explanation": "Four blocks are allocated: one before the loop and three inside it. Each assignment to p discards the pointer to the previous block, and only the last block is freed, so 4 - 1 = 3 blocks are leaked. Answering 1 tempts if you think free(p) releases everything p ever pointed to."
+        },
+        "summary": "Count allocations against frees to find leaks, remember free leaves the pointer dangling, and note that sizeof never evaluates its operand.",
+        "prerequisites": [
+          "pds-c-programming.pointer-arithmetic"
+        ]
+      }
+    },
+    {
+      "id": "pds-c-programming.bitwise",
+      "title": "Bitwise operations and tricks",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        23,
+        305
+      ],
+      "points": [
+        "Bit k is tested with x & (1 << k), set with x |= 1 << k, cleared with x &= ~(1 << k) and toggled with x ^= 1 << k.",
+        "x << k multiplies by 2ᵏ (5 << 2 = 20). x >> k divides an unsigned value by 2ᵏ; a right shift of a negative signed value is implementation-defined.",
+        "n & (n − 1) clears the lowest set bit, so looping on it until n becomes 0 counts the 1 bits. n & −n isolates the lowest set bit, and n > 0 && (n & (n − 1)) == 0 tests for a power of two.",
+        "XOR swap (a ^= b; b ^= a; a ^= b;) needs no temporary but zeroes the value if a and b are the same object."
+      ],
+      "keyTerms": [
+        "mask",
+        "XOR",
+        "shift",
+        "lowest set bit"
+      ],
+      "lesson": {
+        "why": "Bitwise code is short but unforgiving: a wrong precedence or shift gives a different number, and the usual masks for set, clear, toggle and counting bits are worth knowing cold.",
+        "intro": "An integer is stored as a row of bits, and the bitwise operators act on each position separately. AND keeps a bit only if both inputs have it, OR keeps it if either has it, and XOR keeps it if exactly one has it. The complement ~ flips every bit, so ~(1 << k) is all ones except bit k. A shift left by k moves every bit k places up, which multiplies by 2 to the power k. A mask is a number with chosen bits set, used to select or change those bits of another number.",
+        "definitions": [
+          {
+            "term": "Mask",
+            "meaning": "A value whose set bits pick out the positions an operation affects."
+          },
+          {
+            "term": "Shift",
+            "meaning": "Moving all bits left or right by a number of places, dropping bits that fall off."
+          }
+        ],
+        "principle": {
+          "text": "Set bit k with x | (1 << k), clear it with x & ~(1 << k), toggle it with x ^ (1 << k) and test it with x & (1 << k). The expression n & (n - 1) removes the lowest set bit of n, so repeating it until n is 0 counts the set bits.",
+          "tex": "n \\,\\&\\, (n-1) = n \\text{ with its lowest set bit cleared}"
+        },
+        "limits": "Right shift of a negative signed value is implementation-defined, and shifting by at least the width of the type is undefined. The operators & ^ | rank below ==, so x & 1 == 0 needs parentheses to mean what it appears to.",
+        "example": {
+          "problem": "How many times does the loop while (n) { n &= n - 1; count++; } run for n = 44?",
+          "steps": [
+            "44 is 101100 in binary, with three set bits.",
+            "44 & 43 = 101100 & 101011 = 101000 = 40, which removed the lowest set bit.",
+            "40 & 39 = 101000 & 100111 = 100000 = 32.",
+            "32 & 31 = 0, so the loop stops after the third pass."
+          ],
+          "result": "The loop runs 3 times, the number of set bits in 44."
+        },
+        "misconceptions": [
+          "Writing x & 1 == 0 and expecting a test for even. It parses as x & (1 == 0), which is always 0.",
+          "Treating ^ as a power. It is bitwise XOR."
+        ],
+        "recall": [
+          {
+            "q": "Which expression clears bit k of x?",
+            "a": "x & ~(1 << k)."
+          },
+          {
+            "q": "What does n & (n - 1) do?",
+            "a": "It clears the lowest set bit of n."
+          },
+          {
+            "q": "What is x << k for non-negative x without overflow?",
+            "a": "x multiplied by 2 to the power k."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "With unsigned x = 40; the statements x ^= (1 << 1); x |= (1 << 2); x &= ~(1 << 3); x >>= 1; are executed in order. What is x afterwards?",
+          "answer": 19,
+          "explanation": "40 is 101000. XOR with 2 toggles bit 1 to give 101010 = 42. OR with 4 sets bit 2 to give 101110 = 46. AND with ~8 clears bit 3 to give 100110 = 38. The right shift halves it to 19. Choosing 23 comes from skipping the clear, since 46 shifted right gives 23, and choosing 20 comes from applying only the shift to 40."
+        },
+        "summary": "Use OR to set, AND with the complement to clear, XOR to toggle, and n & (n - 1) to peel off the lowest set bit."
+      }
+    },
+    {
+      "id": "pds-c-programming.recursion-tracing",
+      "title": "Recursion: frames, tracing and tail calls",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        23,
+        300,
+        302,
+        304,
+        306,
+        307
+      ],
+      "points": [
+        "Each call pushes a frame holding its own parameters and locals, so the stack depth equals the deepest chain of active calls. Too deep a chain overflows the stack.",
+        "Work done before the recursive call runs on the way down and work after it runs on the way back. void p(n) { if (n > 0) { printf(n); p(n−1); } } prints n..1, and moving the printf after the call prints 1..n.",
+        "To trace, draw the call tree with the arguments at each node, then evaluate the leaves and pass values up. Static or global variables are shared by every frame, so update them in the order the calls actually run.",
+        "A call is a tail call when nothing remains to be done after it returns. fact(n) = n * fact(n−1) is not tail-recursive, but fact(n, acc) = fact(n−1, n*acc) is and can be compiled into a loop that uses O(1) stack.",
+        "Direct recursion calls itself; indirect recursion cycles through other functions, such as A → B → A. Every path must reach a base case."
+      ],
+      "keyTerms": [
+        "stack frame",
+        "call tree",
+        "tail recursion",
+        "base case"
+      ],
+      "lesson": {
+        "why": "Recursive functions are usually asked as a trace: a printed sequence, a returned value or a call count. The method is the same each time, and mistakes come from the order of the work around the call.",
+        "intro": "A recursive function solves a problem by calling itself on a smaller input, and every call gets its own copy of parameters and local variables. Whatever a function does before the recursive call happens on the way down, and whatever it does after the call happens on the way back, once the deeper calls have finished. Drawing the calls as a tree, with the argument at each node, makes the order visible.",
+        "definitions": [
+          {
+            "term": "Base case",
+            "meaning": "An input handled without a further recursive call, which ends the descent."
+          },
+          {
+            "term": "Call tree",
+            "meaning": "A diagram with one node per call and one edge for each call it makes."
+          }
+        ],
+        "principle": {
+          "text": "Expand the calls left to right in the order the code runs them. Print or update at the position of the statement, and take a return value only after the deeper calls have returned. Shared variables, such as globals and statics, change in that same order."
+        },
+        "limits": "The tree method is only practical for small inputs; for large ones look for a pattern or a closed form. A missing base case never ends and overflows the stack. Values in a trace belong to the frame that owns them, so a local is not changed by a deeper call.",
+        "example": {
+          "problem": "What does void t(int n) { if (n <= 0) return; t(n - 1); printf(\"%d\", n); t(n - 2); } print for t(3)?",
+          "steps": [
+            "t(3) first calls t(2), before printing anything.",
+            "t(2) calls t(1), which calls t(0) and returns immediately, then t(1) prints 1 and calls t(-1), which returns.",
+            "Back in t(2): it prints 2, then calls t(0), which returns.",
+            "Back in t(3): it prints 3, then calls t(1), which prints 1."
+          ],
+          "result": "The output is 1231."
+        },
+        "misconceptions": [
+          "Printing in the order of the calls when the printf sits after the recursive call. That statement runs on the way back, so the output comes out reversed.",
+          "Treating a function with two recursive calls as Fibonacci. An extra term added to each result, such as + 1, changes every later value."
+        ],
+        "recall": [
+          {
+            "q": "When does work placed after the recursive call run?",
+            "a": "After the deeper call has returned, on the way back up."
+          },
+          {
+            "q": "What happens to the stack if there is no base case?",
+            "a": "Frames pile up without end and the stack overflows."
+          },
+          {
+            "q": "How do you trace a function that makes two recursive calls?",
+            "a": "Draw the call tree and expand the first call fully before the second."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "int g(int n) { if (n < 2) return n; return g(n - 1) + g(n - 2) + 1; } What does g(5) return?",
+          "answer": 12,
+          "explanation": "g(0) = 0 and g(1) = 1. Then g(2) = 1 + 0 + 1 = 2, g(3) = 2 + 1 + 1 = 4, g(4) = 4 + 2 + 1 = 7 and g(5) = 7 + 4 + 1 = 12. Answering 5 tempts by reading the function as plain Fibonacci and ignoring the + 1."
+        },
+        "summary": "Trace with a call tree, do each statement at its own position relative to the recursive call, and return values only as the calls unwind."
+      }
+    },
+    {
+      "id": "pds-c-programming.recursion-recurrences",
+      "title": "Recurrences and classic recursive programs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        23,
+        24,
+        300,
+        301,
+        308
+      ],
+      "points": [
+        "Read T(n) off the code: count the recursive calls and their argument sizes, then add the work outside them. T(n) = T(n − 1) + c is Θ(n), T(n) = T(n/2) + c is Θ(log n) and T(n) = 2T(n − 1) + c is Θ(2ⁿ).",
+        "Tower of Hanoi moves n − 1 disks aside, moves the largest, and moves the n − 1 back on top: M(n) = 2M(n − 1) + 1 = 2ⁿ − 1. Disk k, counting from the smallest as 1, moves 2ⁿ⁻ᵏ times.",
+        "Naive fib(n) = fib(n − 1) + fib(n − 2) takes Θ(φⁿ) time, φ ≈ 1.618, but only Θ(n) stack. Memoising or iterating brings the time down to Θ(n).",
+        "Euclid's gcd(a, b) = gcd(b, a mod b) needs O(log min(a, b)) calls, and recursive binary search needs O(log n) calls.",
+        "Generating all permutations makes n! leaves and all subsets makes 2ⁿ leaves; the number of leaves of the call tree sets the cost."
+      ],
+      "keyTerms": [
+        "recurrence",
+        "Tower of Hanoi",
+        "Fibonacci",
+        "Euclid",
+        "memoisation"
+      ],
+      "lesson": {
+        "why": "Exam questions give a short recursive function or a loop that feeds its result back into itself, then ask for the value, the number of calls or how the result compares with a power of two. Reading the recurrence out of the code is the whole skill.",
+        "intro": "A recurrence is a rule that gives the next value from earlier ones, such as new = 2 * old + 3. A recursive function is a recurrence written as code: it calls itself on smaller input until it reaches a base case that returns directly. To analyse it, count how many calls each call makes, how much smaller their arguments are, and how much work happens outside the calls. A loop that repeatedly replaces a variable by a function of itself is the same thing in disguise. When a call makes several calls and adds their results, with no extra work in the inner calls and the same constant returned by every leaf, the total is that constant times the number of leaves of the call tree, so counting leaves is often easier than tracing.",
+        "prerequisites": [
+          "pds-c-programming.recursion-tracing",
+          "pds-c-programming.control-flow"
+        ],
+        "principle": {
+          "text": "Write the cost or value as T(n) in terms of smaller arguments, then solve it. One call on n - 1 with constant extra work gives a linear count, one call on n/2 gives a logarithmic count, and two calls on n - 1 double the count at each level. A rule next = 2 * old + y becomes a pure doubling once y is added to both sides.",
+          "tex": "T(n)=2T(n-1)+1 \\Rightarrow T(n)=2^{n}-1,\\qquad x_{k+1}=2x_k+y \\Rightarrow x_k+y=2^{k}(x_0+y)"
+        },
+        "limits": "The closed forms assume the base case is reached and the extra work per call is constant. Integer variables overflow in a real run, so check that large results fit in the type before comparing. If the arguments shrink by different amounts in different calls, a leaf count by lattice paths or a table is needed rather than a single formula.",
+        "example": {
+          "problem": "Let int g(int n) { if (n <= 1) return 1; return g(n - 1) + g(n - 2); }. What does g(5) return, and how many calls are made in total, counting the first?",
+          "steps": [
+            "Base cases give g(0) = 1 and g(1) = 1. Then g(2) = 2, g(3) = 3, g(4) = 5 and g(5) = 8, since each value is the sum of the two before it.",
+            "Let C(n) be the number of calls. A call with n <= 1 is one call, and otherwise it is one call plus C(n - 1) plus C(n - 2). So C(0) = C(1) = 1, C(2) = 3, C(3) = 5, C(4) = 9 and C(5) = 15.",
+            "Check against the tree: the leaves return 1 each and there are 8 of them, matching the value 8; the 7 inner calls plus 8 leaves give 15."
+          ],
+          "result": "g(5) returns 8 and the function makes 15 calls."
+        },
+        "misconceptions": [
+          "Counting only the leaves as calls. Every call is counted, including the inner ones that split into two, so the total is larger than the number of leaves.",
+          "Assuming two recursive calls always give 2^n calls. The count depends on how far each argument shrinks; here g(n - 2) is smaller, so the growth is slower than 2^n.",
+          "Treating x = x + x + y in a loop as plain doubling of x. The added y means x + y doubles, so the result is 2^k * (x + y) - y after k passes."
+        ],
+        "recall": [
+          {
+            "q": "How do you read a recurrence out of a recursive function?",
+            "a": "Count the recursive calls and how much smaller each argument is, then add the work done outside the calls."
+          },
+          {
+            "q": "What are T(n) = T(n - 1) + c and T(n) = 2T(n - 1) + c?",
+            "a": "The first is linear in n and the second grows as 2^n."
+          },
+          {
+            "q": "If a recursive function adds the results of its calls and every leaf returns the same constant, what is the total?",
+            "a": "The constant times the number of leaves."
+          },
+          {
+            "q": "How do you solve next = 2 * old + y?",
+            "a": "Add y to both sides so that next + y = 2 * (old + y), a pure doubling of old + y."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Let int g(int n) { if (n <= 1) return 1; return g(n - 1) + g(n - 2); }. How many calls to g are made in total when g(6) is called, counting the call g(6) itself?",
+          "answer": 25,
+          "explanation": "The call count C(n) is 1 for n <= 1 and 1 + C(n - 1) + C(n - 2) otherwise. From C(4) = 9 and C(5) = 15, C(6) = 1 + 15 + 9 = 25. Counting only the 13 leaves, which equals the value g(6), is tempting but leaves out the 12 inner calls."
+        },
+        "summary": "Turn the code into a recurrence by counting calls and shrinkage, solve it or count leaves, and for a feedback loop shift the variable until the update is a pure doubling."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "pds-c-programming.pointer-add",
+      "name": "Pointer addition",
+      "tex": "\\operatorname{addr}(p + n) = \\operatorname{addr}(p) + n \\cdot \\operatorname{sizeof}(*p)",
+      "text": "addr(p + n) = addr(p) + n × sizeof(*p)",
+      "where": [
+        [
+          "n",
+          "integer offset, in elements"
+        ]
+      ],
+      "note": "For an int (*p)[5], the element is a whole int[5], so p + 1 moves 20 bytes.",
+      "topic": "pds-c-programming.pointer-arithmetic",
+      "origin": "source",
+      "pages": [
+        22,
+        298
+      ]
+    },
+    {
+      "id": "pds-c-programming.pointer-difference",
+      "name": "Pointer difference",
+      "tex": "q - p = \\frac{\\operatorname{addr}(q) - \\operatorname{addr}(p)}{\\operatorname{sizeof}(T)}",
+      "text": "q − p = (addr(q) − addr(p)) / sizeof(T)",
+      "where": [
+        [
+          "T",
+          "the type both pointers point to"
+        ]
+      ],
+      "note": "Defined only within one array, or one past its end. The result counts elements, not bytes.",
+      "topic": "pds-c-programming.pointer-arithmetic",
+      "origin": "source",
+      "pages": [
+        298,
+        302
+      ]
+    },
+    {
+      "id": "pds-c-programming.row-major-2d",
+      "name": "Row-major address of a 2D element",
+      "tex": "\\operatorname{addr}(m[i][j]) = B + (i \\cdot C + j)\\, w",
+      "text": "addr(m[i][j]) = B + (i × C + j) × w",
+      "where": [
+        [
+          "B",
+          "base address"
+        ],
+        [
+          "C",
+          "number of columns"
+        ],
+        [
+          "w",
+          "element size in bytes"
+        ]
+      ],
+      "note": "Zero-based indices. With lower bounds l₁, l₂, use (i − l₁)·C + (j − l₂).",
+      "topic": "pds-c-programming.arrays-2d",
+      "origin": "source",
+      "pages": [
+        22,
+        297
+      ]
+    },
+    {
+      "id": "pds-c-programming.column-major-2d",
+      "name": "Column-major address of a 2D element",
+      "tex": "\\operatorname{addr}(m[i][j]) = B + (j \\cdot R + i)\\, w",
+      "text": "addr(m[i][j]) = B + (j × R + i) × w",
+      "where": [
+        [
+          "R",
+          "number of rows"
+        ]
+      ],
+      "note": "Not how C stores arrays (Fortran does), but GATE sometimes asks for both orders.",
+      "topic": "pds-c-programming.arrays-2d",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-c-programming.row-major-3d",
+      "name": "Row-major address of a 3D element",
+      "tex": "\\operatorname{addr}(m[i][j][k]) = B + \\big((i \\cdot D_2 + j)\\, D_3 + k\\big)\\, w",
+      "text": "addr(m[i][j][k]) = B + ((i × D₂ + j) × D₃ + k) × w",
+      "where": [
+        [
+          "D₂, D₃",
+          "sizes of the second and third dimensions"
+        ]
+      ],
+      "topic": "pds-c-programming.arrays-2d",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-c-programming.struct-offset",
+      "name": "Struct member offset and total size",
+      "tex": "o_k = \\left\\lceil \\frac{o_{k-1} + s_{k-1}}{a_k} \\right\\rceil a_k, \\qquad \\operatorname{sizeof} = \\left\\lceil \\frac{o_n + s_n}{a_{\\max}} \\right\\rceil a_{\\max}",
+      "text": "o(k) = ⌈(o(k−1) + s(k−1)) / a(k)⌉ × a(k); sizeof = ⌈(o(n) + s(n)) / a_max⌉ × a_max",
+      "where": [
+        [
+          "o_k",
+          "offset of member k (o₁ = 0)"
+        ],
+        [
+          "s_k, a_k",
+          "size and alignment of member k"
+        ],
+        [
+          "a_max",
+          "largest member alignment"
+        ]
+      ],
+      "note": "The tail padding is the classic miss: struct { int x; char y; } is 8 bytes, not 5.",
+      "topic": "pds-c-programming.structs-unions",
+      "origin": "source",
+      "pages": [
+        23,
+        299,
+        302
+      ]
+    },
+    {
+      "id": "pds-c-programming.union-size",
+      "name": "Union size",
+      "tex": "\\operatorname{sizeof}(U) = \\left\\lceil \\frac{\\max_k s_k}{a_{\\max}} \\right\\rceil a_{\\max}",
+      "text": "sizeof(U) = ⌈max s(k) / a_max⌉ × a_max",
+      "note": "Equals the largest member only when that size is already a multiple of the largest alignment.",
+      "topic": "pds-c-programming.structs-unions",
+      "origin": "curated",
+      "pages": [
+        23,
+        299
+      ]
+    },
+    {
+      "id": "pds-c-programming.integer-range",
+      "name": "Range of an n-bit integer",
+      "tex": "\\text{signed: } [-2^{n-1},\\, 2^{n-1} - 1], \\qquad \\text{unsigned: } [0,\\, 2^{n} - 1]",
+      "text": "signed: −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1; unsigned: 0 to 2ⁿ − 1",
+      "note": "Two's complement. Unsigned values wrap modulo 2ⁿ; signed overflow is undefined.",
+      "topic": "pds-c-programming.types-conversions",
+      "origin": "source",
+      "pages": [
+        294
+      ]
+    },
+    {
+      "id": "pds-c-programming.lowest-set-bit",
+      "name": "Lowest-set-bit identities",
+      "tex": "n \\mathbin{\\&} (n-1) = n \\text{ with its lowest 1 cleared}, \\qquad n \\mathbin{\\&} (-n) = 2^{\\,\\text{index of lowest 1}}",
+      "text": "n & (n − 1) clears the lowest 1 bit; n & (−n) keeps only the lowest 1 bit",
+      "note": "Repeating n &= n − 1 until n is 0 runs once per 1 bit, so it counts the set bits.",
+      "topic": "pds-c-programming.bitwise",
+      "origin": "source",
+      "pages": [
+        23
+      ]
+    },
+    {
+      "id": "pds-c-programming.hanoi-moves",
+      "name": "Tower of Hanoi moves",
+      "tex": "M(n) = 2M(n-1) + 1,\\; M(0) = 0 \\;\\Rightarrow\\; M(n) = 2^{n} - 1",
+      "text": "M(n) = 2M(n − 1) + 1, M(0) = 0, so M(n) = 2ⁿ − 1",
+      "note": "Disk k, counting from the smallest as 1, moves 2ⁿ⁻ᵏ times; the smallest disk moves 2ⁿ⁻¹ times.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24,
+        300,
+        308
+      ]
+    },
+    {
+      "id": "pds-c-programming.fib-calls",
+      "name": "Calls made by naive Fibonacci",
+      "tex": "C(n) = C(n-1) + C(n-2) + 1,\\; C(0) = C(1) = 1 \\;\\Rightarrow\\; C(n) = 2F_{n+1} - 1",
+      "text": "C(n) = C(n − 1) + C(n − 2) + 1, C(0) = C(1) = 1, so C(n) = 2F(n+1) − 1",
+      "where": [
+        [
+          "F_k",
+          "k-th Fibonacci number, F₀ = 0, F₁ = 1"
+        ]
+      ],
+      "note": "Holds for fib with base case n < 2. fib(6) makes 25 calls, and the count grows as Θ(φⁿ).",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "curated",
+      "pages": [
+        300
+      ]
+    },
+    {
+      "id": "pds-c-programming.linear-recurrences",
+      "name": "Common recurrences from recursive code",
+      "tex": "T(n) = T(n-1) + c \\Rightarrow \\Theta(n), \\quad T(n) = T(n/2) + c \\Rightarrow \\Theta(\\log n), \\quad T(n) = 2T(n-1) + c \\Rightarrow \\Theta(2^{n})",
+      "text": "T(n) = T(n − 1) + c → Θ(n); T(n) = T(n/2) + c → Θ(log n); T(n) = 2T(n − 1) + c → Θ(2ⁿ)",
+      "note": "For T(n) = aT(n/b) + f(n), use the Master theorem.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        23,
+        301
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "pds-c-programming.cx-factorial",
+      "name": "Recursive factorial",
+      "worst": "O(n)",
+      "space": "O(n) stack",
+      "notes": "The tail-recursive form with an accumulator runs in O(1) stack when the compiler eliminates tail calls.",
+      "topic": "pds-c-programming.recursion-tracing",
+      "origin": "source",
+      "pages": [
+        23,
+        300
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-fib-naive",
+      "name": "Naive recursive Fibonacci",
+      "worst": "Θ(φⁿ), φ ≈ 1.618",
+      "space": "O(n) stack",
+      "notes": "Makes 2F(n+1) − 1 calls; the stack depth is only n.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        300,
+        308
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-fib-memo",
+      "name": "Memoised or iterative Fibonacci",
+      "worst": "O(n)",
+      "space": "O(n) memo, O(1) iterative",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-c-programming.cx-hanoi",
+      "name": "Tower of Hanoi",
+      "worst": "Θ(2ⁿ)",
+      "space": "O(n) stack",
+      "notes": "Exactly 2ⁿ − 1 moves.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24,
+        300
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-gcd",
+      "name": "Euclid's gcd (recursive)",
+      "worst": "O(log min(a, b))",
+      "space": "O(log min(a, b)) stack",
+      "notes": "The worst case is two consecutive Fibonacci numbers.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-binary-search",
+      "name": "Recursive binary search",
+      "best": "O(1)",
+      "worst": "O(log n)",
+      "space": "O(log n) stack",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-permutations",
+      "name": "Generating all permutations / subsets",
+      "worst": "O(n · n!) / O(n · 2ⁿ)",
+      "space": "O(n) stack",
+      "notes": "The output size dominates: n! permutations or 2ⁿ subsets, each of length up to n.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24
+      ]
+    },
+    {
+      "id": "pds-c-programming.cx-strlen",
+      "name": "strlen, strcpy, strcmp",
+      "worst": "O(n)",
+      "space": "O(1)",
+      "notes": "They scan up to the terminator, so calling strlen(s) in a loop condition makes the loop O(n²).",
+      "topic": "pds-c-programming.strings",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "pds-c-programming.pt-static-recursion-output",
+      "title": "Value returned or printed by recursion with static or global variables",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Draw the call tree with each call's argument, in the order the calls actually happen.",
+        "Keep one shared box for every static or global variable and update it at the moment each call runs.",
+        "Evaluate the returns bottom-up, using the shared variable's value at the time it is read."
+      ],
+      "trap": "A static variable is not reset per call: by the time the deep calls read it, an outer call may already have overwritten it.",
+      "topic": "pds-c-programming.recursion-tracing",
+      "origin": "source",
+      "pages": [
+        302,
+        304,
+        307
+      ]
+    },
+    {
+      "id": "pds-c-programming.pt-pointer-2d",
+      "title": "Pointer arithmetic on 1D and 2D arrays",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Write the type of each sub-expression: a is int (*)[C], *a is int *, &a is int (*)[R][C].",
+        "Multiply each offset by the size of the pointed-to type: a row, an element or the whole array.",
+        "Rewrite subscripts as *(base + i) to read values, or add byte offsets to the base for addresses."
+      ],
+      "trap": "a, *a and &a print the same address but step by different amounts.",
+      "topic": "pds-c-programming.arrays-2d",
+      "origin": "source",
+      "pages": [
+        22,
+        297,
+        298
+      ]
+    },
+    {
+      "id": "pds-c-programming.pt-parameter-passing",
+      "title": "Does the function change the caller's variables?",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Check what is copied: a value, a pointer or an array (which decays to a pointer).",
+        "Only writes through a pointer (*p = …, p[i] = …) reach the caller; assignments to parameters do not.",
+        "Trace the caller's variables after the call returns."
+      ],
+      "trap": "Swapping two pointer parameters looks like a reference swap but only exchanges local copies.",
+      "topic": "pds-c-programming.parameter-passing",
+      "origin": "source",
+      "pages": [
+        296,
+        302,
+        304,
+        305
+      ]
+    },
+    {
+      "id": "pds-c-programming.pt-sizeof",
+      "title": "sizeof of structs, unions, arrays and strings",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "For a struct, place each member at the next multiple of its alignment, then round the total up to the largest alignment.",
+        "For a union, take the largest member and round it up to the largest alignment.",
+        "Inside a function, an array parameter is a pointer, while a string array includes the '\\0'."
+      ],
+      "trap": "Forgetting the tail padding, or using the array's size for a parameter that has decayed to a pointer.",
+      "topic": "pds-c-programming.structs-unions",
+      "origin": "source",
+      "pages": [
+        299,
+        303,
+        304,
+        306,
+        307
+      ]
+    },
+    {
+      "id": "pds-c-programming.pt-count-calls",
+      "title": "Counting recursive calls, moves or printed lines",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the recurrence for the count, with 1 for the current call plus the counts of its children.",
+        "Fix the base values from the code's base case.",
+        "Tabulate small n, or use a closed form such as 2ⁿ − 1 or 2F(n+1) − 1."
+      ],
+      "trap": "Counting returns or additions instead of calls: fib(n) performs F(n+1) − 1 additions but makes 2F(n+1) − 1 calls.",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "source",
+      "pages": [
+        24,
+        300,
+        305
+      ]
+    },
+    {
+      "id": "pds-c-programming.pt-declarations",
+      "title": "Reading a complex declaration",
+      "frequency": "low",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Start at the identifier and read the suffixes [] and () before the prefix *.",
+        "Leave the current parentheses and repeat until the base type remains."
+      ],
+      "trap": "int *a[10] and int (*a)[10] differ only in the parentheses but declare different things.",
+      "topic": "pds-c-programming.declarations",
+      "origin": "source",
+      "pages": [
+        298,
+        302,
+        307
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "pds-c-programming.q-pointer-index",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What does this fragment print? int a[] = {2, 4, 6, 8, 10}, *p = a; p += 2; printf(\"%d\", p[1] + *(p - 2) + 2[a]);",
+      "options": [
+        "16",
+        "18",
+        "14",
+        "Compilation error, because 2[a] is invalid"
+      ],
+      "answer": 0,
+      "explanation": "After p += 2, p points at a[2]. p[1] is a[3] = 8, *(p − 2) is a[0] = 2, and 2[a] is *(2 + a) = a[2] = 6, which is legal C. The sum is 8 + 2 + 6 = 16.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.pointer-arithmetic",
+      "origin": "curated",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Output prediction",
+      "pages": [
+        298,
+        306
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-static-recursion",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Consider int f(int n) { static int r = 0; if (n <= 0) return 1; if (n > 3) { r = n; return f(n - 2) + 2; } return f(n - 1) + r; } What value does f(7) return?",
+      "answer": 20,
+      "explanation": "f(7) sets r = 7 and returns f(5) + 2. f(5) sets r = 5 and returns f(3) + 2. From here on n ≤ 3, so r stays 5: f(0) = 1, f(1) = 1 + 5 = 6, f(2) = 11, f(3) = 16. Then f(5) = 18 and f(7) = 20. The 7 written into r is overwritten before anything reads it.",
+      "difficulty": "hard",
+      "topic": "pds-c-programming.recursion-tracing",
+      "origin": "curated",
+      "pages": [
+        304,
+        307
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-pointer-swap",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "void swap(int *a, int *b) { int *t = a; a = b; b = t; } int main() { int x = 1, y = 2; swap(&x, &y); printf(\"%d %d\", x, y); } What is printed?",
+      "options": [
+        "2 1",
+        "1 2",
+        "2 2",
+        "The output is undefined"
+      ],
+      "answer": 1,
+      "explanation": "swap receives copies of the two addresses and exchanges those local copies. It never writes through them with *a or *b, so x and y are unchanged and the program prints 1 2.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.parameter-passing",
+      "origin": "curated",
+      "pages": [
+        296,
+        302
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-struct-size",
+      "type": "nat",
+      "marks": 2,
+      "stem": "On a machine where char, short, int and double take 1, 2, 4 and 8 bytes and each type is aligned to its own size, what is sizeof(struct S) for struct S { char a; double b; char c; int d; short e; }?",
+      "answer": 32,
+      "explanation": "a sits at 0, and b needs a multiple of 8, so it sits at 8–15 after 7 bytes of padding. c is at 16, d needs a multiple of 4 and sits at 20–23, and e is at 24–25. The members end at 26, which rounds up to a multiple of the largest alignment, 8, giving 32. Reordering the members as double, int, short, char, char would need only 16 bytes.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.structs-unions",
+      "origin": "source",
+      "pages": [
+        299,
+        304
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-declaration",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What does the declaration int *(*f[5])(int); declare?",
+      "options": [
+        "An array of 5 pointers to functions that take an int and return a pointer to int",
+        "A pointer to an array of 5 functions returning int",
+        "A function taking an int and returning a pointer to an array of 5 ints",
+        "An array of 5 functions that each return a pointer to int"
+      ],
+      "answer": 0,
+      "explanation": "Start at f: f[5] is an array of 5, (*f[5]) makes each element a pointer, (int) makes the pointee a function taking int, and the leading int * is that function's return type. C has no arrays of functions, so the last option cannot even be declared.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.declarations",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2020) — Function pointer",
+      "pages": [
+        298,
+        302,
+        307
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-const-pointers",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Given int x = 1, y = 2; const int *p = &x; int *const q = &x; which of these statements compile without error?",
+      "options": [
+        "p = &y;",
+        "*p = 5;",
+        "*q = 5;",
+        "q = &y;"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "p points to a const int, so the pointee cannot be written through p (*p = 5 is an error), but p itself can move to &y. q is a const pointer, so it cannot be reassigned (q = &y is an error), but *q = 5 writes x.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.declarations",
+      "origin": "source",
+      "pages": [
+        22,
+        298
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-fib-calls",
+      "type": "nat",
+      "marks": 2,
+      "stem": "int fib(int n) { return n < 2 ? n : fib(n - 1) + fib(n - 2); } How many calls to fib are made in total, including the first one, when fib(6) is evaluated?",
+      "answer": 25,
+      "explanation": "Let C(n) be the number of calls. C(0) = C(1) = 1 and C(n) = 1 + C(n − 1) + C(n − 2), which gives 1, 1, 3, 5, 9, 15, 25 for n = 0..6. As a check, C(n) = 2F(n+1) − 1 = 2·13 − 1 = 25.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "curated",
+      "pages": [
+        300
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-print-order",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "void p(int n) { if (n > 0) { p(n - 1); printf(\"%d \", n); p(n - 1); } } What does p(3) print?",
+      "options": [
+        "1 2 1 3 1 2 1",
+        "3 2 1 1 2 1 1",
+        "1 2 3 1 2 1 3",
+        "3 2 1 2 1 3 1"
+      ],
+      "answer": 0,
+      "explanation": "p(1) prints 1, so p(2) prints p(1), then 2, then p(1): 1 2 1. p(3) prints p(2), then 3, then p(2): 1 2 1 3 1 2 1. This is the in-order walk of the call tree, the same pattern as the Hanoi disk numbers, and it prints 2³ − 1 = 7 numbers.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.recursion-tracing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-c-programming.q-hanoi-smallest",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The standard recursive Tower of Hanoi solution moves 5 disks from one peg to another. How many of its moves move the smallest disk?",
+      "answer": 16,
+      "explanation": "Disk k (counting from the smallest as 1) moves 2ⁿ⁻ᵏ times, so the smallest disk moves 2⁴ = 16 times. As a check, the counts for all five disks are 16 + 8 + 4 + 2 + 1 = 31 = 2⁵ − 1 moves in total.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.recursion-recurrences",
+      "origin": "curated",
+      "pages": [
+        300
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-2d-addresses",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "int a[3][4] begins at address 2000 and sizeof(int) is 4. What are the values of a + 2, *a + 2 and &a + 1, in that order?",
+      "options": [
+        "2032, 2008, 2048",
+        "2008, 2008, 2004",
+        "2032, 2032, 2016",
+        "2008, 2032, 2048"
+      ],
+      "answer": 0,
+      "explanation": "a decays to a pointer to a row of 4 ints (16 bytes), so a + 2 = 2000 + 32 = 2032. *a is a pointer to int, so *a + 2 = 2000 + 8 = 2008. &a points to the whole 48-byte array, so &a + 1 = 2048.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.arrays-2d",
+      "origin": "source",
+      "pages": [
+        297,
+        298
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-undefined-behaviour",
+      "type": "msq",
+      "marks": 2,
+      "stem": "int i = 1, x; int a[5] = {0}; Taken one at a time, which of these C statements have undefined behaviour?",
+      "options": [
+        "i = i++ + 1;",
+        "a[i] = i++;",
+        "i = (i++, i + 1);",
+        "x = i++ && i++;"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "In i = i++ + 1, i is modified twice with no sequence point between the two writes. In a[i] = i++, i is read to pick the element and modified by i++, again unsequenced. The comma operator and && each put a sequence point after their left operand, so i = (i++, i + 1) sets i to 3, and x = i++ && i++ sets x to 1 and leaves i at 3. Both of those are well defined.",
+      "difficulty": "hard",
+      "topic": "pds-c-programming.side-effects-ub",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2013) — Increment trap",
+      "pages": [
+        303,
+        308
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-signed-unsigned",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "With a 32-bit int: unsigned int u = 1; int i = -1; if (i < u) printf(\"A\"); else printf(\"B\"); What is printed?",
+      "options": [
+        "A",
+        "B",
+        "AB",
+        "Nothing, because the comparison is a compilation error"
+      ],
+      "answer": 1,
+      "explanation": "In i < u, the usual arithmetic conversions turn i into unsigned int, and −1 becomes 4294967295. The test 4294967295 < 1 is false, so the program prints B. Compilers may warn about the comparison, but it compiles.",
+      "difficulty": "medium",
+      "topic": "pds-c-programming.types-conversions",
+      "origin": "curated",
+      "pages": [
+        295
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-switch-fallthrough",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "int x = 2, s = 0; switch (x) { case 1: s += 1; case 2: s += 2; case 3: s += 3; break; case 4: s += 4; default: s += 10; } What is s afterwards?",
+      "options": [
+        "2",
+        "5",
+        "15",
+        "19"
+      ],
+      "answer": 1,
+      "explanation": "Control jumps to case 2 and adds 2. There is no break, so it falls into case 3 and adds 3, then the break ends the switch. s = 5. The option 15 adds default as well, and 19 also adds case 4.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.control-flow",
+      "origin": "source",
+      "pages": [
+        296
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-popcount-loop",
+      "type": "nat",
+      "marks": 1,
+      "stem": "int n = 181, c = 0; while (n) { n &= n - 1; c++; } What is the value of c when the loop ends?",
+      "answer": 5,
+      "explanation": "Each n &= n − 1 clears the lowest 1 bit, so the loop runs once per set bit. 181 = 10110101 in binary, which has five 1s. The values of n go 180, 176, 160, 128, 0, so c = 5.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.bitwise",
+      "origin": "curated",
+      "pages": [
+        23
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-array-decay-sizeof",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "On a 64-bit machine with 4-byte int and 8-byte pointers: void g(int arr[]) { printf(\"%zu\", sizeof(arr) / sizeof(arr[0])); } int main() { int a[5]; g(a); } What is printed?",
+      "options": [
+        "5",
+        "2",
+        "1",
+        "20"
+      ],
+      "answer": 1,
+      "explanation": "In a parameter list, int arr[] means int *arr, so sizeof(arr) is the pointer size, 8, not the 20 bytes of the caller's array. 8 / sizeof(int) = 8 / 4 = 2. With 4-byte pointers it would print 1, and it never prints 5.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.parameter-passing",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Array decay",
+      "pages": [
+        302,
+        307
+      ]
+    },
+    {
+      "id": "pds-c-programming.q-memory-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these statements about C are true?",
+      "options": [
+        "A static local variable is initialised once and keeps its value between calls.",
+        "calloc returns memory that is set to zero, while malloc's memory is uninitialised.",
+        "A function that returns the address of one of its auto local variables gives the caller a dangling pointer.",
+        "Inside a function, sizeof applied to an array parameter gives the size of the whole array passed."
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "The first three are true. A static local lives in the data segment and is initialised once. calloc zeroes its block and malloc does not. An auto local's frame is popped on return, so its address dangles. The fourth is false, because the parameter is a pointer and sizeof gives the pointer size.",
+      "difficulty": "easy",
+      "topic": "pds-c-programming.storage-classes",
+      "origin": "source",
+      "pages": [
+        301,
+        302,
+        308
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Two modifications of the same variable, or a modification plus another read of it, with no sequence point between them are undefined: x++ * ++x has no correct output.",
+      "origin": "source",
+      "pages": [
+        303,
+        308
+      ]
+    },
+    {
+      "text": "An array passed to a function decays to a pointer, so sizeof(arr) inside the function is the pointer size and the element count is lost.",
+      "origin": "source",
+      "pages": [
+        302,
+        303,
+        308
+      ]
+    },
+    {
+      "text": "Struct size needs tail padding as well: round the end offset up to the largest member alignment.",
+      "origin": "source",
+      "pages": [
+        299,
+        308
+      ]
+    },
+    {
+      "text": "A static local is initialised once, not on every call; an auto local starts again with garbage each time.",
+      "origin": "source",
+      "pages": [
+        302,
+        308
+      ]
+    },
+    {
+      "text": "Returning the address of a local array or variable yields a dangling pointer, even when the program seems to print the right value.",
+      "origin": "source",
+      "pages": [
+        308
+      ]
+    },
+    {
+      "text": "Comparing a negative int with an unsigned value converts the int to a huge unsigned number, so -1 < 1u is false.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Bitwise & binds looser than ==, so if (x & 1 == 0) tests x & 0. Parenthesise as (x & 1) == 0.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Passing and pointers",
+      "lines": [
+        "Everything by value; reference = pass the address",
+        "Arrays pass as a pointer: sizeof breaks",
+        "p + n moves n × sizeof(*p) bytes; q − p counts elements",
+        "a[i] == *(a + i) == i[a]",
+        "int a[R][C]: a + 1 = one row, *a + 1 = one int, &a + 1 = whole array"
+      ],
+      "origin": "source",
+      "pages": [
+        297,
+        298,
+        308
+      ]
+    },
+    {
+      "heading": "Declarations and layout",
+      "lines": [
+        "int *a[10] array of pointers; int (*a)[10] pointer to array",
+        "const int *p: *p fixed; int *const p: p fixed",
+        "struct: align each member, round the total to the max alignment",
+        "union: largest member, rounded to the max alignment",
+        "char s[] = \"Hi\": sizeof 3, strlen 2"
+      ],
+      "origin": "source",
+      "pages": [
+        298,
+        299,
+        308
+      ]
+    },
+    {
+      "heading": "Storage",
+      "lines": [
+        "static local: data segment, init once, persists",
+        "globals and statics default to 0; auto locals hold garbage",
+        "extern: defined elsewhere; register: hint, no &",
+        "malloc garbage, calloc zero, free leaves p dangling"
+      ],
+      "origin": "source",
+      "pages": [
+        301,
+        308
+      ]
+    },
+    {
+      "heading": "Recursion",
+      "lines": [
+        "Hanoi: 2ⁿ − 1 moves; smallest disk 2ⁿ⁻¹",
+        "Naive fib: Θ(φⁿ) time, 2F(n+1) − 1 calls, O(n) stack",
+        "Print before the call: top-down; after the call: bottom-up",
+        "Tail call: nothing after the call, so it can become a loop"
+      ],
+      "origin": "source",
+      "pages": [
+        23,
+        300,
+        308
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 23,
+      "claim": "A union's size equals the size of its largest member.",
+      "correction": "The size is the largest member rounded up to the strictest member alignment. union { char c[5]; int i; } is 8 bytes on a typical machine, not 5. The examples given (int with float or char[4]) happen to be 4 because 4 is already aligned."
+    },
+    {
+      "page": 298,
+      "claim": "Dereferencing a NULL pointer crashes.",
+      "correction": "Dereferencing NULL is undefined behaviour. It usually ends in a segmentation fault on desktop systems, but the language guarantees nothing, and an optimising compiler may assume it never happens."
+    },
+    {
+      "page": 303,
+      "claim": "For printf(\"%d %d\", x++, ++x) with x = 5, the output is 6 7 or 5 7 because argument evaluation order is unspecified.",
+      "correction": "x is modified twice with no sequence point between the two modifications, so the behaviour is undefined, not just dependent on evaluation order, and no output is guaranteed. Neither 6 7 nor 5 7 is a correct answer."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "pds-programming-in-c",
+      "status": "covered",
+      "topics": [
+        "pds-c-programming.types-conversions",
+        "pds-c-programming.operators-precedence",
+        "pds-c-programming.side-effects-ub",
+        "pds-c-programming.control-flow",
+        "pds-c-programming.parameter-passing",
+        "pds-c-programming.pointer-arithmetic",
+        "pds-c-programming.declarations",
+        "pds-c-programming.arrays-2d",
+        "pds-c-programming.strings",
+        "pds-c-programming.structs-unions",
+        "pds-c-programming.storage-classes",
+        "pds-c-programming.dynamic-memory",
+        "pds-c-programming.bitwise"
+      ]
+    },
+    {
+      "item": "pds-recursion",
+      "status": "covered",
+      "topics": [
+        "pds-c-programming.recursion-tracing",
+        "pds-c-programming.recursion-recurrences"
+      ]
+    }
+  ]
+}

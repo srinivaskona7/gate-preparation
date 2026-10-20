@@ -1,0 +1,2090 @@
+{
+  "id": "toc-finite-automata",
+  "summary": "Finite automata are machines with a fixed, finite memory: their states. DFAs, NFAs, ε-NFAs and regular expressions all describe the same class, the regular languages, and GATE tests the conversions between them, the minimal DFA for a described language, closure properties and the pumping lemma. Most marks come from counting minimal-DFA states, reading the language of a regex or automaton, and deciding quickly whether a language needs unbounded memory.",
+  "highYield": [
+    "Number of states in the minimal DFA for a described language (substring, suffix, length mod k, binary divisibility, k-th symbol from the end): a NAT in most papers.",
+    "Which regular expression denotes a given language, or which two regexes are equivalent; test with short strings such as ε, a single symbol and the first string a candidate misses.",
+    "Which of several languages are regular: finite memory means regular; comparing two unbounded counts, aⁿ², primes and ww over two letters are not.",
+    "Closure of regular languages under union, intersection, complement, difference, concatenation, star, reversal, homomorphism and inverse homomorphism, and regular ∩ CFL = CFL.",
+    "Subset construction: count the reachable DFA states of a small ε-NFA, remembering the ε-closure at the start and after every move."
+  ],
+  "topics": [
+    {
+      "id": "toc-finite-automata.strings-languages",
+      "title": "Alphabets, strings and languages",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        400
+      ],
+      "points": [
+        "An alphabet Σ is a finite non-empty set of symbols; a string is a finite sequence of symbols, |w| is its length and ε is the unique string of length 0.",
+        "Σ* is the set of all strings over Σ including ε, and Σ⁺ = Σ* − {ε}. A language is any subset of Σ*, so ∅, {ε} and Σ* are three different languages.",
+        "Over an alphabet of k symbols there are kⁿ strings of length exactly n; over {0,1} there are 2³ = 8 strings of length 3 and 1 + 2 + 4 + 8 = 15 of length at most 3.",
+        "Language operations: union, concatenation L₁L₂ = {xy : x ∈ L₁, y ∈ L₂}, powers Lⁿ and star L* = L⁰ ∪ L¹ ∪ L² ∪ …, where L⁰ = {ε} even when L = ∅."
+      ],
+      "keyTerms": [
+        "alphabet",
+        "Σ*",
+        "Σ⁺",
+        "empty string ε",
+        "language"
+      ],
+      "lesson": {
+        "why": "Every later topic in this chapter talks about languages, so questions on closure, counting strings and powers of a language all start from these definitions.",
+        "intro": "An alphabet is a finite set of symbols, such as $\\{0,1\\}$. A string is a finite row of those symbols, and the empty string $\\epsilon$ is the row with no symbols. A language is simply a set of strings. Because a language is a set, you can combine two languages with set union, or glue strings from two languages together one after the other; that gluing is called concatenation.",
+        "analogy": {
+          "text": "An alphabet is a box of letter tiles, a string is one word spelled with them, and a language is a dictionary: a chosen list of allowed words.",
+          "breaksWhen": "A dictionary is finite, but a language can hold infinitely many strings, and the same tile may be used any number of times."
+        },
+        "definitions": [
+          {
+            "term": "$\\Sigma^*$",
+            "meaning": "The set of all strings over $\\Sigma$, including the empty string."
+          },
+          {
+            "term": "Concatenation $L_1L_2$",
+            "meaning": "The set of every string $xy$ where $x$ comes from $L_1$ and $y$ comes from $L_2$."
+          },
+          {
+            "term": "Kleene star $L^*$",
+            "meaning": "All strings made by gluing together zero or more strings of $L$."
+          }
+        ],
+        "principle": {
+          "text": "Concatenation of languages multiplies choices, and the power $L^n$ means $n$ glued pieces with $L^0=\\{\\epsilon\\}$. The star collects every power.",
+          "tex": "L^* = L^0 \\cup L^1 \\cup L^2 \\cup \\cdots, \\qquad L^0=\\{\\epsilon\\}"
+        },
+        "limits": "Counting $|L_1L_2| = |L_1|\\cdot|L_2|$ holds only when no two different pairs glue to the same string; otherwise the product overcounts. Also $\\emptyset^* = \\{\\epsilon\\}$, but $L\\emptyset = \\emptyset$.",
+        "example": {
+          "problem": "Let $L=\\{0,\\,01\\}$ over $\\{0,1\\}$. List $L^2$ and say how many strings it has.",
+          "steps": [
+            "Take every ordered pair $(x,y)$ with $x,y\\in L$. There are $2\\cdot 2=4$ pairs.",
+            "Glue them: $0\\cdot0=00$, $0\\cdot01=001$, $01\\cdot0=010$, $01\\cdot01=0101$.",
+            "Check that no two results are equal. All four differ, so none merge."
+          ],
+          "result": "$L^2=\\{00,\\,001,\\,010,\\,0101\\}$, which has 4 strings."
+        },
+        "misconceptions": [
+          "$\\emptyset$, $\\{\\epsilon\\}$ and $\\Sigma^*$ are three different languages: the first has no strings, the second has exactly one string of length 0.",
+          "$L^*$ always contains $\\epsilon$, even when $L$ is empty, because zero pieces glued together is the empty string."
+        ],
+        "recall": [
+          {
+            "q": "Is a language a string or a set?",
+            "a": "A language is a set of strings, any subset of $\\Sigma^*$."
+          },
+          {
+            "q": "How many strings of length exactly $n$ exist over an alphabet of $k$ symbols?",
+            "a": "There are $k^n$, since each of the $n$ positions has $k$ choices."
+          },
+          {
+            "q": "What is $L^0$ for any language $L$?",
+            "a": "It is $\\{\\epsilon\\}$, even when $L$ is empty."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Over the alphabet $\\{a,b,c\\}$, how many strings have length at most 3, counting the empty string?",
+          "answer": 40,
+          "explanation": "Add the counts per length: $1+3+9+27=40$. A tempting wrong answer is 27, which counts only length exactly 3, and another is 39, which forgets that the empty string is a string of length 0."
+        },
+        "summary": "A language is a set of strings over a finite alphabet. Concatenation glues one string from each language, and the star collects all powers, always including $\\epsilon$."
+      }
+    },
+    {
+      "id": "toc-finite-automata.dfa-definition",
+      "title": "Deterministic finite automaton",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        401
+      ],
+      "points": [
+        "A DFA is a 5-tuple (Q, Σ, δ, q₀, F): finite states Q, input alphabet Σ, total transition function δ : Q × Σ → Q, start state q₀ and accepting states F ⊆ Q.",
+        "δ is total: every state has exactly one move on every symbol. A missing move in a drawn diagram means an implicit dead (trap) state, which counts when you report the size of a minimal DFA.",
+        "The extended function δ* processes a whole string: δ*(q, ε) = q and δ*(q, wa) = δ(δ*(q, w), a). M accepts w exactly when δ*(q₀, w) ∈ F.",
+        "Complementing a language means swapping accepting and non-accepting states of a complete DFA; doing it on an NFA or on a DFA with missing moves gives a wrong answer."
+      ],
+      "keyTerms": [
+        "5-tuple",
+        "total transition function",
+        "dead state",
+        "extended transition function"
+      ],
+      "lesson": {
+        "why": "Questions ask you to read a DFA, trace a string, count accepted strings or complement the machine, and each needs the exact formal meaning of the five parts.",
+        "intro": "A deterministic finite automaton reads an input string one symbol at a time. It always sits in exactly one of finitely many states, and each symbol moves it along exactly one arrow. When the input ends, the machine accepts if its current state is one of the marked accepting states, and rejects otherwise. The formal description lists the states, the symbols, the arrows, the starting state and the accepting states.",
+        "prerequisites": [
+          "toc-finite-automata.strings-languages"
+        ],
+        "definitions": [
+          {
+            "term": "Transition function $\\delta$",
+            "meaning": "A rule that gives, for every state and every symbol, the single next state."
+          },
+          {
+            "term": "Dead state",
+            "meaning": "A non-accepting state that loops to itself on every symbol, so no string can leave it."
+          }
+        ],
+        "principle": {
+          "text": "A DFA is the 5-tuple $(Q,\\Sigma,\\delta,q_0,F)$ with $\\delta$ defined for every state and symbol. It accepts $w$ exactly when the state reached from $q_0$ after reading all of $w$ lies in $F$.",
+          "tex": "\\hat\\delta(q,\\epsilon)=q,\\quad \\hat\\delta(q,wa)=\\delta(\\hat\\delta(q,w),a),\\quad w\\in L \\iff \\hat\\delta(q_0,w)\\in F"
+        },
+        "limits": "A drawing may omit arrows to a dead state, but the machine still has them, and they count as a state when you ask for its size. Swapping accepting and non-accepting states complements the language only for a complete DFA.",
+        "example": {
+          "problem": "A DFA has states $A$ (start) and $B$ (accepting). Reading 1 switches between $A$ and $B$; reading 0 stays where it is. Does it accept $1101$?",
+          "steps": [
+            "Start in $A$ and read 1: go to $B$.",
+            "Read 1: go back to $A$. Read 0: stay in $A$.",
+            "Read the last 1: go to $B$. The input is finished."
+          ],
+          "result": "The machine ends in $B$, which is accepting, so $1101$ is accepted. It accepts exactly the strings with an odd number of 1s."
+        },
+        "misconceptions": [
+          "A DFA has no choice and no guessing: a string follows a single path, so you never ask whether some path works.",
+          "The start state can also be accepting. Then the empty string is accepted."
+        ],
+        "recall": [
+          {
+            "q": "What are the five parts of a DFA?",
+            "a": "The states $Q$, the alphabet $\\Sigma$, the transition function $\\delta$, the start state $q_0$ and the accepting set $F$."
+          },
+          {
+            "q": "When does a DFA accept a string $w$?",
+            "a": "When the state reached from $q_0$ after reading all of $w$ is in $F$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DFA has states $p$ (start), $q$ and $r$ (accepting). Moves: $p$ goes to $q$ on 0 and stays at $p$ on 1; $q$ goes to $r$ on 0 and to $p$ on 1; $r$ stays at $r$ on both symbols. How many binary strings of length 5 does it accept?",
+          "answer": 19,
+          "explanation": "State $r$ is reached exactly when the string contains $00$, and $r$ is never left. Of the 32 strings of length 5, 13 avoid $00$, so $32-13=19$ are accepted. Answering 13 tempts if you count the rejected strings, and 16 if you assume half are accepted."
+        },
+        "summary": "A DFA is $(Q,\\Sigma,\\delta,q_0,F)$ with one move for every state and symbol. A string is accepted when the single path it follows ends in an accepting state."
+      }
+    },
+    {
+      "id": "toc-finite-automata.dfa-design",
+      "title": "Designing DFAs for described languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        401,
+        406,
+        407,
+        408
+      ],
+      "points": [
+        "Give each state a meaning, the one fact about the input read so far that decides the future. For strings ending in 01 the states are: no useful suffix, last symbol 0, last two symbols 01 (accept): 3 states.",
+        "Contains a fixed substring w, or ends with w: |w| + 1 states, tracking the longest prefix of w matched so far. Contains aab needs 4 states, the last one an accepting sink.",
+        "Counting modulo k: length divisible by 3 needs 3 states; the number of a's ≡ i (mod m) together with the number of b's ≡ j (mod n) needs m·n states.",
+        "Binary numbers read most significant bit first, divisible by n: state = remainder r, and reading bit b moves to (2r + b) mod n. For odd n all n remainders are distinguishable, so 5 needs 5 states.",
+        "Product construction: run DFAs of m and n states in parallel on pairs (p, q). Choosing which pairs accept gives intersection, union or difference with at most m·n states, e.g. at least one 0 and at least one 1 needs 2 × 2 = 4."
+      ],
+      "keyTerms": [
+        "state meaning",
+        "product construction",
+        "trap state",
+        "mod counter"
+      ],
+      "lesson": {
+        "why": "Designing a DFA, or choosing which of four drawn DFAs matches a language, is a recurring question, and a method that checks each state's meaning replaces guessing.",
+        "intro": "To build a DFA, decide what the machine must remember about the input read so far, and give each distinct thing worth remembering its own state. For example, a machine that checks whether a string ends in a pattern only needs to know how much of the pattern the last few symbols have matched. Then add one arrow for every state and symbol, choosing the state that describes the longer input.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition"
+        ],
+        "analogy": {
+          "text": "The states are the notes on a sticky pad that you are allowed to keep: only one note, and it must be enough to finish the job.",
+          "breaksWhen": "You may not look back at the input, so the note must be updated from the old note and the new symbol alone."
+        },
+        "principle": {
+          "text": "Name each state by the fact it records. After every symbol, the new state must record the fact about the longer input. Two situations need separate states exactly when some continuation is accepted after one and rejected after the other."
+        },
+        "limits": "A pattern DFA has $|w|+1$ states for both 'contains $w$' and 'ends with $w$'. Independent counters, such as 0s mod 2 and 1s mod 3, need the product of their moduli; counters that read the same symbol, such as 0s mod 2 and 0s mod 4, can share states, so check distinguishability.",
+        "example": {
+          "problem": "Design a DFA over $\\{0,1\\}$ that accepts the strings ending in $10$.",
+          "steps": [
+            "Meanings: $q_0$ is no useful ending, $q_1$ is that the input ends in 1, $q_2$ is that it ends in 10 (accepting).",
+            "From $q_0$: on 1 the input ends in 1, go to $q_1$; on 0 nothing useful, stay at $q_0$.",
+            "From $q_1$: on 0 the input ends in 10, go to $q_2$; on 1 it still ends in 1, stay at $q_1$.",
+            "From $q_2$: on 1 go to $q_1$; on 0 the input ends in 00, so go to $q_0$."
+          ],
+          "result": "Three states, with $q_2$ accepting. A script that minimises this machine finds all three states distinguishable, so no smaller DFA exists."
+        },
+        "misconceptions": [
+          "An accepting state for 'ends with $w$' must still have outgoing arrows. If you make it a sink, you have built 'contains $w$' instead.",
+          "After a mismatch you do not always return to the start state; you go to the longest suffix that is still a prefix of the pattern."
+        ],
+        "recall": [
+          {
+            "q": "How many states does a DFA for 'contains the substring $w$' need?",
+            "a": "$|w|+1$ states, one for each matched prefix length, with the last one an accepting sink."
+          },
+          {
+            "q": "How do you test whether two situations need different states?",
+            "a": "Look for a continuation that is accepted after one and rejected after the other; if one exists they must be separate states."
+          },
+          {
+            "q": "How many states does a DFA need to count 0s mod 2 and 1s mod 3 together?",
+            "a": "$2\\cdot 3=6$ states, one for each pair of remainders."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the minimum number of states of a complete DFA over $\\{0,1\\}$ that accepts the strings containing the substring $0110$?",
+          "answer": 5,
+          "explanation": "Track the longest matched prefix of $0110$: lengths 0, 1, 2, 3 and 4, where length 4 is an accepting sink. That is 5 states, and a script that minimises the machine finds all 5 distinguishable. Answering 4 tempts if you count only the prefixes and forget the full-match state."
+        },
+        "summary": "Give every state a meaning, update it with each symbol, and merge only situations no continuation can tell apart. Pattern DFAs use $|w|+1$ states."
+      }
+    },
+    {
+      "id": "toc-finite-automata.nfa-epsilon-nfa",
+      "title": "NFA and ε-NFA",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        401,
+        405
+      ],
+      "points": [
+        "An NFA has the same 5-tuple but δ : Q × Σ → 2^Q, so a state may have several moves or none on a symbol. It accepts w if at least one computation path ends in an accepting state.",
+        "An ε-NFA also allows ε-moves that consume no input: δ : Q × (Σ ∪ {ε}) → 2^Q.",
+        "ε-closure(q) is the set of states reachable from q using only ε-moves, and it always contains q itself. Closures are taken of the start state and after every symbol move.",
+        "NFAs, ε-NFAs and DFAs recognise exactly the same class, the regular languages. Nondeterminism buys succinctness, not power: strings whose n-th symbol from the end is 1 need an (n + 1)-state NFA but a 2ⁿ-state DFA."
+      ],
+      "keyTerms": [
+        "nondeterminism",
+        "ε-move",
+        "ε-closure"
+      ],
+      "lesson": {
+        "why": "GATE asks you to read an NFA or ε-NFA, compute an extended transition set, or decide which drawing accepts a given token pattern, so the closure step must be automatic.",
+        "intro": "An NFA is like a DFA that is allowed to have several arrows with the same label out of one state, or none. It accepts a string if at least one way of following the arrows ends in an accepting state. An ε-NFA also has arrows labelled $\\epsilon$ that the machine may take without reading any input symbol, so the set of states it can be in grows for free.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition"
+        ],
+        "analogy": {
+          "text": "Think of sending a copy of yourself down every arrow at once; the string is accepted if any copy finishes in an accepting state.",
+          "breaksWhen": "A real machine has one position, and the copies cost nothing in the formal model, but a program that imitates it must track the whole set of states."
+        },
+        "definitions": [
+          {
+            "term": "$\\epsilon$-closure",
+            "meaning": "All states reachable from a state using only $\\epsilon$ arrows, including the state itself."
+          }
+        ],
+        "principle": {
+          "text": "To compute the states reached after a symbol $a$ from a set $S$: move every state of $S$ along $a$, then take the $\\epsilon$-closure of the result. Start with the $\\epsilon$-closure of the start state.",
+          "tex": "\\hat\\delta(S,wa)=\\epsilon\\text{-closure}\\Big(\\bigcup_{q\\in\\hat\\delta(S,w)}\\delta(q,a)\\Big)"
+        },
+        "limits": "Nondeterminism adds no power: every NFA and ε-NFA language is regular. It can make the machine smaller, though, so a DFA for the same language may need exponentially more states.",
+        "example": {
+          "problem": "An ε-NFA has states $q_0,q_1,q_2$ with $\\epsilon$ arrows $q_0\\to q_1$ and $q_2\\to q_0$, and an $a$ arrow $q_1\\to q_2$. What set of states can it be in after reading $a$ from $q_0$?",
+          "steps": [
+            "Closure of $q_0$: follow $\\epsilon$ from $q_0$ to $q_1$. The set is $\\{q_0,q_1\\}$.",
+            "Move on $a$: only $q_1$ has an $a$ arrow, going to $q_2$. The moved set is $\\{q_2\\}$.",
+            "Close it: $q_2$ reaches $q_0$ by $\\epsilon$, and $q_0$ reaches $q_1$. The set is $\\{q_0,q_1,q_2\\}$."
+          ],
+          "result": "After reading $a$ the machine can be in any of $q_0,q_1,q_2$."
+        },
+        "misconceptions": [
+          "The $\\epsilon$-closure is taken after every symbol, not only at the start; skipping it after a move loses states.",
+          "Reading the string through one chosen path is not enough. One failing path does not reject the string if another path accepts."
+        ],
+        "recall": [
+          {
+            "q": "What is accepted by an NFA?",
+            "a": "A string is accepted if at least one computation path on it ends in an accepting state."
+          },
+          {
+            "q": "Does an ε-NFA recognise more languages than a DFA?",
+            "a": "No. Both recognise exactly the regular languages."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An ε-NFA has states $0,1,2,3,4$. The $\\epsilon$ arrows are $0\\to1$, $1\\to2$, $3\\to4$ and $4\\to3$. The $b$ arrows are $0\\to3$, $1\\to0$, $1\\to4$, $2\\to3$ and $4\\to2$. How many states are in $\\hat\\delta(0,b)$, that is, the set reachable from state 0 on the single symbol $b$ with $\\epsilon$ moves allowed anywhere?",
+          "answer": 5,
+          "explanation": "The closure of 0 is $\\{0,1,2\\}$. Moving on $b$ gives $\\{3,0,4\\}$. Closing that adds $1,2$ from $0$ and keeps $3,4$, giving $\\{0,1,2,3,4\\}$, which has 5 states. Answering 3 tempts if you stop before the closure after the move."
+        },
+        "summary": "An NFA accepts when some path accepts; an ε-NFA also moves for free along $\\epsilon$. After every symbol take the $\\epsilon$-closure of the moved set."
+      }
+    },
+    {
+      "id": "toc-finite-automata.subset-construction",
+      "title": "NFA to DFA: subset construction",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        402,
+        405,
+        408
+      ],
+      "points": [
+        "Each DFA state is a set of NFA states. The DFA start state is ε-closure({q₀}), and on symbol a a set S goes to ε-closure(∪ over q ∈ S of δ(q, a)).",
+        "A DFA state accepts when it contains at least one accepting NFA state.",
+        "Build only reachable subsets with a worklist. The empty set, if reached, is the dead state and must be counted when the question asks for the full DFA.",
+        "An n-state NFA can need up to 2ⁿ DFA states, and the bound is tight: the language whose n-th symbol from the end is 1 forces the DFA to remember the last n symbols."
+      ],
+      "keyTerms": [
+        "powerset construction",
+        "reachable subsets",
+        "exponential blow-up"
+      ],
+      "lesson": {
+        "why": "GATE asks how many DFA states an NFA can need, and what the DFA looks like, and both come straight from this construction and its $2^n$ bound.",
+        "intro": "A DFA cannot guess, but it can keep track of every place the NFA could be. The subset construction does that: each DFA state is a whole set of NFA states, namely the set the NFA could be in after reading the input so far. The start is the set holding the NFA start state, and a set moves on a symbol to the set of all states the NFA could reach from any member.",
+        "prerequisites": [
+          "toc-finite-automata.nfa-epsilon-nfa"
+        ],
+        "definitions": [
+          {
+            "term": "Reachable subset",
+            "meaning": "A set of NFA states that actually appears from the start set by following symbols; only these become DFA states."
+          }
+        ],
+        "principle": {
+          "text": "The DFA state $S$ on symbol $a$ goes to the union of the NFA moves of its members (then the $\\epsilon$-closure). A DFA state is accepting when it contains an accepting NFA state. An $n$-state NFA gives at most $2^n$ DFA states.",
+          "tex": "\\delta_D(S,a)=\\epsilon\\text{-closure}\\Big(\\bigcup_{q\\in S}\\delta_N(q,a)\\Big)"
+        },
+        "limits": "The bound $2^n$ is a worst case, and many NFAs give far fewer reachable subsets. The result of the construction need not be minimal, so the smallest equivalent DFA can be smaller still.",
+        "example": {
+          "problem": "An NFA over $\\{a,b\\}$ has start $q_0$ with loops on $a$ and $b$, an arrow $q_0\\to q_1$ on $a$, and an arrow $q_1\\to q_2$ on $b$; $q_2$ accepts. Build the DFA.",
+          "steps": [
+            "Start set $\\{q_0\\}$. On $a$ it goes to $\\{q_0,q_1\\}$; on $b$ it stays $\\{q_0\\}$.",
+            "From $\\{q_0,q_1\\}$: on $a$ again $\\{q_0,q_1\\}$; on $b$ the union of $q_0$'s and $q_1$'s moves is $\\{q_0,q_2\\}$.",
+            "From $\\{q_0,q_2\\}$: on $a$ it goes to $\\{q_0,q_1\\}$ ($q_2$ has no moves); on $b$ it goes to $\\{q_0\\}$.",
+            "No new sets appear. The only set containing $q_2$ is $\\{q_0,q_2\\}$, so it is accepting."
+          ],
+          "result": "The DFA has 3 states and accepts the strings ending in $ab$."
+        },
+        "misconceptions": [
+          "The DFA does not need all $2^n$ subsets, only the ones that are reached from the start set.",
+          "The empty set, if it is reached, is a real DFA state (the dead state) and counts in a state total."
+        ],
+        "recall": [
+          {
+            "q": "What does a state of the subset-construction DFA stand for?",
+            "a": "A set of NFA states the NFA could be in after reading the input so far."
+          },
+          {
+            "q": "What is the largest number of DFA states for an $n$-state NFA?",
+            "a": "$2^n$, and that bound can be reached."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An NFA over $\\{0,1\\}$ has states $0,1,2,3$. State 0 loops on 0 and 1 and goes to state 1 on 1. States 1 and 2 each go to the next state on both symbols. State 3 accepts and has no moves. How many reachable subsets does the subset construction produce?",
+          "answer": 8,
+          "explanation": "The machine accepts the strings whose third symbol from the end is 1. The DFA must remember the last three symbols, so every one of the $2^3=8$ patterns gives a distinct reachable subset, and a script confirms 8. Answering 16 tempts if you apply $2^4$ without checking which subsets are reached."
+        },
+        "summary": "Each DFA state is a set of NFA states, moved by unions over its members. Only reachable subsets count, and an $n$-state NFA needs at most $2^n$."
+      }
+    },
+    {
+      "id": "toc-finite-automata.minimization",
+      "title": "DFA minimization",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        34,
+        35,
+        402,
+        405
+      ],
+      "points": [
+        "First delete states unreachable from the start state; they never affect the language and are a common trap in state-count questions.",
+        "Partition refinement: start with the two blocks {accepting} and {non-accepting}; split a block when two of its states move to different blocks on some symbol; repeat until nothing splits. Each final block is one state.",
+        "Table filling marks a pair (p, q) distinguishable if one is accepting and the other is not, then marks (p, q) whenever (δ(p, a), δ(q, a)) is already marked for some a. Unmarked pairs merge.",
+        "Hopcroft's algorithm minimises in O(k·n log n) for n states and k symbols. The minimal complete DFA is unique up to renaming of states, which is how DFA equivalence is decided."
+      ],
+      "keyTerms": [
+        "distinguishable states",
+        "partition refinement",
+        "table filling",
+        "Hopcroft"
+      ],
+      "lesson": {
+        "why": "Questions ask for the number of states in a minimal DFA, whether two given states are equivalent, or how a DFA changes after an operation, and the answer is a count of equivalence classes.",
+        "intro": "Two DFA states are equivalent if no input string can tell them apart: from either one, every continuation is accepted or every continuation is rejected. Equivalent states are redundant, so they can be merged into one. Minimization first removes states the start state can never reach, and then merges all equivalent states, leaving the smallest DFA for the language.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.dfa-design"
+        ],
+        "definitions": [
+          {
+            "term": "Distinguishable",
+            "meaning": "Two states are distinguishable if some string leads to acceptance from one and to rejection from the other."
+          }
+        ],
+        "principle": {
+          "text": "Start with two blocks, accepting and non-accepting. Split any block whose members go to different blocks on some symbol, and repeat until nothing splits. Each final block is one state of the minimal DFA."
+        },
+        "limits": "The minimal DFA is unique only for a complete DFA, so a dead state counts if one is needed. Merging works on DFAs; it does not directly apply to an NFA, which can have several different minimal forms. Swapping accepting and non-accepting states of a complete minimal DFA gives a minimal DFA of the same size, because every pair of states stays distinguishable.",
+        "example": {
+          "problem": "A DFA over $\\{a,b\\}$ has states $A$ to $G$ with start $A$ and accepting $D,E,F$. Moves ($a$,$b$): $A$ (B,C), $B$ (D,E), $C$ (D,E), $D$ (D,F), $E$ (D,F), $F$ (F,F), $G$ (A,A). Find the minimal DFA size.",
+          "steps": [
+            "Nothing reaches $G$, so delete it. Six states remain.",
+            "First split: accepting $\\{D,E,F\\}$ and non-accepting $\\{A,B,C\\}$.",
+            "In $\\{A,B,C\\}$, $A$ goes to non-accepting states on both symbols, while $B$ and $C$ go to accepting ones, so split into $\\{A\\}$ and $\\{B,C\\}$.",
+            "$D,E,F$ all move to accepting states on both symbols, so they never split. $B,C$ have identical moves, so they stay together."
+          ],
+          "result": "The blocks are $\\{A\\}$, $\\{B,C\\}$ and $\\{D,E,F\\}$: the minimal DFA has 3 states."
+        },
+        "misconceptions": [
+          "The minimal DFA does not keep unreachable states, so counting the states in the diagram gives too many.",
+          "Two accepting states are not automatically equivalent: they must also agree on where every symbol sends them."
+        ],
+        "recall": [
+          {
+            "q": "When are two DFA states equivalent?",
+            "a": "When no string leads to acceptance from one and rejection from the other."
+          },
+          {
+            "q": "What is the first step of minimization?",
+            "a": "Delete the states that cannot be reached from the start state."
+          },
+          {
+            "q": "How do you start partition refinement?",
+            "a": "With two blocks, the accepting states and the non-accepting states."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DFA over $\\{0,1\\}$ has states $1$ to $7$, start $1$ and accepting $4,5,6$. Moves ($0$,$1$): $1$ (2,3), $2$ (1,4), $3$ (5,3), $4$ (5,4), $5$ (5,6), $6$ (6,6), $7$ (1,1). How many states does the minimal DFA have?",
+          "answer": 4,
+          "explanation": "State 7 is unreachable, leaving six. States 4, 5 and 6 are accepting and move only among accepting states, so they merge. States 1, 2 and 3 are pairwise distinguishable, so the classes are $\\{1\\},\\{2\\},\\{3\\},\\{4,5,6\\}$, giving 4, which a script confirms. Answering 7 counts the drawing and 6 forgets to merge 4, 5, 6."
+        },
+        "summary": "Remove unreachable states, then merge states no string can distinguish. The number of blocks left is the size of the minimal DFA."
+      }
+    },
+    {
+      "id": "toc-finite-automata.myhill-nerode",
+      "title": "Myhill–Nerode theorem",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        35
+      ],
+      "points": [
+        "Strings x and y are equivalent under ≡_L when, for every z, xz ∈ L exactly when yz ∈ L: no suffix tells them apart.",
+        "L is regular if and only if ≡_L has finitely many classes, and that number equals the number of states of the minimal complete DFA.",
+        "Lower-bound argument: exhibit k strings that are pairwise distinguishable, and every DFA for L needs at least k states. For the 3rd symbol from the end, the 8 strings of length 3 are pairwise distinguishable.",
+        "Non-regularity proof: for {aⁿbⁿ}, the strings a, aa, aaa, … are pairwise distinguishable (aⁱbⁱ is in L, aʲbⁱ is not), so ≡_L has infinite index."
+      ],
+      "keyTerms": [
+        "right congruence",
+        "index",
+        "distinguishing suffix"
+      ],
+      "lesson": {
+        "why": "Minimum-state questions reduce to counting equivalence classes, and this idea is the quickest way to answer them without building and minimising a machine.",
+        "intro": "A finite automaton can only remember which state it is in. Two prefixes that leave a machine in the same state must behave identically from then on. So turn it around: if two prefixes can be told apart by some later string, any machine for the language must put them in different states. Count the groups of prefixes that cannot be told apart and you have the fewest states a machine can have.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.minimization"
+        ],
+        "definitions": [
+          {
+            "term": "Distinguishable",
+            "meaning": "Prefixes x and y are distinguishable when some string z makes exactly one of xz and yz belong to the language."
+          },
+          {
+            "term": "Equivalence class",
+            "meaning": "A group of prefixes none of which can be told apart from each other by any suffix."
+          }
+        ],
+        "principle": {
+          "text": "The language is regular exactly when it has finitely many equivalence classes, and the smallest complete DFA has one state per class. To show k states are needed, find k prefixes that are pairwise distinguishable.",
+          "tex": "x \\equiv_L y \\iff \\forall z:\\ (xz \\in L \\Leftrightarrow yz \\in L)"
+        },
+        "limits": "The count gives the smallest complete DFA, so a dead state counts as one class when some prefix can never be completed into the language. It says nothing about NFAs, which can need fewer states.",
+        "example": {
+          "problem": "Over {0, 1}, let L be the strings that end in 01. How many states does the smallest DFA need?",
+          "steps": [
+            "Sort prefixes by what the next suffix can still do. The empty string and 1 have no useful ending, so the suffix 01 is the shortest that completes them.",
+            "The prefix 0 differs: the suffix 1 alone completes it, while the suffix 1 does not complete the empty string. So 0 and the empty string are distinguishable.",
+            "The prefix 01 is already in L, so the empty suffix separates it from both of the others.",
+            "Every other prefix falls in one of these three groups according to its last two symbols, so there are exactly three classes."
+          ],
+          "result": "Three classes, so the smallest DFA has 3 states."
+        },
+        "misconceptions": [
+          "Counting every reachable situation as a state is wrong; prefixes that no suffix can separate share one state, which is why the answer is often smaller than a first design.",
+          "Forgetting the dead state in a complete DFA undercounts. If some prefix can never reach L, those prefixes form a class of their own."
+        ],
+        "recall": [
+          {
+            "q": "When are two prefixes in different Myhill–Nerode classes?",
+            "a": "When some suffix z makes exactly one of xz and yz belong to the language."
+          },
+          {
+            "q": "How does the number of classes relate to DFA size?",
+            "a": "The smallest complete DFA has exactly one state per class."
+          },
+          {
+            "q": "How do you prove a DFA for L needs at least k states?",
+            "a": "Exhibit k prefixes that are pairwise distinguishable by suffixes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Over {a, b}, let L be the set of strings that contain at most two b's. What is the number of states in the smallest complete DFA for L?",
+          "answer": 4,
+          "explanation": "Prefixes with zero, one, two and three or more b's are pairwise distinguishable: the suffix bb separates zero b's from one, b separates one from two, and the empty suffix separates two from three or more, since only the first is already in L. The class with three or more b's can never return to L, so it is the dead state. The answer 3 is tempting because the dead state is easy to forget."
+        },
+        "summary": "Group prefixes that no suffix can separate; the number of groups is the size of the smallest complete DFA, and infinitely many groups means the language is not regular."
+      }
+    },
+    {
+      "id": "toc-finite-automata.regular-expressions",
+      "title": "Regular expressions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        402,
+        403
+      ],
+      "points": [
+        "Base cases: ∅ denotes the empty language, ε denotes {ε} and each a ∈ Σ denotes {a}. If R and S are regexes, so are R + S (union), RS (concatenation) and R* (star).",
+        "Precedence is star, then concatenation, then union: ab* + c means (a(b*)) + c.",
+        "Standard readings: (0+1)* is all strings, 0*1* is 0s followed by 1s, (0+1)*01 ends in 01, 1(0+1)*0 starts with 1 and ends with 0, (a+b)*aa(a+b)* contains aa.",
+        "Strings with no two consecutive 1s: (0 + 10)*(ε + 1). Every 1 is followed by a 0 except possibly one at the very end.",
+        "Basic regex syntax has no intersection or complement. Those operations keep a language regular, but writing the result needs a construction, not an operator."
+      ],
+      "keyTerms": [
+        "union",
+        "concatenation",
+        "Kleene star",
+        "precedence"
+      ],
+      "lesson": {
+        "why": "Many questions ask you to match a regex to a language, or to count the strings of a given length it generates, so you must read a regex quickly and correctly.",
+        "intro": "A regular expression is a compact description of a set of strings. The symbol a stands for the single string a, ε stands for the empty string, and ∅ stands for no string at all. Three operators combine them: R + S means a string from R or from S, RS means a string from R followed by a string from S, and R* means zero or more strings from R written one after another.",
+        "definitions": [
+          {
+            "term": "Union (+)",
+            "meaning": "R + S matches a string that matches R or matches S."
+          },
+          {
+            "term": "Kleene star (*)",
+            "meaning": "R* matches any number of repetitions of R, including none, which gives the empty string."
+          }
+        ],
+        "principle": {
+          "text": "Evaluate star first, then concatenation, then union. To read a regex, split it at the top-level unions, then read each piece left to right as a sequence of blocks.",
+          "tex": "L(R+S)=L(R)\\cup L(S),\\quad L(RS)=L(R)L(S),\\quad L(R^*)=\\bigcup_{k\\ge 0}L(R)^k"
+        },
+        "limits": "Every regex describes a regular language, and every regular language has one. A regex has no operator for intersection or complement, so a condition such as \"contains 01 and does not contain 11\" needs a different construction or a cleverly chosen form.",
+        "example": {
+          "problem": "Which strings of length at most 3 over {0, 1} match (0 + 10)*(ε + 1)?",
+          "steps": [
+            "The star part builds strings from the blocks 0 and 10, so every 1 inside it is followed by a 0.",
+            "The final part (ε + 1) allows one optional 1 at the very end.",
+            "So the language is exactly the strings with no two consecutive 1s.",
+            "Listing the strings of length at most 3 with no 11: ε, 0, 1, 00, 01, 10, 000, 001, 010, 100, 101."
+          ],
+          "result": "11 strings match; for example 101 matches, while 011 and 110 do not."
+        },
+        "misconceptions": [
+          "Reading ab* as (ab)* is a precedence error: star binds tighter than concatenation, so ab* means a followed by any number of b's.",
+          "Star always allows zero repetitions, so R* contains ε even when R does not."
+        ],
+        "recall": [
+          {
+            "q": "What is the precedence among star, concatenation and union?",
+            "a": "Star binds tightest, then concatenation, then union."
+          },
+          {
+            "q": "Does R* always contain the empty string?",
+            "a": "Yes, because zero repetitions of R are allowed."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which regular expression over {0, 1} describes the strings with exactly two 1s?",
+          "options": [
+            "0*10*10*",
+            "(0 + 1)*11(0 + 1)*",
+            "(0*10*1)*0*",
+            "0*110*"
+          ],
+          "answer": 0,
+          "explanation": "0*10*10* places any number of 0s around exactly two 1s. The second option means \"contains 11\" and also accepts three 1s. The third accepts any even number of 1s, including zero and four. The fourth only accepts two adjacent 1s, which misses 101, so it is tempting only if you forget 0s may sit between the 1s."
+        },
+        "summary": "Read a regex by splitting at unions, then reading concatenated blocks, with star applying to the smallest preceding block and allowing zero repeats."
+      }
+    },
+    {
+      "id": "toc-finite-automata.regex-identities",
+      "title": "Regex identities and equivalence",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34
+      ],
+      "points": [
+        "ε* = ε and ∅* = ε; r∅ = ∅r = ∅, while rε = εr = r and r + ∅ = r.",
+        "r* = ε + r + rr + …, r⁺ = rr* = r*r, (r*)* = r* and r*r* = r*.",
+        "Several forms denote all strings over {a, b}: (a + b)* = (a*b*)* = (a* + b*)* = a*(ba*)* = (a*b)*a*.",
+        "(r + s)* is generally not r* + s*: ab belongs to (a + b)* but not to a* + b*. Likewise (rs)* ≠ r*s* in general.",
+        "To test a claimed identity, compare the two sides on the short strings first; one string in one side and not the other refutes it."
+      ],
+      "keyTerms": [
+        "identity",
+        "regex equivalence",
+        "counterexample string"
+      ],
+      "lesson": {
+        "why": "Questions give two or more regexes and ask which are equivalent or which denotes a stated language. Knowing the standard identities, and the common false ones, settles these in seconds.",
+        "intro": "Two regular expressions are equivalent when they describe exactly the same set of strings, even if they look different. The empty string is written ε, and a star means zero or more repeats. For example, (a + b)* and a*(ba*)* both describe every string over {a, b}. Because the same language can be written many ways, you need a few reliable rules for rewriting, and a fast way to show that a claimed rule is false.",
+        "prerequisites": [
+          "toc-finite-automata.regular-expressions"
+        ],
+        "principle": {
+          "text": "Equivalence means equal languages. Use the stock identities to rewrite, and refute a claimed identity by one string that lies in one side and not in the other.",
+          "tex": "\\varepsilon^*=\\emptyset^*=\\varepsilon,\\quad r\\emptyset=\\emptyset,\\quad r\\varepsilon=r,\\quad r^+=rr^*,\\quad (r^*)^*=r^*,\\quad (r+s)^*=(r^*s^*)^*=(r^*+s^*)^*"
+        },
+        "limits": "Star does not distribute over union or concatenation: (r + s)* differs from r* + s*, and (rs)* differs from r*s*. A single test string only refutes an identity; it never proves one, so an apparent match on short strings must be backed by a rewriting argument.",
+        "example": {
+          "problem": "Is (a*b*)* equivalent to a*b*? If not, give a string that separates them.",
+          "steps": [
+            "The left side repeats the block a*b*, and each block may be empty, so it can place a's and b's in any order.",
+            "The right side allows only a's followed by b's, so the string ba is not in it.",
+            "The string ba is in the left side: take the block b (with no a's) and then the block a (with no b's).",
+            "One string in one language and not the other shows the languages differ."
+          ],
+          "result": "They are not equivalent: ba is in (a*b*)* but not in a*b*. In fact (a*b*)* equals (a + b)*."
+        },
+        "misconceptions": [
+          "Treating (r + s)* as r* + s*. The second only gives strings made entirely of r-pieces or entirely of s-pieces, so ab is in (a + b)* but not in a* + b*.",
+          "Believing r∅ = r. Concatenating with the empty set gives the empty set, while concatenating with ε leaves r unchanged.",
+          "Concluding two regexes are equal because they agree on a few short strings. Differences can first appear at longer lengths, so rewrite or find a distinguishing string."
+        ],
+        "recall": [
+          {
+            "q": "What are ε* and ∅* equal to?",
+            "a": "Both equal ε, since zero repeats is always allowed and the empty set repeated zero times gives the empty string."
+          },
+          {
+            "q": "Name three regexes equivalent to (a + b)*.",
+            "a": "(a*b*)*, (a* + b*)* and a*(ba*)* all denote every string over {a, b}."
+          },
+          {
+            "q": "How do you disprove a claimed regex identity?",
+            "a": "Find one string that matches one side and not the other."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of these regular expressions does NOT denote the set of all strings over {a, b}?",
+          "options": [
+            "(a*b*)*",
+            "a*(ba*)*",
+            "(a* + b*)*",
+            "a*b*"
+          ],
+          "answer": 3,
+          "explanation": "a*b* allows only a's followed by b's, so it rejects ba. The other three are standard forms of (a + b)*. The first is tempting to reject because it is built from a*b*, but repeating that block lets a's and b's alternate freely."
+        },
+        "summary": "Memorise the identities for ε, ∅ and star, and the three forms equal to (a + b)*. Never distribute star over union or concatenation, and refute claims with a single separating string."
+      }
+    },
+    {
+      "id": "toc-finite-automata.regex-fa-conversion",
+      "title": "Regex to NFA and FA to regex",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        34,
+        403,
+        405
+      ],
+      "points": [
+        "Thompson's construction builds an ε-NFA by structural recursion: one fragment per symbol; union adds a new start with ε-moves to both fragments and a new accept; concatenation links the first accept to the second start by ε; star adds a loop back and a bypass ε-move.",
+        "Thompson's NFA has at most 2|r| states for a regex with |r| symbols and operators, so regex → NFA is linear.",
+        "State elimination turns an automaton into a regex: add a fresh start and accept, then remove states one by one. Removing q with self-loop S, incoming R from p and outgoing T to r adds R S* T to the edge p → r.",
+        "FA → regex can produce an exponentially long expression, and the result depends on the elimination order, though every order gives an equivalent regex."
+      ],
+      "keyTerms": [
+        "Thompson's construction",
+        "state elimination",
+        "GNFA"
+      ],
+      "lesson": {
+        "why": "Questions give you a small automaton and ask for its regular expression, or the other way round, so you need a mechanical method rather than guessing.",
+        "intro": "Regular expressions and finite automata describe the same languages, and you can move between them. Going from a regex to an automaton, you build small machines for each symbol and join them following the operators. Going from an automaton to a regex, you delete states one at a time while keeping every path's label on the edges that remain, until only a start and an accept state are left.",
+        "prerequisites": [
+          "toc-finite-automata.regular-expressions",
+          "toc-finite-automata.nfa-epsilon-nfa"
+        ],
+        "definitions": [
+          {
+            "term": "State elimination",
+            "meaning": "Removing a state from an automaton while writing the labels of the paths through it onto the remaining edges."
+          },
+          {
+            "term": "Thompson's construction",
+            "meaning": "The recursive way to build an ε-NFA from a regex, one small piece for each symbol and operator."
+          }
+        ],
+        "principle": {
+          "text": "To remove a state q with a self-loop S, replace each path p to q to r by one edge from p to r labelled with the incoming label, then S starred, then the outgoing label. Add this to any edge already there using union.",
+          "tex": "p \\xrightarrow{R} q \\xrightarrow{S} q \\xrightarrow{T} r \\;\\Longrightarrow\\; p \\xrightarrow{R S^{*} T} r"
+        },
+        "limits": "Different elimination orders give different but equivalent regexes, so two answers can look unlike each other and both be right. The resulting regex can be far longer than the automaton.",
+        "example": {
+          "problem": "An automaton has start state S, middle state M and final state F. The edges are S to M on a, a loop on M labelled b, and M to F on c. What is its regex?",
+          "steps": [
+            "Choose to eliminate M, the only state between the start and the final state.",
+            "The incoming label is a, the self-loop is b and the outgoing label is c.",
+            "Apply the rule: the new edge from S to F is a, then b starred, then c."
+          ],
+          "result": "The regex is ab*c; for instance ac, abc and abbc are accepted."
+        },
+        "misconceptions": [
+          "Dropping the self-loop when eliminating a state loses strings; the loop becomes the starred part in the middle.",
+          "Two different regexes for one automaton do not mean one is wrong; check by testing short strings, not by comparing the text."
+        ],
+        "recall": [
+          {
+            "q": "What does eliminating state q with loop S do to a path from p to r?",
+            "a": "It adds an edge p to r labelled R S* T, where R and T are the incoming and outgoing labels."
+          },
+          {
+            "q": "What does Thompson's construction produce?",
+            "a": "An ε-NFA for a regex, built from one small fragment per symbol and operator."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A DFA over {a, b} has start state p and final state q. From p, reading b stays in p and reading a goes to q. From q, both symbols stay in q. Which regex describes its language?",
+          "options": [
+            "b*a(a + b)*",
+            "(a + b)*a",
+            "b*a*",
+            "a(a + b)*"
+          ],
+          "answer": 0,
+          "explanation": "The machine stays in p on any run of b's, moves to q on the first a, then accepts whatever follows, so the language is b*a(a + b)*, the strings containing an a. The option (a + b)*a tempts because it ends in a, but it rejects ab. Option b*a* rejects ab and wrongly accepts the empty string, and a(a + b)* rejects b-prefixed strings such as ba."
+        },
+        "summary": "Convert a regex to an ε-NFA piece by piece, and an automaton to a regex by eliminating states with the rule R S* T."
+      }
+    },
+    {
+      "id": "toc-finite-automata.arden-theorem",
+      "title": "Arden's theorem",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "If P and Q are regexes and ε ∉ L(P), the equation R = Q + RP has the unique solution R = QP*.",
+        "To read a DFA's language, write one equation per state for the strings that reach it: the start state gets an extra ε term, and q = Σ p·a over every edge p → q on a.",
+        "Example: a DFA with q₀ start and accepting, q₀ moving to q₁ on a and staying on b, and q₁ returning to q₀ on a and staying on b. The equations are q₀ = ε + q₀b + q₁a and q₁ = q₀a + q₁b, so q₁ = q₀ab* and q₀ = ε + q₀(b + ab*a), giving q₀ = (b + ab*a)*: strings with an even number of a's."
+      ],
+      "keyTerms": [
+        "Arden's lemma",
+        "state equations"
+      ],
+      "lesson": {
+        "why": "Arden's theorem gives a mechanical way to turn a DFA into a regex by solving one equation per state, which is the method behind DFA-to-regex questions.",
+        "intro": "Give each state of a DFA a name for the set of strings that lead from the start state to it. An edge from state p to state q on symbol a says that every string reaching p, followed by a, reaches q. Writing this for every state gives a set of equations in which each unknown language appears on both sides. Arden's theorem solves such an equation when it has the shape R = Q + RP, where R is the unknown and P and Q are known regexes.",
+        "definitions": [
+          {
+            "term": "State equation",
+            "meaning": "For a state q, the language of strings reaching q equals the union of (strings reaching p) followed by a over each edge p to q on a, plus ε if q is the start state."
+          }
+        ],
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.regular-expressions"
+        ],
+        "principle": {
+          "text": "If ε is not in L(P), the equation R = Q + RP has exactly one solution, R = QP*. Solve the state equations one state at a time, substituting into the others, and read the answer off the accepting states.",
+          "tex": "R = Q + RP \\;\\Longrightarrow\\; R = QP^{*}\\qquad(\\varepsilon\\notin L(P))"
+        },
+        "limits": "The condition that ε is not in L(P) is needed for uniqueness; if P can match ε, many solutions exist and QP* is only the smallest. The method assumes no ε-moves, so convert an ε-NFA first. The regex you get depends on the order of elimination and may look different from another correct answer.",
+        "example": {
+          "problem": "A DFA over {0, 1} has states p0 (start) and p1 (accepting). On 0 each state stays put; on 1 each state moves to the other. Find a regex for its language.",
+          "steps": [
+            "Write the equations: p0 = ε + p0·0 + p1·1 and p1 = p0·1 + p1·0.",
+            "Solve p1 first. It has the form R = Q + RP with Q = p0·1 and P = 0, so p1 = p0·1·0*.",
+            "Substitute into p0: p0 = ε + p0·0 + p0·1·0*·1 = ε + p0(0 + 10*1).",
+            "Apply the theorem with Q = ε and P = 0 + 10*1: p0 = (0 + 10*1)*.",
+            "The accepting state is p1, so the language is p1 = (0 + 10*1)*10*."
+          ],
+          "result": "The language is (0 + 10*1)*10*, the strings with an odd number of 1s."
+        },
+        "misconceptions": [
+          "Forgetting the ε term on the start state's equation, which loses the empty string and every string built on it.",
+          "Applying R = QP* when the unknown appears on the left of P in the wrong order. The unknown must come first in RP, since strings extend by appending at the end.",
+          "Reading the answer from the start state; the answer is the union of the equations of the accepting states."
+        ],
+        "recall": [
+          {
+            "q": "What is the solution of R = Q + RP when ε is not in P?",
+            "a": "R = QP*."
+          },
+          {
+            "q": "Which extra term does the start state's equation carry?",
+            "a": "An ε term, because the empty string reaches the start state."
+          },
+          {
+            "q": "Which equations give the final regex?",
+            "a": "The equations of the accepting states, joined by union."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A DFA over {a, b} has start state x0 and accepting state x1. On b, x0 stays at x0; on a, x0 moves to x1. Both a and b keep x1 at x1. Using Arden's theorem, which regex gives its language?",
+          "options": [
+            "b*a(a + b)*",
+            "(a + b)*a",
+            "b*a",
+            "a(a + b)*"
+          ],
+          "answer": 0,
+          "explanation": "The equations are x0 = ε + x0·b, so x0 = b*, and x1 = x0·a + x1(a + b), so x1 = b*a(a + b)*: strings containing at least one a. (a + b)*a is tempting but means ends in a, and b*a drops everything after the first a."
+        },
+        "summary": "Write one equation per state with ε on the start state, solve them with R = Q + RP giving R = QP*, and take the union over accepting states."
+      }
+    },
+    {
+      "id": "toc-finite-automata.closure-properties",
+      "title": "Closure properties of regular languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        35,
+        403,
+        405,
+        407,
+        408
+      ],
+      "points": [
+        "Regular languages are closed under union, intersection, complement, difference, symmetric difference, concatenation, Kleene star, reversal, homomorphism and inverse homomorphism.",
+        "Constructions: complement swaps final states of a complete DFA; intersection and difference use the product DFA; reversal flips every edge of an NFA and swaps start and accept roles.",
+        "Not closed under infinite union: every singleton {aⁿbⁿ} is regular, yet their union over all n is not. Not closed under taking subsets either: {aⁿbⁿ} is a subset of the regular a*b*.",
+        "Mixed with context-free languages: regular ∩ CFL is always context-free (run the DFA alongside the PDA), but need not be regular.",
+        "Closure gives quick non-regularity proofs: if L were regular then L ∩ a*b* would be too, so showing that intersection is {aⁿbⁿ} settles it."
+      ],
+      "keyTerms": [
+        "closure",
+        "product DFA",
+        "homomorphism",
+        "inverse homomorphism"
+      ],
+      "lesson": {
+        "why": "Closure statements decide a large share of the true-or-false questions on regular languages, and they also give short proofs that a language is not regular.",
+        "intro": "A set of languages is closed under an operation when applying the operation to members always gives another member. For regular languages the operations include union, intersection, complement, reversal and concatenation. The useful habit is to know the construction behind each one, because a statement that sounds plausible can fail when an operation is applied to a language that is not regular.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.nfa-epsilon-nfa"
+        ],
+        "definitions": [
+          {
+            "term": "Closed",
+            "meaning": "An operation is closed for a class of languages when its result always stays in the class."
+          },
+          {
+            "term": "Complement",
+            "meaning": "The strings over the alphabet that are not in the language."
+          }
+        ],
+        "principle": {
+          "text": "Regular languages are closed under union, intersection, complement, difference, concatenation, star and reversal. Complement works by completing a DFA and swapping accepting and non-accepting states. The class is not closed under infinite union, and a subset of a regular language need not be regular.",
+          "tex": "\\overline{L} = \\Sigma^{*}\\setminus L,\\qquad L_1 \\cap L_2 = \\overline{\\overline{L_1}\\cup\\overline{L_2}}"
+        },
+        "limits": "The properties hold for regular languages combined with regular languages. If one operand is not regular, the result can go either way, so \"always true\" claims fail for such statements.",
+        "example": {
+          "problem": "A DFA over {a, b} has a single state q0, which is accepting, with a loop on a and no transition on b. Build a DFA for the complement of its language.",
+          "steps": [
+            "The language is a*. The machine is incomplete, so first add a dead state d with b going from q0 to d and every symbol looping on d.",
+            "Now swap accepting and non-accepting states: q0 stops accepting and d accepts.",
+            "The new machine accepts exactly the strings that reach d, which are the strings containing a b."
+          ],
+          "result": "The complement is the strings containing at least one b, such as b, ab and ba. Swapping without completing the DFA would accept nothing."
+        },
+        "misconceptions": [
+          "Swapping final states on an incomplete DFA is wrong; add the dead state first or the complement misses all strings that fell off the machine.",
+          "If L1 ∪ L2 is regular, that does not make L1 and L2 regular: take any non-regular L and its complement, whose union is all strings."
+        ],
+        "recall": [
+          {
+            "q": "How do you build a DFA for the complement of a regular language?",
+            "a": "Complete the DFA, then swap accepting and non-accepting states."
+          },
+          {
+            "q": "Why is the class of regular languages not closed under infinite union?",
+            "a": "Each {aⁿbⁿ} is finite and regular, but the union over all n is not regular."
+          },
+          {
+            "q": "How can intersection be built from other operations?",
+            "a": "By De Morgan: the complement of the union of the two complements."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "L is an arbitrary regular language over {a, b}. For which of the following can we NOT conclude that the result is regular?",
+          "options": [
+            "The complement of L",
+            "The reversal of L",
+            "The set of all prefixes of strings in L",
+            "The strings of L whose length is a prime number"
+          ],
+          "answer": 3,
+          "explanation": "Take L as all strings of a's; keeping only prime lengths gives a language that is not regular, so that case fails. Complement and reversal are standard closure properties, and the prefixes of L are regular because they come from making every state of an NFA for L accepting once it can still reach an accept state. The prime-length case tempts because it is a subset of L, but subsets of regular languages need not be regular."
+        },
+        "summary": "Regular languages are closed under the Boolean operations, concatenation, star and reversal, but not under infinite union or arbitrary subsets."
+      }
+    },
+    {
+      "id": "toc-finite-automata.pumping-lemma",
+      "title": "Pumping lemma for regular languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        35,
+        404,
+        405,
+        408
+      ],
+      "points": [
+        "If L is regular there is a p (the state count of a DFA for L works) such that every w ∈ L with |w| ≥ p splits as w = xyz with |xy| ≤ p, |y| ≥ 1 and xyⁱz ∈ L for every i ≥ 0, including i = 0.",
+        "To prove L non-regular, play the adversary game: you choose w depending on p, the opponent chooses any legal split, and you must find one i that pushes xyⁱz out of L for every split.",
+        "For {0ⁿ1ⁿ}, choose w = 0ᵖ1ᵖ. Since |xy| ≤ p, y is a non-empty block of 0s, so xy⁰z has fewer 0s than 1s and is not in L.",
+        "The lemma is necessary, not sufficient: some non-regular languages satisfy it, so it can prove non-regularity but never regularity.",
+        "Standard non-regular languages: {aⁿbⁿ}, palindromes and {ww} over two or more letters, {a^{n²}}, {aᵖ : p prime} and {w : #a(w) = #b(w)}."
+      ],
+      "keyTerms": [
+        "pumping length",
+        "adversary argument",
+        "xyz split"
+      ],
+      "lesson": {
+        "why": "This is the standard tool for proving a language is not regular, and the questions ask you to pick the right string or to judge what the lemma does and does not tell you.",
+        "intro": "A DFA with p states must revisit a state when it reads a string of length at least p. The part of the string read between the two visits can be repeated any number of times, or removed, and the machine ends in the same state. So every long string in a regular language has a section that can be pumped without leaving the language. If you can show some long string has no such section, the language cannot be regular.",
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.myhill-nerode"
+        ],
+        "analogy": {
+          "text": "A long walk through a small town must pass the same street twice, and the loop between the two visits can be walked again any number of times.",
+          "breaksWhen": "The pumping lemma only guarantees such a loop exists; it does not let you choose where it lies, so you must handle every possible split."
+        },
+        "definitions": [
+          {
+            "term": "Pumping length",
+            "meaning": "The constant p such that every string in the language of length at least p can be pumped; the number of DFA states works."
+          }
+        ],
+        "principle": {
+          "text": "If L is regular there is a p such that every w in L with |w| ≥ p splits as xyz with |xy| ≤ p, |y| ≥ 1 and xyⁱz in L for all i ≥ 0. To refute regularity, pick w depending on p, then show that for every legal split some i leaves L.",
+          "tex": "w = xyz,\\quad |xy|\\le p,\\ |y|\\ge 1,\\ \\forall i\\ge 0:\\ xy^{i}z\\in L"
+        },
+        "limits": "The lemma is only a necessary condition. Some non-regular languages can be pumped, so passing it never proves regularity. The adversary picks the split, so your choice of w must work against all splits.",
+        "example": {
+          "problem": "Show that L = {0ⁿ1²ⁿ : n ≥ 0} is not regular.",
+          "steps": [
+            "Assume L is regular with pumping length p and choose w = 0ᵖ1²ᵖ, which is in L and has length at least p.",
+            "Because |xy| ≤ p, the part y lies inside the leading zeros and equals 0ᵏ with 1 ≤ k ≤ p.",
+            "Pump with i = 2: the string xy²z has p + k zeros and 2p ones.",
+            "It is in L only if 2(p + k) = 2p, which needs k = 0, but k ≥ 1."
+          ],
+          "result": "Every legal split leaves L when pumped, so L is not regular."
+        },
+        "misconceptions": [
+          "A language that can be pumped is not necessarily regular; the lemma cannot prove regularity.",
+          "Choosing a split yourself is a mistake; you must show the contradiction for every split that satisfies |xy| ≤ p and |y| ≥ 1."
+        ],
+        "recall": [
+          {
+            "q": "What two conditions on the split xyz restrict the part y?",
+            "a": "|xy| ≤ p and |y| ≥ 1."
+          },
+          {
+            "q": "Can the pumping lemma show a language is regular?",
+            "a": "No, it is only a necessary condition and can show non-regularity."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "To prove that L = {aⁿbᵐ : n > m} is not regular, which string w in L should be used with pumping length p?",
+          "options": [
+            "aᵖbᵖ",
+            "aᵖ⁺¹bᵖ",
+            "aᵖbᵖ⁺¹",
+            "a²ᵖbᵖ"
+          ],
+          "answer": 1,
+          "explanation": "For aᵖ⁺¹bᵖ, y is a block of a's, and pumping down with i = 0 leaves at most p a's against p b's, which is outside L. The string aᵖbᵖ is not in L at all. The string aᵖbᵖ⁺¹ is also outside L. The string a²ᵖbᵖ is in L but a short y still leaves more a's than b's after pumping down, so it fails to defeat that split."
+        },
+        "summary": "Pick a long string, observe y sits in the first p symbols, and find a pump count that leaves the language; this proves non-regularity but never regularity."
+      }
+    },
+    {
+      "id": "toc-finite-automata.decision-properties",
+      "title": "Decision properties",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        404,
+        405,
+        408,
+        409
+      ],
+      "points": [
+        "Membership: run the DFA on w, O(|w|) steps.",
+        "Emptiness: L(M) = ∅ exactly when no accepting state is reachable from the start, found by BFS or DFS over the state graph.",
+        "Finiteness: L(M) is infinite exactly when some cycle lies on a path from the start state to an accepting state; equivalently some accepted string has length between n and 2n − 1 for an n-state DFA.",
+        "Equivalence: minimise both DFAs and compare up to renaming, or check that the symmetric difference is empty. Inclusion L₁ ⊆ L₂ holds exactly when L₁ ∩ complement(L₂) = ∅.",
+        "Every one of these is decidable for regular languages, which is what separates them from context-free languages, where equivalence is undecidable."
+      ],
+      "keyTerms": [
+        "membership",
+        "emptiness",
+        "finiteness",
+        "equivalence",
+        "inclusion"
+      ],
+      "lesson": {
+        "why": "Questions ask which properties of regular languages can be decided, or how to decide emptiness, finiteness and equivalence of given DFAs.",
+        "intro": "A property is decidable when some algorithm always stops with a correct yes or no answer. For a language given by a DFA, the machine is a finite graph, so each question becomes a question about that graph. Membership asks whether one string is accepted. Emptiness asks whether any string is accepted. Finiteness asks whether the language has finitely many strings. Equivalence asks whether two DFAs accept the same language.",
+        "definitions": [
+          {
+            "term": "Decidable",
+            "meaning": "An algorithm exists that halts on every input and answers the question correctly."
+          },
+          {
+            "term": "Inclusion",
+            "meaning": "L1 is included in L2 when every string of L1 is also in L2."
+          }
+        ],
+        "prerequisites": [
+          "toc-finite-automata.dfa-definition",
+          "toc-finite-automata.closure-properties"
+        ],
+        "principle": {
+          "text": "Membership is a run of the DFA. Emptiness is the absence of a reachable accepting state. Finiteness fails exactly when a cycle lies on some path from the start to an accepting state. Equivalence and inclusion reduce to emptiness through closure operations.",
+          "tex": "L_1\\subseteq L_2 \\iff L_1\\cap\\overline{L_2}=\\emptyset,\\qquad L_1=L_2\\iff L_1\\subseteq L_2 \\text{ and } L_2\\subseteq L_1"
+        },
+        "limits": "These algorithms need a DFA or a regex converted to one. They are specific to regular languages: for context-free languages, equivalence is undecidable. A cycle that cannot reach an accepting state, or that is not reachable from the start, does not make the language infinite.",
+        "example": {
+          "problem": "A DFA over {a} has states 0 (start), 1 (accepting) and 2. It moves 0 to 1, 1 to 2, and 2 to 2 on a. Is its language empty? Is it finite?",
+          "steps": [
+            "From the start state 0 we reach 1 on a, and 1 is accepting, so an accepting state is reachable.",
+            "That means the language is not empty, and the string a is accepted.",
+            "The only cycle is the loop on state 2, but state 2 is not accepting and has no way out.",
+            "No cycle lies on a path from the start to the accepting state, so only finitely many strings are accepted."
+          ],
+          "result": "The language is nonempty and finite; it is exactly {a}."
+        },
+        "misconceptions": [
+          "Calling a language infinite because the DFA has a cycle. The cycle must lie on a path from the start state to an accepting state.",
+          "Testing equivalence by comparing the number of states. Two DFAs for the same language can have different sizes; minimise both first.",
+          "Assuming that because regular languages are decidable, the same holds for all language classes. Context-free equivalence is undecidable."
+        ],
+        "recall": [
+          {
+            "q": "How is emptiness of a DFA language decided?",
+            "a": "Search the state graph from the start state; the language is empty exactly when no accepting state is reached."
+          },
+          {
+            "q": "When is the language of a DFA infinite?",
+            "a": "When a cycle lies on some path from the start state to an accepting state."
+          },
+          {
+            "q": "How do you decide L1 included in L2 for DFAs?",
+            "a": "Check that L1 intersected with the complement of L2 is empty."
+          },
+          {
+            "q": "What is the time to decide membership of w?",
+            "a": "Linear, O(|w|), by running the DFA on w."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Given DFAs for L1 and L2 over the same alphabet, which test decides whether L1 is included in L2?",
+          "options": [
+            "L1 intersected with L2 is empty",
+            "L1 intersected with the complement of L2 is empty",
+            "The complement of L1 intersected with L2 is empty",
+            "L1 union L2 is empty"
+          ],
+          "answer": 1,
+          "explanation": "L1 is included in L2 exactly when no string of L1 falls outside L2, which means L1 intersected with the complement of L2 is empty. The third choice tests the reverse inclusion, L2 in L1, and is tempting by symmetry. The first tests disjointness, and the fourth is empty only if both languages are."
+        },
+        "summary": "All the listed questions are decidable for regular languages: run the DFA, search the graph for reachability and cycles, and reduce equivalence and inclusion to emptiness."
+      }
+    },
+    {
+      "id": "toc-finite-automata.recognising-regular",
+      "title": "Spotting regular and non-regular languages quickly",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Ask whether a left-to-right reader needs unbounded memory. A bounded counter, a fixed window or a remainder is finite memory and the language is regular; matching two unbounded counts is not.",
+        "Every finite language is regular, so {aⁿbⁿ : n ≤ 1000} is regular even though {aⁿbⁿ : n ≥ 0} is not. aⁿbᵐ with independent n and m is a*b*, regular.",
+        "Over a one-letter alphabet, a language is regular exactly when its set of lengths is eventually periodic: {a²ⁿ} and {a³ⁿ⁺¹} are regular, {a^{n²}}, {a^{2ⁿ}} and prime lengths are not.",
+        "Look for collapses. {ww : w ∈ a*} is (aa)*, regular. {wxwᴿ : w, x ∈ {a,b}⁺} is just strings of length at least 3 that begin and end with the same letter, regular.",
+        "{aⁿbᵐ : n = m (mod 3)} is regular (track both counts mod 3), but {aⁿbᵐ : n ≤ m} is not."
+      ],
+      "keyTerms": [
+        "finite memory",
+        "eventually periodic",
+        "collapsing language"
+      ],
+      "lesson": {
+        "why": "Several questions give a list of languages and ask which are regular, and a quick test saves a full proof for each.",
+        "intro": "A finite automaton reads left to right and keeps only a fixed amount of information in its state. A language is regular when a bounded summary of what has been read is enough to decide acceptance. Remainders, fixed-size windows and bounded counts fit in finite memory. Comparing two counts that can grow without limit does not.",
+        "prerequisites": [
+          "toc-finite-automata.myhill-nerode",
+          "toc-finite-automata.pumping-lemma"
+        ],
+        "definitions": [
+          {
+            "term": "Bounded memory",
+            "meaning": "Memory whose size is fixed in advance and does not grow with the input length."
+          }
+        ],
+        "principle": {
+          "text": "Ask whether the machine must remember an unbounded quantity. A remainder modulo a fixed number can be tracked by finitely many states; a count compared against another count cannot.",
+          "tex": "\\#_a(w)-\\#_b(w)\\equiv 0 \\pmod m \\ \\text{is regular, but}\\ \\#_a(w)=\\#_b(w)\\ \\text{is not}"
+        },
+        "limits": "This is a heuristic. Some languages that look like counting collapse to something simple, and some that look simple are not regular, so confirm doubtful cases with the pumping lemma or distinguishable prefixes.",
+        "example": {
+          "problem": "Is L = {w over {a, b} : #a(w) − #b(w) is divisible by 3} regular?",
+          "steps": [
+            "Only the value of #a − #b modulo 3 matters for acceptance, so track it.",
+            "Use three states for the remainders 0, 1 and 2; reading a adds 1 and reading b subtracts 1, modulo 3.",
+            "Make the remainder 0 state both the start and the only accepting state."
+          ],
+          "result": "Yes, a 3-state DFA accepts L; for example ε, ab, aaa and bbb are accepted."
+        },
+        "misconceptions": [
+          "Believing that any language mentioning counts is non-regular is wrong; counts modulo a constant need only finitely many states.",
+          "Believing that a similar-looking language has the same status is wrong: #a = #b is not regular although the difference modulo 3 is."
+        ],
+        "recall": [
+          {
+            "q": "Why is a count modulo a fixed number regular?",
+            "a": "Only the remainder must be remembered, and there are finitely many remainders."
+          },
+          {
+            "q": "Why is {aⁿbⁿ : n ≥ 0} not regular?",
+            "a": "Matching the two counts needs unbounded memory."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of these languages over {a, b} is regular?",
+          "options": [
+            "The strings with equally many a's and b's",
+            "The strings where #a minus #b is divisible by 5",
+            "The strings aᵖ where p is a prime number",
+            "The strings aⁿbᵐ with n ≤ m"
+          ],
+          "answer": 1,
+          "explanation": "Tracking #a − #b modulo 5 needs five states, so the second language is regular. The equal-count language, the prime-length language and aⁿbᵐ with n ≤ m each need unbounded memory. The first is tempting because it resembles the second, but exact equality of counts cannot be reduced to a remainder."
+        },
+        "summary": "A language is regular when a bounded summary such as a remainder is enough; comparing unbounded counts or testing prime or square lengths is not."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "toc-finite-automata.string-count",
+      "name": "Number of strings of a given length",
+      "tex": "|\\Sigma^n| = k^n, \\qquad \\sum_{i=0}^{n} k^i = \\frac{k^{n+1}-1}{k-1}",
+      "text": "|Σⁿ| = kⁿ; strings of length ≤ n = (k^(n+1) − 1)/(k − 1)",
+      "where": [
+        [
+          "k",
+          "alphabet size |Σ|, at least 2 for the second form"
+        ],
+        [
+          "n",
+          "string length"
+        ]
+      ],
+      "topic": "toc-finite-automata.strings-languages",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.dfa-language",
+      "name": "Language of a DFA",
+      "tex": "L(M) = \\{\\, w \\in \\Sigma^* \\mid \\delta^*(q_0, w) \\in F \\,\\}",
+      "text": "L(M) = { w ∈ Σ* | δ*(q₀, w) ∈ F }",
+      "topic": "toc-finite-automata.dfa-definition",
+      "origin": "source",
+      "pages": [
+        34,
+        401
+      ]
+    },
+    {
+      "id": "toc-finite-automata.extended-delta",
+      "name": "Extended transition function",
+      "tex": "\\delta^*(q, \\varepsilon) = q, \\qquad \\delta^*(q, wa) = \\delta(\\delta^*(q, w), a)",
+      "text": "δ*(q, ε) = q;  δ*(q, wa) = δ(δ*(q, w), a)",
+      "topic": "toc-finite-automata.dfa-definition",
+      "origin": "source",
+      "pages": [
+        34
+      ]
+    },
+    {
+      "id": "toc-finite-automata.dfa-count",
+      "name": "Number of DFAs with a fixed start state",
+      "tex": "N = n^{\\,n k} \\cdot 2^{n}",
+      "text": "N = n^(n·k) · 2ⁿ",
+      "where": [
+        [
+          "n",
+          "number of states"
+        ],
+        [
+          "k",
+          "alphabet size"
+        ]
+      ],
+      "note": "nk transitions each pick one of n targets, and F is any of the 2ⁿ subsets. If the start state is free, multiply by n. Two states over {a, b}: 2⁴ · 2² = 64.",
+      "topic": "toc-finite-automata.dfa-definition",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.substring-suffix-states",
+      "name": "Minimal DFA for 'contains w' or 'ends with w'",
+      "tex": "|Q_{\\min}| = |w| + 1",
+      "text": "|Q_min| = |w| + 1",
+      "where": [
+        [
+          "w",
+          "the fixed pattern string"
+        ]
+      ],
+      "note": "Ends in 01 needs 3 states; contains aab needs 4. For 'contains w' the last state is an accepting sink.",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "curated",
+      "pages": [
+        406,
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.mod-counter-states",
+      "name": "Counting modulo m and n",
+      "tex": "|Q_{\\min}| = m \\cdot n \\quad \\text{for } \\#_a(w) \\equiv i \\!\\!\\pmod m \\text{ and } \\#_b(w) \\equiv j \\!\\!\\pmod n",
+      "text": "|Q_min| = m·n for #a(w) ≡ i (mod m) and #b(w) ≡ j (mod n)",
+      "note": "One counter alone needs m states: length divisible by 3 needs 3.",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "curated",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.binary-divisibility",
+      "name": "Binary divisibility DFA",
+      "tex": "\\delta(r, b) = (2r + b) \\bmod n",
+      "text": "δ(r, b) = (2r + b) mod n",
+      "where": [
+        [
+          "r",
+          "remainder of the prefix read so far"
+        ],
+        [
+          "b",
+          "next bit, read most significant first"
+        ]
+      ],
+      "note": "Start and accept at remainder 0. For odd n the minimal DFA has n states; for even n it can be smaller (divisible by 4 needs only 3).",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.product-states",
+      "name": "Product DFA size",
+      "tex": "|Q_{1} \\times Q_{2}| = |Q_1| \\cdot |Q_2|",
+      "text": "|Q₁ × Q₂| = |Q₁| · |Q₂|",
+      "note": "An upper bound for intersection, union and difference; the minimal DFA can be smaller.",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.subset-transition",
+      "name": "Subset construction transition",
+      "tex": "\\delta_D(S, a) = \\varepsilon\\text{-closure}\\Big(\\bigcup_{q \\in S} \\delta_N(q, a)\\Big), \\qquad q_D = \\varepsilon\\text{-closure}(\\{q_0\\})",
+      "text": "δ_D(S, a) = ε-closure(∪ over q ∈ S of δ_N(q, a)); start = ε-closure({q₀})",
+      "topic": "toc-finite-automata.subset-construction",
+      "origin": "source",
+      "pages": [
+        34,
+        402
+      ]
+    },
+    {
+      "id": "toc-finite-automata.subset-bound",
+      "name": "Subset construction state bound",
+      "tex": "|Q_D| \\le 2^{|Q_N|}",
+      "text": "|Q_D| ≤ 2^|Q_N|",
+      "note": "Tight: 'n-th symbol from the end is 1' has an (n + 1)-state NFA and a 2ⁿ-state minimal DFA.",
+      "topic": "toc-finite-automata.subset-construction",
+      "origin": "source",
+      "pages": [
+        34,
+        402,
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.myhill-nerode-index",
+      "name": "Myhill–Nerode",
+      "tex": "|Q_{\\min}| = \\operatorname{index}(\\equiv_L), \\qquad x \\equiv_L y \\iff \\forall z\\,(xz \\in L \\Leftrightarrow yz \\in L)",
+      "text": "|Q_min| = number of classes of ≡_L, where x ≡_L y iff for all z: xz ∈ L ⇔ yz ∈ L",
+      "note": "Counts the dead state too: the minimal complete DFA.",
+      "topic": "toc-finite-automata.myhill-nerode",
+      "origin": "source",
+      "pages": [
+        35
+      ]
+    },
+    {
+      "id": "toc-finite-automata.regex-identity-list",
+      "name": "Core regex identities",
+      "tex": "\\varnothing^* = \\varepsilon^* = \\varepsilon, \\quad r\\varnothing = \\varnothing, \\quad r^+ = rr^*, \\quad (a+b)^* = (a^*b^*)^* = (a^*+b^*)^*",
+      "text": "∅* = ε* = ε; r∅ = ∅; r⁺ = rr*; (a+b)* = (a*b*)* = (a* + b*)*",
+      "note": "(r + s)* ≠ r* + s* in general: ab is in the left side only.",
+      "topic": "toc-finite-automata.regex-identities",
+      "origin": "source",
+      "pages": [
+        34
+      ]
+    },
+    {
+      "id": "toc-finite-automata.state-elimination",
+      "name": "State elimination update",
+      "tex": "R_{pr}' = R_{pr} + R_{pq}\\,R_{qq}^{*}\\,R_{qr}",
+      "text": "R'(p,r) = R(p,r) + R(p,q) · R(q,q)* · R(q,r)",
+      "where": [
+        [
+          "q",
+          "the state being removed"
+        ],
+        [
+          "R_qq",
+          "label of q's self-loop, ε if none"
+        ]
+      ],
+      "topic": "toc-finite-automata.regex-fa-conversion",
+      "origin": "source",
+      "pages": [
+        34,
+        403
+      ]
+    },
+    {
+      "id": "toc-finite-automata.arden",
+      "name": "Arden's theorem",
+      "tex": "R = Q + RP \\;\\Longrightarrow\\; R = QP^{*} \\quad (\\varepsilon \\notin L(P))",
+      "text": "R = Q + RP ⇒ R = QP*, provided ε ∉ L(P)",
+      "note": "If ε ∈ L(P) the solution is not unique.",
+      "topic": "toc-finite-automata.arden-theorem",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.pumping-conditions",
+      "name": "Pumping lemma conditions",
+      "tex": "w = xyz,\\quad |xy| \\le p,\\quad |y| \\ge 1,\\quad xy^{i}z \\in L \\;\\; \\forall i \\ge 0",
+      "text": "w = xyz, |xy| ≤ p, |y| ≥ 1, xyⁱz ∈ L for all i ≥ 0",
+      "where": [
+        [
+          "p",
+          "pumping length, at most the number of states of a DFA for L"
+        ]
+      ],
+      "note": "Holds for every w ∈ L with |w| ≥ p. The quantifiers alternate: ∃p ∀w ∃split ∀i.",
+      "topic": "toc-finite-automata.pumping-lemma",
+      "origin": "source",
+      "pages": [
+        35,
+        404
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "toc-finite-automata.cx-subset-construction",
+      "name": "Subset construction (n-state NFA, k symbols)",
+      "worst": "O(2ⁿ · n² · k)",
+      "space": "O(2ⁿ · k) DFA table",
+      "notes": "2ⁿ possible subsets, each with k transitions computed over up to n members; in practice only reachable subsets are built.",
+      "topic": "toc-finite-automata.subset-construction",
+      "origin": "source",
+      "pages": [
+        34,
+        402
+      ]
+    },
+    {
+      "id": "toc-finite-automata.cx-hopcroft",
+      "name": "DFA minimization, Hopcroft",
+      "worst": "O(k · n log n)",
+      "topic": "toc-finite-automata.minimization",
+      "origin": "source",
+      "pages": [
+        402
+      ]
+    },
+    {
+      "id": "toc-finite-automata.cx-table-filling",
+      "name": "DFA minimization, table filling",
+      "worst": "O(k · n²) with dependency lists",
+      "space": "O(n²) pair table",
+      "notes": "Re-sweeping the whole table until nothing changes takes up to n² passes, O(k · n⁴).",
+      "topic": "toc-finite-automata.minimization",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.cx-dfa-membership",
+      "name": "Membership test on a DFA",
+      "worst": "O(|w|)",
+      "space": "O(1) beyond the table",
+      "topic": "toc-finite-automata.decision-properties",
+      "origin": "source",
+      "pages": [
+        404,
+        405
+      ]
+    },
+    {
+      "id": "toc-finite-automata.cx-nfa-simulation",
+      "name": "Membership test on an NFA by set simulation",
+      "worst": "O(|w| · (n + m))",
+      "space": "O(n)",
+      "notes": "Track the current set of states; m is the number of transitions, including ε-moves for the closure.",
+      "topic": "toc-finite-automata.nfa-epsilon-nfa",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.cx-emptiness",
+      "name": "Emptiness and finiteness of a DFA",
+      "worst": "O(n · k)",
+      "notes": "Graph search over n states and nk edges; finiteness adds a cycle check on the useful states.",
+      "topic": "toc-finite-automata.decision-properties",
+      "origin": "source",
+      "pages": [
+        404,
+        405
+      ]
+    },
+    {
+      "id": "toc-finite-automata.cx-equivalence",
+      "name": "Equivalence of two DFAs via the product",
+      "worst": "O(k · n₁ · n₂)",
+      "notes": "Search the product for a reachable pair where exactly one component accepts.",
+      "topic": "toc-finite-automata.decision-properties",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.cx-thompson",
+      "name": "Thompson's construction",
+      "worst": "O(|r|) time",
+      "space": "at most 2|r| NFA states",
+      "topic": "toc-finite-automata.regex-fa-conversion",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "toc-finite-automata.pt-min-dfa-count",
+      "title": "Minimal DFA state count for a described language",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Decide what a left-to-right reader must remember: matched prefix of a pattern, a remainder, the last n symbols, or a pair of these.",
+        "Give one state per distinct memory value, plus a dead state if some prefixes can never be completed.",
+        "Check distinguishability: for every two states find a suffix accepted from one and not the other; merge any pair with none.",
+        "Use the shortcuts: pattern of length m → m + 1, mod k → k, product of independent conditions → product of counts, n-th from the end → 2ⁿ."
+      ],
+      "trap": "Forgetting the dead state when the language demands a fixed prefix, e.g. strings starting with ab need 4 states, not 3.",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "source",
+      "pages": [
+        406,
+        407,
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.pt-subset-trace",
+      "title": "Count DFA states produced by subset construction",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Compute the ε-closure of the start state; that set is the DFA start.",
+        "For each new set and each symbol, take the union of moves, then its ε-closure; add any set not seen before to a worklist.",
+        "Stop when the worklist is empty and count the sets, including ∅ if it appeared.",
+        "Mark as accepting every set containing an NFA accepting state."
+      ],
+      "trap": "Skipping the ε-closure after a move, which merges or loses states and changes the count.",
+      "topic": "toc-finite-automata.subset-construction",
+      "origin": "source",
+      "pages": [
+        34,
+        402
+      ]
+    },
+    {
+      "id": "toc-finite-automata.pt-minimize-table",
+      "title": "Minimise a DFA given as a transition table",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Delete states unreachable from the start state.",
+        "Split into accepting and non-accepting blocks.",
+        "Refine: give each state the signature (own block, block reached on each symbol) and split blocks whose members disagree; repeat until stable.",
+        "The number of final blocks is the minimal state count."
+      ],
+      "trap": "Counting an unreachable state, or merging two states only because their immediate successors look alike before the partition is stable.",
+      "topic": "toc-finite-automata.minimization",
+      "origin": "source",
+      "pages": [
+        35,
+        402
+      ]
+    },
+    {
+      "id": "toc-finite-automata.pt-regex-match",
+      "title": "Which regex denotes the language, or which regexes are equivalent",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Write the shortest strings of the target language: ε, length-1 strings, and the boundary cases such as a single trailing symbol.",
+        "Test each option on them and on a string just outside the language.",
+        "Eliminate any option that misses a member or admits a non-member; confirm the survivor by reasoning about its structure."
+      ],
+      "trap": "Options that agree on all long strings but differ on ε or on length-1 strings.",
+      "topic": "toc-finite-automata.regex-identities",
+      "origin": "source",
+      "pages": [
+        34,
+        403,
+        407,
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.pt-fa-to-regex",
+      "title": "Find the language or regex of a given automaton",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Name each state by the fact it remembers (parity, last symbol, matched prefix).",
+        "If the meaning is not obvious, write Arden equations per state or eliminate states one at a time.",
+        "Check the candidate regex on ε and on strings that end in each state."
+      ],
+      "trap": "A regex such as b*(ab*a)* looks right for an even number of a's but cannot end in b after an a-pair, so it misses abab.",
+      "topic": "toc-finite-automata.regex-fa-conversion",
+      "origin": "source",
+      "pages": [
+        34,
+        403,
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.pt-which-regular",
+      "title": "Which of these languages are regular",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Simplify each language first: check whether it is finite, unary or collapses to a simpler description.",
+        "Ask what memory a one-pass reader needs; bounded memory means regular.",
+        "For a suspected non-regular language, intersect with a regular one such as a*b* or pump a string like aᵖbᵖ."
+      ],
+      "trap": "Languages written with variables, such as wxwᴿ or ww over one letter, that collapse to simple regular sets.",
+      "topic": "toc-finite-automata.recognising-regular",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.pt-closure",
+      "title": "Closure property and mixed-class questions",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Recall the closed list: ∪, ∩, complement, difference, concatenation, star, reversal, homomorphism, inverse homomorphism.",
+        "For regular combined with CFL: ∩ and ∪ give CFL; regular ∩ CFL need not be regular.",
+        "To refute a claim, build a counterexample from Σ*, ∅ or a singleton with a known non-regular language."
+      ],
+      "trap": "Assuming a subset of a regular language is regular, or that an infinite union of regular languages is regular.",
+      "topic": "toc-finite-automata.closure-properties",
+      "origin": "source",
+      "pages": [
+        35,
+        403,
+        407,
+        408
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "toc-finite-automata.q-length-mod-3",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many states does the minimal DFA have for the set of strings over {a, b} whose length is divisible by 3?",
+      "answer": 3,
+      "explanation": "The only thing that matters is the length mod 3, so states r₀, r₁, r₂ with every symbol moving rᵢ to r₍ᵢ₊₁₎ mod 3, start and accept r₀. The three are pairwise distinguishable: from rᵢ the shortest accepted suffix has length (3 − i) mod 3, which differs for each. No dead state is needed because every prefix can still be completed. Minimal size 3.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Min DFA size",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-contains-aab",
+      "type": "nat",
+      "marks": 2,
+      "stem": "How many states does the minimal DFA have for L = (a + b)*aab(a + b)* over {a, b}?",
+      "answer": 4,
+      "explanation": "L is the set of strings containing aab. States record the longest prefix of aab matched: ε, a, aa and aab (accepting sink). Transitions: ε –a→ a, ε –b→ ε; a –a→ aa, a –b→ ε; aa –a→ aa (the last two symbols are still aa), aa –b→ aab; aab loops on both. The states are distinguishable by suffixes aab, ab, b and ε respectively, so the count is 4.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.minimization",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Min DFA",
+      "pages": [
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-third-from-end",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Let L be the set of strings over {0, 1} whose third symbol from the right end is 1 (strings of length less than 3 are not in L). How many states does the minimal DFA for L have?",
+      "answer": 8,
+      "explanation": "A DFA must remember the last three symbols, with missing positions treated as 0, giving 2³ = 8 states. They are pairwise distinguishable: if two length-3 windows differ in position j from the left, append j − 1 arbitrary symbols so that position becomes third from the end; one string is then accepted and the other is not. By Myhill–Nerode, 8 classes means 8 states, while an NFA needs only 4 (guess the 1, then read exactly two more symbols).",
+      "difficulty": "hard",
+      "topic": "toc-finite-automata.myhill-nerode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-epsilon-subset",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An ε-NFA over {a, b} has states 0, 1, 2, 3, start state 0 and accepting state 3. Its moves are: 0 –ε→ 2, 0 –a→ 1; 1 –b→ {1, 3}; 2 –a→ 2, 2 –b→ 3; 3 –ε→ 0. How many states does the DFA obtained by the subset construction have, counting only reachable subsets (and the empty set if it is reached)?",
+      "answer": 5,
+      "explanation": "Start = ε-closure(0) = {0,2}. {0,2}: a → {1,2}; b → ε-closure{3} = {0,2,3}. {1,2}: a → {2}; b → ε-closure{1,3} = {0,1,2,3}. {0,2,3}: a → {1,2}; b → {0,2,3}. {2}: a → {2}; b → {0,2,3}. {0,1,2,3}: a → {1,2}; b → {0,1,2,3}. No new sets appear and ∅ is never reached, so there are 5 states: {0,2}, {1,2}, {0,2,3}, {2}, {0,1,2,3}, the two containing 3 accepting.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.subset-construction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-minimize-table",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A DFA over {0, 1} has start state A and accepting states D and E. Transitions (on 0, on 1): A → (B, C); B → (D, E); C → (E, D); D → (F, F); E → (F, F); F → (F, F); G → (D, A). How many states does the equivalent minimal DFA have?",
+      "answer": 4,
+      "explanation": "G is unreachable from A, so drop it. Initial blocks: {D, E} accepting, {A, B, C, F} non-accepting. Signatures on (0, 1): A → (non, non), B → (acc, acc), C → (acc, acc), F → (non, non); so split into {A, F} and {B, C}. Next round: A goes to {B, C} while F goes to {F}, so A and F split. D and E both go to F on both symbols and stay together. Final blocks {A}, {B, C}, {D, E}, {F}: 4 states. The language is the set of strings of length exactly 2.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.minimization",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-no-11-regex",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which regular expression denotes the set of all strings over {0, 1} that do not contain 11 as a substring?",
+      "options": [
+        "(0 + 10)*(1 + ε)",
+        "(0 + 10)*",
+        "(01 + 1)*0",
+        "(0 + 1)*(0 + ε)"
+      ],
+      "answer": 0,
+      "explanation": "In a string without 11 every 1 except possibly the last symbol is followed by a 0, so the string is a sequence of blocks 0 and 10, optionally followed by one final 1: (0 + 10)*(1 + ε). Option (0 + 10)* misses 1 and 01. (01 + 1)*0 misses ε and admits 110. (0 + 1)*(0 + ε) is every string, including 11.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.regular-expressions",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — Regex",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-same-first-last",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which regular expression denotes the set of non-empty strings over {a, b} that begin and end with the same symbol?",
+      "options": [
+        "a(a + b)*a + b(a + b)*b + a + b",
+        "a(a + b)*a + b(a + b)*b",
+        "a(a + b)*a + b(a + b)*b + a + b + ε",
+        "(a + b)*a(a + b)*a + (a + b)*b(a + b)*b"
+      ],
+      "answer": 0,
+      "explanation": "A string of length 1 begins and ends with the same symbol, so a and b belong; longer members are a…a or b…b, which a(a + b)*a + b(a + b)*b gives. The second option misses a and b, the third adds ε, which is excluded, and the fourth only requires the string to end in a and contain another a (it admits baa and misses a).",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.regex-fa-conversion",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — DFA → regex",
+      "pages": [
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-even-a-arden",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A DFA over {a, b} has states q₀ (start, accepting) and q₁. On a, q₀ goes to q₁ and q₁ goes to q₀; on b, each state stays where it is. Which regular expression denotes L(M)?",
+      "options": [
+        "(b + ab*a)*",
+        "b*(ab*a)*",
+        "(b*ab*a)*",
+        "(a + b)*a(a + b)*a(a + b)*"
+      ],
+      "answer": 0,
+      "explanation": "Arden equations: q₀ = ε + q₀b + q₁a and q₁ = q₀a + q₁b. The second gives q₁ = q₀ab*; substituting, q₀ = ε + q₀(b + ab*a), so q₀ = (b + ab*a)*: strings with an even number of a's. b*(ab*a)* cannot place a b after the last a-pair unless it lies between two a's, so it misses abab. (b*ab*a)* misses b. The last option demands at least two a's, so it misses ε and b and admits aaa.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.arden-theorem",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-not-universal",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which of these regular expressions over {a, b} is NOT equivalent to (a + b)*?",
+      "options": [
+        "(a*b*)*",
+        "a*(ba*)*",
+        "(a + b)*ab(a + b)* + b*a*",
+        "(ab + b)*a*"
+      ],
+      "answer": 3,
+      "explanation": "(ab + b)*a* cannot generate aab: every a before the final block of a's must be immediately followed by b, and aab has an a followed by a. (a*b*)* already contains a and b, so its star gives everything. a*(ba*)* splits any string at its b's. A string without ab as a substring has all b's before all a's, so it is in b*a*; every other string contains ab; together the third option is all strings.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.regex-identities",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-one-0-one-1",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "How many states does the minimal DFA have for the set of strings over {0, 1} that contain at least one 0 and at least one 1?",
+      "options": [
+        "3",
+        "4",
+        "5",
+        "2"
+      ],
+      "answer": 1,
+      "explanation": "Track two independent flags, seen-0 and seen-1: (no, no), (yes, no), (no, yes) and (yes, yes), the last accepting. The suffixes 01, 1, 0 and ε separate them, so all four are needed: the product of two 2-state DFAs, with no merging possible.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "source",
+      "pages": [
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-binary-div-5",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Strings over {0, 1} are read as binary numbers, most significant bit first, with ε taken as 0. How many states does the minimal DFA accepting exactly the multiples of 5 have?",
+      "options": [
+        "4",
+        "5",
+        "6",
+        "10"
+      ],
+      "answer": 1,
+      "explanation": "Keep the remainder r of the prefix; reading bit b gives (2r + b) mod 5, so 5 states with 0 as start and accept. They are distinguishable because doubling is invertible mod 5: from remainders r ≠ s, appending the same suffix keeps the remainders different, and a suitable suffix drives r to 0 while s lands elsewhere. Minimal size 5.",
+      "difficulty": "medium",
+      "topic": "toc-finite-automata.dfa-design",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-count-dfas",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "How many distinct DFAs are there with exactly two states X and Y over the alphabet {a, b}, where X is the start state and any subset of {X, Y} may be accepting? (Count transition tables with accepting sets, not languages.)",
+      "options": [
+        "16",
+        "32",
+        "64",
+        "256"
+      ],
+      "answer": 2,
+      "explanation": "There are 2 states × 2 symbols = 4 transitions, each choosing one of 2 targets: 2⁴ = 16 transition functions. The accepting set is one of 2² = 4 subsets. Total 16 × 4 = 64.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.dfa-definition",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-finite-automata.q-pumping-0n1n",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "To prove L = {0ⁿ1ⁿ : n ≥ 0} is not regular, suppose p is a pumping length and take w = 0ᵖ1ᵖ. Which argument is valid?",
+      "options": [
+        "Since |xy| ≤ p, y consists only of 0s, so xz has fewer 0s than 1s and is not in L.",
+        "Choose the split y = 01; then xy²z has a 0 after a 1, so it is not in L.",
+        "The string 0ᵖ1ᵖ cannot be split into xyz at all, so the lemma fails at once.",
+        "Pumping with i = 1 gives a string outside L."
+      ],
+      "answer": 0,
+      "explanation": "The prover picks w, but the split is the adversary's: the argument must work for every legal split, so choosing y = 01 proves nothing. Every legal split has xy inside the first p symbols, all 0s, and y non-empty, so xy⁰z = 0ᵖ⁻|ʸ|1ᵖ is outside L. Pumping with i = 1 just returns w, which is in L.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.pumping-lemma",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Pumping lemma",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-regular-cfl-intersection",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "L₁ is regular and L₂ is context-free. Which statement about L₁ ∩ L₂ always holds?",
+      "options": [
+        "It is regular",
+        "It is context-free",
+        "It is deterministic context-free",
+        "It may fail to be context-free"
+      ],
+      "answer": 1,
+      "explanation": "A PDA for L₂ can run a DFA for L₁ in its finite control and accept when both accept, so the intersection is always context-free. It need not be regular: Σ* ∩ {aⁿbⁿ} = {aⁿbⁿ}. It need not be deterministic: Σ* ∩ L₂ = L₂ for an inherently nondeterministic L₂ such as even-length palindromes.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.closure-properties",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Closure",
+      "pages": [
+        407
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-closure-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Under which of these operations is the class of regular languages closed?",
+      "options": [
+        "Complement",
+        "Reversal",
+        "Infinite union",
+        "Homomorphism"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Complement swaps final states of a complete DFA; reversal flips the edges of an NFA; a homomorphism substitutes a string for each symbol of a regex. Infinite union fails: each {aⁿbⁿ} for fixed n is finite and so regular, but the union over all n is the non-regular {aⁿbⁿ : n ≥ 0}.",
+      "difficulty": "easy",
+      "topic": "toc-finite-automata.closure-properties",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Closed properties",
+      "pages": [
+        403,
+        408
+      ]
+    },
+    {
+      "id": "toc-finite-automata.q-which-regular-msq",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following languages are regular?",
+      "options": [
+        "{aⁿbᵐ : n ≥ 1, m ≥ 1}",
+        "{a^{n²} : n ≥ 0}",
+        "{ww : w ∈ {a}*}",
+        "{wxwᴿ : w, x ∈ {a, b}⁺}"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "aⁿbᵐ with independent counts is a⁺b⁺. {ww : w ∈ a*} is the set of even-length strings of a's, (aa)*. In wxwᴿ with w and x non-empty, take w to be the first symbol and x the middle: the language is exactly the strings of length at least 3 whose first and last symbols agree, a(a + b)⁺a + b(a + b)⁺b. The squares fail: the gaps between consecutive lengths n² and (n + 1)² grow without bound, so the length set is not eventually periodic, and pumping a^{p²} gives a length strictly between p² and (p + 1)².",
+      "difficulty": "hard",
+      "topic": "toc-finite-automata.recognising-regular",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "A DFA's transition function is total. When a diagram omits moves, add the dead state before complementing or reporting the minimal state count.",
+      "origin": "source",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "text": "Swapping final and non-final states complements only a complete DFA; on an NFA it produces a different, usually wrong, language.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Subset-construction states are sets of NFA states, not pairs, and each one must be ε-closed after the move.",
+      "origin": "source",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "text": "Satisfying the pumping lemma does not prove regularity; the lemma is only a necessary condition.",
+      "origin": "source",
+      "pages": [
+        408
+      ]
+    },
+    {
+      "text": "In a pumping proof you choose the string, never the split; the argument must defeat every split with |xy| ≤ p and |y| ≥ 1.",
+      "origin": "source",
+      "pages": [
+        404,
+        405
+      ]
+    },
+    {
+      "text": "A subset of a regular language need not be regular ({aⁿbⁿ} ⊂ a*b*), and a language written with variables may still be regular ({ww : w ∈ a*} = (aa)*).",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Unreachable states in a given DFA table are not part of the minimal DFA; delete them before refining.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Machines",
+      "lines": [
+        "DFA (Q, Σ, δ: Q×Σ→Q total, q₀, F); NFA δ: Q×Σ→2^Q; ε-NFA adds ε-moves",
+        "DFA = NFA = ε-NFA = regex in power: the regular languages",
+        "Subset construction: start ε-closure(q₀), worst case 2ⁿ states",
+        "n-th symbol from the end is 1: NFA n + 1 states, DFA 2ⁿ"
+      ],
+      "origin": "source",
+      "pages": [
+        409
+      ]
+    },
+    {
+      "heading": "Minimal DFA counts",
+      "lines": [
+        "Drop unreachable states, split accept/non-accept, refine until stable",
+        "Contains or ends with w: |w| + 1; length mod k: k",
+        "Independent conditions: multiply; binary mod n (n odd): n",
+        "Minimal DFA is unique up to renaming; states = Myhill–Nerode classes"
+      ],
+      "origin": "source",
+      "pages": [
+        35,
+        409
+      ]
+    },
+    {
+      "heading": "Regex",
+      "lines": [
+        "Precedence * > · > +; ∅* = ε* = ε; r∅ = ∅",
+        "(a+b)* = (a*b*)* = (a*+b*)*; (r+s)* ≠ r* + s*",
+        "No 11: (0 + 10)*(1 + ε); Arden: R = Q + RP ⇒ R = QP*",
+        "Thompson regex → NFA linear; state elimination FA → regex can blow up"
+      ],
+      "origin": "source",
+      "pages": [
+        409
+      ]
+    },
+    {
+      "heading": "Closure, pumping, decisions",
+      "lines": [
+        "Closed: ∪ ∩ complement − · * reversal hom inverse-hom; not infinite ∪",
+        "Regular ∩ CFL = CFL",
+        "Pumping: w = xyz, |xy| ≤ p, |y| ≥ 1, xyⁱz ∈ L for all i ≥ 0",
+        "Decidable: membership, emptiness, finiteness, equivalence, inclusion"
+      ],
+      "origin": "source",
+      "pages": [
+        409
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 403,
+      "claim": "Conversions between regular expressions and finite automata have polynomial blow-up in both directions.",
+      "correction": "Only regex → NFA (Thompson) is linear. FA → regex by state elimination can give an expression exponentially longer than the automaton, and some languages have no shorter regex at all."
+    },
+    {
+      "page": 34,
+      "claim": "Thompson's construction is listed under the heading 'GNFA / RE to DFA'.",
+      "correction": "A GNFA is the device used for the opposite direction, FA → regex by state elimination. Thompson's construction maps a regex to an ε-NFA, which the subset construction then turns into a DFA."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "toc-regex-fa",
+      "status": "covered",
+      "topics": [
+        "toc-finite-automata.dfa-definition",
+        "toc-finite-automata.dfa-design",
+        "toc-finite-automata.nfa-epsilon-nfa",
+        "toc-finite-automata.subset-construction",
+        "toc-finite-automata.minimization",
+        "toc-finite-automata.regular-expressions",
+        "toc-finite-automata.regex-identities",
+        "toc-finite-automata.regex-fa-conversion",
+        "toc-finite-automata.arden-theorem"
+      ]
+    },
+    {
+      "item": "toc-regular-languages",
+      "status": "covered",
+      "topics": [
+        "toc-finite-automata.closure-properties",
+        "toc-finite-automata.pumping-lemma",
+        "toc-finite-automata.myhill-nerode",
+        "toc-finite-automata.decision-properties",
+        "toc-finite-automata.recognising-regular"
+      ]
+    }
+  ]
+}

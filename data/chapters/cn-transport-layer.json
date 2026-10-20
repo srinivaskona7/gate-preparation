@@ -1,0 +1,2057 @@
+{
+  "id": "cn-transport-layer",
+  "summary": "The transport layer turns host-to-host delivery into process-to-process delivery through port numbers. GATE questions centre on TCP: sequence and acknowledgment arithmetic, the three-way handshake and the closing states, RTT and timeout estimation, the sliding-window limits on throughput, and the slow-start and congestion-avoidance trajectory after a timeout or a triple duplicate ACK. The socket API, the programmer's view of TCP, is named separately in the 2027 syllabus.",
+  "highYield": [
+    "Congestion-window trajectory: given ssthresh, MSS and a loss event, find cwnd after n RTTs or the time to regain a window size (2-mark NAT).",
+    "Timeout resets cwnd to 1 MSS and restarts slow start; a triple duplicate ACK in Reno halves cwnd and continues in congestion avoidance.",
+    "ACK number = next byte expected; SYN and FIN each consume one sequence number, a pure ACK consumes none.",
+    "Throughput bounded by window/RTT, the bandwidth-delay product and the window-scale shift needed to fill a fast link.",
+    "Sequence-number wraparound time 2³² bytes / bandwidth, and the EstRTT, DevRTT and RTO update with α = 0.125, β = 0.25."
+  ],
+  "topics": [
+    {
+      "id": "cn-transport-layer.transport-services",
+      "title": "Transport-layer services, ports and demultiplexing",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        650
+      ],
+      "points": [
+        "The network layer delivers packets between hosts; the transport layer delivers data between processes on those hosts, identified by 16-bit port numbers.",
+        "Multiplexing gathers data from many sockets into segments at the sender; demultiplexing hands each arriving segment to the right socket at the receiver.",
+        "Port ranges: 0–1023 well-known (HTTP 80, DNS 53), 1024–49151 registered, 49152–65535 dynamic or ephemeral, the range a client's source port is drawn from.",
+        "Error detection by checksum is offered by both TCP and UDP; reliability, flow control and congestion control are TCP only."
+      ],
+      "keyTerms": [
+        "port number",
+        "multiplexing",
+        "demultiplexing",
+        "ephemeral port"
+      ],
+      "lesson": {
+        "why": "Questions on ports and demultiplexing ask which process gets a segment and what range a port belongs to, and the same ideas sit under every socket question in this chapter.",
+        "intro": "A network delivers packets from one machine to another, but a machine runs many programs at once and each needs its own stream of data. The transport layer solves this by giving every program an endpoint called a socket, named by a 16-bit number called a port. The sender stamps the port numbers into each segment. When a segment arrives, the receiving machine reads the destination port and passes the data to the program that owns that port.",
+        "definitions": [
+          {
+            "term": "Port number",
+            "meaning": "A 16-bit number that names one endpoint on a host, so it runs from 0 to 65 535."
+          },
+          {
+            "term": "Multiplexing",
+            "meaning": "Gathering data from many sockets at the sender and wrapping it in segments that carry port numbers."
+          },
+          {
+            "term": "Demultiplexing",
+            "meaning": "Reading the port number of an arriving segment and handing its data to the matching socket."
+          }
+        ],
+        "principle": {
+          "text": "The network layer gets data to the right host and the transport layer gets it to the right process. Ports fall into three ranges, and a client normally draws its source port from the ephemeral range.",
+          "tex": "\\text{well-known: } 0\\text{--}1023,\\quad \\text{registered: } 1024\\text{--}49151,\\quad \\text{ephemeral: } 49152\\text{--}65535"
+        },
+        "limits": "A port number identifies a process only together with the host address, so two hosts can use the same port. Checksums exist in both TCP and UDP, but reliability, flow control and congestion control belong to TCP alone.",
+        "example": {
+          "problem": "A web server listens on port 80. Two programs on one client open connections to it, using source ports 50001 and 50002. How does the client's operating system tell the replies apart, and how many ports does the ephemeral range hold?",
+          "steps": [
+            "Every reply from the server carries destination port 50001 or 50002, because the server swaps the ports it saw.",
+            "The client reads the destination port of each arriving segment and hands the data to the socket that owns that port, which is demultiplexing.",
+            "The ephemeral range runs from 49152 to 65535, so it holds $65535 - 49152 + 1 = 16384$ ports."
+          ],
+          "result": "Replies are separated by destination port, and the ephemeral range holds 16 384 ports."
+        },
+        "misconceptions": [
+          "Port 80 is not special to the machine. It is only the number the web server has agreed to listen on; any program may use any free port.",
+          "The count of a range is last minus first plus one. Forgetting the plus one is the usual slip, and the well-known range holds 1024 ports, not 1023."
+        ],
+        "recall": [
+          {
+            "q": "What does the transport layer add to what the network layer provides?",
+            "a": "Delivery between processes on the hosts, using port numbers, where the network layer delivers only between hosts."
+          },
+          {
+            "q": "Which port range holds a client's source port?",
+            "a": "The ephemeral range, 49152 to 65535."
+          },
+          {
+            "q": "Which transport services are offered by both TCP and UDP?",
+            "a": "Multiplexing with demultiplexing and error detection by checksum. Reliability, flow control and congestion control are TCP only."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The registered port range runs from 1024 to 49151 inclusive. How many port numbers does it contain?",
+          "answer": 48128,
+          "explanation": "The count is $49151 - 1024 + 1 = 48128$. The tempting answer 48127 subtracts the ends and forgets that both ends belong to the range."
+        },
+        "summary": "Ports are 16-bit process names. Multiplexing stamps them onto segments and demultiplexing reads them to choose the socket. Well-known, registered and ephemeral ranges split the space."
+      }
+    },
+    {
+      "id": "cn-transport-layer.udp",
+      "title": "UDP: connectionless datagram service",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        58,
+        650
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "UDP is connectionless and unreliable: no handshake, no acknowledgments, no ordering, no flow or congestion control.",
+        "Its header is 8 bytes: source port, destination port, length and checksum, 16 bits each; the length field counts header plus data, so a 100-byte payload gives length 108.",
+        "It suits DNS, DHCP, NTP, streaming and games, where a lost datagram matters less than delay; an application that needs reliability adds it itself."
+      ]
+    },
+    {
+      "id": "cn-transport-layer.tcp-header",
+      "title": "TCP segment header",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        58,
+        651
+      ],
+      "points": [
+        "Fields: source and destination port (16 bits each), sequence number (32), acknowledgment number (32), header length (4), flags, window (16), checksum (16), urgent pointer (16) and options.",
+        "The 4-bit header length counts 32-bit words, so the header runs from 20 bytes (value 5) to 60 bytes (value 15), leaving at most 40 bytes of options.",
+        "Flags: SYN opens a connection, FIN closes one direction, RST aborts, ACK marks the acknowledgment field valid, PSH asks for prompt delivery, URG marks the urgent pointer valid.",
+        "The 16-bit window field carries the receiver's advertised window rwnd; without the window-scale option it cannot exceed 65 535 bytes."
+      ],
+      "keyTerms": [
+        "header length",
+        "data offset",
+        "SYN",
+        "FIN",
+        "RST",
+        "urgent pointer"
+      ],
+      "lesson": {
+        "why": "Header questions ask for field widths, the size arithmetic of the header-length field, and which flags a segment carries, so a few exact facts earn easy marks.",
+        "intro": "Every TCP segment starts with a header, a block of fields the two ends use to run the connection. The header names the sending and receiving ports, numbers the bytes being carried, says which bytes have been received, and advertises how much more the receiver can take. A set of one-bit flags states the purpose of the segment: opening, closing, aborting or acknowledging. The header is at least 20 bytes long and grows only when options are added.",
+        "prerequisites": [
+          "cn-transport-layer.transport-services"
+        ],
+        "definitions": [
+          {
+            "term": "Header length",
+            "meaning": "A 4-bit field that counts the header in 32-bit words, not in bytes."
+          },
+          {
+            "term": "Flag",
+            "meaning": "A one-bit field in the header, such as SYN, ACK, FIN or RST, that marks the purpose of the segment."
+          }
+        ],
+        "principle": {
+          "text": "The header-length field holds the header size in 4-byte words, so the header in bytes is four times the field, and the options take whatever exceeds the fixed 20 bytes.",
+          "tex": "\\text{header bytes} = 4 \\times \\text{HLEN}, \\qquad \\text{option bytes} = 4 \\times \\text{HLEN} - 20"
+        },
+        "limits": "The field is only 4 bits, so HLEN runs from 5 to 15 and the header never exceeds 60 bytes. The 16-bit window field caps the advertised window at 65 535 bytes unless the window-scale option is used.",
+        "example": {
+          "problem": "A segment arrives with the header-length field equal to 8. How long is the header, and how many bytes are options?",
+          "steps": [
+            "The field counts 4-byte words, so the header is $8 \\times 4 = 32$ bytes.",
+            "The fixed part of the header is 20 bytes.",
+            "The remaining $32 - 20 = 12$ bytes are options."
+          ],
+          "result": "The header is 32 bytes, of which 12 bytes are options."
+        },
+        "misconceptions": [
+          "The header-length field is not in bytes. Reading a value of 5 as 5 bytes, instead of 20, is the usual slip.",
+          "A segment does not carry either data or an acknowledgment. Data and the ACK flag travel together in one segment, which is called piggybacking."
+        ],
+        "recall": [
+          {
+            "q": "What is the smallest and largest TCP header size?",
+            "a": "20 bytes (HLEN = 5) and 60 bytes (HLEN = 15)."
+          },
+          {
+            "q": "How wide are the port, sequence number and window fields?",
+            "a": "16 bits for each port and for the window, and 32 bits for the sequence number."
+          },
+          {
+            "q": "Can one segment carry data and an acknowledgment?",
+            "a": "Yes. The ACK flag and acknowledgment number are independent of the data part, so both can be sent in one segment."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The header-length field of a TCP segment holds 13. How many bytes of options does the header carry?",
+          "answer": 32,
+          "explanation": "The header is $13 \\times 4 = 52$ bytes, and subtracting the fixed 20 bytes leaves 32 bytes of options. The tempting answer 52 forgets to remove the fixed part, and 13 reads the field as bytes."
+        },
+        "summary": "The header is 4 times HLEN bytes, from 20 to 60, with ports and window 16 bits wide and the sequence number 32 bits; flags state the purpose and data may carry an ACK."
+      }
+    },
+    {
+      "id": "cn-transport-layer.seq-ack",
+      "title": "Sequence and acknowledgment numbers",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        58,
+        651,
+        652,
+        653
+      ],
+      "points": [
+        "TCP numbers bytes, not segments: a segment's sequence number is the number of its first data byte, so the next segment starts at seq + length.",
+        "An acknowledgment number n is cumulative and means every byte up to n − 1 has arrived; n is the next byte the receiver expects.",
+        "If segments with seq 1000 (500 bytes) and seq 1500 (300 bytes) are sent and the first is lost, the receiver keeps acknowledging 1000 even though bytes 1500–1799 arrived.",
+        "SYN and FIN each consume one sequence number; a segment carrying only an ACK consumes none."
+      ],
+      "keyTerms": [
+        "byte-stream numbering",
+        "cumulative ACK",
+        "next expected byte"
+      ],
+      "lesson": {
+        "why": "Sequence and acknowledgment traces are a standard one-mark question, and the cumulative meaning of an ACK is the base for retransmission and window questions.",
+        "prerequisites": [
+          "cn-transport-layer.transport-services"
+        ],
+        "intro": "TCP treats the data as a stream of bytes and gives every byte a number. A segment's sequence number is the number of the first byte it carries. The receiver replies with an acknowledgment number that names the next byte it is waiting for. Because it names the next wanted byte, one acknowledgment confirms everything before it at once.",
+        "definitions": [
+          {
+            "term": "Cumulative ACK",
+            "meaning": "An acknowledgment that confirms all bytes up to a point in order, with no gaps before it."
+          },
+          {
+            "term": "Next expected byte",
+            "meaning": "The lowest-numbered byte the receiver has not yet received; it is the value placed in the ACK field."
+          }
+        ],
+        "principle": {
+          "text": "The next segment starts where the last one ended, and the ACK is the first byte still missing, so a gap freezes it. SYN and FIN each use up one number, while a pure ACK uses none.",
+          "tex": "\\text{seq}_{\\text{next}} = \\text{seq} + \\text{len}, \\qquad \\text{ack} = (\\text{last in-order byte}) + 1"
+        },
+        "limits": "The rule describes data after the handshake, counted from ISN + 1. Bytes that arrive beyond a gap are not counted by the ACK, even when the receiver has stored them.",
+        "example": {
+          "problem": "A sender transmits three segments with seq 2000 and 400 data bytes, then seq 2400 and 600 bytes, then seq 3000 and 250 bytes. The second is lost and the others arrive. What ACK does the receiver send after each arrival, and what is the next sequence number the sender would use?",
+          "steps": [
+            "The first segment holds bytes 2000 to 2399, so the receiver sends ACK $2000 + 400 = 2400$.",
+            "The second is lost, so byte 2400 is still missing. The third segment arrives out of order, and the receiver repeats ACK 2400.",
+            "After the third segment the sender's next sequence number is $3000 + 250 = 3250$."
+          ],
+          "result": "ACK 2400 is sent twice, and the next sequence number is 3250."
+        },
+        "misconceptions": [
+          "The ACK number is not the last byte received. It is that byte plus one, the next byte wanted.",
+          "Bytes stored beyond a gap do not raise the ACK. Receiving bytes 3000 to 3249 while 2400 is missing leaves the ACK at 2400."
+        ],
+        "recall": [
+          {
+            "q": "What does TCP number, bytes or segments?",
+            "a": "Bytes. A segment's sequence number is the number of its first data byte."
+          },
+          {
+            "q": "What does an ACK value n tell the sender?",
+            "a": "Every byte up to n - 1 has arrived in order, and the receiver now expects byte n."
+          },
+          {
+            "q": "Which segments consume a sequence number without carrying data?",
+            "a": "SYN and FIN each consume one. A segment with only an ACK consumes none."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sender transmits segments with seq 5000 (300 bytes), seq 5300 (500 bytes) and seq 5800 (200 bytes). The second and third arrive but the first is lost. What ACK number does the receiver send after the third segment arrives?",
+          "answer": 5000,
+          "explanation": "No byte from 5000 onward has arrived in order, so the receiver still wants byte 5000 and the ACK stays at 5000. The tempting answer 6000 would acknowledge the third segment, but ACKs are cumulative and cannot jump over a gap."
+        },
+        "summary": "TCP numbers bytes. Next seq is seq plus length, the ACK is the first missing byte, a gap freezes it, and SYN and FIN each use one number."
+      }
+    },
+    {
+      "id": "cn-transport-layer.handshake",
+      "title": "Connection setup: the three-way handshake",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        58,
+        651,
+        654
+      ],
+      "points": [
+        "Client sends SYN with its initial sequence number x; server replies SYN+ACK with its own ISN y and ack = x + 1; client completes with ACK, ack = y + 1.",
+        "SYN is set only in the first two segments; the third segment may already carry data, whose first byte is numbered x + 1.",
+        "The handshake fixes both initial sequence numbers and exchanges window sizes and options such as MSS and window scaling, one set per direction.",
+        "Random initial sequence numbers stop a delayed segment from an old connection between the same ports being accepted by a new one."
+      ],
+      "keyTerms": [
+        "SYN",
+        "SYN+ACK",
+        "initial sequence number",
+        "ISN"
+      ],
+      "lesson": {
+        "why": "Questions ask which flags and numbers appear in each of the three opening segments, so the pattern of SYN, ACK and the +1 rule must be automatic.",
+        "intro": "Before any data moves, the two ends agree on a starting byte number for each direction. This is done in three segments. The client sends a request that announces its starting number. The server replies with its own starting number and confirms the client's. The client confirms the server's number. The starting number is called the initial sequence number, and each end picks its own.",
+        "prerequisites": [
+          "cn-transport-layer.tcp-header"
+        ],
+        "definitions": [
+          {
+            "term": "Initial sequence number",
+            "meaning": "The number an end gives to its SYN; the first data byte of that direction is numbered one higher."
+          },
+          {
+            "term": "SYN",
+            "meaning": "A flag meaning that the segment announces a starting sequence number."
+          }
+        ],
+        "principle": {
+          "text": "A SYN uses up one sequence number, so acknowledging a SYN numbered $n$ means asking for $n + 1$. Only the first segment has ACK clear; only the third has SYN clear.",
+          "tex": "\\text{ack of SYN } n = n + 1"
+        },
+        "limits": "The third segment may already carry data, in which case its first byte is numbered by the +1 rule and the acknowledgment that follows counts the data as well. A simultaneous open, where both ends send SYN together, is the rare exception to the client and server pattern.",
+        "example": {
+          "problem": "The client picks initial number 5000 and the server picks 9000. Give the sequence and acknowledgment numbers of the three segments.",
+          "steps": [
+            "Segment 1 (client): SYN = 1, ACK = 0, sequence 5000.",
+            "Segment 2 (server): SYN = 1, ACK = 1, sequence 9000, acknowledgment $5000 + 1 = 5001$.",
+            "Segment 3 (client): SYN = 0, ACK = 1, sequence 5001, acknowledgment $9000 + 1 = 9001$."
+          ],
+          "result": "The numbers are (5000), (9000, ack 5001) and (5001, ack 9001)."
+        },
+        "misconceptions": [
+          "The acknowledgment of a SYN is not the same number: it is one more, because the SYN itself consumed a number.",
+          "The initial sequence number is not 0. Each end chooses it unpredictably, so that an old segment from an earlier connection is not accepted."
+        ],
+        "recall": [
+          {
+            "q": "Which flags are set in the three handshake segments?",
+            "a": "SYN only; then SYN and ACK; then ACK only."
+          },
+          {
+            "q": "What acknowledgment number answers a SYN with sequence number n?",
+            "a": "n + 1, because the SYN consumes one sequence number."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The client opens a connection with initial number 100 and the server uses 700. The client's third segment has sequence number 101 and carries 50 bytes of data. What acknowledgment number does the server send back for it?",
+          "answer": 151,
+          "explanation": "The data occupies bytes 101 to 150, so the next byte the server expects is 151. The tempting answer 101 repeats the sequence number, and 701 mixes up the server's own numbering."
+        },
+        "summary": "Three segments carry SYN; SYN+ACK; ACK. A SYN costs one sequence number, so each acknowledgment is the other end's initial number plus one."
+      }
+    },
+    {
+      "id": "cn-transport-layer.termination",
+      "title": "Connection termination, half-close and TCP states",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        58,
+        651,
+        654
+      ],
+      "points": [
+        "Closing takes four segments, FIN, ACK, FIN, ACK, because each direction closes independently.",
+        "The active closer passes FIN_WAIT_1, FIN_WAIT_2 and TIME_WAIT; the passive closer passes CLOSE_WAIT and LAST_ACK before CLOSED.",
+        "Half-close: once it has received the first FIN, the side that has not yet sent FIN may keep sending data in its own direction; the closed direction carries only ACKs.",
+        "TIME_WAIT lasts 2 × MSL on the active closer, so a lost final ACK can be resent and old duplicates expire before the port pair is reused."
+      ],
+      "keyTerms": [
+        "FIN_WAIT_1",
+        "FIN_WAIT_2",
+        "CLOSE_WAIT",
+        "LAST_ACK",
+        "TIME_WAIT",
+        "MSL"
+      ],
+      "lesson": {
+        "why": "Closing questions test the four-segment exchange, the state names on each side, and what TIME_WAIT is for.",
+        "intro": "A TCP connection carries two independent streams, one in each direction. Closing therefore happens one direction at a time. An end that has no more data sends a FIN segment, and the other end acknowledges it. The other end may keep sending its own data until it too sends a FIN. Each end moves through named states that record how far this exchange has gone.",
+        "prerequisites": [
+          "cn-transport-layer.handshake"
+        ],
+        "definitions": [
+          {
+            "term": "Active closer",
+            "meaning": "The end that sends its FIN first."
+          },
+          {
+            "term": "TIME_WAIT",
+            "meaning": "The state in which the active closer waits twice the maximum segment lifetime after the last acknowledgment."
+          }
+        ],
+        "principle": {
+          "text": "Each direction is closed by its own FIN and its own acknowledgment, so a full close takes four segments. The active closer ends in TIME_WAIT for twice the maximum segment lifetime.",
+          "tex": "t_{\\text{TIME\\_WAIT}} = 2 \\times \\text{MSL}"
+        },
+        "limits": "The four segments can shrink to three when the passive end sends its FIN together with its ACK. Both ends may also send FIN at the same time, which is a simultaneous close. FIN is the orderly close. A reset (RST) instead aborts a connection, and it is also the reply to a segment that matches no connection, for example after one end has crashed and rebooted. An idle end does not learn that its peer crashed until it sends something or a keepalive probe is answered with RST.",
+        "example": {
+          "problem": "The client closes first. Name the client's state after it sends FIN, after the server's ACK arrives, and after the server's FIN arrives.",
+          "steps": [
+            "After sending its FIN the client waits for the acknowledgment: FIN_WAIT_1.",
+            "Once the server's ACK arrives the client's direction is closed and it waits for the server's FIN: FIN_WAIT_2.",
+            "When the server's FIN arrives the client sends the last ACK and enters TIME_WAIT."
+          ],
+          "result": "FIN_WAIT_1, then FIN_WAIT_2, then TIME_WAIT."
+        },
+        "misconceptions": [
+          "TCP is not half-duplex. After one FIN, the other direction can still carry data until its own FIN.",
+          "The server does not have to wait for the client to close first. Either end may start the close.",
+          "A crashed peer does not close the connection by itself. The surviving end stays in ESTABLISHED, a half-open connection, until its next segment draws an RST."
+        ],
+        "recall": [
+          {
+            "q": "Why does closing take four segments?",
+            "a": "Each of the two directions is closed by its own FIN and acknowledged separately."
+          },
+          {
+            "q": "Why does the active closer stay in TIME_WAIT?",
+            "a": "So that a lost final ACK can be resent and old duplicates die out before the port pair is reused."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The maximum segment lifetime of a network is 45 seconds. For how many seconds does the active closer stay in TIME_WAIT?",
+          "answer": 90,
+          "explanation": "TIME_WAIT lasts $2 \\times 45 = 90$ seconds. The tempting answer 45 forgets the factor of two, which covers the trip of the last ACK and of any resent FIN."
+        },
+        "summary": "Close is FIN, ACK, FIN, ACK, one direction at a time; the active closer goes FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT, and waits 2 MSL."
+      }
+    },
+    {
+      "id": "cn-transport-layer.reliability",
+      "title": "Reliability: retransmission, fast retransmit and SACK",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        652,
+        654
+      ],
+      "points": [
+        "A retransmission timer runs for the oldest unacknowledged segment; when it expires after RTO, that segment is resent.",
+        "A receiver that gets an out-of-order segment repeats its last ACK; three duplicate ACKs make the sender resend the missing segment at once, without waiting for the timer (fast retransmit).",
+        "Selective acknowledgment (SACK) is an option that reports non-contiguous blocks already received, so only the real gaps are resent.",
+        "Most implementations buffer out-of-order segments, so TCP behaves like a hybrid of go-back-N (cumulative ACKs) and selective repeat (one resend per loss)."
+      ],
+      "keyTerms": [
+        "RTO",
+        "duplicate ACK",
+        "fast retransmit",
+        "SACK"
+      ],
+      "lesson": {
+        "why": "Loss recovery decides how many duplicate ACKs trigger a resend and when the timer fires, and both feed congestion-window questions later in the chapter.",
+        "prerequisites": [
+          "cn-transport-layer.seq-ack"
+        ],
+        "intro": "The network can lose or reorder segments, yet TCP promises that the application gets every byte once and in order. To keep the promise the sender keeps a timer for the oldest unacknowledged segment and resends it if no ACK comes back in time. Waiting for the timer is slow, so the receiver also helps. When a segment arrives out of order, the receiver repeats its last ACK, and a run of such repeats tells the sender which segment went missing.",
+        "definitions": [
+          {
+            "term": "RTO",
+            "meaning": "The retransmission timeout, the time the sender waits for an ACK before resending the oldest unacknowledged segment."
+          },
+          {
+            "term": "Duplicate ACK",
+            "meaning": "An ACK that repeats the number of an earlier ACK because the next expected byte has still not arrived."
+          },
+          {
+            "term": "Fast retransmit",
+            "meaning": "Resending a segment as soon as three duplicate ACKs arrive for it, without waiting for the timer."
+          },
+          {
+            "term": "SACK",
+            "meaning": "An option that reports blocks of bytes received beyond a gap, so only the real gaps are resent."
+          }
+        ],
+        "principle": {
+          "text": "A segment is resent when its timer expires or when the third duplicate ACK for it arrives, whichever happens first. Cumulative ACKs resemble go-back-N, but because receivers buffer out-of-order data TCP resends only the missing segment, like selective repeat.",
+          "tex": "\\text{resend if } t > \\text{RTO} \\quad\\text{or}\\quad \\text{dupACKs} = 3"
+        },
+        "limits": "Three duplicate ACKs need at least three segments sent after the lost one, so a loss near the end of a transfer may still wait for the timer. Without SACK the sender learns about only one gap per round trip.",
+        "example": {
+          "problem": "A sender transmits five segments of 500 bytes with seq 1000, 1500, 2000, 2500 and 3000. Only the segment with seq 1500 is lost. Trace the ACKs and say when the sender resends.",
+          "steps": [
+            "The segment with seq 1000 arrives, so the receiver sends ACK 1500.",
+            "The segment with seq 1500 is missing. Segments 2000, 2500 and 3000 each arrive out of order, so ACK 1500 is repeated three times as duplicates.",
+            "The third duplicate ACK arrives, so the sender resends the segment with seq 1500 at once. Once it arrives, the receiver can send ACK 3500, covering all buffered bytes."
+          ],
+          "result": "The receiver sends ACK 1500 once plus three duplicates; the sender resends seq 1500 on the third duplicate."
+        },
+        "misconceptions": [
+          "A single duplicate ACK does not trigger a resend. Reordering produces occasional duplicates, so TCP waits for three.",
+          "Fast retransmit does not remove the timer. The timer still covers losses that cannot produce three duplicates."
+        ],
+        "recall": [
+          {
+            "q": "What are the two events that cause TCP to resend a segment?",
+            "a": "The retransmission timer expiring, or the arrival of three duplicate ACKs."
+          },
+          {
+            "q": "Why does a receiver send duplicate ACKs?",
+            "a": "A segment arrived out of order, so the next expected byte has not changed and the last ACK is repeated."
+          },
+          {
+            "q": "What does SACK add?",
+            "a": "It reports the non-contiguous blocks already received, so the sender resends only the actual gaps."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sender transmits eight segments in order and only the third is lost. All others arrive, and no timer expires. How many duplicate ACKs does the receiver send in total?",
+          "answer": 5,
+          "explanation": "Segments 4 to 8 each arrive out of order and each repeats the ACK for segment 3's start, so there are 5 duplicates. The sender acts on the third of them. The tempting answer 3 counts only the duplicates needed to trigger the resend, not those the receiver actually sends."
+        },
+        "summary": "Lost data is resent on timeout or on the third duplicate ACK. Duplicates come from out-of-order arrivals, and SACK lets the sender resend only the true gaps."
+      }
+    },
+    {
+      "id": "cn-transport-layer.rtt-estimation",
+      "title": "RTT estimation and the retransmission timeout",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        652,
+        654
+      ],
+      "points": [
+        "EstimatedRTT is an exponentially weighted moving average of samples: EstRTT = (1 − α)·EstRTT + α·SampleRTT, typically α = 0.125.",
+        "DevRTT tracks variability: DevRTT = (1 − β)·DevRTT + β·|SampleRTT − EstRTT|, typically β = 0.25.",
+        "RTO = EstRTT + 4·DevRTT, so a jittery path gets a longer timeout. After a timeout the RTO is doubled (exponential backoff).",
+        "Karn's rule: never take an RTT sample from a retransmitted segment, because its ACK cannot be matched to one transmission."
+      ],
+      "keyTerms": [
+        "EstimatedRTT",
+        "DevRTT",
+        "RTO",
+        "Karn's algorithm",
+        "exponential backoff"
+      ],
+      "lesson": {
+        "why": "A timeout that is too short wastes bandwidth and one that is too long delays recovery, and the update formulas are a regular numeric question.",
+        "prerequisites": [
+          "cn-transport-layer.reliability"
+        ],
+        "intro": "The sender must decide how long to wait before declaring a segment lost, and the right wait depends on how long a round trip takes. A round trip time varies from one segment to the next, so TCP measures samples and blends them into a running average. It also tracks how much the samples scatter. A path with steady times needs only a small margin over the average, while a jittery path needs a larger one.",
+        "definitions": [
+          {
+            "term": "SampleRTT",
+            "meaning": "The time measured between sending a segment and receiving its acknowledgment."
+          },
+          {
+            "term": "EstimatedRTT",
+            "meaning": "A weighted running average of the samples, where recent samples count more."
+          },
+          {
+            "term": "DevRTT",
+            "meaning": "A running average of how far the samples fall from the estimate."
+          },
+          {
+            "term": "Exponential backoff",
+            "meaning": "Doubling the RTO after each timeout, until a fresh sample arrives."
+          }
+        ],
+        "principle": {
+          "text": "The estimate takes a small share alpha of each new sample, the deviation takes a share beta of each new error, and the timeout adds four deviations to the estimate. Samples from retransmitted segments are never used (Karn's rule).",
+          "tex": "\\text{Est}\\leftarrow(1-\\alpha)\\text{Est}+\\alpha S,\\quad \\text{Dev}\\leftarrow(1-\\beta)\\text{Dev}+\\beta\\lvert S-\\text{Est}\\rvert,\\quad \\text{RTO}=\\text{Est}+4\\,\\text{Dev}"
+        },
+        "limits": "The usual weights are alpha = 0.125 and beta = 0.25, but a question may give others. The order of the two updates also matters: use the new estimate for the deviation when the question says so, and the old one when it says that.",
+        "example": {
+          "problem": "EstimatedRTT is 100 ms and DevRTT is 20 ms. A sample of 140 ms arrives. Use alpha = 0.125 and beta = 0.25, updating EstimatedRTT first and using the new value in the deviation. Find the new RTO.",
+          "steps": [
+            "The new estimate is $0.875 \\times 100 + 0.125 \\times 140 = 105$ ms.",
+            "The error is $|140 - 105| = 35$ ms, so DevRTT becomes $0.75 \\times 20 + 0.25 \\times 35 = 23.75$ ms.",
+            "The timeout is $105 + 4 \\times 23.75 = 200$ ms."
+          ],
+          "result": "The new RTO is 200 ms."
+        },
+        "misconceptions": [
+          "The big weight goes to the old estimate, not the sample. Swapping alpha and its complement makes the estimate chase every sample.",
+          "A timeout does not reset the RTO to its estimate. The RTO doubles after each timeout until an acknowledgment of a new segment gives a fresh sample."
+        ],
+        "recall": [
+          {
+            "q": "What is the formula for the RTO?",
+            "a": "RTO = EstimatedRTT + 4 x DevRTT."
+          },
+          {
+            "q": "What does Karn's rule forbid?",
+            "a": "Taking an RTT sample from a retransmitted segment, because its ACK cannot be matched to one transmission."
+          },
+          {
+            "q": "Why does a jittery path get a longer timeout?",
+            "a": "DevRTT is larger on it, and the RTO adds four times that deviation to the estimate."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "EstimatedRTT is 80 ms and DevRTT is 10 ms. A sample of 120 ms arrives. With alpha = 0.125 and beta = 0.25, update EstimatedRTT first, use the new value in the deviation, and compute the new RTO in milliseconds.",
+          "answer": 150,
+          "explanation": "The estimate is $0.875 \\times 80 + 0.125 \\times 120 = 85$, the deviation is $0.75 \\times 10 + 0.25 \\times 35 = 16.25$, and the RTO is $85 + 4 \\times 16.25 = 150$. The tempting answer 120 takes the sample itself as the timeout."
+        },
+        "summary": "EstimatedRTT and DevRTT are weighted averages with small weights on new data, RTO is the estimate plus four deviations, Karn's rule skips retransmitted samples and the RTO doubles on timeout."
+      }
+    },
+    {
+      "id": "cn-transport-layer.flow-control",
+      "title": "Flow control: the advertised window",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        58,
+        652,
+        654
+      ],
+      "points": [
+        "The receiver advertises rwnd, its free buffer space, in every segment; the sender keeps LastByteSent − LastByteAcked ≤ rwnd.",
+        "A zero window stops the sender; a persist timer then sends small probe segments so a lost window update cannot deadlock the connection.",
+        "The window-scale option, agreed during the handshake, multiplies the 16-bit field by 2^s with s ≤ 14, so windows can reach about 1 GB on fast long links.",
+        "Flow control protects the receiver; congestion control protects the network. The sender obeys both: window = min(cwnd, rwnd)."
+      ],
+      "keyTerms": [
+        "rwnd",
+        "zero window",
+        "persist timer",
+        "window scaling"
+      ],
+      "lesson": {
+        "why": "Window questions combine the receiver's advertised window with the congestion window, and the window-scale option decides how large a window can be on a fast link.",
+        "prerequisites": [
+          "cn-transport-layer.seq-ack"
+        ],
+        "intro": "A fast sender can overrun a slow receiver whose buffer is small. To prevent this the receiver reports in every segment how much free buffer space it has, called the advertised window. The sender keeps the amount of data in flight, sent but not yet acknowledged, within that figure. When the buffer fills, the advertised window falls to zero and the sender pauses until space opens.",
+        "definitions": [
+          {
+            "term": "rwnd",
+            "meaning": "The receiver's advertised window, the free buffer space it reports to the sender."
+          },
+          {
+            "term": "Zero window",
+            "meaning": "An advertised window of zero, which tells the sender to stop sending data."
+          },
+          {
+            "term": "Persist timer",
+            "meaning": "A timer that makes a sender with a zero window send small probes, so a lost window update cannot freeze the connection."
+          },
+          {
+            "term": "Window scaling",
+            "meaning": "An option agreed in the handshake that multiplies the 16-bit window field by a power of two."
+          }
+        ],
+        "principle": {
+          "text": "Bytes in flight never exceed the advertised window, and the sender also obeys the congestion window, so the usable window is the smaller of the two. Scaling by s raises the 16-bit limit up to a shift of 14.",
+          "tex": "\\text{LastByteSent}-\\text{LastByteAcked}\\le \\text{rwnd},\\qquad W=\\min(\\text{cwnd},\\text{rwnd}),\\qquad W_{\\max}=65535\\cdot 2^{s}"
+        },
+        "limits": "Flow control protects only the receiver. It says nothing about congestion inside the network, which cwnd handles. Window scaling works only if both ends offer it in their SYN segments.",
+        "example": {
+          "problem": "The receiver advertises rwnd = 4000 bytes. The sender has sent up to byte 9000 and the highest acknowledged byte is 7000. How many more bytes may it send?",
+          "steps": [
+            "The data in flight is $9000 - 7000 = 2000$ bytes.",
+            "The sender may keep at most 4000 bytes in flight.",
+            "It may therefore add $4000 - 2000 = 2000$ bytes."
+          ],
+          "result": "The sender may send 2000 more bytes."
+        },
+        "misconceptions": [
+          "rwnd is not the size of the receiver's whole buffer. It is the free space, which shrinks as the application reads slowly.",
+          "The sender is not limited by rwnd alone. A small cwnd can be the tighter limit, so the window is the minimum of the two."
+        ],
+        "recall": [
+          {
+            "q": "What does the receiver report to prevent overrun?",
+            "a": "The free space in its buffer, as the advertised window in each segment."
+          },
+          {
+            "q": "Why does a sender with a zero window still send probes?",
+            "a": "If the later window update were lost the connection would stall, so the persist timer makes it probe."
+          },
+          {
+            "q": "What is the largest window with scaling shift s?",
+            "a": "65535 x 2^s bytes, with s at most 14."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The receiver advertises rwnd = 6000 bytes and the sender's congestion window is 4500 bytes. There are already 2000 unacknowledged bytes in flight. How many more bytes may the sender transmit?",
+          "answer": 2500,
+          "explanation": "The usable window is $\\min(4500, 6000) = 4500$, and $4500 - 2000 = 2500$ bytes may still be sent. The tempting answer 4000 subtracts the flight from rwnd and ignores the smaller congestion window."
+        },
+        "summary": "The receiver advertises free buffer space, the sender keeps data in flight within min(cwnd, rwnd), a zero window is probed by the persist timer and scaling widens the 16-bit field."
+      }
+    },
+    {
+      "id": "cn-transport-layer.slow-start-ca",
+      "title": "Congestion window, slow start and congestion avoidance",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        652,
+        654
+      ],
+      "points": [
+        "cwnd is the sender's private estimate of what the network can carry; it is never sent in the header.",
+        "Slow start begins at cwnd = 1 MSS and adds 1 MSS per ACK, which doubles cwnd every RTT: 1, 2, 4, 8 MSS, so 2ⁿ MSS after n RTTs.",
+        "Once cwnd reaches ssthresh, congestion avoidance adds about 1 MSS per RTT (additive increase).",
+        "GATE convention: slow start does not overshoot ssthresh. With ssthresh 12 MSS the sequence is 1, 2, 4, 8, 12, 13, 14, and so on."
+      ],
+      "keyTerms": [
+        "cwnd",
+        "ssthresh",
+        "MSS",
+        "slow start",
+        "additive increase"
+      ],
+      "lesson": {
+        "why": "The window trajectory after a connection starts is a numerical trace you can do round by round.",
+        "intro": "The sender does not know how much the network can carry, so it keeps a private limit called the congestion window, counted here in segments of the maximum segment size. It starts the window at 1 segment and grows it as acknowledgments return. Growth is fast at first, then slows once the window reaches a set threshold. The sender never sends more than the smaller of this window and the receiver's advertised window.",
+        "prerequisites": [
+          "cn-transport-layer.handshake"
+        ],
+        "definitions": [
+          {
+            "term": "cwnd",
+            "meaning": "The sender's congestion window: how much unacknowledged data it may have in flight."
+          },
+          {
+            "term": "ssthresh",
+            "meaning": "The window size at which growth changes from doubling to adding one segment per round."
+          }
+        ],
+        "analogy": {
+          "text": "Filling a bath: pour fast while the level is low, then slow to a trickle near the rim so it does not overflow.",
+          "breaksWhen": "The rim is known in advance for a bath, but TCP learns its threshold only from earlier losses."
+        },
+        "principle": {
+          "text": "Below ssthresh the window doubles each round trip; at or above it the window grows by one segment per round trip. In the usual GATE convention doubling stops exactly at ssthresh. Because the windows 1, 2, 4, ... are sent in successive rounds, the total sent after $n$ slow-start rounds is $2^n - 1$ segments.",
+          "tex": "\\text{cwnd}_{k+1} = \\begin{cases}\\min(2\\,\\text{cwnd}_k,\\ \\text{ssthresh}) & \\text{cwnd}_k < \\text{ssthresh}\\\\ \\text{cwnd}_k + 1 & \\text{otherwise}\\end{cases}"
+        },
+        "limits": "The rule assumes no loss. The sender is also capped by the receiver's advertised window, so the smaller value controls, and the threshold itself changes after a loss.",
+        "example": {
+          "problem": "With ssthresh = 6 MSS and no loss, list cwnd (in MSS) in each of the first 6 rounds.",
+          "steps": [
+            "Round 1 starts at 1, round 2 doubles to 2, round 3 doubles to 4.",
+            "Doubling 4 would give 8, which passes the threshold, so the window stops at 6 in round 4.",
+            "From 6 on the window adds 1 per round: 7 in round 5 and 8 in round 6.",
+            "While doubling, the segments sent so far are 1, 3, 7 after rounds 1, 2, 3, which is $2^n - 1$."
+          ],
+          "result": "The windows are 1, 2, 4, 6, 7, 8."
+        },
+        "misconceptions": [
+          "The window does not double per acknowledgment. Each acknowledgment adds one segment, and a whole window of acknowledgments is what doubles it per round trip.",
+          "Congestion avoidance is not slow start. Adding 1 MSS per round trip is linear growth, not doubling."
+        ],
+        "recall": [
+          {
+            "q": "How does cwnd change in slow start?",
+            "a": "It starts at 1 MSS, grows by 1 MSS per acknowledgment, and so doubles every round trip."
+          },
+          {
+            "q": "How does cwnd change in congestion avoidance?",
+            "a": "It grows by about 1 MSS per round trip."
+          },
+          {
+            "q": "How many segments have been sent after n rounds of pure slow start?",
+            "a": "$1 + 2 + \\dots + 2^{n-1} = 2^n - 1$ segments."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A new connection has ssthresh = 10 MSS, no losses, and a large receiver window. What is cwnd, in MSS, in round 7? Round 1 has cwnd = 1.",
+          "answer": 12,
+          "explanation": "The windows are 1, 2, 4, 8, 10, 11, 12, so round 7 is 12. Continuing to double gives 16 in round 5, which ignores the threshold, and that is the tempting error."
+        },
+        "summary": "cwnd starts at 1 MSS, doubles per round trip up to ssthresh, then adds 1 MSS per round trip."
+      }
+    },
+    {
+      "id": "cn-transport-layer.loss-reaction",
+      "title": "Reaction to loss: Tahoe, Reno and fast recovery",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        653,
+        654
+      ],
+      "points": [
+        "Timeout, in every variant: ssthresh = cwnd/2, cwnd = 1 MSS, and slow start begins again.",
+        "Tahoe treats three duplicate ACKs like a timeout: fast retransmit, then cwnd = 1 MSS.",
+        "Reno on three duplicate ACKs: fast retransmit and fast recovery, ssthresh = cwnd/2 and cwnd = ssthresh, then congestion avoidance with no return to slow start.",
+        "NewReno stays in fast recovery until every segment outstanding at the loss is acknowledged, so several losses in one window cost one halving.",
+        "Multiplicative decrease on loss with additive increase between losses (AIMD) gives the sawtooth cwnd curve."
+      ],
+      "keyTerms": [
+        "Tahoe",
+        "Reno",
+        "NewReno",
+        "fast recovery",
+        "AIMD"
+      ],
+      "lesson": {
+        "why": "After the growth rules, questions ask what cwnd and ssthresh become on a loss, and the answer depends on whether it was a timeout or duplicate acknowledgments.",
+        "intro": "Loss is TCP's signal that the network is congested, so the sender cuts its window. How hard it cuts depends on how the loss was noticed. A timeout means that nothing got through, which is serious. Three duplicate acknowledgments mean that later segments did arrive, so the path still works and the cut can be gentler. Different versions of TCP, named Tahoe and Reno, treat the second case differently.",
+        "prerequisites": [
+          "cn-transport-layer.slow-start-ca"
+        ],
+        "definitions": [
+          {
+            "term": "Fast retransmit",
+            "meaning": "Resending a missing segment after three duplicate acknowledgments, without waiting for a timeout."
+          },
+          {
+            "term": "Fast recovery",
+            "meaning": "Resuming congestion avoidance at the halved window instead of restarting slow start."
+          }
+        ],
+        "principle": {
+          "text": "On every loss ssthresh becomes half the current cwnd. After a timeout cwnd drops to 1 MSS and slow start restarts. After three duplicate acknowledgments Tahoe does the same, while Reno sets cwnd equal to the new ssthresh and continues in congestion avoidance.",
+          "tex": "\\text{ssthresh}' = \\tfrac{\\text{cwnd}}{2}"
+        },
+        "limits": "NewReno stays in fast recovery until the whole window outstanding at the loss is acknowledged, so several losses from one window cost one halving. A timeout always restarts slow start in every variant.",
+        "example": {
+          "problem": "cwnd is 20 MSS when three duplicate acknowledgments arrive. Give the new ssthresh and cwnd for Tahoe and for Reno.",
+          "steps": [
+            "In both versions ssthresh becomes $20 / 2 = 10$ MSS.",
+            "Tahoe treats it like a timeout, so cwnd becomes 1 MSS and slow start begins.",
+            "Reno sets cwnd to the new ssthresh, 10 MSS, and continues in congestion avoidance."
+          ],
+          "result": "Tahoe: ssthresh 10, cwnd 1. Reno: ssthresh 10, cwnd 10."
+        },
+        "misconceptions": [
+          "A triple duplicate acknowledgment does not always send cwnd to 1. Only Tahoe does so; Reno keeps the halved window.",
+          "The new ssthresh is half of cwnd at the time of loss, not half of the old ssthresh."
+        ],
+        "recall": [
+          {
+            "q": "What happens to cwnd and ssthresh on a timeout?",
+            "a": "ssthresh becomes half of cwnd, cwnd becomes 1 MSS, and slow start restarts."
+          },
+          {
+            "q": "How does Reno differ from Tahoe on three duplicate acknowledgments?",
+            "a": "Reno sets cwnd to the halved value and goes to congestion avoidance; Tahoe sets cwnd to 1 MSS."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A Reno sender has cwnd = 24 MSS when three duplicate acknowledgments arrive. After that, three round trips complete with no loss. What is cwnd, in MSS, once those three round trips have completed?",
+          "answer": 15,
+          "explanation": "ssthresh and cwnd both become $24 / 2 = 12$. Congestion avoidance then adds 1 MSS per round trip, giving $12 + 3 = 15$. The tempting answer 8 treats the event as a timeout: cwnd restarts at 1 and slow start gives 2, 4, 8 over the three round trips."
+        },
+        "summary": "Loss halves ssthresh; a timeout also sets cwnd to 1 MSS, while Reno on triple duplicate acknowledgments keeps cwnd at the halved value."
+      }
+    },
+    {
+      "id": "cn-transport-layer.throughput",
+      "title": "Throughput, bandwidth-delay product and utilisation",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        653,
+        654,
+        657
+      ],
+      "points": [
+        "At most one window is in flight per RTT, so throughput ≈ W/RTT with W = min(cwnd, rwnd) in bytes. W = 10 KB and RTT = 100 ms give 100 KB/s.",
+        "The bandwidth-delay product B × RTT is the window needed to keep the link busy; a smaller window gives utilisation W/(B·RTT).",
+        "A 65 535-byte window over 20 ms RTT caps throughput near 26.2 Mbps whatever the link speed, which is why window scaling exists.",
+        "Under random loss with probability L, steady-state Reno throughput is about 1.22·MSS/(RTT·√L)."
+      ],
+      "keyTerms": [
+        "bandwidth-delay product",
+        "utilisation",
+        "Mathis formula"
+      ],
+      "lesson": {
+        "why": "Throughput and utilisation are repeat two-mark numeric questions, and they hinge on converting units and comparing the window with the bandwidth-delay product.",
+        "prerequisites": [
+          "cn-transport-layer.flow-control"
+        ],
+        "intro": "A sender can only have one window of data in flight at a time. After sending it, the sender waits for the first acknowledgments, which take about one round trip time to return. So in each round trip at most one window of bytes is delivered, and the speed is the window divided by the round trip time. On a fast link the window can be too small to keep the link busy, and the link then sits idle part of the time.",
+        "definitions": [
+          {
+            "term": "Bandwidth-delay product",
+            "meaning": "Link bandwidth times round trip time, the number of bits the link holds in flight when it is kept full."
+          },
+          {
+            "term": "Utilisation",
+            "meaning": "The fraction of the link capacity that the sender actually uses."
+          }
+        ],
+        "principle": {
+          "text": "Throughput is one window per round trip, but never more than the link rate. The window that fills the link equals the bandwidth-delay product, and a smaller window gives a proportional utilisation.",
+          "tex": "\\text{Throughput}\\approx\\frac{W}{\\text{RTT}},\\qquad \\text{BDP}=B\\times\\text{RTT},\\qquad U=\\min\\!\\left(1,\\frac{W}{B\\cdot\\text{RTT}}\\right)"
+        },
+        "limits": "The simple formula ignores the time to transmit the segment itself, and some questions add it to the round trip time. Under random loss the window is not fixed, and the loss-based formula 1.22 MSS / (RTT sqrt(L)) applies instead.",
+        "example": {
+          "problem": "A sender uses a window of 50 000 bytes over a path with RTT 40 ms and a 100 Mbps link. Find the throughput and the utilisation.",
+          "steps": [
+            "Convert the window to bits: $50000 \\times 8 = 400000$ bits.",
+            "The throughput is $400000 / 0.04 = 10$ Mbps.",
+            "The utilisation is $10 / 100 = 0.1$, which matches $W / (B \\cdot \\mathrm{RTT})$ with the BDP equal to 500 000 bytes."
+          ],
+          "result": "Throughput is 10 Mbps, which is 10 percent of the link."
+        },
+        "misconceptions": [
+          "Bytes and bits must not be mixed. A window in bytes needs a factor of 8 before it is divided into a rate in bits per second.",
+          "Utilisation cannot exceed 1. A window larger than the BDP keeps the link full, and the extra only queues."
+        ],
+        "recall": [
+          {
+            "q": "What is throughput for a window W and round trip time RTT?",
+            "a": "About W / RTT, capped at the link rate."
+          },
+          {
+            "q": "What window fills a link of bandwidth B?",
+            "a": "The bandwidth-delay product B x RTT."
+          },
+          {
+            "q": "Why does window scaling exist?",
+            "a": "A 65 535-byte window caps throughput on a long fast path, and scaling allows a window as large as the BDP."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sender uses a fixed window of 64 000 bytes over a path with RTT 80 ms and a 20 Mbps link. What is the link utilisation as a percentage?",
+          "answer": 32,
+          "explanation": "The throughput is $64000 \\times 8 / 0.08 = 6.4$ Mbps, and $6.4 / 20 = 0.32$, which is 32 percent. The tempting answer 3.2 forgets the factor of 8 or reads the window as 64 000 bits."
+        },
+        "summary": "Throughput is a window per round trip, capped by the link rate. The window needed to fill a link is the bandwidth-delay product, and utilisation is the ratio of the two."
+      }
+    },
+    {
+      "id": "cn-transport-layer.seq-wraparound",
+      "title": "Sequence-number wraparound",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "The 32-bit sequence space holds 2³² bytes, about 4.29 GB; a sender transmitting at B bytes per second reuses a number after 2³²/B seconds.",
+        "Wraparound is safe only if that time exceeds the maximum segment lifetime, otherwise an old duplicate could be accepted as new data.",
+        "At 1 Gbps the space wraps in about 34.4 s, below the classic 120 s MSL, so fast links rely on the timestamp option and PAWS (protection against wrapped sequence numbers)."
+      ],
+      "keyTerms": [
+        "wraparound time",
+        "MSL",
+        "PAWS",
+        "timestamp option"
+      ],
+      "lesson": {
+        "why": "Both the minimum bits needed and the wraparound time come from one calculation that questions repeat with different link speeds.",
+        "intro": "TCP numbers every byte it sends, using a field of fixed width, so the numbers eventually run out and start again from zero. That is wraparound. It is harmless only if no old segment is still travelling in the network when a number is reused. A segment can survive for at most the maximum segment lifetime, so the numbers must last longer than that at the speed of the link.",
+        "prerequisites": [
+          "cn-transport-layer.seq-ack"
+        ],
+        "definitions": [
+          {
+            "term": "Wraparound",
+            "meaning": "Reuse of sequence numbers after all values of the field have been used."
+          },
+          {
+            "term": "Maximum segment lifetime",
+            "meaning": "The longest time a segment can stay alive in the network."
+          }
+        ],
+        "principle": {
+          "text": "With $n$ sequence bits and a rate of $B$ bytes per second, the numbers repeat after $2^n / B$ seconds. Wraparound is safe when this exceeds the maximum segment lifetime, which needs $2^n \\ge B \\times \\text{MSL}$.",
+          "tex": "n \\ge \\lceil \\log_2 (B \\times \\text{MSL}) \\rceil"
+        },
+        "limits": "The round trip time does not enter. The limit assumes the sender really sends at the full link rate; the timestamp option with PAWS protects links that wrap faster than the lifetime.",
+        "example": {
+          "problem": "A link runs at 200 Mbps and the maximum segment lifetime is 90 s. What is the smallest sequence field width?",
+          "steps": [
+            "200 Mbps is $200 \\times 10^6 / 8 = 25 \\times 10^6$ bytes per second.",
+            "In 90 s the sender emits $25 \\times 10^6 \\times 90 = 2.25 \\times 10^9$ bytes.",
+            "$\\log_2 (2.25 \\times 10^9) \\approx 31.07$, so $n = 32$ bits."
+          ],
+          "result": "The field needs at least 32 bits."
+        },
+        "misconceptions": [
+          "Bits and bytes are mixed up often. The sequence number counts bytes, so divide the bit rate by 8 first.",
+          "The round trip time is not part of the condition. Only the lifetime of a segment and the sending rate matter."
+        ],
+        "recall": [
+          {
+            "q": "What condition makes sequence number wraparound safe?",
+            "a": "The time to use up all $2^n$ numbers must exceed the maximum segment lifetime."
+          },
+          {
+            "q": "Does the round trip time affect the number of sequence bits needed?",
+            "a": "No. Only the sending rate and the maximum segment lifetime matter."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A link runs at 2 Gbps ($2 \\times 10^9$ bits per second) and the maximum segment lifetime is 60 s. What is the minimum number of sequence number bits so that numbers do not wrap within one lifetime?",
+          "answer": 34,
+          "explanation": "The rate is $2 \\times 10^9 / 8 = 2.5 \\times 10^8$ bytes per second, so 60 s carries $1.5 \\times 10^{10}$ bytes. Since $2^{33} \\approx 8.6 \\times 10^9$ is too small and $2^{34} \\approx 1.7 \\times 10^{10}$ suffices, the answer is 34. Forgetting to divide by 8 gives a value about 3 bits too large."
+        },
+        "summary": "Wraparound is safe when $2^n$ is at least rate in bytes per second times the maximum segment lifetime; round up the base-2 logarithm."
+      }
+    },
+    {
+      "id": "cn-transport-layer.socket-api",
+      "title": "The socket API",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        653,
+        654
+      ],
+      "points": [
+        "A socket is the operating system's endpoint for transport communication, addressed by an (IP address, port) pair.",
+        "TCP server: socket() creates it, bind() attaches a local address and port, listen() marks it passive, accept() takes the next completed connection.",
+        "TCP client: socket(), then connect() to the server's address; bind() is optional because the OS picks an ephemeral port.",
+        "Both sides then exchange data with send()/recv() (or write()/read()) and finish with close().",
+        "socket(domain, type, protocol) returns a descriptor: AF_INET with SOCK_STREAM gives a TCP socket, SOCK_DGRAM a UDP socket. No packet is sent by socket(), bind() or listen().",
+        "Calls map to TCP states: listen() moves the socket to LISTEN; connect() sends the SYN (SYN_SENT) and returns in ESTABLISHED; the kernel finishes the handshake before accept() returns; close() sends FIN."
+      ],
+      "keyTerms": [
+        "socket()",
+        "bind()",
+        "listen()",
+        "accept()",
+        "connect()",
+        "SOCK_STREAM",
+        "SOCK_DGRAM",
+        "close()"
+      ],
+      "lesson": {
+        "why": "Socket-call questions test whether you know what each call does on the wire and what changes between TCP and UDP, so one clear picture of the calls settles most of them.",
+        "intro": "A program talks over the network through a socket, the operating system's endpoint for communication, named by an IP address and a port number. The program asks for one with socket(), which only creates the endpoint and sends nothing. A TCP server then attaches an address with bind(), marks the socket as waiting for callers with listen(), and takes each finished connection with accept(). A client simply calls connect() to the server's address. Both sides then exchange bytes and finish with close(). The host and port at the other end of a socket are called its peer. UDP, which sends separate messages, calls each message a datagram.",
+        "prerequisites": [
+          "cn-transport-layer.udp",
+          "cn-transport-layer.handshake"
+        ],
+        "definitions": [
+          {
+            "term": "Socket",
+            "meaning": "The operating system's endpoint for transport communication, addressed by an IP address and a port."
+          },
+          {
+            "term": "Listening socket",
+            "meaning": "A passive TCP socket that only waits for incoming connections; accept() hands back a new socket for each one."
+          },
+          {
+            "term": "Peer",
+            "meaning": "The host and port at the other end of a socket."
+          },
+          {
+            "term": "Datagram",
+            "meaning": "One UDP message, sent and delivered on its own."
+          },
+          {
+            "term": "Connected UDP socket",
+            "meaning": "A UDP socket on which connect() has stored one default peer address; no packet is sent by the call."
+          }
+        ],
+        "principle": {
+          "text": "connect() means different things by protocol: on TCP it runs the three-way handshake and can succeed once per socket, while on UDP it only stores a default peer address in the operating system, so it can be repeated and changes which peer the socket sends to and accepts from."
+        },
+        "limits": "A UDP socket that never called connect() is not tied to any peer and may use sendto() and recvfrom() with any address. The storing rule above applies only after connect(); it does not make UDP reliable or give it a connection.",
+        "example": {
+          "problem": "A TCP server calls socket(), bind() and listen(), then accept() three times, once for each of three different clients. How many sockets does the server hold, and how many have it send a packet when created?",
+          "steps": [
+            "socket(), bind() and listen() prepare one listening socket and send no packet.",
+            "Each accept() returns a new connection socket for one client, and the listening socket stays open, so three accepts add three sockets.",
+            "Total: 1 listening socket plus 3 connection sockets is 4 sockets."
+          ],
+          "result": "4 sockets; creating them sends nothing, because the handshake packets are exchanged by connect() on the client side and the operating system."
+        },
+        "misconceptions": [
+          "UDP connect() does not set up a connection or exchange packets; it only records a peer address, which is why a second connect() simply replaces it.",
+          "accept() does not hand back the listening socket itself; it returns a fresh socket per client, and the listening socket keeps waiting for more."
+        ],
+        "recall": [
+          {
+            "q": "What does connect() do on a UDP socket?",
+            "a": "It stores a default peer address in the operating system and sends no packet. Afterwards the socket sends to and receives from only that peer."
+          },
+          {
+            "q": "Can connect() be called again on an already connected UDP socket?",
+            "a": "Yes, it simply replaces the stored peer. A TCP socket cannot be connected a second time."
+          },
+          {
+            "q": "Which socket calls send no packet?",
+            "a": "socket(), bind() and listen() send nothing. connect() on TCP starts the handshake, and close() sends FIN."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "On a Linux machine, a process creates a UDP socket and calls connect() with the address of host X. Which statement is correct?",
+          "options": [
+            "The call sends a SYN to host X and waits for a reply.",
+            "The socket can still receive datagrams from any host.",
+            "The process can later call connect() with the address of host Y on the same socket.",
+            "The socket is now able to send to hosts X and Y at the same time."
+          ],
+          "answer": 2,
+          "explanation": "On UDP, connect() only stores a peer address, so it can be called again and the new address replaces the old one. The SYN option tempts because TCP connect() does send one. Datagrams from other hosts are filtered out once a peer is stored, and only one peer is held at a time."
+        },
+        "summary": "A socket is an (IP, port) endpoint. On TCP, socket, bind and listen send nothing, connect starts the handshake and accept returns one new socket per client; on UDP, connect only stores one replaceable peer address."
+      }
+    },
+    {
+      "id": "cn-transport-layer.socket-semantics",
+      "title": "Socket semantics: blocking, connection sockets and UDP sockets",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "connect() on a TCP socket starts the three-way handshake and, in blocking mode, returns once the handshake completes.",
+        "listen() does not block; it sets the backlog of handshaken connections queued in the kernel. accept() blocks until one is queued and returns a new socket for it, while the listening socket stays open for more clients.",
+        "A TCP connection socket is identified by the 4-tuple (source IP, source port, destination IP, destination port), so many clients can talk to one server port at once.",
+        "A UDP socket is identified by its local (IP, port) only; there is no listen() or accept(), and sendto()/recvfrom() carry the peer address with every datagram.",
+        "recv() returning 0 on a TCP socket means the peer has sent FIN; TCP is a byte stream, so one send() may arrive split across several recv() calls or merged with the next.",
+        "A TCP server with $n$ live connections holds $n + 1$ sockets: one listening socket plus one per accept(). A UDP server serves any number of clients through one socket. shutdown(fd, SHUT_WR) sends FIN but keeps reading (half-close); close() releases the descriptor."
+      ],
+      "keyTerms": [
+        "backlog",
+        "4-tuple",
+        "sendto()",
+        "recvfrom()",
+        "blocking call",
+        "shutdown()",
+        "listening socket"
+      ],
+      "lesson": {
+        "why": "Questions on socket behaviour ask what blocks, how many sockets a server holds and how TCP differs from UDP, and one picture of the calls answers all three.",
+        "intro": "A socket is a program's endpoint for network communication. A TCP server keeps one listening socket whose only job is to wait for new callers. When a client finishes the three-way handshake, the operating system queues that connection, and accept() takes it off the queue and returns a new socket dedicated to that client. A blocking call is one that makes the program wait until it can finish. connect() on TCP blocks until the handshake completes, and accept() blocks until a connection is queued, while listen() returns at once. TCP delivers a stream of bytes with no message boundaries. UDP sends separate messages, and its single socket serves every client. When the peer finishes sending it transmits a FIN, and the local recv() then returns 0, meaning no more data will arrive.",
+        "prerequisites": [
+          "cn-transport-layer.socket-api",
+          "cn-transport-layer.handshake",
+          "cn-transport-layer.termination"
+        ],
+        "definitions": [
+          {
+            "term": "Backlog",
+            "meaning": "The number of handshaken connections the kernel queues for a listening socket until accept() takes them."
+          },
+          {
+            "term": "4-tuple",
+            "meaning": "Source IP, source port, destination IP and destination port; together they identify one TCP connection."
+          },
+          {
+            "term": "Half-close",
+            "meaning": "shutdown(fd, SHUT_WR) sends FIN so the peer sees end of data, while this side can still read. Here fd is the socket descriptor and SHUT_WR means shut down the write direction only."
+          }
+        ],
+        "principle": {
+          "text": "A TCP server holds one listening socket per address it listens on plus one connection socket per live connection, and connections are told apart by the 4-tuple. A UDP server needs one socket per bound port, whatever the number of clients.",
+          "tex": "S_{\\text{TCP}} = L + C \\qquad S_{\\text{UDP}} = L"
+        },
+        "limits": "The count applies to one server process. Connections that have closed no longer count, and a connection still waiting in the backlog has no socket until accept() returns it. UDP gives no reliability, and a UDP socket has no listen() or accept().",
+        "example": {
+          "problem": "A TCP server listens on one port. Five clients each open 2 connections to it, and 3 of those connections are later closed. How many sockets does the server process hold?",
+          "steps": [
+            "The server has 1 listening socket, because it listens on one port.",
+            "Clients opened 5 x 2 = 10 connections, and each was returned by accept() as its own socket.",
+            "3 connections closed, so 10 - 3 = 7 connection sockets remain.",
+            "Total sockets = 1 + 7."
+          ],
+          "result": "8 sockets. A UDP server serving the same clients would use 1."
+        },
+        "misconceptions": [
+          "Many clients do not need many server ports. They share one server port because each connection has a different 4-tuple.",
+          "A single send() does not arrive as a single recv() on TCP. The stream may be split across several recv() calls or merged with the next send().",
+          "close() and shutdown(fd, SHUT_WR) differ. close() releases the descriptor, while shutdown for writing sends FIN but keeps the socket readable."
+        ],
+        "recall": [
+          {
+            "q": "What does recv() returning 0 on a TCP socket mean?",
+            "a": "The peer has sent FIN and will send no more data. It is not an error."
+          },
+          {
+            "q": "Which sockets are identified by the full 4-tuple, and which only by local IP and port?",
+            "a": "TCP connection sockets. A UDP socket is identified only by its local IP and port."
+          },
+          {
+            "q": "Which calls block on a TCP server and client?",
+            "a": "accept() blocks until a connection is queued and a blocking connect() until the handshake finishes. listen() does not block."
+          },
+          {
+            "q": "How many sockets does a TCP server with n live connections hold?",
+            "a": "n + 1: one listening socket and one connection socket per accept()."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A server process listens on TCP ports 80 and 443. At this moment 4 connections are live on port 80 and 3 on port 443, and no other connection has been accepted. How many sockets does the process hold?",
+          "answer": 9,
+          "explanation": "There are 2 listening sockets, one per port, and 4 + 3 = 7 connection sockets returned by accept(), giving 9. The answer 7 tempts because the listening sockets are forgotten, and 7 alone counts only the connection sockets."
+        },
+        "summary": "A TCP server holds one listening socket per address plus one socket per live connection, while a UDP server uses one socket for all clients. connect() and accept() block, listen() does not, and recv() returning 0 means the peer sent FIN."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cn-transport-layer.next-seq",
+      "name": "Next sequence number",
+      "tex": "\\text{seq}_{\\text{next}} = \\text{seq} + \\text{len}",
+      "text": "next seq = seq + data length",
+      "where": [
+        [
+          "len",
+          "data bytes in the segment (add 1 for SYN or FIN)"
+        ]
+      ],
+      "note": "A pure ACK carries no data and consumes no sequence number.",
+      "topic": "cn-transport-layer.seq-ack",
+      "origin": "source",
+      "pages": [
+        58,
+        651
+      ]
+    },
+    {
+      "id": "cn-transport-layer.ack-number",
+      "name": "Acknowledgment number",
+      "tex": "\\text{ack} = (\\text{highest in-order byte received}) + 1",
+      "text": "ack = last in-order byte received + 1",
+      "note": "Cumulative: bytes beyond a gap do not advance it, even if they have arrived.",
+      "topic": "cn-transport-layer.seq-ack",
+      "origin": "source",
+      "pages": [
+        58,
+        653
+      ]
+    },
+    {
+      "id": "cn-transport-layer.header-length",
+      "name": "TCP header length",
+      "tex": "H = 4 \\times \\text{HLEN}, \\quad 5 \\le \\text{HLEN} \\le 15",
+      "text": "header bytes = 4 × HLEN, 5 ≤ HLEN ≤ 15 (20 to 60 bytes)",
+      "where": [
+        [
+          "HLEN",
+          "4-bit header length (data offset) field"
+        ]
+      ],
+      "note": "Option bytes = 4 × HLEN − 20.",
+      "topic": "cn-transport-layer.tcp-header",
+      "origin": "curated",
+      "pages": [
+        651
+      ]
+    },
+    {
+      "id": "cn-transport-layer.est-rtt",
+      "name": "Estimated RTT",
+      "tex": "\\text{EstRTT} \\leftarrow (1-\\alpha)\\,\\text{EstRTT} + \\alpha\\,\\text{SampleRTT}",
+      "text": "EstRTT ← (1 − α)·EstRTT + α·SampleRTT",
+      "where": [
+        [
+          "α",
+          "smoothing weight, typically 0.125"
+        ]
+      ],
+      "topic": "cn-transport-layer.rtt-estimation",
+      "origin": "source",
+      "pages": [
+        652,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.dev-rtt",
+      "name": "RTT deviation",
+      "tex": "\\text{DevRTT} \\leftarrow (1-\\beta)\\,\\text{DevRTT} + \\beta\\,\\lvert \\text{SampleRTT} - \\text{EstRTT} \\rvert",
+      "text": "DevRTT ← (1 − β)·DevRTT + β·|SampleRTT − EstRTT|",
+      "where": [
+        [
+          "β",
+          "typically 0.25"
+        ]
+      ],
+      "note": "Kurose–Ross updates EstRTT first and uses the new value here; RFC 6298 updates the deviation first with the old estimate. Follow the order the question states.",
+      "topic": "cn-transport-layer.rtt-estimation",
+      "origin": "source",
+      "pages": [
+        652
+      ]
+    },
+    {
+      "id": "cn-transport-layer.rto",
+      "name": "Retransmission timeout",
+      "tex": "\\text{RTO} = \\text{EstRTT} + 4\\,\\text{DevRTT}",
+      "text": "RTO = EstRTT + 4·DevRTT",
+      "note": "Doubled after each timeout until a fresh sample arrives.",
+      "topic": "cn-transport-layer.rtt-estimation",
+      "origin": "source",
+      "pages": [
+        652,
+        655,
+        658
+      ]
+    },
+    {
+      "id": "cn-transport-layer.send-window",
+      "name": "Sender window",
+      "tex": "W = \\min(\\text{cwnd}, \\text{rwnd})",
+      "text": "W = min(cwnd, rwnd)",
+      "note": "Unacknowledged bytes in flight never exceed W.",
+      "topic": "cn-transport-layer.flow-control",
+      "origin": "curated",
+      "pages": [
+        58,
+        652
+      ]
+    },
+    {
+      "id": "cn-transport-layer.slow-start-growth",
+      "name": "Slow-start window after n RTTs",
+      "tex": "\\text{cwnd}_n = 2^{n}\\ \\text{MSS} \\quad (\\text{while } 2^{n} \\le \\text{ssthresh})",
+      "text": "cwnd after n RTTs = 2ⁿ MSS while below ssthresh",
+      "note": "Starting from cwnd = 1 MSS; reaching w MSS takes ⌈log₂ w⌉ RTTs.",
+      "topic": "cn-transport-layer.slow-start-ca",
+      "origin": "source",
+      "pages": [
+        59,
+        652,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.window-throughput",
+      "name": "Window-limited throughput",
+      "tex": "\\text{Throughput} \\approx \\frac{W}{\\text{RTT}}",
+      "text": "Throughput ≈ W / RTT",
+      "where": [
+        [
+          "W",
+          "window in bytes (W segments × MSS)"
+        ]
+      ],
+      "note": "Never more than the link bandwidth; convert bytes to bits before quoting bps.",
+      "topic": "cn-transport-layer.throughput",
+      "origin": "source",
+      "pages": [
+        653,
+        656,
+        657
+      ]
+    },
+    {
+      "id": "cn-transport-layer.bdp",
+      "name": "Bandwidth-delay product and utilisation",
+      "tex": "\\text{BDP} = B \\times \\text{RTT}, \\qquad U = \\min\\!\\left(1, \\frac{W}{B \\cdot \\text{RTT}}\\right)",
+      "text": "BDP = B × RTT; utilisation U = min(1, W / (B·RTT))",
+      "where": [
+        [
+          "B",
+          "link bandwidth"
+        ]
+      ],
+      "note": "Ignores transmission time of the segment itself; some questions use RTT + L/B in the denominator.",
+      "topic": "cn-transport-layer.throughput",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.window-scale",
+      "name": "Maximum window with scaling",
+      "tex": "W_{\\max} = 65535 \\times 2^{s}, \\quad 0 \\le s \\le 14",
+      "text": "W_max = 65535 × 2^s bytes, 0 ≤ s ≤ 14",
+      "where": [
+        [
+          "s",
+          "window-scale shift count"
+        ]
+      ],
+      "note": "Smallest s with 65535 × 2^s ≥ BDP fills the link.",
+      "topic": "cn-transport-layer.flow-control",
+      "origin": "curated",
+      "pages": [
+        652
+      ]
+    },
+    {
+      "id": "cn-transport-layer.wraparound-time",
+      "name": "Sequence-number wraparound time",
+      "tex": "T_{\\text{wrap}} = \\frac{2^{32}\\ \\text{bytes}}{B}",
+      "text": "T_wrap = 2³² bytes / B",
+      "where": [
+        [
+          "B",
+          "sending rate in bytes per second"
+        ]
+      ],
+      "note": "Divide by bits per second only after multiplying 2³² by 8.",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.mathis",
+      "name": "AIMD steady-state throughput",
+      "tex": "\\text{Throughput} \\approx \\frac{1.22\\,\\text{MSS}}{\\text{RTT}\\sqrt{L}}",
+      "text": "Throughput ≈ 1.22·MSS / (RTT·√L)",
+      "where": [
+        [
+          "L",
+          "segment loss probability"
+        ]
+      ],
+      "note": "Models Reno-style AIMD with random loss.",
+      "topic": "cn-transport-layer.throughput",
+      "origin": "source",
+      "pages": [
+        653
+      ]
+    },
+    {
+      "id": "cn-transport-layer.udp-length",
+      "name": "UDP length field",
+      "tex": "\\text{Length} = 8 + \\text{data bytes}",
+      "text": "UDP length = 8 + data bytes",
+      "topic": "cn-transport-layer.udp",
+      "origin": "source",
+      "pages": [
+        650,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.server-sockets",
+      "name": "TCP sockets held by a server",
+      "tex": "S = L + C",
+      "text": "S = L + C",
+      "where": [
+        [
+          "S",
+          "TCP sockets open in the server process"
+        ],
+        [
+          "L",
+          "listening sockets, one per (IP, port) it listens on"
+        ],
+        [
+          "C",
+          "live connections returned by accept()"
+        ]
+      ],
+      "note": "A UDP server needs one socket per bound (IP, port), whatever the number of clients.",
+      "topic": "cn-transport-layer.socket-semantics",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cn-transport-layer.cwnd-trajectory",
+      "title": "Congestion-window trajectory after a loss",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Set ssthresh = cwnd/2 at the loss; set cwnd = 1 MSS for a timeout (or Tahoe), cwnd = ssthresh for a Reno triple duplicate ACK.",
+        "Below ssthresh, double cwnd each RTT but cap it at ssthresh; at or above ssthresh, add 1 MSS per RTT.",
+        "Tabulate RTT number against cwnd until the asked window or RTT is reached, then multiply the RTT count by the RTT if time is asked."
+      ],
+      "trap": "Doubling past ssthresh (8 to 16 when ssthresh is 12) or measuring windows in KB when the growth unit is MSS.",
+      "topic": "cn-transport-layer.loss-reaction",
+      "origin": "source",
+      "pages": [
+        59,
+        652,
+        653,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.seq-ack-trace",
+      "title": "Sequence and ACK numbers through a segment exchange",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Next seq = seq + data length; add 1 for a SYN or FIN.",
+        "ACK = first byte not yet received in order; a gap freezes it.",
+        "After the handshake, data starts at ISN + 1 in each direction."
+      ],
+      "trap": "Writing the last byte received as the ACK, or forgetting the one number the SYN uses.",
+      "topic": "cn-transport-layer.seq-ack",
+      "origin": "source",
+      "pages": [
+        58,
+        651,
+        655
+      ]
+    },
+    {
+      "id": "cn-transport-layer.rto-update",
+      "title": "EstRTT, DevRTT and RTO update",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Update EstRTT with α (0.125 unless told otherwise).",
+        "Update DevRTT with β (0.25) using the estimate the question specifies, old or new.",
+        "RTO = EstRTT + 4·DevRTT; repeat per sample if several are given."
+      ],
+      "trap": "Swapping α between sample and old estimate: the sample gets the small weight α.",
+      "topic": "cn-transport-layer.rtt-estimation",
+      "origin": "source",
+      "pages": [
+        652,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.window-throughput-calc",
+      "title": "Throughput, BDP and window size for full utilisation",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Throughput = window bytes × 8 / RTT, capped at the link rate.",
+        "Needed window = bandwidth × RTT / 8 bytes; compare with 65 535 bytes.",
+        "For a scale factor, find the least s with 65 535 × 2^s ≥ needed window; for sequence-number bits, apply the same test to the bytes sent in one lifetime."
+      ],
+      "trap": "Mixing KB and Kb, or using one-way delay where the window covers a full RTT.",
+      "topic": "cn-transport-layer.throughput",
+      "origin": "source",
+      "pages": [
+        653,
+        657
+      ]
+    },
+    {
+      "id": "cn-transport-layer.wraparound-calc",
+      "title": "Wraparound time of the sequence space",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Sequence space = 2³² bytes = 2³⁵ bits.",
+        "Divide by the link rate in bits per second to get the wrap time; compare with MSL if asked whether it is safe."
+      ],
+      "trap": "Dividing 2³² by a bit rate without the factor of 8.",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.socket-sequence",
+      "title": "Order and behaviour of socket calls",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Server: socket, bind, listen, accept, then recv/send, close.",
+        "Client: socket, connect, then send/recv, close; connect is where the handshake happens.",
+        "accept blocks and returns a new connected socket; listen never blocks."
+      ],
+      "trap": "Putting accept before listen, or thinking a UDP server calls accept.",
+      "topic": "cn-transport-layer.socket-api",
+      "origin": "source",
+      "pages": [
+        653,
+        654
+      ]
+    },
+    {
+      "id": "cn-transport-layer.state-identification",
+      "title": "Handshake and teardown state identification",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Mark which side sent the first FIN: it is the active closer.",
+        "Active closer: FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT; passive closer: CLOSE_WAIT, LAST_ACK.",
+        "TIME_WAIT lasts 2 × MSL and only the active closer enters it."
+      ],
+      "topic": "cn-transport-layer.termination",
+      "origin": "source",
+      "pages": [
+        58,
+        651
+      ]
+    },
+    {
+      "id": "cn-transport-layer.socket-count",
+      "title": "Counting sockets and connections at a server",
+      "frequency": "low",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Count one listening socket per (IP, port) the server listens on.",
+        "Add one connected socket per live TCP connection: sum the connections each client opened and subtract those already closed.",
+        "For UDP, the server needs one socket per bound port, whatever the number of clients; for a limit on connections from one client IP, count its usable source ports."
+      ],
+      "trap": "Forgetting the listening socket, or giving a UDP server one socket per client.",
+      "topic": "cn-transport-layer.socket-semantics",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "cn-transport-layer.q-regain-window",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A TCP connection has cwnd = 24 KB when a timeout occurs. MSS = 1 KB and RTT = 50 ms, and no further loss occurs. Slow start never overshoots ssthresh: if doubling would exceed it, cwnd is set to ssthresh. How long (in ms) after the timeout does cwnd first reach 24 KB again?",
+      "answer": 800,
+      "explanation": "Timeout: ssthresh = 24/2 = 12 KB, cwnd = 1 KB. Slow start: 1 → 2 → 4 → 8 → 12 takes 4 RTTs. Congestion avoidance then adds 1 KB per RTT: 12 → 24 takes 12 RTTs. Total 16 RTTs × 50 ms = 800 ms.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.loss-reaction",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-reno-round",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A TCP Reno sender starts with cwnd = 1 MSS and ssthresh = 16 MSS; cwnd is measured at the start of each transmission round, round 1 having cwnd = 1. During round 9 (cwnd = 20 MSS) the sender receives three duplicate ACKs; nothing else is lost. What is cwnd in round 14?",
+      "options": [
+        "14 MSS",
+        "10 MSS",
+        "24 MSS",
+        "8 MSS"
+      ],
+      "answer": 0,
+      "explanation": "Rounds 1–5: 1, 2, 4, 8, 16 (slow start up to ssthresh). Rounds 6–9: 17, 18, 19, 20. The triple duplicate ACK sets ssthresh = 10 and, in Reno, cwnd = 10 for round 10, then +1 per round: 11, 12, 13, 14 in round 14. Tahoe would restart at 1 and give 1, 2, 4, 8, 10, so 10 is the Tahoe answer; 24 ignores the loss.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.loss-reaction",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Congestion",
+      "pages": [
+        59,
+        653,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-rto-update",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A TCP sender has EstimatedRTT = 100 ms and DevRTT = 10 ms, with α = 0.125 and β = 0.25. A new SampleRTT of 120 ms arrives. EstimatedRTT is updated first and the new value is used in the DevRTT update. What is the new RTO in ms?",
+      "answer": 150,
+      "explanation": "EstRTT = 0.875 × 100 + 0.125 × 120 = 102.5 ms. DevRTT = 0.75 × 10 + 0.25 × |120 − 102.5| = 7.5 + 4.375 = 11.875 ms. RTO = 102.5 + 4 × 11.875 = 102.5 + 47.5 = 150 ms.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.rtt-estimation",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — RTT",
+      "pages": [
+        652,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-window-scale",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A TCP connection runs over a 100 Mbps link with RTT 80 ms. What is the smallest window-scale shift count s for which the maximum scaled window 65 535 × 2^s bytes is at least the bandwidth-delay product?",
+      "answer": 4,
+      "explanation": "BDP = 100 × 10⁶ × 0.08 / 8 = 1 000 000 bytes. With s = 3 the window is 65 535 × 8 = 524 280 bytes, too small; with s = 4 it is 65 535 × 16 = 1 048 560 bytes ≥ 1 000 000. So s = 4.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.flow-control",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-window-throughput",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A TCP sender's window is 10 KB, the RTT is 100 ms and MSS is 1 KB, with 1 KB = 1000 bytes. Ignoring transmission time, what is the maximum throughput in kbps?",
+      "answer": 800,
+      "explanation": "At most one window is delivered per RTT: 10 000 bytes / 0.1 s = 100 000 bytes/s = 800 000 bits/s = 800 kbps. The MSS only says the window is 10 segments.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.throughput",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Throughput",
+      "pages": [
+        657
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-wraparound",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A host sends TCP data continuously at 1 Gbps (10⁹ bits per second). How many seconds pass before the 32-bit sequence number wraps around? (2 decimals)",
+      "answer": 34.36,
+      "tolerance": 0.01,
+      "explanation": "The space holds 2³² bytes = 2³² × 8 = 34 359 738 368 bits. At 10⁹ bits/s this lasts 34.36 s, less than a 120 s MSL, which is why gigabit TCP needs timestamps (PAWS).",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-cumulative-ack",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Host A sends two segments to B: seq 1000 with 500 data bytes, then seq 1500 with 300 data bytes. The first is lost; the second arrives and is buffered. What acknowledgment number does B send?",
+      "options": [
+        "1000",
+        "1500",
+        "1800",
+        "1799"
+      ],
+      "answer": 0,
+      "explanation": "The ACK is the next byte expected in order. Byte 1000 has not arrived, so B keeps sending ack = 1000 (a duplicate ACK). 1800 would be correct only once bytes 1000–1499 also arrive; 1799 is the last byte received, not the next expected.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.seq-ack",
+      "origin": "source",
+      "pages": [
+        58,
+        652,
+        655
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-handshake-numbers",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A client opens a TCP connection with initial sequence number 4000; the server's initial sequence number is 9000. Which sequence and acknowledgment numbers does the third handshake segment carry?",
+      "options": [
+        "seq = 4001, ack = 9001",
+        "seq = 4000, ack = 9000",
+        "seq = 4001, ack = 9000",
+        "seq = 9001, ack = 4001"
+      ],
+      "answer": 0,
+      "explanation": "The SYN used number 4000, so the client's next number is 4001. The server's SYN+ACK used 9000, so the client acknowledges 9001. The pure ACK does not consume a number, so any data sent next also starts at 4001.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.handshake",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — TCP handshake",
+      "pages": [
+        58,
+        651
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-seq-consumption",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about TCP sequence numbers and flags are true?",
+      "options": [
+        "A SYN segment consumes one sequence number",
+        "The SYN flag is set in the first two segments of the three-way handshake",
+        "A segment carrying only an acknowledgment consumes one sequence number",
+        "A FIN segment consumes one sequence number"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "SYN and FIN are each treated as one byte of the stream, so they consume a sequence number and are acknowledged. SYN appears in the client's SYN and the server's SYN+ACK. A pure ACK carries no data and no SYN/FIN, so it consumes nothing.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.seq-ack",
+      "origin": "source",
+      "pages": [
+        651,
+        656
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-time-wait",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The client sends the first FIN to close a TCP connection, and the four-segment teardown completes normally. Which statement is correct?",
+      "options": [
+        "The client enters TIME_WAIT for 2 × MSL before CLOSED",
+        "The server enters TIME_WAIT for 2 × MSL before CLOSED",
+        "The client passes through CLOSE_WAIT and LAST_ACK",
+        "Both sides enter TIME_WAIT for one MSL"
+      ],
+      "answer": 0,
+      "explanation": "The client is the active closer: FIN_WAIT_1 after its FIN, FIN_WAIT_2 after the server's ACK, then TIME_WAIT for 2 × MSL after acknowledging the server's FIN. The server, the passive closer, goes CLOSE_WAIT then LAST_ACK and closes when its FIN is acknowledged.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.termination",
+      "origin": "source",
+      "pages": [
+        58,
+        651
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-flow-vs-congestion",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about TCP flow control and congestion control are true?",
+      "options": [
+        "The amount of unacknowledged data a sender may have outstanding is min(cwnd, rwnd)",
+        "The receiver reports rwnd in the window field of the segments it sends",
+        "The sender reports its cwnd to the receiver in a header field",
+        "After a zero-window advertisement, the sender periodically sends small probe segments"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "The sender obeys both limits, hence the minimum. rwnd travels in every segment's 16-bit window field. cwnd is local state of the sender and appears in no header field. A persist timer drives window probes so that a lost window update cannot deadlock the connection.",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.flow-control",
+      "origin": "source",
+      "pages": [
+        58,
+        652
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-server-call-order",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In what order does a TCP server normally call the socket primitives before it can exchange data with a client?",
+      "options": [
+        "socket, bind, listen, accept",
+        "socket, listen, bind, accept",
+        "socket, bind, accept, listen",
+        "socket, connect, listen, accept"
+      ],
+      "answer": 0,
+      "explanation": "The socket must exist (socket), have a local port (bind), be marked passive (listen), and only then can completed connections be taken from the queue (accept). connect is the client's call.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.socket-api",
+      "origin": "source",
+      "pages": [
+        653,
+        654
+      ]
+    },
+    {
+      "id": "cn-transport-layer.q-socket-semantics",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about the Berkeley socket API are true?",
+      "options": [
+        "accept() returns a new socket for the connection while the listening socket stays open",
+        "Calling connect() on a TCP socket starts the three-way handshake",
+        "listen() blocks until the first client connects",
+        "A UDP server must call accept() before it can receive datagrams"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "accept() hands back a separate connected socket, so the server keeps accepting on the original one. connect() sends the SYN. listen() only sets the socket passive and sizes the backlog; it is accept() that blocks. UDP has no connections, so a UDP server just binds and calls recvfrom().",
+      "difficulty": "medium",
+      "topic": "cn-transport-layer.socket-semantics",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-demux-tuple",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Two clients are connected at the same time to a web server's TCP port 80. What does the server's transport layer use to deliver each arriving segment to the right connection socket?",
+      "options": [
+        "Source IP, source port, destination IP and destination port",
+        "Destination port only",
+        "Destination IP and destination port only",
+        "The sequence number of the segment"
+      ],
+      "answer": 0,
+      "explanation": "Both connections share destination IP and port 80, so those cannot tell them apart. A TCP connection socket is identified by the full 4-tuple; the clients differ in source IP or source port. Destination IP and port alone is how UDP demultiplexes.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.socket-semantics",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-server-socket-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A TCP server listens on one port. Clients A and B each open 3 connections to it, and clients C, D and E open 1 each. Two of these connections are then closed by both sides. How many TCP sockets does the server process hold open now?",
+      "answer": 8,
+      "explanation": "Each accept() returns a separate socket, so the server held $3 + 3 + 1 + 1 + 1 = 9$ connection sockets. Closing 2 leaves 7. The listening socket stays open throughout, so the total is $7 + 1 = 8$.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.socket-semantics",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-header-options",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A TCP segment's header length field holds the binary value 1000. How many bytes of options does the header carry?",
+      "options": [
+        "12",
+        "32",
+        "8",
+        "20"
+      ],
+      "answer": 0,
+      "explanation": "The field counts 32-bit words: 1000₂ = 8 words = 32 bytes. The fixed header is 20 bytes, so options occupy 32 − 20 = 12 bytes. 32 is the whole header; 8 reads the field as bytes.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.tcp-header",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-transport-layer.q-udp-length",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A UDP datagram carries 100 bytes of application data. What value is in its length field?",
+      "options": [
+        "108",
+        "100",
+        "120",
+        "128"
+      ],
+      "answer": 0,
+      "explanation": "The UDP length covers header and data, and the header is 8 bytes, so 100 + 8 = 108. 120 would assume a 20-byte TCP-style header.",
+      "difficulty": "easy",
+      "topic": "cn-transport-layer.udp",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — UDP",
+      "pages": [
+        650,
+        656
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The ACK number is the next byte expected, not the last byte received: after bytes 0–999 arrive, ack = 1000.",
+      "origin": "source",
+      "pages": [
+        58,
+        657
+      ]
+    },
+    {
+      "text": "SYN and FIN each use one sequence number; a pure ACK uses none. Data after a SYN with ISN x starts at x + 1.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A timeout sends cwnd to 1 MSS in every variant; only a triple duplicate ACK in Reno keeps cwnd at ssthresh. Tahoe resets to 1 MSS on both.",
+      "origin": "source",
+      "pages": [
+        653,
+        657
+      ]
+    },
+    {
+      "text": "Slow start stops at ssthresh: with ssthresh 12 the step after 8 is 12, not 16, unless the question says otherwise.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "cwnd is never in the TCP header; the window field is the receiver's rwnd.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Throughput questions mix bytes and bits: a 10 KB window per 100 ms RTT is 100 KB/s, which is 800 kbps.",
+      "origin": "source",
+      "pages": [
+        657
+      ]
+    },
+    {
+      "text": "TIME_WAIT belongs to the side that closes first, not to the server by default.",
+      "origin": "source",
+      "pages": [
+        58
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Headers and numbering",
+      "lines": [
+        "UDP 8 B: ports, length (header + data), checksum",
+        "TCP 20–60 B; header length field × 4 = bytes",
+        "seq = first data byte; ack = next byte expected",
+        "SYN and FIN consume one number each; pure ACK none",
+        "Wrap time = 2³² bytes / rate"
+      ],
+      "origin": "source",
+      "pages": [
+        58,
+        651,
+        658
+      ]
+    },
+    {
+      "heading": "Connection management",
+      "lines": [
+        "Open: SYN(x) → SYN+ACK(y, ack x+1) → ACK(ack y+1)",
+        "Close: FIN, ACK, FIN, ACK; half-close allowed",
+        "Active closer: FIN_WAIT_1, FIN_WAIT_2, TIME_WAIT (2 MSL)",
+        "Passive closer: CLOSE_WAIT, LAST_ACK"
+      ],
+      "origin": "source",
+      "pages": [
+        58,
+        658
+      ]
+    },
+    {
+      "heading": "Windows and timers",
+      "lines": [
+        "W = min(cwnd, rwnd); throughput ≈ W / RTT",
+        "Slow start doubles per RTT up to ssthresh, then +1 MSS per RTT",
+        "Timeout: ssthresh = cwnd/2, cwnd = 1 MSS",
+        "Reno 3 dup ACKs: ssthresh = cwnd/2, cwnd = ssthresh",
+        "EstRTT = 0.875·old + 0.125·sample; RTO = EstRTT + 4·DevRTT"
+      ],
+      "origin": "source",
+      "pages": [
+        59,
+        652,
+        658
+      ]
+    },
+    {
+      "heading": "Sockets",
+      "lines": [
+        "Server: socket, bind, listen, accept, recv/send, close",
+        "Client: socket, connect (handshake), send/recv, close",
+        "accept blocks, returns a new socket; TCP demux by 4-tuple"
+      ],
+      "origin": "source",
+      "pages": [
+        653
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 652,
+      "claim": "A cumulative ACK acknowledges all bytes up through the acknowledgment number (repeated as the answer to practice Q6 on page 655).",
+      "correction": "An acknowledgment number n covers bytes up to n − 1 only; n is the next byte expected. The master syllabus page 58 states this correctly."
+    },
+    {
+      "page": 651,
+      "claim": "Sequence-number wrap-around is handled by the 32-bit space.",
+      "correction": "The 32-bit space does not prevent wraparound; it wraps after 2³² bytes, about 34 s at 1 Gbps. Safety needs the wrap time to exceed the maximum segment lifetime, and fast links add the timestamp option with PAWS."
+    },
+    {
+      "page": 654,
+      "claim": "The 1.22·MSS/(RTT·√L) throughput formula captures the TCP-friendly cubic curve.",
+      "correction": "The formula is the Mathis model of Reno-style AIMD under random loss, whose window traces a sawtooth. TCP CUBIC grows its window as a cubic function of time since the last loss and follows a different throughput law."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cn-tcp",
+      "status": "covered",
+      "topics": [
+        "cn-transport-layer.tcp-header",
+        "cn-transport-layer.seq-ack",
+        "cn-transport-layer.handshake",
+        "cn-transport-layer.termination",
+        "cn-transport-layer.reliability",
+        "cn-transport-layer.rtt-estimation",
+        "cn-transport-layer.flow-control",
+        "cn-transport-layer.slow-start-ca",
+        "cn-transport-layer.loss-reaction",
+        "cn-transport-layer.throughput",
+        "cn-transport-layer.seq-wraparound"
+      ]
+    },
+    {
+      "item": "cn-socket-api",
+      "status": "partial",
+      "topics": [
+        "cn-transport-layer.socket-api",
+        "cn-transport-layer.socket-semantics"
+      ]
+    }
+  ]
+}

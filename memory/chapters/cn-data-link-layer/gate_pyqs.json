@@ -1,0 +1,1736 @@
+{
+  "chapter": "cn-data-link-layer",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2024-s2",
+    "gate-cse-2023",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q43",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cn-data-link-layer.crc",
+      "difficulty": "easy",
+      "stem": "Consider the transmission of data bits 110001011 over a link that uses Cyclic Redundancy Check (CRC) code for error detection. If the generator bit pattern is given to be 1001, which one of the following options shows the remainder bit pattern appended to the data bits before transmission?",
+      "options": [
+        "011",
+        "101",
+        "000",
+        "100"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "XOR long division of 110001011000 by 1001 in six steps, ending with remainder 100 in a red box."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a CRC remainder is",
+            "body": "A cyclic redundancy check (CRC) appends $r$ extra bits to the data so that the whole frame, read as a binary number with modulo-2 arithmetic, is divisible by a fixed generator. Modulo-2 arithmetic means no carries or borrows: adding and subtracting are both XOR. The generator has $r+1$ bits. The rule: write the data, add $r$ zeros after it, divide that number by the generator using XOR long division, and the $r$-bit remainder is what is appended in place of the zeros."
+          },
+          {
+            "title": "Set up the division",
+            "body": "The generator 1001 has 4 bits, so $r=3$ and three zeros are appended to the data 110001011. The dividend is 110001011000, twelve bits. XOR long division only acts where the leading bit of the current window is 1; where it is 0 we just move one bit right.",
+            "tex": "110001011\\,000 \\div 1001"
+          },
+          {
+            "title": "Do the XORs",
+            "body": "Align 1001 under each leading 1 and XOR. The leading 1s fall at bits 1, 2, 4, 5, 6 and 7 of the dividend, so there are six XORs. The running value after them is 010101011000, 000111011000, 000011111000, 000001101000, 000000100000, and finally 000000000100. The drawing shows each step.",
+            "tex": "110001011000 \\to 000000000100"
+          },
+          {
+            "title": "Answer",
+            "body": "The three bits left at the end are 100, so the transmitted frame is 110001011100. Option D is 100. Check: dividing 110001011100 by 1001 leaves 000, as a CRC frame must."
+          }
+        ],
+        "shortcut": {
+          "body": "Here $1001=x^3+1$, so $x^3\\equiv 1$ and every power $x^k$ reduces to $x^{k \\bmod 3}$. After the three-place shift, the 1 bits of the dividend are the powers $x^{11},x^{10},x^6,x^4,x^3$, which reduce to $x^2,x^1,x^0,x^1,x^0$. Equal terms cancel under XOR, leaving $x^2$, that is 100. This works only because the generator is $x^3+1$; for any other generator do the long division (about 2 minutes).",
+          "tex": "x^2+x+1+x+1\\equiv x^2 \\pmod 2"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "011 comes from dropping or misplacing one XOR in the long division. A frame built with it, 110001011011, is not divisible by 1001: it leaves 111."
+          },
+          {
+            "option": 1,
+            "text": "101 comes from a slipped XOR in the later steps. The frame 110001011101 leaves remainder 001, so the receiver would flag an error."
+          },
+          {
+            "option": 2,
+            "text": "000 would mean the data are already divisible by the generator. They are not: appending 000 leaves remainder 100, so a frame ending in 000 would fail the receiver's check."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.crc",
+          "clues": "The stem gives data bits and a generator bit pattern and asks for the remainder appended before transmission. Those three phrases are the CRC recipe: pad, divide, append.",
+          "contrast": "Parity and checksum also add check bits, but they count or sum bits. A given generator pattern and a remainder mean division, which marks this as CRC."
+        },
+        "check": {
+          "body": "Multiply back: the quotient of the division has 1s at the six XOR positions, 110111100. Multiplying it by 1001 with XOR and no carries gives 110001011100, the data followed by the remainder, so the frame is a multiple of the generator.",
+          "tex": "110111100\\otimes 1001=110001011100"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, question 43",
+          "url": "https://gateoverflow.in/523113/gate-cse-2026-set-2-question-33"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-2 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which bits are being asked for: the data, or the extra bits the sender adds after it? The generator pattern tells you how many extra bits there are."
+        },
+        {
+          "kind": "concept",
+          "text": "A CRC sender makes the whole frame divisible by the generator, with XOR doing both addition and subtraction. The extra bits are the remainder of that division."
+        },
+        {
+          "kind": "principle",
+          "text": "Pad the data with one fewer zero than the generator has bits, divide by XOR, and keep what is left. The remainder then replaces the padding zeros."
+        },
+        {
+          "kind": "setup",
+          "text": "Count the generator bits to get the pad length, write the data followed by that many zeros, and slide the generator under each leading 1 from the left, XORing as you go."
+        },
+        {
+          "kind": "partial",
+          "text": "The first window of the padded string is 1100, and 1100 XOR 1001 leaves 0101; bring down the next data bit and look for the next leading 1."
+        }
+      ],
+      "variation": {
+        "stem": "A link uses CRC with generator bit pattern 1011. Which one of the following is the remainder bit pattern appended to the data bits 101101 before transmission?",
+        "options": [
+          "001",
+          "011",
+          "010",
+          "110"
+        ],
+        "answer": 1,
+        "explanation": "The generator has 4 bits, so append 3 zeros and divide 101101000 by 1011 with XOR; the remainder is 011. 001 is the remainder when the zeros are not appended, 010 comes from dividing by the reversed generator 1101, and 110 is 011 written backwards."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s2-q65",
+      "type": "nat",
+      "marks": 2,
+      "key": "30",
+      "topic": "cn-data-link-layer.window-bounds",
+      "difficulty": "hard",
+      "stem": "It is necessary to design a link-layer protocol between two hosts that are directly connected over a lossless link of length 3000 kilometers. Assume that the link bandwidth is $10^8$ bits per second and that the propagation delay in the link is 5 nanoseconds per meter. Every transmitted data byte is assigned a unique sequence number.\n\nLet $N$ be the minimum number of bits needed for the sequence number field in the protocol header such that\n\ni. the sequence numbers do not wrap around before 60 seconds, and\nii. the maximum efficiency of the link is achieved.\n\nThe value of $N$ is ______. (answer in integer)",
+      "answer": 30,
+      "solution": {
+        "steps": [
+          {
+            "title": "What a sequence number does and when it wraps",
+            "body": "A sequence number labels each unit being sent so the receiver can order it and detect loss. Here the unit is one byte, so the first byte sent is number 0, the next 1, and so on. An $N$-bit field has $2^N$ distinct values; after that many bytes the numbers repeat, which is called wrapping around. Condition (i) says no wrap in 60 seconds, so $2^N$ must be at least the number of bytes sent in 60 seconds.",
+            "tex": "2^N \\ge \\text{bytes sent in 60 s}"
+          },
+          {
+            "title": "Bytes sent in 60 seconds",
+            "body": "Bandwidth is $10^8$ bit/s, which is $10^8/8=1.25\\times10^7$ bytes per second. In 60 seconds the sender can send $1.25\\times10^7\\times60=7.5\\times10^8$ bytes. Since $2^{29}=5.37\\times10^8<7.5\\times10^8\\le 2^{30}=1.07\\times10^9$, condition (i) needs $N\\ge30$.",
+            "tex": "1.25\\times10^7\\times 60 = 7.5\\times10^8 < 2^{30}"
+          },
+          {
+            "title": "Check condition (ii), maximum efficiency",
+            "body": "The link is 3000 km $=3\\times10^6$ m, so one-way delay is $3\\times10^6\\times5\\text{ ns}=15$ ms and the round trip is 30 ms. To keep the link busy the window must hold one round trip of data: $1.25\\times10^7\\times0.03=375000$ bytes. A sliding window of this many unacknowledged bytes needs a sequence space of at most about $2\\times375000=750000<2^{20}$, so 20 bits already satisfy (ii).",
+            "tex": "W=1.25\\times10^7\\times0.03=375000\\ \\text{bytes}"
+          },
+          {
+            "title": "Combine",
+            "body": "Both conditions must hold, so take the larger requirement: $\\max(30,20)=30$. The wrap-around condition decides."
+          }
+        ],
+        "shortcut": {
+          "body": "Compute only the binding condition. Bytes in 60 s: $60\\times10^8/8=7.5\\times10^8$. Using $2^{10}\\approx10^3$, $2^{30}\\approx1.07\\times10^9$ is the first power above $7.5\\times10^8$. Answer 30 in under a minute; glance that the window condition (about 20 bits) is smaller.",
+          "tex": "\\lceil\\log_2(7.5\\times10^8)\\rceil=30"
+        },
+        "traps": [
+          {
+            "text": "Answering 20 by solving only condition (ii): the bandwidth-delay window needs about 20 bits, but the 60-second wrap-around condition needs far more."
+          },
+          {
+            "text": "Answering 29 by rounding $\\log_2(7.5\\times10^8)=29.48$ down. The field must hold at least that many values, so round up to 30."
+          },
+          {
+            "text": "Counting bits instead of bytes: $60\\times10^8=6\\times10^9$ numbers gives 33 bits, but sequence numbers here label bytes, so divide the bandwidth by 8."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.window-bounds",
+          "clues": "The stem asks for the minimum bits of a sequence number field, with no wrap-around for 60 seconds and maximum efficiency, and every byte is numbered. That is sequence-space sizing against a time limit and against the bandwidth-delay window.",
+          "contrast": "Do not apply the Go-Back-N window limit $2^N-1$ or the Selective Repeat limit $2^{N-1}$. Those relate N to a window of frames, while this question numbers bytes and adds a separate wrap-time condition."
+        },
+        "check": {
+          "body": "Substitute N = 30: $2^{30}\\approx1.07\\times10^9$ bytes last $1.07\\times10^9/1.25\\times10^7\\approx86$ s, which is at least 60 s. Substitute N = 29: $5.37\\times10^8$ bytes last only about 43 s, so the numbers would wrap before 60 s.",
+          "tex": "2^{30}/(1.25\\times10^7)\\approx 86\\ \\text{s},\\quad 2^{29}/(1.25\\times10^7)\\approx 43\\ \\text{s}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, question 65",
+          "url": "https://gateoverflow.in/523091/gate-cse-2026-set-2-question-55"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-2 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Two conditions are given and both must hold. Work out which one asks for the larger sequence space before spending time on the other."
+        },
+        {
+          "kind": "concept",
+          "text": "An $N$-bit field has $2^N$ values, and here each value labels one byte. Wrapping around means the values start repeating."
+        },
+        {
+          "kind": "principle",
+          "text": "Avoiding a wrap for a time $T$ needs at least as many distinct numbers as bytes sent in $T$. Full link use needs a window that covers one round trip of data, and the sequence space must be able to hold that window."
+        },
+        {
+          "kind": "setup",
+          "text": "Turn the bandwidth into bytes per second and multiply by the time for the first condition. For the second, get the round trip from the length and the delay per metre, and multiply by the byte rate."
+        },
+        {
+          "kind": "partial",
+          "text": "The byte rate is the bandwidth divided by 8 bits, which is 12.5 million bytes per second; sending for 60 seconds at that rate gives the count of numbers you need."
+        }
+      ],
+      "variation": {
+        "stem": "Two hosts are directly connected over a lossless link of length 2000 kilometers. The link bandwidth is $8\\times10^7$ bits per second and the propagation delay is 5 nanoseconds per meter. Every transmitted data byte has a unique sequence number. Let $N$ be the minimum number of bits in the sequence number field such that the numbers do not wrap around before 40 seconds and the maximum efficiency of the link is achieved. The value of $N$ is ______.",
+        "answer": 29,
+        "explanation": "The link carries $8\\times10^7/8=10^7$ bytes per second, so 40 seconds need $4\\times10^8$ numbers. Since $2^{28}=2.68\\times10^8$ is too small and $2^{29}=5.37\\times10^8$ is enough, the wrap condition needs 29 bits. The window condition needs a round trip of 20 ms, which is $2\\times10^5$ bytes and about 18 bits, so the wrap condition decides."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q45",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "cn-data-link-layer.window-bounds",
+      "difficulty": "medium",
+      "stem": "Consider the implementation of sliding window protocol over a lossless link, with a window size of $W$ frames, where each frame is of size 1000 bits (including header). The bandwidth of the link is 100 kbps (1k = $10^3$) and the one-way propagation delay is 100 milliseconds. Assume that processing times at the sender and receiver are zero and the transmission time of acknowledgements is also zero. Which one of the following options gives the minimum size of $W$ (in number of frames) required to achieve 100% link efficiency?",
+      "options": [
+        "10",
+        "21",
+        "20",
+        "11"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Timeline of the sender transmitting frames 1 to 21 back to back, each 10 ms; ACK 1 arrives at 210 ms exactly as frame 22 starts."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Window, efficiency and the cycle",
+            "body": "In a sliding window protocol the sender may have up to $W$ frames sent but not yet acknowledged. Link efficiency is the fraction of time the sender is transmitting. After the sender starts frame 1 it can send $W$ frames back to back; if the acknowledgement of frame 1 is back before those $W$ frames are finished, the sender never stalls and efficiency is 100%. So the rule is $W\\cdot T_t \\ge T_t + 2T_p$, where $T_t$ is the time to transmit one frame and $T_p$ the one-way propagation delay.",
+            "tex": "W \\ge 1+\\frac{2T_p}{T_t}"
+          },
+          {
+            "title": "Numbers",
+            "body": "$T_t = 1000\\text{ bits}/100\\text{ kbps}=10$ ms. $T_p=100$ ms, so $2T_p=200$ ms. The ACK takes no transmission time and no processing time, so the first ACK is back $T_t+2T_p=10+200=210$ ms after the sender started.",
+            "tex": "T_t+2T_p=210\\ \\text{ms}"
+          },
+          {
+            "title": "Solve for W",
+            "body": "$W\\cdot10\\ge210$ gives $W\\ge21$. With 21 frames the sender is busy exactly 210 ms, and frame 22 can start the instant ACK 1 arrives. With 20 frames it idles for 10 ms. The minimum is 21, option B.",
+            "tex": "W=\\frac{210}{10}=21"
+          }
+        ],
+        "shortcut": {
+          "body": "$W = 1 + 2T_p/T_t = 1 + 200/10 = 21$. Read $T_t$ from rate and size (10 ms), double the propagation delay, add 1 for the frame being sent. About 30 seconds. The formula assumes zero ACK time; with an ACK time it becomes $(T_t+2T_p+T_{ack})/T_t$.",
+          "tex": "W=1+\\frac{2\\times100}{10}=21"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "10 is $T_p/T_t$: it uses the one-way delay instead of the round trip and forgets the frame being sent."
+          },
+          {
+            "option": 2,
+            "text": "20 is $2T_p/T_t$: the round trip is counted but the transmission time of the frame itself is left out, so the sender idles for $T_t$ every cycle."
+          },
+          {
+            "option": 3,
+            "text": "11 is $1+T_p/T_t$: it adds the 1 for the frame being sent but uses the one-way delay only."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.window-bounds",
+          "clues": "The stem asks for the minimum window size W for 100% link efficiency on a lossless link, with zero processing and zero acknowledgement time and a given rate, frame size and one-way delay. That is bandwidth-delay sizing of a window.",
+          "contrast": "Stop-and-wait is the case W = 1, where efficiency stays below 100%. Here W is raised until the pipe is full, and the question asks for that W rather than for an efficiency."
+        },
+        "check": {
+          "body": "Simulate W = 21: frame $k$ starts at $10(k-1)$ ms, so frame 21 ends at 210 ms. The acknowledgement of frame 1 arrives at $10+200=210$ ms, so frame 22 starts with no gap. With W = 20 the sender is out of window at 200 ms and idles 10 ms, giving efficiency $200/210\\approx95\\%$.",
+          "tex": "\\frac{20\\times10}{210}\\approx0.95"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, question 45",
+          "url": "https://gateoverflow.in/523045/gate-cse-2026-set-1-question-35"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What keeps the sender from ever sitting idle? Think about how much it must already have sent by the time the first acknowledgement comes back."
+        },
+        {
+          "kind": "concept",
+          "text": "Link efficiency is the fraction of time spent transmitting. In a sliding window the sender stalls only when its window is full and no acknowledgement has arrived."
+        },
+        {
+          "kind": "principle",
+          "text": "To avoid any stall, the time to send a full window must be at least the time from starting frame 1 until its acknowledgement returns: one frame time plus a round trip."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the frame time from the frame size and the rate, double the one-way delay for the round trip, add the frame time, and divide that cycle by the frame time."
+        },
+        {
+          "kind": "partial",
+          "text": "The frame time is 1000 bits at 100 kbps, so 10 ms, and the round trip over the link is twice 100 ms."
+        }
+      ],
+      "variation": {
+        "stem": "A sliding window protocol runs over a lossless link with a window of $W$ frames, each of 800 bits including header. The link bandwidth is 40 kbps and the one-way propagation delay is 140 milliseconds. Processing times and acknowledgement transmission times are zero. What is the minimum $W$ needed for 100% link efficiency?",
+        "options": [
+          "7",
+          "14",
+          "8",
+          "15"
+        ],
+        "answer": 3,
+        "explanation": "The frame time is $800/40000=20$ ms and the round trip is 280 ms, so the cycle is 300 ms and $W\\ge300/20=15$. 7 is the one-way delay divided by the frame time, 14 is the round trip divided by the frame time without the frame being sent, and 8 adds the 1 to the one-way ratio."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q36",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "difficulty": "easy",
+      "stem": "Suppose we are transmitting frames between two nodes using Stop-and-Wait protocol. The frame size is 3000 bits. The transmission rate of the channel is 2000 bps (bits/second) and the propagation delay between the two nodes is 100 milliseconds. Assume that the processing times at the source and destination are negligible. Also, assume that the size of the acknowledgement packet is negligible. Which ONE of the following most accurately gives the channel efficiency for the above scenario in percentage?",
+      "options": [
+        "88.23",
+        "93.75",
+        "85.44",
+        "66.67"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "One stop-and-wait cycle: 1.5 s transmitting then 0.2 s waiting, ACK arrives at 1.7 s, efficiency 1.5 over 1.7."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Stop-and-wait and efficiency",
+            "body": "Stop-and-wait sends one frame, then waits until its acknowledgement returns before sending the next. Channel efficiency is the fraction of each cycle that the sender spends actually transmitting. One cycle is the time to put the frame on the wire, $T_t$, plus the time for the last bit to reach the receiver and for the ACK to come back, which is $2T_p$ when the ACK and the processing take no time.",
+            "tex": "U=\\frac{T_t}{T_t+2T_p}"
+          },
+          {
+            "title": "Numbers",
+            "body": "$T_t=3000/2000=1.5$ s. $T_p=100$ ms $=0.1$ s, so $2T_p=0.2$ s. One cycle is $1.5+0.2=1.7$ s.",
+            "tex": "T_t+2T_p=1.5+0.2=1.7\\ \\text{s}"
+          },
+          {
+            "title": "Efficiency",
+            "body": "$U=1.5/1.7=0.882353$, so 88.235%. Option A lists 88.23, the value cut to two decimals (rounding would give 88.24), and it is the only option near 88.",
+            "tex": "U=\\frac{1.5}{1.7}\\times100=88.235\\%"
+          }
+        ],
+        "shortcut": {
+          "body": "Compute $a=T_p/T_t=0.1/1.5=1/15$, then $U=1/(1+2a)=1/(1+2/15)=15/17=0.882$. The only option near 88 is A. About 40 seconds.",
+          "tex": "U=\\frac{1}{1+2a}=\\frac{15}{17}"
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "93.75 is $1.5/(1.5+0.1)$: it charges the cycle only one propagation delay. The ACK also has to travel back, so use $2T_p$."
+          },
+          {
+            "option": 2,
+            "text": "85.44 is not given by any clean version of the formula; it is a decoy near the right value. Divide 1.5 by 1.7 rather than picking the closest-looking number."
+          },
+          {
+            "option": 3,
+            "text": "66.67 is $2000/3000$, the rate divided by the frame size, which has no meaning here: efficiency compares times, not a rate against a size."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.stop-and-wait",
+          "clues": "The stem names the Stop-and-Wait protocol and gives frame size, channel rate and propagation delay, with negligible acknowledgement size and processing time. Those are exactly the inputs of the efficiency ratio $T_t/(T_t+2T_p)$.",
+          "contrast": "Sliding window protocols fit W frames into the same cycle, giving $W\\,T_t/(T_t+2T_p)$ up to 100%. The words Stop-and-Wait fix W = 1 here."
+        },
+        "check": {
+          "body": "Use the idle share instead: of each 1.7 s cycle the sender waits 0.2 s, an idle fraction of $0.2/1.7=11.76\\%$, so efficiency is $100-11.76=88.24\\%$. Boundary case: with zero propagation delay the formula gives $1.5/1.5=100\\%$, as it should.",
+          "tex": "100-\\frac{0.2}{1.7}\\times100\\approx88.24"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2, question 36",
+          "url": "https://gateoverflow.in/460809/gate-cse-2025-set-2-question-26"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-2 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How long does the sender actually transmit in one cycle, and how long is the whole cycle from the first bit sent until the acknowledgement arrives?"
+        },
+        {
+          "kind": "concept",
+          "text": "Stop-and-wait sends one frame and waits for its acknowledgement before the next. Efficiency is the transmit time divided by the whole cycle time."
+        },
+        {
+          "kind": "principle",
+          "text": "With a negligible acknowledgement and no processing time, the cycle is the frame transmit time plus a round trip of propagation delay."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the transmit time from frame size over rate, double the propagation delay, add the two for the cycle, and form the ratio. Keep every time in seconds."
+        },
+        {
+          "kind": "partial",
+          "text": "The transmit time is the frame size divided by the rate, which works out to 1.5 seconds; the 100 ms delay must be doubled before it joins the cycle."
+        }
+      ],
+      "variation": {
+        "stem": "Two nodes use Stop-and-Wait. The frame size is 2000 bits, the channel rate is 4000 bps and the propagation delay between the nodes is 125 milliseconds. Processing times are negligible and so is the acknowledgement size. What is the channel efficiency in percentage?",
+        "options": [
+          "33.33",
+          "66.67",
+          "80.00",
+          "25.00"
+        ],
+        "answer": 1,
+        "explanation": "The transmit time is $2000/4000=0.5$ s and the round trip is 0.25 s, so $U=0.5/0.75=66.67\\%$. 80.00 charges only one propagation delay, 33.33 is the idle share $0.25/0.75$, and 25.00 is the ratio $T_p/T_t$ misread as an efficiency."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q23",
+      "type": "msq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cn-data-link-layer.ethernet",
+      "difficulty": "medium",
+      "stem": "Node X has a TCP connection open to node Y. The packets from X to Y go through an intermediate IP router R. Ethernet switch S is the first switch on the network path between X and R. Consider a packet sent from X to Y over this connection.\n\nWhich of the following statements is/are TRUE about the destination IP and MAC addresses on this packet at the time it leaves X?",
+      "options": [
+        "The destination IP address is the IP address of R",
+        "The destination IP address is the IP address of Y",
+        "The destination MAC address is the MAC address of S",
+        "The destination MAC address is the MAC address of Y"
+      ],
+      "answer": [
+        1
+      ],
+      "solutionDiagram": {
+        "alt": "Path X to switch S to router R to host Y, with the destination IP fixed at Y and the destination MAC set to R."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Two addresses, two jobs",
+            "body": "An IP address names the final destination host and is the same in every header all the way from X to Y. A MAC address names a network card on one link only: it says which device on the current Ethernet segment should take the frame. A router rewrites the MAC addresses at each hop but never the destination IP address. A switch works on MAC addresses, but it is not addressed itself: it only forwards frames."
+          },
+          {
+            "title": "Apply to the packet at X",
+            "body": "X's own network does not contain Y, since a router R is on the path. So X puts Y's IP address in the IP header as the destination, because the IP destination is end to end. To reach the router on its own link, X finds R's MAC address (by ARP) and puts that in the Ethernet header as the destination MAC."
+          },
+          {
+            "title": "Check each statement",
+            "body": "A: the destination IP is the IP of R. False, it is the IP of Y. B: the destination IP is the IP of Y. True. C: the destination MAC is the MAC of S. False; S is transparent and no frame is addressed to it. D: the destination MAC is the MAC of Y. False; Y is not on X's link and its MAC is unknown to X. Only B is true."
+          }
+        ],
+        "shortcut": {
+          "body": "IP stays end to end, MAC changes at every hop. Destination IP is Y; destination MAC is the next layer-3 hop, R. A and D confuse the two roles; C names a switch, which is never a destination. Under 1 minute.",
+          "tex": "\\text{IP}_{dst}=Y,\\quad \\text{MAC}_{dst}=R"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Choosing A mixes up the next hop with the destination: R is the next hop for the MAC address, but the IP destination remains Y."
+          },
+          {
+            "option": 2,
+            "text": "Choosing C because S is the first device on the path. A layer-2 switch forwards frames by MAC and is never the destination address."
+          },
+          {
+            "option": 3,
+            "text": "Choosing D assumes the destination MAC is that of the final host. That holds only when the destination is on the same link; across a router the frame carries R's MAC."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.ethernet",
+          "clues": "The stem asks for the destination IP and MAC addresses at the moment the packet leaves X, with a router R and a switch S on the path. It is testing which address is end to end and which changes at each hop.",
+          "contrast": "A switch or learning bridge forwards by MAC address but is never a destination. Do not confuse the switch S on the path with the router R, which is the device the frame is addressed to."
+        },
+        "check": {
+          "body": "Test the boundary: if Y sat on X's own LAN with no router, the destination MAC would be Y's. The stem places R on the path, so that case is excluded. After R forwards the packet onto a link ending at Y, the destination MAC does become Y's while the destination IP is unchanged, which confirms that only the MAC changes per hop."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, question 23",
+          "url": "https://gateoverflow.in/422884/gate-cse-2024-set-2-question-13"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS2 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which address says where the packet finally goes, and which says only who should pick the frame up on the current link?"
+        },
+        {
+          "kind": "concept",
+          "text": "An IP destination and a MAC destination do different jobs. One is read by every router along the path, the other only by devices on a single Ethernet link."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask of each address how far it travels with the packet: end to end, or one link only. Also recall whether a layer-2 switch ever appears in a destination field."
+        },
+        {
+          "kind": "setup",
+          "text": "Label each of the four statements as an IP statement or a MAC statement, then ask whether the device it names is the final host or a device on X's own link."
+        }
+      ],
+      "variation": {
+        "stem": "A packet from host X to host Y crosses a router R. Y is on the Ethernet link directly attached to R. Which of the following is/are TRUE about the destination IP and MAC addresses on the frame as R transmits it onto Y's link?",
+        "options": [
+          "The destination IP address is the IP address of Y",
+          "The destination IP address is the IP address of R",
+          "The destination MAC address is the MAC address of Y",
+          "The destination MAC address is the MAC address of X"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "The destination IP stays the IP of Y at every hop. On the last link the next device is Y itself, so R puts Y's MAC as the destination MAC. The IP of R and the MAC of X name devices that are not the destination of this frame."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q55",
+      "type": "nat",
+      "marks": 2,
+      "key": "500",
+      "topic": "cn-data-link-layer.csma-cd",
+      "difficulty": "easy",
+      "stem": "Consider an Ethernet segment with a transmission speed of $10^8$ bits/sec and a maximum segment length of 500 meters. If the speed of propagation of the signal in the medium is $2\\times10^8$ meters/sec, then the minimum frame size (in bits) required for collision detection is ______",
+      "answer": 500,
+      "solutionDiagram": {
+        "alt": "Round-trip timeline: station A transmits for 5 microseconds while its first bit takes 2.5 microseconds to reach B and the collision signal 2.5 microseconds to return."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Why Ethernet has a minimum frame size",
+            "body": "In CSMA/CD a sender listens while it transmits and stops if it hears a collision. A collision must reach the sender before it finishes sending, or the sender would never know its frame was damaged. The worst case: another station starts just before the first bit arrives, and its collision signal then needs a full one-way trip back. So the sender must still be transmitting after one round trip, $2T_p$, which sets a minimum frame time and hence a minimum frame length.",
+            "tex": "L_{\\min}=2T_p\\times B"
+          },
+          {
+            "title": "Propagation delay",
+            "body": "One-way $T_p=500/(2\\times10^8)=2.5\\ \\mu s$, so the round trip is $5\\ \\mu s$.",
+            "tex": "2T_p=5\\times10^{-6}\\ \\text{s}"
+          },
+          {
+            "title": "Bits",
+            "body": "In $5\\ \\mu s$ at $10^8$ bit/s the sender transmits $5\\times10^{-6}\\times10^8=500$ bits. So the minimum frame is 500 bits.",
+            "tex": "L_{\\min}=5\\times10^{-6}\\times10^8=500"
+          }
+        ],
+        "shortcut": {
+          "body": "$L=2\\cdot\\dfrac{d}{v}\\cdot B=\\dfrac{2\\cdot500\\cdot10^8}{2\\cdot10^8}=500$. The $10^8$ and $2\\times10^8$ cancel, so $L=d=500$. About 30 seconds.",
+          "tex": "L=\\frac{2dB}{v}=500"
+        },
+        "traps": [
+          {
+            "text": "250 bits: using $T_p$ instead of $2T_p$. The collision signal has to return, so the sender must transmit for the round trip."
+          },
+          {
+            "text": "50 or 5000 bits: a slip in powers of ten when converting $5\\ \\mu s$ to bits. $5\\times10^{-6}\\times10^8$ is $5\\times10^2$."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.csma-cd",
+          "clues": "The stem asks for the minimum frame size required for collision detection and gives bit rate, segment length and propagation speed. That is the CSMA/CD condition that transmit time is at least twice the propagation delay.",
+          "contrast": "Stop-and-wait and sliding window questions compare a frame time with a round trip to measure efficiency. CSMA/CD uses the same round trip to set a lower bound on frame length."
+        },
+        "check": {
+          "body": "Test the boundary: a 500-bit frame lasts 5 microseconds, equal to the round trip, so the sender is still sending when the collision signal arrives. A 400-bit frame would end at 4 microseconds, before the signal returns at 5 microseconds, and the collision would go unnoticed.",
+          "tex": "400\\ \\text{bits}\\Rightarrow 4\\ \\mu s < 5\\ \\mu s"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, question 55",
+          "url": "https://gateoverflow.in/422852/gate-cse-2024-set-2-question-45"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS2 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Why must a frame last a certain minimum time on the wire? Think about what the sender needs to hear before it stops transmitting."
+        },
+        {
+          "kind": "concept",
+          "text": "CSMA/CD detects a collision only while the station is still sending, so the frame must keep the sender busy until a collision signal could return from the farthest station."
+        },
+        {
+          "kind": "principle",
+          "text": "The worst-case wait is one round trip of propagation across the longest segment. The minimum frame length is the number of bits the sender puts out in that time."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the one-way delay from segment length and signal speed, double it, then multiply by the bit rate to turn a time into a number of bits."
+        },
+        {
+          "kind": "partial",
+          "text": "The signal crosses the segment in 500 divided by $2\\times10^8$ seconds; double that and you have the time the sender must stay on the air."
+        }
+      ],
+      "variation": {
+        "stem": "An Ethernet segment has a transmission speed of $4\\times10^7$ bits/sec and a maximum segment length of 1000 meters. The signal propagates at $2\\times10^8$ meters/sec. What is the minimum frame size, in bits, required for collision detection?",
+        "answer": 400,
+        "explanation": "One-way delay is $1000/(2\\times10^8)=5\\ \\mu s$, so the round trip is 10 microseconds. At $4\\times10^7$ bit/s the sender emits $10^{-5}\\times4\\times10^7=400$ bits in that time, so the frame must be at least 400 bits."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q17",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "difficulty": "easy",
+      "stem": "Suppose two hosts are connected by a point-to-point link and they are configured to use Stop-and-Wait protocol for reliable data transfer. Identify in which one of the following scenarios, the efficiency of the link is the lowest.",
+      "options": [
+        "Longer link length and lower transmission rate",
+        "Longer link length and higher transmission rate",
+        "Shorter link length and lower transmission rate",
+        "Shorter link length and higher transmission rate"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Efficiency in stop-and-wait",
+            "body": "The sender transmits a frame, then sits idle until its acknowledgement returns. Efficiency is the fraction of time it is transmitting: $T_t/(T_t+2T_p)$, where $T_t=L/B$ is the time to push the frame on the link (frame size over rate) and $T_p$ the one-way propagation delay, which grows with link length. Efficiency is low when the waiting time $2T_p$ is large compared with $T_t$.",
+            "tex": "U=\\frac{T_t}{T_t+2T_p}=\\frac{1}{1+2T_p/T_t}"
+          },
+          {
+            "title": "Effect of each change",
+            "body": "A longer link raises $T_p$, so it lowers $U$. A higher transmission rate $B$ lowers $T_t=L/B$, so it also lowers $U$. The lowest $U$ needs both: a long link and a high rate, so that $T_p/T_t$ is as large as possible."
+          },
+          {
+            "title": "Choose",
+            "body": "Option B (longer link length and higher transmission rate) makes $T_p/T_t$ largest, so efficiency is lowest. Option A has a long link but a low rate, which keeps $T_t$ large. C and D have short links, so $T_p$ is small.",
+            "tex": "\\min U \\iff \\max \\frac{T_p}{T_t}"
+          }
+        ],
+        "shortcut": {
+          "body": "Think of $a=T_p/T_t$: efficiency $1/(1+2a)$ falls as $a$ rises, and $a$ rises with longer and with faster links. Pick the option with both. 20 seconds.",
+          "tex": "a=\\frac{T_p}{T_t}=\\frac{d\\,B}{vL}"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "A pairs a long link with a low rate. The low rate stretches $T_t$, which raises efficiency and offsets the long delay."
+          },
+          {
+            "option": 2,
+            "text": "C has a short link and a low rate: $T_p$ is small and $T_t$ is large, so $a$ is smallest and efficiency is highest."
+          },
+          {
+            "option": 3,
+            "text": "D shortens the link, which helps efficiency, while the high rate hurts. It is still better than B, where both factors hurt."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.stop-and-wait",
+          "clues": "The stem names Stop-and-Wait and offers four scenarios that differ only in link length and transmission rate. So the comparison is of the ratio $T_p/T_t$, not of any single number.",
+          "contrast": "Do not reason that a faster link is always more efficient. That holds for throughput, but in stop-and-wait a faster rate shrinks the frame time while the propagation delay stays the same."
+        },
+        "check": {
+          "body": "Try numbers with 1000-bit frames and signal speed $2\\times10^8$ m/s. At 1 Mbps over 2 km, $T_t=1$ ms and $T_p=10\\ \\mu s$, so efficiency is about 98%. At 1 Gbps over 2000 km, $T_t=1\\ \\mu s$ and $T_p=10$ ms, so efficiency is about 0.005%.",
+          "tex": "\\frac{1}{1+2\\times0.01}\\approx0.98,\\quad \\frac{1}{1+2\\times10^4}\\approx5\\times10^{-5}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, question 17",
+          "url": "https://gateoverflow.in/399305/gate-cse-2023-question-7"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Efficiency here depends on a ratio of two times. Which two times are they, and what makes that ratio worse?"
+        },
+        {
+          "kind": "concept",
+          "text": "Stop-and-wait waits for an acknowledgement after each frame. Efficiency is the transmit time divided by the transmit time plus a round trip of propagation."
+        },
+        {
+          "kind": "principle",
+          "text": "Link length changes only the propagation time, and transmission rate changes only the transmit time. Efficiency falls as propagation time grows relative to transmit time."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option, say whether propagation time goes up or down and whether transmit time goes up or down, then pick the option that pushes the ratio furthest in the bad direction."
+        }
+      ],
+      "variation": {
+        "stem": "A point-to-point link uses Stop-and-Wait with 1000-bit frames and a signal speed of $2\\times10^8$ m/s. In which one of the following settings is the link efficiency the lowest?",
+        "options": [
+          "1 Mbps over 200 km",
+          "10 Mbps over 50 km",
+          "100 Mbps over 10 km",
+          "100 Mbps over 100 km"
+        ],
+        "answer": 3,
+        "explanation": "With $a=T_p/T_t$ and $U=1/(1+2a)$, the four settings give $a=1$, $2.5$, $5$ and $50$, so $U$ is about 33%, 17%, 9% and 1%. The last setting has both the highest rate and a long link, so its ratio is largest. Choosing the longest link alone (first option) ignores that its low rate keeps $T_t$ large."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q34",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "cn-data-link-layer.crc",
+      "difficulty": "easy",
+      "stem": "Consider the cyclic redundancy check (CRC) based error detecting scheme having the generator polynomial $X^3+X+1$. Suppose the message $m_4m_3m_2m_1m_0 = 11000$ is to be transmitted. Check bits $c_2c_1c_0$ are appended at the end of the message by the transmitter using the above CRC scheme. The transmitted bit string is denoted by $m_4m_3m_2m_1m_0c_2c_1c_0$. The value of the checkbit sequence $c_2c_1c_0$ is",
+      "options": [
+        "101",
+        "110",
+        "100",
+        "111"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "XOR long division of 11000000 by 1011 in three steps, ending with check bits 100."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the check bits are",
+            "body": "A cyclic redundancy check (CRC) appends $r$ extra bits to the data so that the whole frame, read as a binary number with modulo-2 arithmetic, is divisible by a fixed generator. Modulo-2 arithmetic means no carries or borrows: adding and subtracting are both XOR. The generator has $r+1$ bits. The rule: write the data, add $r$ zeros after it, divide that number by the generator using XOR long division, and the $r$-bit remainder is what is appended in place of the zeros. A polynomial such as $X^3+X+1$ stands for the bit pattern of its coefficients: $1\\cdot X^3+0\\cdot X^2+1\\cdot X+1$ is 1011."
+          },
+          {
+            "title": "Set up",
+            "body": "$X^3+X+1$ is 1011, degree 3, so there are 3 check bits and we append 3 zeros to the message: the dividend is 11000000.",
+            "tex": "11000\\,000 \\div 1011"
+          },
+          {
+            "title": "Divide",
+            "body": "The leading 1 at bit 1: 11000000 XOR 10110000 = 01110000. The next leading 1 at bit 2: 01110000 XOR 01011000 = 00101000. Next at bit 3: 00101000 XOR 00101100 = 00000100. No leading 1 remains in the first five places, so 100 is left in the last three.",
+            "tex": "11000000 \\to 01110000 \\to 00101000 \\to 00000100"
+          },
+          {
+            "title": "Answer",
+            "body": "The remainder is 100, so $c_2c_1c_0=100$ and the transmitted string is 11000100. Option C."
+          }
+        ],
+        "shortcut": {
+          "body": "The message is $X^4+X^3$, so the dividend is $X^7+X^6$. Using $X^3=X+1$: $X^6=X^2+1$ and $X^7=1$. Then $X^7+X^6=1+X^2+1=X^2$, which is 100. For a short message the polynomial route is about as fast as the long division (about 1.5 minutes).",
+          "tex": "X^7+X^6 \\equiv X^2 \\pmod{X^3+X+1}"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "101 is the remainder of 11000 divided by 1011 without appending the three zeros. The zeros make room for the check bits; the frame 11000101 leaves remainder 001."
+          },
+          {
+            "option": 1,
+            "text": "110 is a slip in the XOR chain. The frame 11000110 leaves remainder 010, so it is not a valid codeword."
+          },
+          {
+            "option": 3,
+            "text": "111 is what you get by dividing with the generator written backwards, 1101. The frame 11000111 leaves 011."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.crc",
+          "clues": "A generator polynomial $X^3+X+1$ is given and check bits are appended after a message. That is the CRC recipe, and the polynomial reads off as the bit pattern 1011, which means 3 check bits.",
+          "contrast": "A Hamming code also has check bits, but it places them at power-of-two positions inside the codeword. Here they are appended at the end, which marks CRC."
+        },
+        "check": {
+          "body": "Divide the full transmitted string 11000100 by 1011 with XOR: 11000100 gives 01110100, then 00101100, then 00000000. A zero remainder shows the string is a multiple of the generator, as a valid codeword must be.",
+          "tex": "11000100\\to01110100\\to00101100\\to00000000"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 34",
+          "url": "https://gateoverflow.in/357506/gate-cse-2021-set-2-question-34"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How many check bits will there be, and what bit string does the generator polynomial stand for?"
+        },
+        {
+          "kind": "concept",
+          "text": "A polynomial's coefficients form a bit pattern: each power present is a 1 and each power absent is a 0. The check bits are the remainder of a modulo-2 division."
+        },
+        {
+          "kind": "principle",
+          "text": "Shift the message left by the number of check bits by appending zeros, divide by the generator using XOR, and the leftover bits fill the check positions."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the generator as bits, which fixes how many zeros to append, build the dividend, and divide from the left, XORing the generator only under a leading 1."
+        },
+        {
+          "kind": "partial",
+          "text": "After the first XOR the string begins 0111, so the next leading 1 is one place to the right and the generator moves there."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the CRC scheme with generator polynomial $X^3+X^2+1$. The message $m_4m_3m_2m_1m_0=11100$ is transmitted with check bits $c_2c_1c_0$ appended, giving $m_4m_3m_2m_1m_0c_2c_1c_0$. The check bit sequence $c_2c_1c_0$ is",
+        "options": [
+          "110",
+          "100",
+          "011",
+          "001"
+        ],
+        "answer": 1,
+        "explanation": "The polynomial is the bit pattern 1101, so append 3 zeros and divide 11100000 by 1101 with XOR; the remainder is 100. 110 is the remainder when the zeros are not appended, 011 comes from the reversed generator 1011, and 001 is 100 written backwards."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q54",
+      "type": "nat",
+      "marks": 2,
+      "key": "130:140",
+      "topic": "cn-data-link-layer.aloha",
+      "difficulty": "medium",
+      "stem": "Consider a network using the pure ALOHA medium access control protocol, where each frame is of length 1,000 bits. The channel transmission rate is 1 Mbps (= $10^6$ bits per second). The aggregate number of transmissions across all the nodes (including new frame transmissions and retransmitted frames due to collisions) is modelled as a Poisson process with a rate of 1,000 frames per second. Throughput is defined as the average number of frames successfully transmitted per second. The throughput of the network (rounded to the nearest integer) is ______.",
+      "answer": 135,
+      "solution": {
+        "steps": [
+          {
+            "title": "Pure ALOHA and its throughput law",
+            "body": "In pure ALOHA a station sends whenever it has a frame. A frame is lost if any other transmission overlaps it, which happens when another frame starts anywhere in a window of two frame times: one before and one after its own start. Let $G$ be the average number of transmissions started per frame time, counting retransmissions. Transmissions are Poisson, so the chance that none starts in the $2$-frame-time window is $e^{-2G}$. A frame succeeds with that probability, so successes per frame time are $S=Ge^{-2G}$.",
+            "tex": "S=Ge^{-2G}"
+          },
+          {
+            "title": "Find G",
+            "body": "A frame lasts $1000/10^6=1$ ms. The offered rate is 1000 transmissions per second, so in one frame time (0.001 s) there is $G=1000\\times0.001=1$ transmission on average.",
+            "tex": "G=1000\\times10^{-3}=1"
+          },
+          {
+            "title": "Throughput in frames per second",
+            "body": "$S=1\\cdot e^{-2}=0.1353$ successful frames per frame time. There are 1000 frame times per second, so the throughput is $1000\\times0.1353=135.3$, which rounds to 135 frames per second. This is inside the official range 130 to 140.",
+            "tex": "1000\\,G e^{-2G}=1000e^{-2}\\approx135"
+          }
+        ],
+        "shortcut": {
+          "body": "Offered rate 1000 frames/s times success probability $e^{-2G}$ with $G=1$ gives $1000e^{-2}$. Remember $e^{-2}\\approx0.135$. About 1 minute; the key allows 130 to 140, so a rough $e^{-2}$ is enough.",
+          "tex": "1000\\times e^{-2}=135.3"
+        },
+        "traps": [
+          {
+            "text": "368: the slotted ALOHA success probability $e^{-G}$ with $G=1$. Pure ALOHA has a vulnerable window of two frame times, so the exponent is $-2G$."
+          },
+          {
+            "text": "0.135 (or 0.14): the throughput per frame time, $S=Ge^{-2G}$. The question asks for frames per second, so multiply by the 1000 frame times in a second."
+          },
+          {
+            "text": "1000: treating all offered transmissions as successful, which ignores collisions."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.aloha",
+          "clues": "The words pure ALOHA, a Poisson model of all transmissions including retransmissions, and a throughput defined as frames delivered per second all point to the $Ge^{-2G}$ law.",
+          "contrast": "Slotted ALOHA has the same set-up but frames start only at slot boundaries, so the vulnerable window is one frame time and the law is $Ge^{-G}$. The word pure is what picks the factor 2."
+        },
+        "check": {
+          "body": "Pure ALOHA peaks at $1/(2e)\\approx0.184$ successes per frame time, reached at $G=0.5$. At $G=1$ we are past the peak, so the throughput must be below that. $0.135\\times1000=135$ frames per second sits under the peak of 184, as it should.",
+          "tex": "\\frac{1}{2e}\\times1000\\approx184>135"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 54",
+          "url": "https://gateoverflow.in/357483/gate-cse-2021-set-2-question-54"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Throughput is asked in frames per second. Which two quantities do you need to turn the offered rate into a rate of successful frames?"
+        },
+        {
+          "kind": "concept",
+          "text": "What makes two pure ALOHA frames collide, and for how long is a frame exposed to that?"
+        },
+        {
+          "kind": "principle",
+          "text": "The exposure is twice the frame time. With Poisson traffic of $G$ starts per frame time, the chance of no rival start in that span is $e^{-2G}$."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the frame time from the frame length and the channel rate, then multiply it by the offered rate in frames per second to get $G$."
+        },
+        {
+          "kind": "partial",
+          "text": "The frame time is $1000/10^6$ s, which is 1 ms. At 1000 transmissions per second that makes $G$ a plain number you can read off.",
+          "tex": "T=\\frac{1000}{10^6}\\ \\text{s}"
+        }
+      ],
+      "variation": {
+        "stem": "A pure ALOHA network uses frames of 500 bits on a 1 Mbps channel. The total of new and retransmitted frames is a Poisson process with a rate of 1,600 frames per second. The throughput in frames per second, rounded to the nearest integer, is ______.",
+        "answer": 323,
+        "explanation": "A frame lasts $500/10^6=0.5$ ms, so $G=1600\\times0.0005=0.8$ per frame time. A frame survives with probability $e^{-2G}=e^{-1.6}$, so throughput is $1600e^{-1.6}=323.03$, which rounds to 323. Using $e^{-G}$ would give 719, the slotted ALOHA mistake."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q29",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cn-data-link-layer.hamming",
+      "difficulty": "medium",
+      "stem": "Assume that a 12-bit Hamming codeword consisting of 8-bit data and 4 check bits is $d_8d_7d_6d_5c_8d_4d_3d_2c_4d_1c_2c_1$, where the data bits and the check bits are given in the following tables:\n\nWhich one of the following choices gives the correct values of $x$ and $y$?",
+      "table": {
+        "headers": [
+          "d8",
+          "d7",
+          "d6",
+          "d5",
+          "d4",
+          "d3",
+          "d2",
+          "d1",
+          "c8",
+          "c4",
+          "c2",
+          "c1"
+        ],
+        "rows": [
+          [
+            "1",
+            "1",
+            "0",
+            "x",
+            "0",
+            "1",
+            "0",
+            "1",
+            "y",
+            "0",
+            "1",
+            "0"
+          ]
+        ]
+      },
+      "options": [
+        "$x$ is 0 and $y$ is 0.",
+        "$x$ is 0 and $y$ is 1.",
+        "$x$ is 1 and $y$ is 0.",
+        "$x$ is 1 and $y$ is 1."
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Positions 12 to 1 of the Hamming codeword with values for x = 0 and y = 0, and each parity group's count of ones, all even."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "How a Hamming codeword is checked",
+            "body": "In a Hamming code the bits sit in positions numbered from 1 at the right. The check bits are at the power-of-two positions 1, 2, 4, 8, and every other position holds a data bit. Check bit $c_k$ covers every position whose binary number has the bit $k$ set: $c_1$ covers positions 1, 3, 5, 7, 9, 11; $c_2$ covers 2, 3, 6, 7, 10, 11; $c_4$ covers 4, 5, 6, 7, 12; $c_8$ covers 8, 9, 10, 11, 12. The rule, with even parity: each group, check bit included, has an even number of 1s.",
+            "tex": "\\text{each group } c_k \\text{ has an even number of 1s}"
+          },
+          {
+            "title": "Place the bits",
+            "body": "Reading the word $d_8d_7d_6d_5c_8d_4d_3d_2c_4d_1c_2c_1$ from the left, the positions are 12 down to 1: $d_8=12$, $d_7=11$, $d_6=10$, $d_5=9$, $c_8=8$, $d_4=7$, $d_3=6$, $d_2=5$, $c_4=4$, $d_1=3$, $c_2=2$, $c_1=1$. The data bits are $d_8..d_1=1,1,0,x,0,1,0,1$ and the check bits $c_8,c_4,c_2,c_1=y,0,1,0$."
+          },
+          {
+            "title": "Group c4 and c2 do not involve x or y",
+            "body": "$c_4$ covers positions 12, 7, 6, 5, 4: $d_8,d_4,d_3,d_2,c_4=1,0,1,0,0$, two 1s, even. $c_2$ covers 11, 10, 7, 6, 3, 2: $d_7,d_6,d_4,d_3,d_1,c_2=1,0,0,1,1,1$, four 1s, even. Both hold, so they give no information."
+          },
+          {
+            "title": "Groups c1 and c8 fix x and y",
+            "body": "$c_1$ covers 11, 9, 7, 5, 3, 1: $d_7,d_5,d_4,d_2,d_1,c_1=1,x,0,0,1,0$, so the count is $2+x$; it is even only if $x=0$. $c_8$ covers 12, 11, 10, 9, 8: $d_8,d_7,d_6,d_5,c_8=1,1,0,x,y$, count $2+x+y$; with $x=0$ it is even only if $y=0$. So $x=0$, $y=0$, option A.",
+            "tex": "x=0,\\ y=0"
+          }
+        ],
+        "shortcut": {
+          "body": "Only two groups contain $x$: the groups of $c_1$ and $c_8$ (position 9). Take the group of $c_1$: the other 1s are $d_7$ and $d_1$, two of them, so $x=0$. Then group $c_8$ has $d_8,d_7$ as 1s, so $y=0$. About 2 minutes. This assumes even parity, the usual GATE convention.",
+          "tex": "x=0 \\Rightarrow y=0"
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "x = 0, y = 1 makes the group of $c_8$ hold three 1s ($d_8,d_7,c_8$), which is odd. Every group must be even, so y = 1 fails."
+          },
+          {
+            "option": 2,
+            "text": "x = 1, y = 0 breaks both groups: the group of $c_1$ holds three 1s and the group of $c_8$ also holds three."
+          },
+          {
+            "option": 3,
+            "text": "x = 1, y = 1 satisfies the group of $c_8$ (four 1s) but the group of $c_1$ still holds three 1s, which is odd. Check every group that contains the unknown, not just one."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.hamming",
+          "clues": "A 12-bit word with 8 data and 4 check bits, named positions $c_1,c_2,c_4,c_8$ between data bits, and two unknown bits to be filled in point to the parity-group rule of a Hamming code.",
+          "contrast": "A single parity bit only tests the whole word and cannot locate or fill in a bit. Here several check bits each cover a different subset, which is what lets two unknowns be solved one group at a time."
+        },
+        "check": {
+          "body": "In a valid Hamming codeword with even parity the positions of all 1 bits XOR to zero (the syndrome). With $x=0,y=0$ the 1s sit at positions 12, 11, 6, 3 and 2, and they combine to zero. Setting $x=1$ or $y=1$ adds position 9 or 8 and the XOR is no longer zero.",
+          "tex": "12\\oplus11\\oplus6\\oplus3\\oplus2=0"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, question 29",
+          "url": "https://gateoverflow.in/357422/gate-cse-2021-set-1-question-29"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each check bit guards a group of positions. Which groups contain an unknown, and which groups can you ignore?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a Hamming codeword the check bits sit at positions 1, 2, 4 and 8, counting from the right, and all other positions hold data."
+        },
+        {
+          "kind": "principle",
+          "text": "The check bit at position $2^k$ covers every position whose binary number has bit $k$ set. With even parity, every covered group holds an even number of 1s."
+        },
+        {
+          "kind": "setup",
+          "text": "Number the twelve bits 12 down to 1 from the left, mark which of the two unknown positions sit in which group, and write one parity equation per group."
+        },
+        {
+          "kind": "partial",
+          "text": "Only the groups of $c_1$ and $c_8$ contain position 9. The group of $c_1$ has no other unknown, so settle that one first and carry its result into the other group."
+        }
+      ],
+      "variation": {
+        "stem": "A 12-bit Hamming codeword with even parity has the layout $d_8d_7d_6d_5c_8d_4d_3d_2c_4d_1c_2c_1$ and holds the bits 1, 0, $x$, 1, 1, 1, 0, 0, 0, 0, $y$, 0 in that order. Which choice gives the correct values of $x$ and $y$?",
+        "options": [
+          "$x$ is 0 and $y$ is 0.",
+          "$x$ is 0 and $y$ is 1.",
+          "$x$ is 1 and $y$ is 0.",
+          "$x$ is 1 and $y$ is 1."
+        ],
+        "answer": 2,
+        "explanation": "Here $x$ is at position 10 and $y$ at position 2. The group of $c_8$ (positions 8 to 12) holds 1, 0, $x$, 1, 1 apart from $x$, three 1s, so $x=1$ makes it even. The group of $c_2$ (positions 2, 3, 6, 7, 10, 11) then holds $y$, 0, 0, 1, 1, 0, so $y=0$. Checking only one group would leave options B or D looking possible."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q49",
+      "type": "nat",
+      "marks": 2,
+      "key": "50:52",
+      "topic": "cn-data-link-layer.window-bounds",
+      "difficulty": "hard",
+      "stem": "Consider the sliding window flow-control protocol operating between a sender and a receiver over a full-duplex error-free link. Assume the following:\n- The time taken for processing the data frame by the receiver is negligible.\n- The time taken for processing the acknowledgement frame by the sender is negligible.\n- The sender has infinite number of frames available for transmission.\n- The size of the data frame is 2,000 bits and the size of the acknowledgement frame is 10 bits.\n- The link data rate in each direction is 1 Mbps (= $10^6$ bits per second).\n- One way propagation delay of the link is 100 milliseconds.\n\nThe minimum value of the sender's window size in terms of the number of frames, (rounded to the nearest integer) needed to achieve a link efficiency of 50% is ______.",
+      "answer": 51,
+      "solutionDiagram": {
+        "alt": "Timeline of one 202.01 ms cycle: the sender is busy for 101 ms (50.5 frames of 2 ms) then idle until ACK 1 arrives."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Window and efficiency",
+            "body": "Link efficiency is the fraction of time the sender transmits data. With a window of $W$ frames the sender sends $W$ frames, then must wait for the first acknowledgement before it can send more. If that wait is longer than the time to send $W$ frames, the link idles. So in one cycle, the useful time is $W\\cdot T_t$ and the cycle length is the time from the start of frame 1 until its ACK is back: $T_t+T_p+T_{ack}+T_p$ (transmit the frame, travel, the receiver sends the ACK taking $T_{ack}$, travel back). Efficiency is the ratio, capped at 100%.",
+            "tex": "U=\\frac{W\\,T_t}{T_t+2T_p+T_{ack}}"
+          },
+          {
+            "title": "Numbers",
+            "body": "$T_t=2000/10^6=2$ ms, $T_{ack}=10/10^6=0.01$ ms, $T_p=100$ ms. Cycle $=2+100+0.01+100=202.01$ ms.",
+            "tex": "202.01\\ \\text{ms}"
+          },
+          {
+            "title": "Solve for 50%",
+            "body": "$W\\cdot2/202.01=0.5$ gives $W=202.01/4=50.5025$ frames. Rounded to the nearest integer this is 51. With 50 the efficiency would be $100/202.01=49.5\\%$, just under 50%, and with 51 it is 50.5%, so 51 is the minimum whole number of frames.",
+            "tex": "W=\\frac{0.5\\times202.01}{2}=50.5025"
+          }
+        ],
+        "shortcut": {
+          "body": "Cycle $\\approx 2+200=202$ ms (the 0.01 ms ACK hardly matters), so $W=0.5\\times202/2=50.5\\to51$. The key accepts 50 to 52. About 1.5 minutes.",
+          "tex": "W=\\frac{0.5\\,(T_t+2T_p+T_{ack})}{T_t}\\approx 50.5"
+        },
+        "traps": [
+          {
+            "text": "101 or 102: the window for 100% efficiency ($202.01/2$). The question asks for 50%, which is half of that."
+          },
+          {
+            "text": "50 by truncating 50.5025: with 50 frames the efficiency is 49.5%, under the 50% target. The key range 50 to 52 accepts 50, but 51 is what rounding gives."
+          },
+          {
+            "text": "100: using $2T_p/T_t=100$, which forgets both the frame being sent and the factor of 0.5."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.window-bounds",
+          "clues": "The question gives frame size, acknowledgement size, data rate and one-way delay, and asks for the smallest window that reaches a target link efficiency. That is the window-size and link-efficiency calculation.",
+          "contrast": "Stop-and-wait is the special case $W=1$, where efficiency is one frame time over the whole cycle. Here the window multiplies the useful time, so the target efficiency decides how many frames are needed."
+        },
+        "check": {
+          "body": "Efficiency of 50% means the link is busy half the cycle and idle half. Busy time is $2W$ ms and idle time is $202.01-2W$ ms. Setting them equal gives $4W=202.01$, so $W=50.5$. Trying whole numbers, 50 frames give 49.5% and 51 frames give 50.5%.",
+          "tex": "2W=202.01-2W"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, question 49",
+          "url": "https://gateoverflow.in/357402/gate-cse-2021-set-1-question-49"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Why would a sender with a small window leave the link idle, and what event lets it send again?"
+        },
+        {
+          "kind": "concept",
+          "text": "In sliding window flow control the sender may have $W$ frames outstanding. It must stop once the window is full and wait for the first acknowledgement."
+        },
+        {
+          "kind": "principle",
+          "text": "Efficiency is the fraction of one cycle that the sender spends transmitting. A cycle runs from the start of a frame until its acknowledgement is back."
+        },
+        {
+          "kind": "setup",
+          "text": "Add up the cycle: frame transmission time, propagation out, acknowledgement transmission time and propagation back. Then express efficiency as $W$ frame times over that cycle and set it equal to 0.5."
+        },
+        {
+          "kind": "partial",
+          "text": "The frame takes 2 ms to send and the one-way delay is 100 ms. The acknowledgement adds only a hundredth of a millisecond, so the cycle is a little over 200 ms.",
+          "tex": "T_t=\\frac{2000}{10^6}\\ \\text{s}"
+        }
+      ],
+      "variation": {
+        "stem": "A sender and receiver use sliding window flow control over an error-free full-duplex link at 1 Mbps in each direction. Data frames are 1,000 bits, acknowledgements are 10 bits, processing times are negligible, and the one-way propagation delay is 50 ms. The minimum window size in frames, rounded to the nearest integer, needed for a link efficiency of 60% is ______.",
+        "answer": 61,
+        "explanation": "A frame takes 1 ms and the acknowledgement 0.01 ms, so the cycle is $1+50+0.01+50=101.01$ ms. Efficiency is $W\\times1/101.01=0.6$, which gives $W=60.606$, so 61. A window of 60 reaches 59.4%, just under the target."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q49",
+      "type": "nat",
+      "marks": 2,
+      "key": "3",
+      "topic": "cn-data-link-layer.learning-bridges",
+      "difficulty": "medium",
+      "stem": "Consider that 15 machines need to be connected in a LAN using 8-port Ethernet switches. Assume that these switches do not have any separate uplink ports. The minimum number of switches needed is ______.",
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "Three 8-port switches in a chain carrying 7, 6 and 2 machines, 15 in all; two switches would leave only 14 ports."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a switch port does",
+            "body": "An Ethernet switch joins devices: each port connects one device by one cable. To join two switches you use one port on each, so a link between switches costs two ports and no machine uses them. A LAN of switches must be connected without loops, so $n$ switches need at least $n-1$ links, and the best case is a tree. Machines can only use the ports left over.",
+            "tex": "\\text{machine ports}=8n-2(n-1)"
+          },
+          {
+            "title": "Count ports for n switches",
+            "body": "With $n$ switches in a tree there are $n-1$ links, using $2(n-1)$ ports. For $n=2$: $16-2=14$ ports free for machines, one short of 15. For $n=3$: $24-4=20$ free ports, enough for 15.",
+            "tex": "n=2: 14 < 15,\\quad n=3: 20 \\ge 15"
+          },
+          {
+            "title": "Answer",
+            "body": "The smallest $n$ with $8n-2(n-1)\\ge15$ is 3. For example switch 1 takes 7 machines, switch 2 takes 6 and switch 3 takes 2, chained by two links. The answer is 3.",
+            "tex": "6n+2\\ge15 \\Rightarrow n\\ge 2.17 \\Rightarrow n=3"
+          }
+        ],
+        "shortcut": {
+          "body": "Each added switch gives $8-2=6$ new machine ports (it adds 8 ports and uses 2 for its link), the first gives 8. So $8+6(n-1)\\ge15$ gives $n\\ge 2.17$, so $n=3$. 30 seconds.",
+          "tex": "8+6(n-1)\\ge15"
+        },
+        "traps": [
+          {
+            "text": "2: dividing 15 by 8 and rounding up forgets that linking the switches uses ports. Two switches leave only 14 ports for machines."
+          },
+          {
+            "text": "4: reserving half of every switch's ports (4 of 8) for links to other switches. That leaves $4n\\ge15$, so $n=4$. A tree only needs $2(n-1)$ link ports in total, so three switches leave 20 ports for machines."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.learning-bridges",
+          "clues": "Machines are attached to switches with a fixed number of ports and no uplink ports, so the switches must be linked through ordinary ports. The task is to count ports, not to trace frames.",
+          "contrast": "A single shared bus needs no switch-to-switch links, so no ports are lost. With switches, each inter-switch link removes two ports from the pool for machines, which is easy to forget."
+        },
+        "check": {
+          "body": "Build it. Switch 1 takes 7 machines and one link, switch 2 takes 6 machines and two links, switch 3 takes 2 machines and one link. The port counts are 8, 8 and 3, within 8 each, and all 15 machines are attached. For two switches no arrangement works, because 16 ports minus the 2 for the link is only 14.",
+          "tex": "7+6+2=15"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 49",
+          "url": "https://gateoverflow.in/302799/gate-cse-2019-question-49"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "If each switch has 8 ports, are all 8 of them available for machines once the switches are joined to one another?"
+        },
+        {
+          "kind": "concept",
+          "text": "A switch port connects one device by one cable. A cable between two switches uses a port on each switch, and neither port serves a machine."
+        },
+        {
+          "kind": "principle",
+          "text": "To make one connected LAN of $n$ switches without loops you need at least $n-1$ switch-to-switch links, and every link costs two ports."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the number of ports left for machines as a function of $n$, then find the smallest $n$ for which that number reaches the number of machines."
+        },
+        {
+          "kind": "partial",
+          "text": "Test $n=2$ first. Two switches have 16 ports in all and one link between them. See whether what remains covers all the machines."
+        }
+      ],
+      "variation": {
+        "stem": "Twenty machines must be connected in a LAN using 6-port Ethernet switches with no separate uplink ports. The minimum number of switches needed is ______.",
+        "answer": 5,
+        "explanation": "In a tree of $n$ switches there are $n-1$ links using $2(n-1)$ ports, so machine ports are $6n-2(n-1)=4n+2$. For $n=4$ this is 18, short of 20; for $n=5$ it is 22. Dividing 20 by 6 and rounding up would give 4, which ignores the link ports."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q55",
+      "type": "nat",
+      "marks": 2,
+      "key": "50",
+      "topic": "cn-data-link-layer.csma",
+      "difficulty": "hard",
+      "stem": "Consider a simple communication system where multiple nodes are connected by a shared broadcast medium (like Ethernet or wireless). The nodes in the system use the following carrier-sense based medium access protocol. A node that receives a packet to transmit will carrier-sense the medium for 5 units of time. If the node does not detect any other transmission in this duration, it starts transmitting its packet in the next time unit. If the node detects another transmission, it waits until this other transmission finishes, and then begins to carrier-sense for 5 time units again. Once they start to transmit, nodes do not perform any collision detection and continue transmission even if a collision occurs. All transmissions last for 20 units of time. Assume that the transmission signal travels at the speed of 10 meters per unit time in the medium.\n\nAssume that the system has two nodes P and Q, located at a distance $d$ meters from each other. P starts transmitting a packet at time $t=0$ after successfully completing its carrier-sense phase. Node Q has a packet to transmit at time $t=0$ and begins to carrier-sense the medium.\n\nThe maximum distance $d$ (in meters, rounded to the closest integer) that allows Q to successfully avoid a collision between its proposed transmission and P's ongoing transmission is ______.",
+      "answer": 50,
+      "solutionDiagram": {
+        "alt": "Timeline: P transmits from 0 to 20; Q senses from 0 to 5; P's signal reaches Q at d over 10, which equals 5 when d is 50 m."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Carrier sense and why distance matters",
+            "body": "Carrier sensing means listening before sending: a node transmits only if it hears the medium idle. But a signal takes time to travel, so a node can hear 'idle' while another node has already started and its signal has not yet arrived. That is how collisions happen even with carrier sense. Here Q listens for exactly 5 time units. If P's signal reaches Q inside that listening period, Q sees the medium busy and waits; if not, Q starts at time 5 and collides with P, who is still transmitting until time 20.",
+            "tex": "t_{arrive}=\\frac{d}{10}"
+          },
+          {
+            "title": "Arrival time of P's signal at Q",
+            "body": "P starts at $t=0$. The signal travels at 10 m per unit time, so it reaches Q at $t=d/10$.",
+            "tex": "t_{arrive}=d/10"
+          },
+          {
+            "title": "Condition to avoid a collision",
+            "body": "Q's sensing runs from $t=0$ to $t=5$. Q avoids the collision only if it hears P by the end of sensing, $d/10\\le5$, so $d\\le50$ m. The largest distance is 50 m: P's signal arrives exactly as Q's sensing ends. For $d>50$, Q hears nothing in 5 units, starts to transmit, and collides with P (which keeps transmitting for 20 units, regardless).",
+            "tex": "d/10\\le5 \\Rightarrow d_{\\max}=50"
+          }
+        ],
+        "shortcut": {
+          "body": "Distance Q can hear within its sensing window: speed times sensing time $=10\\times5=50$ m. No transmission length needed. 30 seconds.",
+          "tex": "d_{\\max}=10\\times5=50"
+        },
+        "traps": [
+          {
+            "text": "25: counting a round trip ($2d/10\\le5$). Q only needs P's signal to travel one way to hear it."
+          },
+          {
+            "text": "200: using the transmission time of 20 units ($10\\times20$). The 20 units is how long P transmits; what matters is Q's 5-unit sensing window."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.csma",
+          "clues": "Carrier sensing before sending, no collision detection once transmitting, a given signal speed and a stated distance between two nodes show that propagation delay versus sensing time decides the outcome.",
+          "contrast": "CSMA/CD would detect and abort a collision after it starts, and the round trip $2d/v$ would then matter. Here nobody detects collisions and Q only needs to hear P one way inside its sensing window."
+        },
+        "check": {
+          "body": "Test values on both sides of the boundary. At $d=40$ P's signal arrives at $t=4$, inside the sensing window, so Q waits. At $d=60$ it arrives at $t=6$, after Q has started sending, so the two frames collide. The cut-off lies between them, at the distance whose arrival time is exactly 5.",
+          "tex": "d=40\\Rightarrow t=4,\\quad d=60\\Rightarrow t=6"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 55",
+          "url": "https://gateoverflow.in/204130/gate-cse-2018-question-55"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Q listens for only a short time before sending. What would stop P from being heard in that time even though P is already transmitting?"
+        },
+        {
+          "kind": "concept",
+          "text": "A signal needs time to travel along the medium, so a node can hear an idle medium although another node has already started sending."
+        },
+        {
+          "kind": "principle",
+          "text": "Q avoids a collision only if P's signal reaches Q before Q's carrier-sense period ends. Then Q sees a busy medium and waits."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the arrival time of P's first bit at Q in terms of $d$ and the signal speed, then compare it with the length of Q's sensing period."
+        },
+        {
+          "kind": "partial",
+          "text": "P starts at $t=0$ and the signal covers 10 m per time unit, so it reaches a point $d$ metres away after $d/10$ units. Q senses for the first 5 units.",
+          "tex": "t_{arrive}=\\frac{d}{10}"
+        }
+      ],
+      "variation": {
+        "stem": "Two nodes P and Q share a broadcast medium and use carrier sensing without collision detection. A node senses the medium for 8 time units and, if it hears nothing, starts transmitting in the next unit. Signals travel at 25 metres per time unit. P starts transmitting at $t=0$, and Q begins to sense at $t=0$. The maximum distance in metres between P and Q for which Q hears P and so avoids a collision is ______.",
+        "answer": 200,
+        "explanation": "Q avoids the collision if P's signal arrives within Q's sensing period, so $d/25\\le8$. That gives $d\\le200$ m. The transmission length of P does not enter, and a round trip is not needed, since Q only has to receive P's signal."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q34",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cn-data-link-layer.hamming",
+      "difficulty": "easy",
+      "stem": "Consider a binary code that consists of only four valid codewords as given below:\n\n00000, 01011, 10101, 11110\n\nLet the minimum Hamming distance of the code be $p$ and the maximum number of erroneous bits that can be corrected by the code be $q$. Then the values of $p$ and $q$ are",
+      "options": [
+        "$p=3$ and $q=1$",
+        "$p=3$ and $q=2$",
+        "$p=4$ and $q=1$",
+        "$p=4$ and $q=2$"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Table of pairwise Hamming distances among the four codewords with the distance-3 entries shaded; the minimum is 3."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Hamming distance and what it buys",
+            "body": "The Hamming distance between two equal-length bit strings is the number of positions in which they differ. The minimum distance $d_{\\min}$ of a code is the smallest distance over all pairs of valid codewords. A code detects up to $d_{\\min}-1$ errors, because that many bit flips cannot turn one codeword into another. It corrects up to $t$ errors when $d_{\\min}\\ge2t+1$, because then the balls of radius $t$ around codewords do not overlap and each received word is closest to one codeword.",
+            "tex": "t=\\left\\lfloor\\frac{d_{\\min}-1}{2}\\right\\rfloor"
+          },
+          {
+            "title": "All pair distances",
+            "body": "Pairs: 00000-01011 differs in 3 positions; 00000-10101 in 3; 00000-11110 in 4; 01011-10101 (XOR 11110) in 4; 01011-11110 (XOR 10101) in 3; 10101-11110 (XOR 01011) in 3. The table in the drawing shows them.",
+            "tex": "\\{3,3,4,4,3,3\\}"
+          },
+          {
+            "title": "p and q",
+            "body": "The smallest is $p=3$. Then $q=\\lfloor(3-1)/2\\rfloor=1$. So $p=3$, $q=1$, option A.",
+            "tex": "p=3,\\ q=1"
+          }
+        ],
+        "shortcut": {
+          "body": "XOR each pair and count 1s: min is 3. Then $q=\\lfloor(p-1)/2\\rfloor=1$. Four codewords means six pairs, so about 1.5 minutes.",
+          "tex": "q=\\lfloor (3-1)/2\\rfloor=1"
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "p = 3, q = 2: 2 is $d_{\\min}-1$, the number of errors the code can detect, not the number it can correct."
+          },
+          {
+            "option": 2,
+            "text": "p = 4, q = 1: it reads 4 as the minimum, from the pairs with the 11110 word. Three of the six pairs are at distance 3."
+          },
+          {
+            "option": 3,
+            "text": "p = 4, q = 2: both mistakes together (largest distance as minimum and detection used as correction)."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.hamming",
+          "clues": "A short list of valid codewords with a question about minimum Hamming distance and the number of correctable errors means finding $d_{\\min}$ over all pairs and applying the correct-and-detect rules.",
+          "contrast": "Error detection allows up to $d_{\\min}-1$ errors, while correction allows only $\\lfloor(d_{\\min}-1)/2\\rfloor$. The question asks about correction, so the detection count is the look-alike to avoid."
+        },
+        "check": {
+          "body": "The four words are closed under XOR: 01011 XOR 10101 is 11110. For such a linear code the distance between two words is the weight of their XOR, which is again a codeword, so the minimum distance equals the smallest weight among the nonzero words. Those weights are 3, 3 and 4, so the minimum is 3.",
+          "tex": "d_{\\min}=\\min\\{3,3,4\\}=3"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 34",
+          "url": "https://gateoverflow.in/118376/gate-cse-2017-set-2-question-34"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "To know how many errors a code can fix, which single number about the whole set of codewords do you need first?"
+        },
+        {
+          "kind": "concept",
+          "text": "The Hamming distance between two words is the number of bit positions in which they differ. The minimum distance of a code is the smallest such distance over all pairs."
+        },
+        {
+          "kind": "principle",
+          "text": "A code with minimum distance $d$ detects up to $d-1$ errors and corrects up to $\\lfloor (d-1)/2\\rfloor$. Detecting and correcting are different counts."
+        },
+        {
+          "kind": "setup",
+          "text": "Four words give six pairs. Compare each pair, or XOR it and count the 1s, and keep the smallest count. Then apply the correction rule to that count."
+        },
+        {
+          "kind": "partial",
+          "text": "Start with the all-zero word. Its distance to each other word is just the number of 1s in that word, so you can read three distances at once."
+        }
+      ],
+      "variation": {
+        "stem": "A binary code has exactly four valid codewords: 00000000, 00111110, 11001101 and 11110011. Let the minimum Hamming distance be $p$ and the maximum number of errors the code can correct be $q$. Then the values of $p$ and $q$ are",
+        "options": [
+          "$p=6$ and $q=2$",
+          "$p=5$ and $q=2$",
+          "$p=5$ and $q=4$",
+          "$p=6$ and $q=5$"
+        ],
+        "answer": 1,
+        "explanation": "The six pair distances are 5, 5, 6, 6, 5, 5, so $p=5$. Then $q=\\lfloor(5-1)/2\\rfloor=2$. Choice C gives the 4 errors the code can detect, and choices A and D take the largest distance 6 as the minimum."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q32",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "cn-data-link-layer.crc",
+      "difficulty": "easy",
+      "stem": "A computer network uses polynomials over $GF(2)$ for error checking with 8 bits as information bits and uses $x^3+x+1$ as the generator polynomial to generate the check bits. In this network, the message 01011011 is transmitted as",
+      "options": [
+        "01011011010",
+        "01011011011",
+        "01011011101",
+        "01011011100"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "XOR long division of 01011011000 by 1011, with the check bits 101 in a red box."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the check bits are",
+            "body": "A cyclic redundancy check (CRC) appends $r$ extra bits to the data so that the whole frame, read as a binary number with modulo-2 arithmetic, is divisible by a fixed generator. Modulo-2 arithmetic means no carries or borrows: adding and subtracting are both XOR. The generator has $r+1$ bits. The rule: write the data, add $r$ zeros after it, divide that number by the generator using XOR long division, and the $r$-bit remainder is what is appended in place of the zeros. Polynomials over $GF(2)$ are bit patterns of their coefficients, and $x^3+x+1$ is 1011."
+          },
+          {
+            "title": "Set up",
+            "body": "The generator is 1011, degree 3, so we append 3 zeros to the 8 information bits: the dividend is 01011011000.",
+            "tex": "01011011\\,000 \\div 1011"
+          },
+          {
+            "title": "Divide",
+            "body": "Leading 1s fall at bits 2, 7 and 8 (counting 01011011000 from the left). Each XOR with 1011 clears that bit: 01011011000 gives 00000011000, then 00000001110, then 00000000101, so the remainder is 101. The drawing shows the steps.",
+            "tex": "01011011000 \\to 00000000101"
+          },
+          {
+            "title": "Answer",
+            "body": "The check bits are 101, so the transmitted message is 01011011101, option C. Check: the received word 01011011101 divided by 1011 leaves 000."
+          }
+        ],
+        "shortcut": {
+          "body": "Only the last 3 bits differ among the options, so compute only the remainder. Options end in 010, 011, 101, 100. A long division with three XORs gives 101. A check: divide each candidate; only the right one leaves 0. About 2 minutes.",
+          "tex": "x^3\\,M(x) \\bmod (x^3+x+1)=x^2+1"
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "010 is a slip in the XOR chain. The word 01011011010 leaves remainder 111 when divided by 1011, so a receiver would reject it."
+          },
+          {
+            "option": 1,
+            "text": "011 is the remainder of 01011011 divided by 1011 without the three appended zeros. The word 01011011011 leaves remainder 110."
+          },
+          {
+            "option": 3,
+            "text": "100 is also a slip in the XORs. The word 01011011100 leaves remainder 001."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.crc",
+          "clues": "Information bits, a generator polynomial over $GF(2)$ and a question about the transmitted message show that check bits are the remainder of the zero-padded message divided by the generator.",
+          "contrast": "A checksum adds words in one's complement and a parity bit counts 1s. A named generator polynomial means XOR long division, not addition."
+        },
+        "check": {
+          "body": "Reduce with polynomials instead of bit strings. The message is $x^6+x^4+x^3+x+1$ and, after shifting by three places, $x^9+x^7+x^6+x^4+x^3$. Using $x^3\\equiv x+1$ this reduces to $x^2+1$, which is 101. That agrees with the long division.",
+          "tex": "x^3M(x)\\equiv x^2+1\\pmod{x^3+x+1}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 32",
+          "url": "https://gateoverflow.in/118313/gate-cse-2017-set-1-question-32"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The options differ only in their last three bits. What are those three bits, and what do they have to make true about the whole frame?"
+        },
+        {
+          "kind": "concept",
+          "text": "A CRC appends check bits so that the frame, read as a polynomial over $GF(2)$, is divisible by the generator polynomial. Arithmetic is modulo 2, so subtraction is XOR."
+        },
+        {
+          "kind": "principle",
+          "text": "The check bits are the remainder of the message followed by $r$ zeros, divided by the generator, where $r$ is the degree of the generator."
+        },
+        {
+          "kind": "setup",
+          "text": "Turn $x^3+x+1$ into its bit pattern, work out how many zeros to append to the 8 message bits, and prepare to do XOR long division."
+        },
+        {
+          "kind": "partial",
+          "text": "The generator has coefficients 1, 0, 1, 1, so it is the four bits 1011. Its degree is 3, so three zeros follow the message before dividing.",
+          "tex": "x^3+x+1\\to 1011"
+        }
+      ],
+      "variation": {
+        "stem": "A network uses CRC over $GF(2)$ with generator polynomial $x^3+x+1$ and 8 information bits. The message 11010110 is transmitted as",
+        "options": [
+          "11010110110",
+          "11010110000",
+          "11010110111",
+          "11010110100"
+        ],
+        "answer": 2,
+        "explanation": "Append three zeros to get 11010110000 and divide by 1011 with XOR. The remainder is 111, so the frame is 11010110111. Choice B stops after appending zeros, and choice D is the remainder of the message divided without appending zeros."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q45",
+      "type": "nat",
+      "marks": 2,
+      "key": "86.5:89.5",
+      "topic": "cn-data-link-layer.stop-and-wait",
+      "difficulty": "medium",
+      "stem": "The values of parameters for the Stop-and-Wait ARQ protocol are as given below:\n\nBit rate of the transmission channel = 1 Mbps.\nPropagation delay from sender to receiver = 0.75 ms.\nTime to process a frame = 0.25 ms.\nNumber of bytes in the information frame = 1980.\nNumber of bytes in the acknowledge frame = 20.\nNumber of overhead bytes in the information frame = 20.\n\nAssume that there are no transmission errors. Then, the transmission efficiency (expressed in percentage) of the Stop-and-Wait ARQ protocol for the above parameters is ______ (correct to 2 decimal places).",
+      "answer": 88.34,
+      "solutionDiagram": {
+        "alt": "Stop-and-wait cycle of 17.75 ms: 15.84 ms sending the 1980-byte frame, 0.75 propagation, 0.25 processing, 0.16 ACK, 0.75 propagation; useful data is 15.68 ms of the cycle."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Efficiency in stop-and-wait",
+            "body": "Stop-and-wait sends one frame, then waits for its acknowledgement before sending the next. One cycle is everything from the first bit sent until the ACK is back. Transmission efficiency is the share of that cycle spent sending useful data. The information frame of 1980 bytes already contains its 20 overhead bytes, so the useful data is 1980 - 20 = 1960 bytes; the overhead is transmitted but is not data.",
+            "tex": "\\eta=\\frac{\\text{time to send the data bytes}}{\\text{cycle time}}"
+          },
+          {
+            "title": "Cycle time",
+            "body": "The frame is 1980 bytes $=15840$ bits, taking $15840/10^6=15.84$ ms. Then: propagation to the receiver 0.75 ms, receiver processing 0.25 ms, ACK of 20 bytes $=160$ bits taking 0.16 ms, propagation back 0.75 ms. Cycle $=15.84+0.75+0.25+0.16+0.75=17.75$ ms.",
+            "tex": "15.84+0.75+0.25+0.16+0.75=17.75\\ \\text{ms}"
+          },
+          {
+            "title": "Efficiency",
+            "body": "The useful data is 1960 bytes $=15680$ bits $=15.68$ ms. So $\\eta=15.68/17.75=0.8834$, which is 88.34%. This is inside the key range 86.5 to 89.5. (If the 20 overhead bytes were read as extra to the 1980, the frame would be 2000 bytes and the answer 88.44%, also inside the range.)",
+            "tex": "\\eta=\\frac{15.68}{17.75}=88.34\\%"
+          }
+        ],
+        "shortcut": {
+          "body": "Cycle in ms: 15.84 + 0.75 + 0.25 + 0.16 + 0.75 = 17.75. Useful 1960 bytes = 15.68 ms. Ratio is about 0.883. The key range 86.5 to 89.5 is wide, so rough division is enough. 1.5 minutes.",
+          "tex": "\\frac{15.68}{17.75}\\approx0.883"
+        },
+        "traps": [
+          {
+            "text": "89.24: counting the whole 1980-byte frame (15.84 ms) as useful. It lands inside the key range, but the 20 overhead bytes are not data."
+          },
+          {
+            "text": "89.14: leaving out the ACK transmission time of 0.16 ms. The ACK has to be sent as well, so its time belongs in the cycle."
+          },
+          {
+            "text": "89.60 (outside the key range): dropping the 0.25 ms receiver processing time from the cycle. Processing is part of the wait and must be added."
+          },
+          {
+            "text": "90.43: using only frame time plus two propagation delays, which forgets both the processing time and the ACK transmission."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-data-link-layer.stop-and-wait",
+          "clues": "One frame at a time with an acknowledgement, plus separate propagation, processing and acknowledgement times, point to the stop-and-wait cycle. Overhead bytes mean the useful share is smaller than the frame.",
+          "contrast": "In sliding window protocols the cycle is shared by $W$ frames. Stop-and-wait is the case with one frame per cycle, so efficiency is a single frame's useful time over the whole cycle."
+        },
+        "check": {
+          "body": "Check by adding up the wasted time. Idle or non-useful time per cycle should equal the cycle minus the useful time, 17.75 - 15.68 = 2.07 ms. Build it directly: overhead bytes 0.16, then propagation 0.75, processing 0.25, acknowledgement 0.16 and propagation 0.75, which total 2.07 ms.",
+          "tex": "0.16+0.75+0.25+0.16+0.75=2.07"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 45",
+          "url": "https://gateoverflow.in/118328/gate-cse-2017-set-1-question-45"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Efficiency compares useful time with the whole cycle. Which bytes of the information frame count as useful, and what makes up the cycle?"
+        },
+        {
+          "kind": "concept",
+          "text": "Stop-and-wait sends one frame and waits for its acknowledgement before the next. One cycle runs from the first bit sent to the acknowledgement being received."
+        },
+        {
+          "kind": "principle",
+          "text": "Transmission efficiency is the time spent sending useful data divided by the cycle time. Overhead bytes are sent but are not useful data."
+        },
+        {
+          "kind": "setup",
+          "text": "List every term of the cycle: frame transmission, propagation, receiver processing, acknowledgement transmission and the return propagation. Convert all of them to milliseconds at 1 Mbps."
+        },
+        {
+          "kind": "partial",
+          "text": "At 1 Mbps one byte takes 8 microseconds, so the 1980-byte frame takes 15.84 ms and the 20-byte acknowledgement takes 0.16 ms. The useful part is the frame minus its overhead.",
+          "tex": "1980\\times8\\ \\mu\\text{s}=15.84\\ \\text{ms}"
+        }
+      ],
+      "variation": {
+        "stem": "A Stop-and-Wait ARQ link has a bit rate of 1 Mbps, a propagation delay of 1 ms from sender to receiver and a frame processing time of 0.2 ms. The information frame is 1,500 bytes including 40 overhead bytes, and the acknowledgement frame is 20 bytes. There are no transmission errors. The transmission efficiency in percent, correct to 2 decimal places, is ______.",
+        "answer": 81.34,
+        "explanation": "The frame takes 12 ms and the acknowledgement 0.16 ms, so the cycle is $12+1+0.2+0.16+1=14.36$ ms. The useful data is 1,460 bytes, which is 11.68 ms. Efficiency is $11.68/14.36=81.34\\%$. Counting the whole frame as useful would give 83.57%."
+      }
+    }
+  ],
+  "skipped": []
+}

@@ -1,0 +1,1757 @@
+{
+  "id": "cn-application-layer",
+  "summary": "The application layer is where user actions become network messages. For GATE 2027 the examinable core is DNS and HTTP: how a name is resolved through root, TLD and authoritative servers, which record type does what, why DNS rides on UDP port 53, and how HTTP fetches a page over persistent or non-persistent TCP connections. Questions are mostly 1-mark identifications plus the occasional RTT count for loading a page. Email and FTP are no longer named in 2027 but still appear in older papers.",
+  "highYield": [
+    "Time to load a base page with m embedded objects: non-persistent (m + 1)·2RTT, persistent without pipelining (m + 2)·RTT, persistent with pipelining 3 RTT.",
+    "DNS resolution: recursive versus iterative queries, the number of messages exchanged, and how a cached TLD or authoritative entry shortens the chain.",
+    "DNS record types (A, AAAA, CNAME, MX, NS, PTR, SOA) and DNS transport: UDP port 53, TCP for zone transfers and large replies.",
+    "HTTP facts: stateless, persistent by default from 1.1, idempotent methods, status-code classes, and HTTP/2 multiplexing over one TCP connection.",
+    "Standard port numbers and the transport each protocol uses: HTTP 80/TCP, HTTPS 443/TCP, DNS 53/UDP, SMTP 25/TCP, SSH 22, Telnet 23, FTP 20/21."
+  ],
+  "topics": [
+    {
+      "id": "cn-application-layer.dns-namespace",
+      "title": "DNS namespace and server hierarchy",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        59,
+        660,
+        664,
+        667
+      ],
+      "points": [
+        "DNS is a hierarchical, distributed database that maps names such as www.example.com to IP addresses and other records; no single server holds the whole mapping.",
+        "The namespace is a tree read right to left: the unnamed root at the top, then top-level domains (com, org, in), then second-level domains (example.com), then hosts and subdomains.",
+        "Root servers know the TLD servers, TLD servers know the authoritative servers of each domain, and an authoritative server holds the actual records for its zone.",
+        "Every host is configured with a local (resolver) DNS server, usually run by its ISP or organisation, which takes the host's query and does the lookup."
+      ],
+      "keyTerms": [
+        "root server",
+        "TLD server",
+        "authoritative server",
+        "local resolver",
+        "zone"
+      ],
+      "lesson": {
+        "why": "Questions about DNS start from the structure of the namespace: which server knows what, and which server finally holds a record. Getting this wrong breaks every resolution trace.",
+        "intro": "People type names such as www.cs.example.in, but routers need IP addresses. DNS is the shared directory that turns one into the other. No single computer stores the whole directory. The names form a tree. At the top is an unnamed root, below it sit the top-level domains such as in, com and org, below those sit domains such as example.in, and below those sit individual hosts. Each branch of the tree is looked after by its own servers, so the work and the data are spread out.",
+        "definitions": [
+          {
+            "term": "Zone",
+            "meaning": "The part of the name tree that one set of servers is responsible for, which may be a whole domain or only part of it."
+          },
+          {
+            "term": "Local resolver",
+            "meaning": "The DNS server a host is configured with; it takes the host's question and does the lookup on its behalf."
+          }
+        ],
+        "principle": {
+          "text": "A name is read right to left, from the root downward. Root servers know the TLD servers, TLD servers know the authoritative servers of each domain, and only an authoritative server holds the actual records for its zone."
+        },
+        "limits": "The three levels of server are a model of the hierarchy, not a fixed depth. A domain can have more levels, and one server can be authoritative for several zones, so the number of distinct servers is not always the number of labels.",
+        "example": {
+          "problem": "Break the name www.cs.example.in into its levels and say which kind of server is responsible for each step.",
+          "steps": [
+            "Read from the right. The final label in is the top-level domain, so a TLD server knows who runs in.",
+            "The label example sits under in. The authoritative server of example.in holds records for that domain, or points to the server of a subdomain.",
+            "The label cs is a subdomain of example.in. Its zone may be served by the same authoritative server or by a separate one.",
+            "The leftmost label www is the host name. The authoritative server of cs.example.in holds the record that gives its address."
+          ],
+          "result": "The name has four labels, read in the order in, example, cs, www, and only the authoritative server of the last zone holds the address."
+        },
+        "misconceptions": [
+          "Root servers do not store the addresses of ordinary hosts. They only know the TLD servers, so a host address is never answered by the root.",
+          "The local resolver is not an authoritative server. It stores nothing permanently about other domains; it asks others on the host's behalf."
+        ],
+        "recall": [
+          {
+            "q": "In what order is a domain name read when walking the DNS tree?",
+            "a": "Right to left, starting at the unnamed root and then the top-level domain."
+          },
+          {
+            "q": "Which kind of server holds the actual records of a zone?",
+            "a": "The authoritative server of that zone."
+          },
+          {
+            "q": "What does a TLD server know?",
+            "a": "The authoritative servers of the domains directly under that top-level domain."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The name mail.dept.uni.edu.au is looked up. Not counting the unnamed root, how many labels does the name contain, that is, how many levels of the tree does a full walk pass through?",
+          "answer": 5,
+          "explanation": "The labels are mail, dept, uni, edu and au, which gives 5 levels below the root. Answering 6 tempts because it counts the root, and answering 3 comes from treating only dept.uni.edu as the domain and ignoring the host and the top-level domain."
+        },
+        "summary": "DNS is a tree read right to left; root servers point to TLD servers, TLD servers point to authoritative servers, and authoritative servers hold the records."
+      }
+    },
+    {
+      "id": "cn-application-layer.dns-resolution",
+      "title": "Recursive and iterative resolution, caching and TTL",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        660,
+        664,
+        666
+      ],
+      "points": [
+        "In a recursive query the contacted server takes responsibility for the full answer: it asks the next server itself and returns only the final result.",
+        "In an iterative query the contacted server returns either the answer or a referral (the next server to ask), and the querier follows the referrals itself.",
+        "The usual pattern is mixed: the host sends a recursive query to its local resolver, and the resolver queries root, TLD and authoritative servers iteratively.",
+        "Resolvers cache every answer and referral for the record's TTL (time to live); a cached TLD or authoritative server entry lets the resolver skip the root, which is why root servers see little traffic."
+      ],
+      "keyTerms": [
+        "recursive query",
+        "iterative query",
+        "referral",
+        "TTL",
+        "negative caching"
+      ],
+      "lesson": {
+        "why": "Resolution questions ask how many servers and messages a lookup takes, and the answer depends on who does the walking and what is already cached.",
+        "intro": "A host knows a name such as www.dept.uni.edu but needs an IP address. No single server holds every name. The names are split into zones, and each server knows the servers of the zones just below it. The root servers know the edu servers, the edu servers know the uni.edu servers, and so on. To find an address, someone must walk down this chain. A resolver is the program, usually run by the network provider, that does the walking for the host.",
+        "prerequisites": [
+          "cn-application-layer.dns-namespace"
+        ],
+        "definitions": [
+          {
+            "term": "Referral",
+            "meaning": "A reply that does not give the answer but names the next server to ask."
+          },
+          {
+            "term": "TTL",
+            "meaning": "The time a server allows others to keep a record in cache before it must be fetched again."
+          }
+        ],
+        "principle": {
+          "text": "In an iterative lookup the asker contacts one server per level and follows each referral; in a recursive lookup the asker contacts one server and that server does the walking. Cached records let the walk start lower in the chain.",
+          "tex": "\\text{pairs}_{\\text{iterative, empty cache}} = 1_{\\text{root}} + (\\text{zone servers below root})"
+        },
+        "limits": "The count assumes every zone has its own server and every cache is empty or fully valid. Once a record passes its TTL it is gone, and a name whose zones share one server needs fewer pairs.",
+        "example": {
+          "problem": "A resolver uses iterative queries to look up www.dept.uni.edu with an empty cache. Servers exist for the root, edu, uni.edu and dept.uni.edu. Later, within the TTL, it looks up ftp.dept.uni.edu. How many query-response pairs does each lookup need between the resolver and the DNS servers?",
+          "steps": [
+            "The root server cannot answer, so it refers the resolver to the edu servers: pair 1.",
+            "The edu server refers to uni.edu: pair 2. The uni.edu server refers to dept.uni.edu: pair 3.",
+            "The dept.uni.edu server holds www and returns the address: pair 4. The resolver caches every referral on the way.",
+            "For ftp.dept.uni.edu the cached entry for dept.uni.edu is still valid, so the resolver asks that server directly: pair 1."
+          ],
+          "result": "The first lookup takes 4 pairs and the second takes 1."
+        },
+        "misconceptions": [
+          "A recursive query does not use fewer messages overall; it moves the work from the asker to the server, so the asker sees one pair while the servers exchange the rest.",
+          "The root server does not know the final address. It only knows the servers one level below, which is why a cached entry lets the resolver skip it."
+        ],
+        "recall": [
+          {
+            "q": "What does a server return in an iterative query when it cannot answer?",
+            "a": "A referral naming the next server to ask, and the asker follows it itself."
+          },
+          {
+            "q": "Why do resolvers cache referrals as well as final answers?",
+            "a": "A cached referral lets later lookups start below the root, which removes whole query-response pairs."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A resolver uses iterative queries to look up a.b.c.org. The addresses of the org servers are already in its cache, and nothing else is. Servers exist for org, c.org and b.c.org, and b.c.org holds the name a. How many query-response pairs does the resolver exchange with DNS servers?",
+          "answer": 3,
+          "explanation": "The resolver starts at the org server, which refers it to c.org (pair 1). The c.org server refers it to b.c.org (pair 2), and the b.c.org server returns the address (pair 3). The root is skipped because the cache already gives the org servers. Answering 4 tempts because it counts the root as if the cache were empty; answering 1 confuses the cached referral with a cached final answer."
+        },
+        "summary": "Iterative resolution costs one pair per server consulted, starting from the lowest cached zone; recursion moves the same walk onto one server."
+      }
+    },
+    {
+      "id": "cn-application-layer.dns-records",
+      "title": "DNS resource record types",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        660,
+        661,
+        664,
+        665,
+        666
+      ],
+      "points": [
+        "A record maps a hostname to an IPv4 address; AAAA maps it to an IPv6 address.",
+        "CNAME gives the canonical name for an alias, so www.example.com can point to the real host name; MX names the mail server for a domain.",
+        "NS names the authoritative name server of a zone; SOA (start of authority) carries the zone's primary server, serial number and timers.",
+        "PTR does reverse lookup, IP address to name, under the in-addr.arpa tree; TXT holds free text such as SPF and DKIM policies.",
+        "Every record is a tuple (name, value, type, TTL); for type MX the value is a mail server name, not an address."
+      ],
+      "keyTerms": [
+        "A",
+        "AAAA",
+        "CNAME",
+        "MX",
+        "NS",
+        "PTR",
+        "SOA",
+        "TXT"
+      ],
+      "lesson": {
+        "why": "Matching a record type to what it maps is a standard one-mark question, and mixing up MX, CNAME and NS costs the mark.",
+        "intro": "A DNS server does not store just one kind of answer. Each stored fact is a record, and each record has a name, a value, a type and a time to live. The type says what the value means. For one site the directory may need to say its IPv4 address, its alias, its mail server and its own name server, and each of these is a different type of record.",
+        "definitions": [
+          {
+            "term": "Resource record",
+            "meaning": "One stored DNS fact, written as the tuple (name, value, type, TTL)."
+          },
+          {
+            "term": "Canonical name",
+            "meaning": "The real name of a host, as opposed to an alias that points to it."
+          }
+        ],
+        "principle": {
+          "text": "The type fixes the meaning of the value. A and AAAA give IPv4 and IPv6 addresses, CNAME gives the canonical name of an alias, MX names a mail server, NS names an authoritative name server, PTR maps an address back to a name, SOA describes the zone and TXT holds free text."
+        },
+        "limits": "A record's value is not always an address. MX and CNAME values are names, so a further lookup is needed before a connection can be made, and PTR works under the separate in-addr.arpa tree.",
+        "example": {
+          "problem": "A mail program must send a message to user@uni.edu. Which records does DNS need to supply, in order, before it can open a connection?",
+          "steps": [
+            "The domain part is uni.edu, and the program wants the mail server, so it asks for the MX record of uni.edu.",
+            "The MX record returns a host name such as mailhost.uni.edu, not an IP address.",
+            "The program asks for the A record of that host name, which returns the IPv4 address.",
+            "Only now can the program open a connection to that address."
+          ],
+          "result": "An MX lookup followed by an A lookup, so two different record types."
+        },
+        "misconceptions": [
+          "An MX record does not contain an IP address. Its value is a server name, so a second lookup of an A or AAAA record is still needed.",
+          "NS and A are not interchangeable. NS names the server that is authoritative for a zone, while A gives the address of one host."
+        ],
+        "recall": [
+          {
+            "q": "Which record type maps an alias to the real name of a host?",
+            "a": "CNAME."
+          },
+          {
+            "q": "Which record type does a reverse lookup use?",
+            "a": "PTR, under the in-addr.arpa tree."
+          },
+          {
+            "q": "What four fields make up a resource record?",
+            "a": "Name, value, type and TTL."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A mail transfer agent wants to deliver mail for the domain uni.edu. Which DNS record type does it query first?",
+          "options": [
+            "A",
+            "MX",
+            "PTR",
+            "SOA"
+          ],
+          "answer": 1,
+          "explanation": "The MX record names the mail server for the domain, and a following A lookup gives its address. A tempts because it is the record that finally gives the address, but it is asked second and for the mail server's name, not the domain. PTR goes from address to name and SOA describes the zone."
+        },
+        "summary": "Each record type fixes what its value means: A and AAAA give addresses, CNAME an alias target, MX a mail server name, NS a name server, PTR a reverse name."
+      }
+    },
+    {
+      "id": "cn-application-layer.dns-transport",
+      "title": "DNS messages and transport",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        661,
+        664,
+        667,
+        668
+      ],
+      "points": [
+        "DNS queries and replies normally travel over UDP to port 53: one small request and one reply, so a TCP handshake would double the cost.",
+        "DNS falls back to TCP port 53 for zone transfers between primary and secondary servers and for replies too large for a UDP datagram.",
+        "Query and reply share one message format with a 16-bit identifier that lets the resolver match a reply to its query."
+      ],
+      "lesson": {
+        "why": "The transport protocol and port of DNS are a classic one-mark fact, and the exception for zone transfers is a common distractor.",
+        "intro": "A DNS question is tiny, usually a name, and the answer is also short. Opening a full connection before such a short exchange would waste time. DNS therefore sends its messages as single datagrams on port 53. Some exchanges are different. When a whole zone is copied between servers, or an answer is too large for one datagram, a reliable stream is worth the set-up cost.",
+        "definitions": [
+          {
+            "term": "Zone transfer",
+            "meaning": "The copying of a whole zone's records from a primary server to a secondary server."
+          }
+        ],
+        "principle": {
+          "text": "DNS queries and replies normally use UDP to port 53, one request and one reply. DNS uses TCP port 53 for zone transfers and for replies too large for one datagram. A 16-bit identifier in the message lets the resolver match each reply to its query."
+        },
+        "limits": "UDP gives no delivery guarantee, so the resolver must resend a query when no reply arrives. The rule that DNS uses UDP is a default, not a ban on TCP.",
+        "example": {
+          "problem": "A resolver sends a lookup, and at the same moment sends a second lookup for a different name to the same server. Both replies arrive, in reverse order. How does the resolver know which reply belongs to which query?",
+          "steps": [
+            "Each query carries a 16-bit identifier chosen by the resolver.",
+            "The server copies the identifier into its reply.",
+            "The resolver compares the identifier of each arriving reply with the identifiers of its outstanding queries.",
+            "The reply with the identifier of the first query is matched to the first query, whatever the arrival order."
+          ],
+          "result": "The identifier field matches replies to queries, so reordering does not cause confusion."
+        },
+        "misconceptions": [
+          "DNS is not UDP-only. Zone transfers and oversized replies use TCP port 53.",
+          "The port is 53 for both UDP and TCP. A different port is not used for the TCP case."
+        ],
+        "recall": [
+          {
+            "q": "Which transport and port does an ordinary DNS query use?",
+            "a": "UDP, port 53."
+          },
+          {
+            "q": "When does DNS switch to TCP?",
+            "a": "For zone transfers between primary and secondary servers and for replies too large for a UDP datagram."
+          },
+          {
+            "q": "What does the 16-bit identifier in a DNS message do?",
+            "a": "It lets the resolver match a reply to its query."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A secondary DNS server copies the whole zone from its primary server. Which transport and port does this exchange use?",
+          "options": [
+            "UDP port 53",
+            "TCP port 53",
+            "UDP port 80",
+            "TCP port 25"
+          ],
+          "answer": 1,
+          "explanation": "Zone transfers carry a lot of data and need reliable delivery, so DNS uses TCP port 53. UDP port 53 tempts because it is the usual DNS transport for small queries. Ports 80 and 25 belong to HTTP and SMTP."
+        },
+        "summary": "DNS uses UDP port 53 for ordinary queries and TCP port 53 for zone transfers and large replies, and a 16-bit identifier matches replies to queries."
+      }
+    },
+    {
+      "id": "cn-application-layer.dns-latency",
+      "title": "Counting DNS messages and resolution delay",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "With an empty cache, an iterative lookup by the local resolver costs one query and one reply each with root, TLD and authoritative servers, plus the host-to-resolver exchange: 8 messages in all.",
+        "A fully recursive chain host → local → root → TLD → authoritative and back also uses 8 messages; the difference is who sends them, not how many.",
+        "Resolution time is the host-to-resolver RTT plus one RTT per server the resolver must still contact, so each cache hit removes a whole RTT.",
+        "Name resolution happens before the TCP connection to the web server, so its delay adds directly to the page load time.",
+        "Worked: host-to-resolver RTT 4 ms and resolver RTTs 30, 20 and 10 ms to root, com and example.com give 64 ms and 8 messages with an empty cache; with the com NS records cached the root drops out, 34 ms and 6 messages; with the answer cached, 4 ms and 2 messages.",
+        "Embedded objects on the same server reuse the address cached by the first lookup, so a page pays the DNS delay once, not once per object."
+      ],
+      "lesson": {
+        "why": "Delay and message-count questions reduce to adding round trips, and DNS delay is paid before the first byte of a page can be requested.",
+        "intro": "Every question a resolver asks a server costs one round trip: the query goes out and the reply comes back. Each query and its reply are two messages. The host also asks its own resolver, which is one more pair. So the total delay is the sum of the round trips to the servers actually contacted, and the message count is twice the number of pairs. A cache hit means a server need not be contacted at all. The order of events follows from what each step needs. The first packet of the web connection, the SYN that opens a TCP connection, must be sent to an IP address, so the lookup comes first. The object names appear only inside the base file, so the base file is requested before any object. The order is DNS, then the SYN, then the request for the base file, then the requests for its objects.",
+        "definitions": [
+          {
+            "term": "RTT",
+            "meaning": "Round trip time: how long a query takes to go out to a server plus its reply to come back."
+          },
+          {
+            "term": "TLD",
+            "meaning": "Top-level domain, the last label of a name such as com or in; a TLD server knows the authoritative servers beneath it."
+          }
+        ],
+        "prerequisites": [
+          "cn-application-layer.dns-resolution"
+        ],
+        "principle": {
+          "text": "Delay is the host-to-resolver round trip plus one round trip for each server the resolver still has to contact; messages are twice the number of pairs.",
+          "tex": "T_{\\text{DNS}} = \\text{RTT}_{\\text{host}} + \\sum_{\\text{servers contacted}} \\text{RTT}_i"
+        },
+        "limits": "The sum assumes the queries are sent one after another, which iterative resolution forces because each referral names the next server. Transmission time inside each message is ignored unless the question gives sizes.",
+        "example": {
+          "problem": "The host-to-resolver RTT is 2 ms. The resolver's RTTs are 40 ms to the root, 25 ms to the TLD server and 15 ms to the authoritative server. It resolves a name iteratively. Find the delay and message count with an empty cache, with the TLD server cached, and with the answer cached.",
+          "steps": [
+            "Empty cache: the host asks the resolver (2), then the resolver contacts root, TLD and authoritative servers in turn: 2 + 40 + 25 + 15 = 82 ms. There are 4 pairs, so 8 messages.",
+            "TLD cached: the resolver skips the root and asks the TLD server then the authoritative server: 2 + 25 + 15 = 42 ms with 6 messages.",
+            "Authoritative server cached: the resolver asks only it: 2 + 15 = 17 ms with 4 messages.",
+            "Answer cached: only the host-to-resolver pair remains, 2 ms and 2 messages."
+          ],
+          "result": "82 ms and 8 messages, 42 ms and 6, 17 ms and 4, then 2 ms and 2."
+        },
+        "misconceptions": [
+          "A page with many images does not pay the DNS delay once per image; the first lookup caches the address, and every object on the same server reuses it.",
+          "A recursive chain does not send fewer messages than an iterative one. It sends the same count; only the sender of each message changes."
+        ],
+        "recall": [
+          {
+            "q": "How many messages does a lookup with an empty cache exchange, counting the host-to-resolver pair?",
+            "a": "Eight: four query-response pairs, one with the resolver and one each with the root, TLD and authoritative servers."
+          },
+          {
+            "q": "Where does DNS delay fall in the time to load a web page?",
+            "a": "It comes first, before the TCP connection to the web server opens, so it adds directly to the page load time."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The host-to-resolver RTT is 3 ms. The resolver has an empty cache and RTTs of 30 ms to the root, 20 ms to the TLD server and 10 ms to the authoritative server. A page has 6 images, all on the same server as the base file. How many milliseconds of DNS delay does loading the whole page add, in total?",
+          "answer": 63,
+          "explanation": "One lookup is needed: 3 + 30 + 20 + 10 = 63 ms. The 6 images share the server of the base file, so the cached address serves them all and no further DNS delay is added. Answering 441 tempts because it multiplies by the 7 objects, as if each needed its own lookup."
+        },
+        "summary": "DNS delay is the host RTT plus one RTT per server still to be contacted, paid once per name before the page load begins."
+      }
+    },
+    {
+      "id": "cn-application-layer.http-basics",
+      "title": "HTTP request-response model",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        661,
+        664,
+        668
+      ],
+      "points": [
+        "HTTP is a client-server, request-response protocol that runs over TCP; the server listens on port 80.",
+        "HTTP is stateless: the server keeps no memory of earlier requests from the same client, which keeps servers simple and scalable.",
+        "A request has a request line (method, URL, version), header lines and an optional body; a response has a status line (version, code, phrase), headers and the object.",
+        "Common headers are Host, User-Agent, Accept, Cookie, Content-Type and Content-Length; HTTP/1.1 makes the Host header mandatory so one IP address can serve many sites."
+      ],
+      "keyTerms": [
+        "stateless",
+        "request line",
+        "status line",
+        "Host header"
+      ],
+      "lesson": {
+        "why": "The shape of a request and a response, and the fact that HTTP is stateless, decide many true-or-false statements about HTTP.",
+        "intro": "A web browser and a web server talk by taking turns. The browser sends a request that names what it wants, and the server sends back one response. The server keeps nothing that links one request to the next, and each request is treated as brand new. Both messages are plain lines of text: a first line that says what is being asked or answered, then header lines giving details, then optionally the content itself.",
+        "definitions": [
+          {
+            "term": "Request line",
+            "meaning": "The first line of a request, made of the method, the URL and the HTTP version."
+          },
+          {
+            "term": "Status line",
+            "meaning": "The first line of a response, made of the version, a numeric code and a short phrase."
+          }
+        ],
+        "principle": {
+          "text": "HTTP is a client-server request-response protocol over TCP, with the server listening on port 80. It is stateless: the server remembers nothing between requests. HTTP/1.1 makes the Host header mandatory so that one IP address can serve many sites."
+        },
+        "limits": "Statelessness belongs to the protocol. Sites build sessions on top with cookies, but the protocol itself still keeps no memory, and persistent connections do not change that.",
+        "example": {
+          "problem": "A browser fetches http://www.example.com/index.html using HTTP/1.1. Write the request line and the one header the version requires.",
+          "steps": [
+            "The method is GET, because the browser wants to fetch a resource.",
+            "The URL path is /index.html and the version is HTTP/1.1, so the request line is: GET /index.html HTTP/1.1.",
+            "HTTP/1.1 requires a Host header because many sites can share one IP address.",
+            "The value is the host from the URL, so the header is: Host: www.example.com."
+          ],
+          "result": "GET /index.html HTTP/1.1 followed by Host: www.example.com."
+        },
+        "misconceptions": [
+          "Cookies do not make HTTP stateful. They are data the browser sends back with each request, and the server still keeps no memory of its own in the protocol.",
+          "The Host header is not the destination IP address. TCP already delivers to the address; Host tells the server which site on that address is wanted."
+        ],
+        "recall": [
+          {
+            "q": "What are the three parts of an HTTP request?",
+            "a": "A request line, header lines and an optional body."
+          },
+          {
+            "q": "Why is the Host header mandatory in HTTP/1.1?",
+            "a": "One IP address can serve many sites, and the header says which one the request is for."
+          },
+          {
+            "q": "What does stateless mean for an HTTP server?",
+            "a": "It keeps no memory of earlier requests from the same client."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A browser sends two requests on the same persistent TCP connection to an HTTP/1.1 server. Which statement is correct?",
+          "options": [
+            "The server treats the second request as a continuation of the first, because the connection is shared",
+            "HTTP is stateless, so the server keeps no protocol-level memory of the first request when handling the second",
+            "The Host header may be omitted from the second request, because the first one already named the site",
+            "The server must listen on port 443 for the second request"
+          ],
+          "answer": 1,
+          "explanation": "HTTP is stateless even when the TCP connection is reused, so each request stands alone. The first option tempts because the shared connection looks like shared memory. The Host header is required in every HTTP/1.1 request, and plain HTTP uses port 80."
+        },
+        "summary": "HTTP is a stateless request-response protocol over TCP port 80, with a request line, headers and optional body, and a mandatory Host header in HTTP/1.1."
+      }
+    },
+    {
+      "id": "cn-application-layer.http-methods-status",
+      "title": "HTTP methods and status codes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        661,
+        664,
+        665,
+        666,
+        667
+      ],
+      "points": [
+        "GET fetches a resource, HEAD fetches only its headers, POST submits data for processing, PUT creates or replaces the resource at a URL, DELETE removes it, OPTIONS lists allowed methods and PATCH partially modifies.",
+        "Safe methods (GET, HEAD, OPTIONS) do not change server state; idempotent methods give the same state however many times they repeat: GET, HEAD, OPTIONS, PUT and DELETE, but not POST or PATCH.",
+        "Status classes: 1xx informational, 2xx success, 3xx redirection, 4xx client error, 5xx server error.",
+        "Codes to recognise: 200 OK, 301 moved permanently, 302 found (temporary redirect), 304 not modified, 400 bad request, 403 forbidden, 404 not found, 500 internal server error, 505 version not supported."
+      ],
+      "keyTerms": [
+        "idempotent",
+        "safe method",
+        "304 Not Modified"
+      ],
+      "lesson": {
+        "why": "Statement questions on HTTP turn on which methods are safe or idempotent and what a status code class means.",
+        "intro": "Every HTTP request begins with a method, a word saying what the client wants done: fetch something, send something, replace something, remove something. Every response begins with a three-digit status code saying how it went. The first digit tells the broad outcome, so a reader can understand the result without memorising every code.",
+        "definitions": [
+          {
+            "term": "Safe method",
+            "meaning": "A method that does not change anything on the server."
+          },
+          {
+            "term": "Idempotent method",
+            "meaning": "A method whose repeated use leaves the server in the same state as a single use."
+          }
+        ],
+        "principle": {
+          "text": "GET, HEAD and OPTIONS are safe. GET, HEAD, OPTIONS, PUT and DELETE are idempotent, while POST and PATCH are not. Status codes group by first digit: 1xx informational, 2xx success, 3xx redirection, 4xx client error, 5xx server error."
+        },
+        "limits": "Safe and idempotent describe what the protocol promises, not what a badly written server does. Every safe method is idempotent, but not the reverse: PUT and DELETE are idempotent and not safe.",
+        "example": {
+          "problem": "A client sends DELETE /items/7 twice in a row. The first call removes the item. Classify the method and say whether the second call breaks idempotence.",
+          "steps": [
+            "DELETE changes server state, because it removes the item, so it is not a safe method.",
+            "After the first call item 7 is gone. The second call finds nothing to remove, and may return 404 instead of 200.",
+            "Idempotence is about the state of the server, not the response code. After one call or two, item 7 is absent.",
+            "So the final state is the same after one call and after two."
+          ],
+          "result": "DELETE is idempotent but not safe, and the different response code on the second call does not break idempotence."
+        },
+        "misconceptions": [
+          "PUT is not safe, even though it is idempotent. It changes server state, and safe means no state change.",
+          "A 3xx code is not an error. It tells the client to look elsewhere or to reuse a cached copy, as 301, 302 and 304 do."
+        ],
+        "recall": [
+          {
+            "q": "Which methods are safe?",
+            "a": "GET, HEAD and OPTIONS."
+          },
+          {
+            "q": "Which common methods are not idempotent?",
+            "a": "POST and PATCH."
+          },
+          {
+            "q": "What does status 304 tell the client?",
+            "a": "The resource has not been modified, so the client can use its cached copy."
+          },
+          {
+            "q": "What does a 4xx code indicate?",
+            "a": "An error caused by the client's request."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following HTTP methods is idempotent but not safe?",
+          "options": [
+            "GET",
+            "POST",
+            "PUT",
+            "OPTIONS"
+          ],
+          "answer": 2,
+          "explanation": "PUT replaces the resource at a URL, so it changes state and is not safe, but repeating it leaves the same state, so it is idempotent. GET and OPTIONS are both safe and idempotent, which tempts because they are idempotent too. POST is neither safe nor idempotent."
+        },
+        "summary": "GET, HEAD and OPTIONS are safe; those plus PUT and DELETE are idempotent; status codes are grouped by first digit from 1xx to 5xx."
+      }
+    },
+    {
+      "id": "cn-application-layer.http-persistence",
+      "title": "Persistent and non-persistent connections",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        59,
+        661,
+        664,
+        666
+      ],
+      "points": [
+        "HTTP/1.0 is non-persistent: each object (the base HTML and every image) gets its own TCP connection, which is closed after one response.",
+        "HTTP/1.1 is persistent by default: one TCP connection carries many requests and responses, saving a handshake and a slow-start ramp per object.",
+        "Pipelining in HTTP/1.1 lets the client send several requests without waiting for each reply, but responses must return in order, so one slow object blocks the rest (head-of-line blocking); browsers rarely enable it.",
+        "A page with a base file and 10 images needs 11 TCP connections under non-persistent HTTP and 1 under persistent HTTP.",
+        "A persistent connection ends when either side sends a Connection: close header or the server's idle timeout fires; an HTTP/1.0 client could ask for persistence with Connection: keep-alive."
+      ],
+      "keyTerms": [
+        "non-persistent",
+        "persistent",
+        "pipelining",
+        "head-of-line blocking"
+      ],
+      "lesson": {
+        "why": "Questions ask how many TCP connections a page needs, and the answer depends on the HTTP version and on how many different servers the objects come from.",
+        "intro": "A web page is a base HTML file plus the objects it names, such as images. Each object is fetched with an HTTP request carried on a TCP connection. In the older style, called non-persistent, the server closes the connection after one object, so every object needs a new connection. In the newer style, called persistent, the connection stays open and carries many requests one after another. A connection joins the browser to one server only.",
+        "prerequisites": [
+          "cn-application-layer.http-basics"
+        ],
+        "principle": {
+          "text": "Non-persistent HTTP uses one connection per object. Persistent HTTP uses one connection per server contacted, however many objects that server provides."
+        },
+        "limits": "Browsers may open several persistent connections to one server in parallel for speed, so a real page can use more than one per server. Exam questions state whether parallel connections are allowed.",
+        "example": {
+          "problem": "A page has a base file and 8 images. All come from one server, except that 4 of the images are on a second server. How many TCP connections does it need under non-persistent HTTP and under persistent HTTP with one connection per server?",
+          "steps": [
+            "Count the objects: the base file plus 8 images gives 9 objects.",
+            "Non-persistent: every object has its own connection, so 9 connections.",
+            "Persistent: the base file and the 4 images on the first server share one connection. The 4 images on the second server share a second connection."
+          ],
+          "result": "9 connections non-persistent and 2 persistent."
+        },
+        "misconceptions": [
+          "A persistent connection does not span the whole page. It is tied to one server, so objects on a second server need a second connection.",
+          "Pipelining does not mean parallel connections. It sends several requests on the same connection without waiting for replies, and the responses return in order."
+        ],
+        "recall": [
+          {
+            "q": "How many connections does non-persistent HTTP need for a page of n objects?",
+            "a": "One per object, so n connections, because the server closes each after its single response."
+          },
+          {
+            "q": "Why can one persistent connection not fetch objects from two servers?",
+            "a": "A TCP connection joins exactly two endpoints, the browser and one server."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A browser with an empty cache loads a page using persistent HTTP and a single connection per server. The base file and 6 images are on server X. Another 3 images are on server Y. How many TCP connections are needed to display the page?",
+          "answer": 2,
+          "explanation": "Persistence means one connection per server: one to X for the base file and its 6 images, and one to Y for its 3 images. Answering 10 tempts because it counts objects, which is the non-persistent rule. Answering 1 tempts because it forgets that a connection cannot reach two servers."
+        },
+        "summary": "Non-persistent HTTP needs a connection per object, persistent HTTP one per server; pipelining only lets requests overlap on that connection."
+      }
+    },
+    {
+      "id": "cn-application-layer.http-timing",
+      "title": "Page-load time in RTTs",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Fetching one object over a fresh TCP connection costs 2 RTT plus transmission time: one RTT for the SYN/SYN-ACK, one for the request and response (the request rides with the final ACK).",
+        "Non-persistent, serial: a base page plus m objects takes (m + 1)·2RTT.",
+        "Non-persistent with k parallel connections: 2RTT for the base, then ⌈m/k⌉ rounds of 2RTT each.",
+        "Persistent without pipelining: 2RTT for the base, then 1 RTT per object, (m + 2)·RTT; with pipelining all m requests go out together, 3 RTT in total.",
+        "With RTT = 20 ms and 10 images: 440 ms non-persistent serial, 240 ms persistent, 60 ms pipelined; these counts ignore transmission time unless the question gives sizes.",
+        "With sizes, add each object's L/R: persistent without pipelining becomes (m + 2)·RTT + ΣLᵢ/R, pipelined 3·RTT + ΣLᵢ/R. For RTT 20 ms, a base file and 4 objects of 50 kbit each at 10 Mbps (5 ms each): 145 ms persistent, 85 ms pipelined, 225 ms non-persistent serial."
+      ],
+      "lesson": {
+        "why": "Page-load time questions turn the connection modes into a count of round trips, and a small formula decides each option.",
+        "intro": "A round trip time, written RTT, is how long a small packet takes to reach the server and return. Opening a TCP connection takes one RTT for the handshake. Sending an HTTP request and receiving its reply takes another. When the files are tiny, transmission time is negligible and the whole page load is a count of RTTs. The objects are named inside the base file, so they cannot be requested until the base file has arrived.",
+        "prerequisites": [
+          "cn-application-layer.http-persistence",
+          "cn-application-layer.dns-latency"
+        ],
+        "principle": {
+          "text": "The base file costs 2 RTT. Each later object costs 2 RTT with its own connection, 1 RTT on a reused connection, and pipelined objects share a single RTT. With k parallel connections, the m objects go in ceil(m/k) rounds of 2 RTT after the base file.",
+          "tex": "T_{\\text{non-persistent}} = 2(m+1),\\quad T_{\\text{parallel}} = 2 + 2\\lceil m/k \\rceil,\\quad T_{\\text{persistent}} = m+2,\\quad T_{\\text{pipelined}} = 3 \\quad (\\text{in RTT})"
+        },
+        "limits": "These counts exclude DNS. When a question includes an iterative lookup, add its round trips in front of the page load: when every DNS hop has the same RTT and the resolver is on the host, a lookup that contacts three servers in turn adds 3 RTT; otherwise use the dns-latency sum. The counts also ignore transmission time; when object sizes are given, add the time to send each object.",
+        "example": {
+          "problem": "A base file references 6 small objects on the same server. The RTT is 50 ms and DNS is excluded. Find the load time for non-persistent serial, non-persistent with 3 parallel connections, persistent without pipelining, and persistent with pipelining.",
+          "steps": [
+            "Non-persistent serial: (6 + 1) x 2 = 14 RTT, which is 700 ms.",
+            "Non-persistent with 3 parallel connections: 2 RTT for the base, then ceil(6/3) = 2 rounds of 2 RTT, so 6 RTT, which is 300 ms.",
+            "Persistent without pipelining: 2 RTT for the base, then 1 RTT per object, so 6 + 2 = 8 RTT, which is 400 ms.",
+            "Persistent with pipelining: 2 RTT for the base and 1 RTT for all 6 requests together, so 3 RTT, which is 150 ms."
+          ],
+          "result": "700 ms, 300 ms, 400 ms and 150 ms."
+        },
+        "misconceptions": [
+          "Parallel connections do not remove the base-file cost. The objects are unknown until the base file arrives, so its 2 RTT always comes first.",
+          "Pipelining does not skip the connection handshake. The pipelined round starts only after the one connection is open and the base file has arrived."
+        ],
+        "recall": [
+          {
+            "q": "How many RTT does a page of m objects take with persistent HTTP and no pipelining?",
+            "a": "m + 2 RTT: 2 for the base file and 1 for each object."
+          },
+          {
+            "q": "Why does a fresh connection cost 2 RTT for one object?",
+            "a": "One RTT is spent on the TCP handshake and one on the request and its response."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The RTT is 40 ms. A base file references 9 small objects on the same server, and DNS and transmission times are negligible. The browser uses non-persistent HTTP with 3 parallel connections. How many milliseconds does the page take to load?",
+          "answer": 320,
+          "explanation": "The base file takes 2 RTT. The 9 objects go 3 at a time, which is ceil(9/3) = 3 rounds of 2 RTT, so 6 RTT. The total is 8 RTT, which is 320 ms. Answering 240 ms tempts because it leaves out the base file, and answering 800 ms tempts because it applies the serial formula 2 x 10 RTT and ignores the parallelism."
+        },
+        "summary": "Count 2 RTT for the base file, then 2 RTT per round of fresh connections, 1 RTT per reused-connection object, or 1 RTT for a pipelined batch."
+      }
+    },
+    {
+      "id": "cn-application-layer.http2-https",
+      "title": "HTTP/2 and HTTPS",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        59,
+        661,
+        664,
+        666,
+        667
+      ],
+      "points": [
+        "HTTP/2 replaces text messages with binary frames and multiplexes many concurrent streams over one TCP connection, so a slow response no longer blocks others at the HTTP level.",
+        "HTTP/2 also compresses headers (HPACK) and allows server push, where the server sends objects the client has not requested yet.",
+        "HTTPS is ordinary HTTP carried inside TLS, which runs over TCP on port 443; TLS adds encryption, integrity and server authentication by certificate.",
+        "TLS sits between the application and TCP, so in OSI terms it plays the session/presentation role; HTTPS is not a separate application protocol."
+      ],
+      "keyTerms": [
+        "binary framing",
+        "multiplexing",
+        "HPACK",
+        "server push",
+        "TLS"
+      ],
+      "lesson": {
+        "why": "Statements about what HTTP/2 changes and what HTTPS adds are common, and the main trap is mixing up the two.",
+        "intro": "Early HTTP sends readable text, one reply at a time per connection. HTTP/2 keeps the same meaning for methods and status codes but changes how messages travel. They are cut into small binary pieces, and pieces of many different replies share one connection and interleave. HTTPS is a different idea: it is ordinary HTTP wrapped in an encrypted layer called TLS, so that nobody on the path can read or alter the messages.",
+        "definitions": [
+          {
+            "term": "Multiplexing",
+            "meaning": "Carrying several independent streams of messages over one connection at the same time."
+          },
+          {
+            "term": "TLS",
+            "meaning": "The protocol that adds encryption, integrity and server authentication by certificate between the application and TCP."
+          }
+        ],
+        "principle": {
+          "text": "HTTP/2 uses binary framing and multiplexes many streams over one TCP connection, compresses headers with HPACK and allows server push. HTTPS is HTTP carried inside TLS over TCP port 443; it is not a separate application protocol."
+        },
+        "limits": "HTTP/2 multiplexing removes blocking between responses at the HTTP level only, because everything still shares one TCP connection. HTTPS protects the content in transit, and does not make the server itself trustworthy.",
+        "example": {
+          "problem": "A page needs 3 objects. Explain how HTTP/2 fetches them over a single connection, and what HTTPS would add to the same fetch.",
+          "steps": [
+            "The client opens one TCP connection and sends the 3 requests as three separate streams.",
+            "The server breaks each response into binary frames and interleaves frames of the three streams on the same connection.",
+            "A slow response no longer holds up the others at the HTTP level, because their frames are sent in between.",
+            "With HTTPS, a TLS layer first runs over the TCP connection, and all frames travel encrypted on port 443."
+          ],
+          "result": "One connection carries three interleaved streams; HTTPS adds encryption and server authentication underneath without changing the HTTP messages."
+        },
+        "misconceptions": [
+          "HTTPS is not a different protocol from HTTP. It is HTTP running inside TLS, which is why the request and response formats stay the same.",
+          "HTTP/2 does not open one connection per object. Its gain comes from many streams sharing a single connection."
+        ],
+        "recall": [
+          {
+            "q": "What does HTTP/2 multiplexing mean?",
+            "a": "Many concurrent streams share one TCP connection, so a slow response does not block the others at the HTTP level."
+          },
+          {
+            "q": "Which port and transport does HTTPS use?",
+            "a": "TCP port 443, with TLS between HTTP and TCP."
+          },
+          {
+            "q": "What is HPACK?",
+            "a": "The header compression scheme of HTTP/2."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about HTTP/2 and HTTPS is correct?",
+          "options": [
+            "HTTPS is a separate application protocol that replaces HTTP's message format",
+            "HTTP/2 opens a new TCP connection for every object it fetches",
+            "HTTP/2 carries many streams over one TCP connection, and HTTPS runs HTTP inside TLS on TCP port 443",
+            "TLS adds encryption but cannot authenticate the server"
+          ],
+          "answer": 2,
+          "explanation": "HTTP/2 multiplexes streams on one connection, and HTTPS is HTTP inside TLS on port 443. The first option tempts because HTTPS looks like a new protocol, but only the layer below changes. The second reverses what multiplexing means, and TLS does authenticate the server by certificate."
+        },
+        "summary": "HTTP/2 multiplexes binary-framed streams over one TCP connection with HPACK and server push, and HTTPS is HTTP inside TLS on TCP port 443."
+      }
+    },
+    {
+      "id": "cn-application-layer.http-state-caching",
+      "title": "Cookies, conditional GET and web caches",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Cookies add state on top of stateless HTTP: the server sends Set-Cookie with an identifier, the browser returns it in a Cookie header on later requests, and the server keys a database entry on it.",
+        "A web cache (proxy) answers repeat requests locally, cutting response time and the traffic on the institution's access link.",
+        "Conditional GET keeps a cached copy fresh: the cache sends If-Modified-Since, and the server answers 304 Not Modified with no body if the object is unchanged.",
+        "With cache hit rate h, the average access delay is h·(local delay) + (1 − h)·(origin delay), the usual way a GATE-style question rewards adding a proxy.",
+        "Only misses cross the access link, so a cache cuts its traffic intensity from λL/Rₐ to (1 − h)·λL/Rₐ: 15 requests/s of 1 Mbit objects on a 15 Mbps link run at intensity 1.0, and a cache with h = 0.4 brings it to 0.6, which also collapses the queueing delay inside the miss time."
+      ],
+      "keyTerms": [
+        "Set-Cookie",
+        "proxy cache",
+        "If-Modified-Since"
+      ],
+      "lesson": {
+        "why": "Cookies, conditional GET and caches explain how a stateless protocol feels stateful and fast; a cache delay or link-load calculation is a short, reliable numeric question.",
+        "intro": "HTTP forgets every request as soon as it answers it. To recognise a returning visitor, the server hands the browser a small identifier, and the browser sends it back with each later request. Separately, a cache is a nearby server that keeps copies of objects already fetched, so a repeat request is answered close by instead of travelling to the origin server. When a cached copy might be old, the cache asks the origin whether the object has changed, and the origin replies with a tiny message if it has not. The cache matters because an institution reaches the Internet through one access link of limited rate, and every request that reaches the origin server loads that link.",
+        "prerequisites": [
+          "cn-application-layer.http-basics"
+        ],
+        "definitions": [
+          {
+            "term": "Cookie",
+            "meaning": "An identifier the server sends in Set-Cookie and the browser returns in a Cookie header, letting the server link requests to a stored record."
+          },
+          {
+            "term": "Hit rate",
+            "meaning": "The fraction h of requests a cache answers from its own stored copies."
+          },
+          {
+            "term": "Conditional GET",
+            "meaning": "A GET carrying If-Modified-Since; the server answers 304 Not Modified with no body when the object has not changed."
+          },
+          {
+            "term": "Access link",
+            "meaning": "The single link joining an institution's network to the Internet, with rate $R_a$ in bits per second."
+          },
+          {
+            "term": "Traffic intensity",
+            "meaning": "The offered load on a link divided by its rate; near 1 means long queues, and above 1 means the queue grows without bound."
+          },
+          {
+            "term": "Request rate and object size",
+            "meaning": "$\\lambda$ is the number of requests per second and $L$ is the size of each object in bits, so the offered load on the access link is $\\lambda L$ bits per second."
+          }
+        ],
+        "analogy": {
+          "text": "A cache is a corner shop that stocks popular items from the distant warehouse: most customers are served at once, and only missing items trigger a trip to the warehouse.",
+          "breaksWhen": "A shop never checks whether its stock is out of date, but a cache must, which is the job of conditional GET."
+        },
+        "principle": {
+          "text": "Cookies add state on top of stateless HTTP by keying a server-side record on an identifier. A cache with hit rate h gives average delay h times the local delay plus (1 - h) times the origin delay, and only misses cross the access link, so traffic intensity falls to (1 - h) times its old value.",
+          "tex": "D = h\\,d_{\\text{cache}} + (1-h)\\,d_{\\text{origin}},\\qquad I = (1-h)\\,\\frac{\\lambda L}{R_a}"
+        },
+        "limits": "The averages assume every miss costs the full origin delay and every hit costs the local delay. If the question states that the miss time already includes the LAN delay, do not add it again. Intensity near 1 means queueing delay grows without bound, so the simple formulas describe the link load, not the exact delay.",
+        "example": {
+          "problem": "An institution sends 10 requests per second for objects of 0.5 Mbit over a 10 Mbps access link. A proxy cache with hit rate 0.6 is added. Find the access-link traffic intensity before and after.",
+          "steps": [
+            "Offered traffic is $\\lambda L = 10 \\times 0.5 = 5$ Mbps.",
+            "Without the cache, intensity is $5 / 10 = 0.5$.",
+            "With the cache, only the miss fraction $1 - 0.6 = 0.4$ crosses the access link.",
+            "New intensity is $0.4 \\times 0.5 = 0.2$."
+          ],
+          "result": "Intensity drops from 0.5 to 0.2."
+        },
+        "misconceptions": [
+          "A cookie does not make HTTP itself stateful. The protocol still treats each request alone; the state sits in the server's database, keyed by the cookie value.",
+          "A 304 Not Modified response carries no object body. Learners expect the object back, but the cache reuses its own stored copy.",
+          "Weighting the miss delay by h swaps the terms. The hit rate h multiplies the cache delay, and 1 - h multiplies the origin delay."
+        ],
+        "recall": [
+          {
+            "q": "Which headers carry a cookie in each direction?",
+            "a": "The server sends Set-Cookie in its response, and the browser returns the value in a Cookie header on later requests."
+          },
+          {
+            "q": "What does a conditional GET send, and what does an unchanged object produce?",
+            "a": "It sends If-Modified-Since, and an unchanged object gets a 304 Not Modified response with no body."
+          },
+          {
+            "q": "What is the average delay with a cache of hit rate h?",
+            "a": "D = h times the cache delay plus (1 - h) times the origin delay."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A cache answers a request in 10 ms on a hit. A miss takes 210 ms to fetch from the origin server. With hit rate 0.7, what is the average delay in ms?",
+          "answer": 70,
+          "explanation": "D = 0.7 x 10 + 0.3 x 210 = 7 + 63 = 70 ms. Using 0.7 x 210 + 0.3 x 10 = 150 ms is tempting because it attaches the hit rate to the wrong delay; the hit rate weights the fast local answer."
+        },
+        "summary": "Cookies give a stateless protocol state through a server-side record, conditional GET keeps cached copies fresh with 304, and a cache with hit rate h gives average delay h*d_cache + (1-h)*d_origin and scales access-link intensity by 1-h."
+      }
+    },
+    {
+      "id": "cn-application-layer.email",
+      "title": "Email: SMTP, POP3 and IMAP",
+      "frequency": "low",
+      "origin": "source",
+      "beyondSyllabus": true,
+      "pages": [
+        59,
+        662,
+        664,
+        666,
+        667
+      ],
+      "points": [
+        "SMTP is a push protocol over TCP port 25 (587 for submission): the sender's agent pushes mail to its server, and that server pushes it to the recipient's server.",
+        "POP3 (TCP 110) and IMAP (TCP 143) are pull protocols the recipient uses to read mail; SMTP cannot fetch mail.",
+        "POP3 normally downloads and deletes from the server; IMAP keeps mail and folders on the server, which suits several devices."
+      ],
+      "lesson": {
+        "why": "Questions pair email protocols with the direction they work in, and the pair is easy to reverse under time pressure.",
+        "intro": "Electronic mail moves in two stages. First the message is sent from the writer toward the recipient: the writer's mail program hands it to a mail server, and that server passes it on to the recipient's server. Then the recipient reads it: their mail program fetches it from their server. Different protocols serve each stage. Sending pushes the message forward, and reading pulls it from a stored mailbox.",
+        "principle": {
+          "text": "SMTP pushes mail from client to server and from server to server. POP3 and IMAP pull stored mail from the recipient's server to the recipient's client."
+        },
+        "limits": "The split describes protocols, not programs.",
+        "example": {
+          "problem": "Alice at a.example sends a message to Bob at b.example. Bob reads it on his laptop and his phone, and both must show the same folders. Name the protocol at each hop.",
+          "steps": [
+            "Alice's mail program pushes the message to a.example's server using SMTP.",
+            "The a.example server pushes it to the b.example server, again using SMTP.",
+            "Bob's devices pull from b.example. Because both must see the same folders, mail has to stay on the server, which is how IMAP works. POP3 would download and usually remove it."
+          ],
+          "result": "SMTP for both sending hops and IMAP for Bob's retrieval."
+        },
+        "misconceptions": [
+          "SMTP cannot be used to read mail from a mailbox; it only pushes. Retrieval needs POP3 or IMAP.",
+          "POP3 and IMAP are not sending protocols, so a pair listing either of them first as the sender is wrong."
+        ],
+        "recall": [
+          {
+            "q": "Which email protocol pushes mail between servers, and on which TCP port?",
+            "a": "SMTP, on TCP port 25 (587 for submission from a client)."
+          },
+          {
+            "q": "How does IMAP differ from POP3 in where mail is kept?",
+            "a": "IMAP keeps mail and folders on the server; POP3 normally downloads it and deletes it from the server."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A user reads mail on a laptop and a phone, and wants folders and read marks to match on both. Which protocol should both devices use to retrieve mail?",
+          "options": [
+            "SMTP",
+            "POP3",
+            "IMAP",
+            "FTP"
+          ],
+          "answer": 2,
+          "explanation": "IMAP leaves mail and folder state on the server, so every device sees the same view. POP3 tempts because it also retrieves mail, but it normally downloads and deletes it, so devices diverge. SMTP only sends, and FTP transfers files, not mailbox contents."
+        },
+        "summary": "SMTP sends and relays by pushing; POP3 and IMAP retrieve by pulling, with IMAP keeping mail on the server for several devices."
+      }
+    },
+    {
+      "id": "cn-application-layer.ftp",
+      "title": "FTP control and data connections",
+      "frequency": "low",
+      "origin": "source",
+      "beyondSyllabus": true,
+      "pages": [
+        59,
+        60,
+        662,
+        664,
+        667
+      ],
+      "points": [
+        "FTP sends control information out of band: commands go over a persistent control connection on TCP port 21, files over separate data connections.",
+        "In active mode the server opens the data connection from port 20 back to the client, which NAT and firewalls often block; in passive mode the client opens it to a port the server names.",
+        "FTP keeps state (current directory, logged-in user) for the session, unlike HTTP."
+      ]
+    },
+    {
+      "id": "cn-application-layer.ports-remote-login",
+      "title": "Well-known ports and remote login",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        662,
+        663,
+        664,
+        665,
+        668
+      ],
+      "points": [
+        "Telnet (TCP 23) gives remote login in plain text, passwords included; SSH (TCP 22) encrypts the session and adds key-based authentication, tunnelling and port forwarding.",
+        "Well-known ports: FTP 20/21, SSH 22, Telnet 23, SMTP 25, DNS 53, DHCP 67 (server) and 68 (client), HTTP 80, POP3 110, IMAP 143, BGP 179, HTTPS 443.",
+        "Transport choice: DNS and DHCP use UDP; HTTP, HTTPS, SMTP, FTP, SSH, Telnet, POP3, IMAP and BGP use TCP."
+      ],
+      "lesson": {
+        "why": "Port and transport recall questions are standard one-mark items, and a single wrong digit or a UDP-versus-TCP slip costs the mark.",
+        "intro": "A computer runs many network programs at once, and a number called a port tells the arriving data which program should receive it. Servers listen on fixed, agreed port numbers so clients know where to knock. Each service also rides on one of two transports: TCP, which sets up a connection and delivers reliably, or UDP, which just sends single messages. Remote login is a service that lets you type commands on another machine across the network; the two protocols for it differ in whether anyone on the path can read what you type.",
+        "definitions": [
+          {
+            "term": "Well-known port",
+            "meaning": "A fixed port number from 0 to 1023 that a standard service listens on."
+          },
+          {
+            "term": "Telnet",
+            "meaning": "Remote login over TCP port 23 that sends everything, passwords included, as plain text."
+          },
+          {
+            "term": "SSH",
+            "meaning": "Remote login over TCP port 22 that encrypts the session and supports key-based authentication and port forwarding."
+          }
+        ],
+        "analogy": {
+          "text": "A port is an apartment number in a building whose street address is the IP address: the address finds the building and the number finds the right door.",
+          "breaksWhen": "An apartment has one fixed resident, while one port is shared by many simultaneous client connections that the server tells apart by their own addresses and ports."
+        },
+        "principle": {
+          "text": "Standard services use fixed ports: FTP 20/21, SSH 22, Telnet 23, SMTP 25, DNS 53, DHCP 67 and 68, HTTP 80, POP3 110, IMAP 143, BGP 179, HTTPS 443. DNS and DHCP use UDP; HTTP, HTTPS, SMTP, FTP, SSH, Telnet, POP3, IMAP and BGP use TCP. SSH replaces Telnet by encrypting the session."
+        },
+        "limits": "The numbers are conventions, not laws: a server can be configured on another port. Also DNS uses TCP for large responses and zone transfers, so say UDP only when the question asks about its usual transport.",
+        "example": {
+          "problem": "A client sends a DHCP request, then logs in remotely, and finally opens a secure web page. Name the port and transport for each step, choosing the secure remote login protocol.",
+          "steps": [
+            "DHCP: the server listens on UDP port 67 and the client on UDP port 68.",
+            "Secure remote login is SSH, which uses TCP port 22; Telnet on TCP 23 would expose the password.",
+            "A secure web page uses HTTPS, which is TCP port 443."
+          ],
+          "result": "DHCP is UDP 67/68, SSH is TCP 22, and HTTPS is TCP 443."
+        },
+        "misconceptions": [
+          "DNS is not a TCP service in the usual case. It normally uses UDP port 53, and DHCP also runs over UDP.",
+          "SSH and Telnet are not the same except for the port. SSH encrypts the whole session and Telnet sends passwords as readable text.",
+          "DHCP uses two ports, 67 for the server and 68 for the client, not a single shared number."
+        ],
+        "recall": [
+          {
+            "q": "What are the ports of SSH, Telnet, SMTP and HTTPS?",
+            "a": "SSH 22, Telnet 23, SMTP 25 and HTTPS 443, all over TCP."
+          },
+          {
+            "q": "Which protocols in the well-known list use UDP?",
+            "a": "DNS on port 53 and DHCP on ports 67 and 68."
+          },
+          {
+            "q": "Why is SSH preferred over Telnet?",
+            "a": "SSH encrypts the session and authenticates with keys, while Telnet sends everything, passwords included, in plain text."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which pairing of protocol, transport and port is correct?",
+          "options": [
+            "Telnet over TCP port 22",
+            "DHCP server over UDP port 67",
+            "POP3 over UDP port 110",
+            "SSH over TCP port 23"
+          ],
+          "answer": 1,
+          "explanation": "The DHCP server listens on UDP port 67. The Telnet option tempts because 22 and 23 are easy to swap: SSH is 22 and Telnet is 23, so the first and last options each exchange them. POP3 is on port 110 but over TCP, not UDP."
+        },
+        "summary": "Services sit on fixed ports (SSH 22, Telnet 23, SMTP 25, DNS 53, DHCP 67/68, HTTP 80, POP3 110, IMAP 143, BGP 179, HTTPS 443), only DNS and DHCP in this list use UDP, and SSH is the encrypted replacement for Telnet."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cn-application-layer.single-object-time",
+      "name": "One object over a new TCP connection",
+      "tex": "T = 2\\,\\mathrm{RTT} + \\frac{L}{R}",
+      "text": "T = 2·RTT + L/R",
+      "where": [
+        [
+          "L",
+          "object size in bits"
+        ],
+        [
+          "R",
+          "link transmission rate"
+        ]
+      ],
+      "note": "One RTT for the handshake, one for request and response; drop L/R when the question says to ignore transmission time.",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.nonpersistent-serial",
+      "name": "Non-persistent HTTP, serial connections",
+      "tex": "T = (m + 1)\\cdot 2\\,\\mathrm{RTT}",
+      "text": "T = (m + 1)·2·RTT",
+      "where": [
+        [
+          "m",
+          "number of embedded objects besides the base file"
+        ]
+      ],
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.nonpersistent-parallel",
+      "name": "Non-persistent HTTP, k parallel connections",
+      "tex": "T = 2\\,\\mathrm{RTT} + \\left\\lceil \\frac{m}{k} \\right\\rceil \\cdot 2\\,\\mathrm{RTT}",
+      "text": "T = 2·RTT + ⌈m/k⌉·2·RTT",
+      "where": [
+        [
+          "k",
+          "maximum parallel TCP connections"
+        ]
+      ],
+      "note": "The base file must arrive first, because the embedded object references are inside it.",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.persistent-no-pipelining",
+      "name": "Persistent HTTP without pipelining",
+      "tex": "T = 2\\,\\mathrm{RTT} + m\\cdot\\mathrm{RTT} = (m + 2)\\,\\mathrm{RTT}",
+      "text": "T = 2·RTT + m·RTT = (m + 2)·RTT",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.persistent-pipelining",
+      "name": "Persistent HTTP with pipelining",
+      "tex": "T = 2\\,\\mathrm{RTT} + \\mathrm{RTT} = 3\\,\\mathrm{RTT}",
+      "text": "T = 2·RTT + RTT = 3·RTT",
+      "note": "All m requests leave back to back after the base file arrives, so the objects cost one RTT together (plus their transmission times).",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.persistent-with-transmission",
+      "name": "Persistent HTTP with transmission times",
+      "tex": "T = (m + 2)\\,\\mathrm{RTT} + \\sum_{i=0}^{m} \\frac{L_i}{R}",
+      "text": "T = (m + 2)·RTT + Σ_{i=0..m} Lᵢ/R",
+      "where": [
+        [
+          "L_0",
+          "base file size in bits"
+        ],
+        [
+          "L_i",
+          "size of embedded object i"
+        ],
+        [
+          "R",
+          "bottleneck transmission rate"
+        ]
+      ],
+      "note": "Without pipelining. With pipelining replace (m + 2)·RTT by 3·RTT; non-persistent serial charges 2·RTT + Lᵢ/R per object.",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.dns-plus-http",
+      "name": "Name lookup followed by one fetch",
+      "tex": "T = \\sum_{i=1}^{n} \\mathrm{RTT}_i + 2\\,\\mathrm{RTT}_0",
+      "text": "T = RTT₁ + … + RTTₙ + 2·RTT₀",
+      "where": [
+        [
+          "RTT_i",
+          "round trip to the i-th DNS server contacted"
+        ],
+        [
+          "RTT_0",
+          "round trip to the web server"
+        ]
+      ],
+      "note": "A cached record removes the corresponding RTT_i term.",
+      "topic": "cn-application-layer.dns-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.cache-delay",
+      "name": "Average delay with a web cache",
+      "tex": "D = h\\,d_{\\text{cache}} + (1 - h)\\,d_{\\text{origin}}",
+      "text": "D = h·d_cache + (1 − h)·d_origin",
+      "where": [
+        [
+          "h",
+          "cache hit rate"
+        ]
+      ],
+      "topic": "cn-application-layer.http-state-caching",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.access-link-intensity",
+      "name": "Access-link traffic intensity with a cache",
+      "tex": "I = (1 - h)\\,\\frac{\\lambda L}{R_a}",
+      "text": "I = (1 − h)·λ·L / Rₐ",
+      "where": [
+        [
+          "λ",
+          "requests per second"
+        ],
+        [
+          "L",
+          "object size in bits"
+        ],
+        [
+          "R_a",
+          "access link rate"
+        ]
+      ],
+      "note": "Hits are served on the LAN, so only the miss fraction loads the access link; intensity near 1 means unbounded queueing delay.",
+      "topic": "cn-application-layer.http-state-caching",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cn-application-layer.page-load-rtts",
+      "title": "Time to load a page with embedded objects",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Count the objects: one base file plus m referenced objects.",
+        "Identify the mode: non-persistent serial, non-persistent with k parallel connections, persistent, or persistent with pipelining.",
+        "Charge 2 RTT per new TCP connection plus request, 1 RTT per request on an open connection, and add DNS RTTs if the name is not cached.",
+        "Add transmission times L/R only if the question gives object sizes and a rate."
+      ],
+      "trap": "The base file always costs 2 RTT before any embedded object can be requested, even with pipelining or parallel connections.",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.dns-resolution-trace",
+      "title": "DNS resolution trace: messages, servers contacted, delay",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Draw the chain host → local resolver → root → TLD → authoritative.",
+        "Strike out every server whose answer or referral is already cached.",
+        "For message counts, count one query and one reply per remaining exchange; for delay, sum the RTTs of those exchanges."
+      ],
+      "trap": "Recursive versus iterative changes who sends the messages, not the total count for a full lookup.",
+      "topic": "cn-application-layer.dns-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.protocol-identification",
+      "title": "Identify the protocol, port, transport or record type",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Recall the port table and which protocols use UDP (DNS, DHCP) rather than TCP.",
+        "For DNS questions, match the record type to what it maps: A and AAAA to addresses, CNAME to an alias, MX to a mail server, NS to a name server, PTR to a name from an address.",
+        "For push or pull, remember that SMTP pushes and POP3/IMAP pull."
+      ],
+      "trap": "MX returns a mail server name, not an IP address; a second A lookup is still needed.",
+      "topic": "cn-application-layer.dns-records",
+      "origin": "source",
+      "pages": [
+        663,
+        665,
+        666,
+        667
+      ]
+    },
+    {
+      "id": "cn-application-layer.http-properties",
+      "title": "Statements about HTTP versions, methods and status codes",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Version facts: 1.0 non-persistent, 1.1 persistent with optional pipelining and mandatory Host, 2 binary multiplexed streams with HPACK and server push.",
+        "Method facts: idempotent GET, HEAD, OPTIONS, PUT, DELETE; POST is neither safe nor idempotent.",
+        "Status facts: read the class from the first digit, then recall 200, 301, 302, 304, 403, 404, 500."
+      ],
+      "trap": "Statelessness is a property of HTTP itself; persistent connections and cookies do not make the protocol stateful.",
+      "topic": "cn-application-layer.http-methods-status",
+      "origin": "source",
+      "pages": [
+        661,
+        664,
+        666,
+        667
+      ]
+    },
+    {
+      "id": "cn-application-layer.web-cache-delay",
+      "title": "Average delay and access-link load with a web cache",
+      "frequency": "low",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the hit delay (LAN only) and the miss delay (LAN plus access link plus origin), as the question defines them.",
+        "Average with the hit rate: D = h·d_cache + (1 − h)·d_origin.",
+        "For link load, multiply the offered traffic λL by (1 − h) and divide by the access link rate."
+      ],
+      "trap": "Weighting the miss delay by h, or adding the LAN delay to the miss delay when the question's miss figure already includes it.",
+      "topic": "cn-application-layer.http-state-caching",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "cn-application-layer.q-nonpersistent-serial",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A web page consists of a base HTML file that references 10 small images. The RTT between client and server is 20 ms, transmission times are negligible and the name is already resolved. Using non-persistent HTTP with one connection at a time, how long (ms) does it take to receive the page with all images?",
+      "answer": 440,
+      "explanation": "Each of the 11 objects needs its own TCP connection: 1 RTT for the handshake and 1 RTT for the request and response, so 2 RTT = 40 ms per object. Total = 11 × 40 = 440 ms.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-persistent-pipelined",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The same page (a base HTML file referencing 10 small images, RTT 20 ms, negligible transmission time, name already resolved) is fetched with persistent HTTP and pipelining. How long (ms) does it take to receive everything?",
+      "answer": 60,
+      "explanation": "Handshake 1 RTT, then the base file 1 RTT: 40 ms. The client now knows all 10 image URLs and sends the 10 requests back to back on the open connection; all replies arrive within one more RTT. Total = 3 RTT = 60 ms. Without pipelining it would be 2 RTT + 10 RTT = 240 ms.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-parallel-connections",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A browser fetches a base HTML file referencing 10 images using non-persistent HTTP but may open up to 5 TCP connections in parallel. RTT is 20 ms and transmission times are negligible. What is the total time (ms) to receive the page and all images?",
+      "answer": 120,
+      "explanation": "The base file comes first over one connection: 2 RTT = 40 ms. The 10 images then go in ⌈10/5⌉ = 2 rounds of 5 parallel connections, each round costing 2 RTT = 40 ms. Total = 40 + 80 = 120 ms.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-persistent-transmission",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A base HTML file references 4 images. The base file and each image are 50,000 bits long, the bottleneck rate is 10 Mbps and the RTT is 20 ms; the name is already resolved and request messages have negligible size. Using persistent HTTP without pipelining, how many milliseconds does it take to receive the base file and all images?",
+      "answer": 145,
+      "explanation": "Each object takes L/R = 50,000 / 10⁷ s = 5 ms to transmit. Handshake plus base file: 2 RTT + 5 = 45 ms. Each image then costs one request round trip plus its transmission, 20 + 5 = 25 ms, on the open connection: 4 × 25 = 100 ms. Total = 145 ms, which is (m + 2)·RTT + ΣL/R = 120 + 25. Pipelined it would be 3·RTT + 25 = 85 ms; non-persistent serial 5 × (40 + 5) = 225 ms.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.http-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-dns-then-http",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A user clicks a link. The local DNS cache is empty, and resolving the name requires visiting three DNS servers in turn with RTTs of 10 ms, 20 ms and 30 ms. The page is a single small HTML object with no embedded objects, and the RTT to the web server is 40 ms. Ignoring transmission times, how many milliseconds elapse from the click until the client receives the object?",
+      "answer": 140,
+      "explanation": "Name resolution costs 10 + 20 + 30 = 60 ms. Fetching one object over a new TCP connection costs 2 RTT₀ = 80 ms (handshake plus request and response). Total = 60 + 80 = 140 ms.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.dns-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-dns-message-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A host sends a recursive query to its local DNS server, whose cache is empty. The local server resolves the name by iterative queries to a root server, a TLD server and the authoritative server, then answers the host. How many DNS messages are exchanged in total?",
+      "answer": 8,
+      "explanation": "Host to local server: 1 query. Local server with root, TLD and authoritative: 3 queries and 3 replies = 6. Local server to host: 1 reply. Total = 1 + 6 + 1 = 8 messages.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.dns-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-dns-cached-tld",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A host sends a recursive query for www.example.com to its local DNS server; the RTT between them is 4 ms. The local server already has the NS records of the com TLD servers cached but nothing else, and resolves iteratively. Its RTTs are 30 ms to a root server, 20 ms to a com server and 10 ms to the authoritative server of example.com. Ignoring processing and transmission times, how many milliseconds after sending its query does the host get the answer?",
+      "answer": 34,
+      "explanation": "The cached com NS records let the local server skip the root, so it contacts only the com server (20 ms), which refers it to the authoritative server (10 ms). Adding the host's own round trip of 4 ms gives 4 + 20 + 10 = 34 ms, using 2 + 2 × 2 = 6 messages. With an empty cache the root's 30 ms would be added: 64 ms and 8 messages.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.dns-latency",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-dns-transport",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An ordinary DNS name lookup from a resolver to a name server is normally carried by:",
+      "options": [
+        "UDP to port 53",
+        "TCP to port 53",
+        "UDP to port 67",
+        "TCP to port 80"
+      ],
+      "answer": 0,
+      "explanation": "A lookup is one short query and one short reply, so DNS uses UDP on port 53 and avoids a TCP handshake. TCP port 53 is used for zone transfers and oversized replies; port 67 is the DHCP server and 80 is HTTP.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.dns-transport",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2013) — DNS query",
+      "pages": [
+        661,
+        667
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-dns-record-alias",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A company wants the name www.shop.example to be an alias for the host web7.hosting.example, and wants mail for shop.example delivered to mx1.shop.example. Which pair of record types does it need?",
+      "options": [
+        "CNAME for the alias, MX for the mail server",
+        "A for the alias, NS for the mail server",
+        "PTR for the alias, MX for the mail server",
+        "CNAME for the alias, SOA for the mail server"
+      ],
+      "answer": 0,
+      "explanation": "A CNAME record maps an alias to its canonical host name, and an MX record names the mail exchanger for a domain. A maps a name to an IPv4 address, PTR maps an address back to a name, NS names an authoritative name server and SOA describes the zone.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.dns-records",
+      "origin": "source",
+      "pages": [
+        661,
+        665,
+        666
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-dns-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about DNS are correct?",
+      "options": [
+        "Zone transfers between primary and secondary name servers use TCP.",
+        "A resolver may keep a cached record until its TTL expires.",
+        "An MX record maps a domain name directly to the IPv6 address of its mail server.",
+        "A PTR record is used for reverse lookup, from an IP address to a name."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Zone transfers are bulk and need reliable delivery, so they use TCP port 53. Cached records live for their TTL. PTR records under in-addr.arpa serve reverse lookups. An MX record returns a mail server name; its address comes from a separate A or AAAA record, so the third statement is false.",
+      "difficulty": "medium",
+      "topic": "cn-application-layer.dns-records",
+      "origin": "source",
+      "pages": [
+        661,
+        667,
+        668
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-dns-iterative",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In an iterative DNS query sent by a local resolver to a root server, the root server typically:",
+      "options": [
+        "Contacts the TLD server itself and returns the final IP address",
+        "Returns a referral naming the TLD servers for the queried domain",
+        "Returns an error, because root servers hold no records",
+        "Forwards the query to the authoritative server and closes the exchange"
+      ],
+      "answer": 1,
+      "explanation": "In an iterative query the contacted server answers from what it knows; a root server knows only the TLD servers, so it returns a referral to them and the resolver asks the TLD server next. Contacting the next server itself would make it a recursive query.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.dns-resolution",
+      "origin": "source",
+      "pages": [
+        660,
+        664,
+        666
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-persistent-default",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A browser using HTTP/1.1 fetches a base HTML file and 4 images from the same server. By default, how many TCP connections does it need?",
+      "options": [
+        "1",
+        "4",
+        "5",
+        "10"
+      ],
+      "answer": 0,
+      "explanation": "HTTP/1.1 connections are persistent by default, so all 5 objects travel over one TCP connection. Under non-persistent HTTP/1.0 the count would be 5, one per object.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http-persistence",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — HTTP",
+      "pages": [
+        661,
+        666
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-idempotent",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following HTTP methods are idempotent?",
+      "options": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Repeating GET leaves the server unchanged, repeating PUT writes the same representation again, and repeating DELETE leaves the resource deleted, so all three end in the same state however often they run. Repeating POST can create a new order or comment each time, so POST is not idempotent.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http-methods-status",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — HTTP method",
+      "pages": [
+        666,
+        667
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-cache-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An institution installs a web cache on its LAN. A request answered by the cache takes 10 ms; a request the cache must forward to the origin server takes 1210 ms in total. If the cache hit rate is 0.4, what is the average response time in milliseconds?",
+      "answer": 730,
+      "explanation": "D = h·d_cache + (1 − h)·d_origin = 0.4 × 10 + 0.6 × 1210 = 4 + 726 = 730 ms, against 1210 ms with no cache. The 1210 ms already includes the trip through the cache, so the 10 ms is not added again to misses.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http-state-caching",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-status-304",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A proxy cache sends a conditional GET with an If-Modified-Since header and receives a response with no body. Which status code did the server most likely return?",
+      "options": [
+        "200 OK",
+        "301 Moved Permanently",
+        "304 Not Modified",
+        "404 Not Found"
+      ],
+      "answer": 2,
+      "explanation": "304 Not Modified is a 3xx response that tells the cache its stored copy is still current, so no body is sent. 200 would carry the object, 301 points to a new URL and 404 means the resource does not exist.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http-state-caching",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-application-layer.q-http2-features",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following are features of HTTP/2?",
+      "options": [
+        "Binary framing of messages",
+        "Several concurrent request-response streams multiplexed over one TCP connection",
+        "A new TCP connection for every request",
+        "Header compression"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "HTTP/2 encodes messages as binary frames, interleaves many streams on one connection and compresses headers with HPACK; it also allows server push. Opening a connection per request is the non-persistent HTTP/1.0 behaviour that HTTP/2 moves away from.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http2-https",
+      "origin": "source",
+      "pages": [
+        661,
+        666
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-https-layering",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A browser opens https://bank.example. Which stack carries the HTTP messages?",
+      "options": [
+        "HTTP over TLS over TCP, to server port 443",
+        "HTTP over TCP over TLS, to server port 443",
+        "HTTP over TLS over UDP, to server port 80",
+        "HTTP over TCP, to server port 80, with encryption done by IP"
+      ],
+      "answer": 0,
+      "explanation": "TLS runs on top of TCP and below the application, encrypting the HTTP bytes before TCP sees them; the well-known HTTPS port is 443. Plain HTTP uses port 80 and IP provides no encryption.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.http2-https",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — TLS",
+      "pages": [
+        661,
+        667
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-transport-pairs",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which option correctly gives the transport protocol normally used by DNS, HTTP and SMTP, in that order?",
+      "options": [
+        "UDP, TCP, TCP",
+        "TCP, TCP, UDP",
+        "UDP, UDP, TCP",
+        "TCP, UDP, TCP"
+      ],
+      "answer": 0,
+      "explanation": "DNS lookups use UDP port 53; HTTP needs a reliable byte stream and uses TCP port 80; SMTP transfers mail over TCP port 25.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.ports-remote-login",
+      "origin": "source",
+      "pages": [
+        661,
+        662,
+        663
+      ]
+    },
+    {
+      "id": "cn-application-layer.q-smtp-push",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Alice's mail client sends a message to Bob, and Bob later reads it from his phone and his laptop with every folder kept in sync. Which protocols act at the two steps, sending to Alice's server and Bob reading?",
+      "options": [
+        "SMTP to send, IMAP to read",
+        "SMTP to send, SMTP to read",
+        "POP3 to send, IMAP to read",
+        "IMAP to send, POP3 to read"
+      ],
+      "answer": 0,
+      "explanation": "SMTP is the push protocol that carries mail from the client to its server and between servers. Reading is a pull; IMAP keeps mail and folders on the server, so several devices stay in sync, whereas POP3 usually downloads and deletes.",
+      "difficulty": "easy",
+      "topic": "cn-application-layer.email",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — SMTP",
+      "pages": [
+        662,
+        666
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "DNS is not UDP-only: zone transfers and replies too large for a datagram use TCP port 53.",
+      "origin": "source",
+      "pages": [
+        661,
+        667
+      ]
+    },
+    {
+      "text": "In page-load questions the base file costs 2 RTT on its own; the embedded objects cannot be requested until it arrives.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Persistent connections and cookies do not make HTTP stateful; the protocol stays stateless and cookies add state at the application.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "HTTPS is HTTP carried over TLS on port 443, not a separate application protocol and not encryption done by TCP.",
+      "origin": "source",
+      "pages": [
+        667
+      ]
+    },
+    {
+      "text": "Idempotent is not the same as safe: PUT and DELETE change state but are idempotent; POST is neither.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "POP3 deletes mail from the server by default while IMAP keeps it, and the FTP data port is 20 only in active mode.",
+      "origin": "source",
+      "pages": [
+        667
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "DNS",
+      "lines": [
+        "Root → TLD → authoritative; local resolver caches for TTL",
+        "Host→local recursive, local→servers iterative; full lookup = 8 messages",
+        "A, AAAA, CNAME alias, MX mail, NS, PTR reverse, SOA, TXT",
+        "UDP 53; TCP 53 for zone transfers and large replies"
+      ],
+      "origin": "source",
+      "pages": [
+        668
+      ]
+    },
+    {
+      "heading": "HTTP",
+      "lines": [
+        "Stateless request-response over TCP 80; HTTPS = HTTP + TLS on 443",
+        "1.0 non-persistent, 1.1 persistent + pipelining, 2 binary multiplexed",
+        "Idempotent: GET, HEAD, OPTIONS, PUT, DELETE; not POST",
+        "1xx info, 2xx ok, 3xx redirect (304 not modified), 4xx client, 5xx server"
+      ],
+      "origin": "source",
+      "pages": [
+        668
+      ]
+    },
+    {
+      "heading": "Page-load RTTs",
+      "lines": [
+        "Non-persistent serial: (m + 1)·2RTT",
+        "k parallel: 2RTT + ⌈m/k⌉·2RTT",
+        "Persistent: (m + 2)·RTT; pipelined: 3 RTT",
+        "With sizes: add Lᵢ/R per object; persistent (m + 2)·RTT + ΣLᵢ/R",
+        "Cache: D = h·d_cache + (1 − h)·d_origin; link load × (1 − h)"
+      ],
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "heading": "Ports",
+      "lines": [
+        "FTP 20/21, SSH 22, Telnet 23, SMTP 25, DNS 53, DHCP 67/68",
+        "HTTP 80, POP3 110, IMAP 143, BGP 179, HTTPS 443"
+      ],
+      "origin": "source",
+      "pages": [
+        663,
+        668
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 666,
+      "claim": "The idempotent HTTP methods are listed as GET, PUT and DELETE.",
+      "correction": "HEAD and OPTIONS are idempotent too (they are also safe). The complete idempotent set among the common methods is GET, HEAD, OPTIONS, PUT and DELETE; POST and PATCH are not idempotent."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cn-dns-http",
+      "status": "partial",
+      "topics": [
+        "cn-application-layer.dns-namespace",
+        "cn-application-layer.dns-resolution",
+        "cn-application-layer.dns-records",
+        "cn-application-layer.dns-transport",
+        "cn-application-layer.dns-latency",
+        "cn-application-layer.http-basics",
+        "cn-application-layer.http-methods-status",
+        "cn-application-layer.http-persistence",
+        "cn-application-layer.http-timing",
+        "cn-application-layer.http2-https",
+        "cn-application-layer.http-state-caching"
+      ]
+    }
+  ]
+}

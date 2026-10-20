@@ -1,0 +1,1927 @@
+{
+  "id": "toc-turing-machines",
+  "summary": "A Turing machine is a finite control with an unbounded read-write tape, and every reasonable variant of it computes exactly the same languages. GATE tests this chapter through classification: is a language or decision problem recursive, recursively enumerable but not recursive, co-RE, or neither? The tools are the halting problem, many-one reductions in the correct direction, Rice's theorem for semantic properties of L(M), closure properties of the recursive and RE classes, and the decidability table for regular, context-free and context-sensitive languages.",
+  "highYield": [
+    "Classify a problem about TMs: semantic non-trivial property of L(M) means undecidable by Rice; a syntactic property or a bounded number of steps means decidable.",
+    "L is recursive exactly when both L and its complement are RE, so HALT is RE and its complement is not RE.",
+    "Reduction direction: to prove B undecidable, reduce a known undecidable A to B (A ≤ₘ B); decidability flows backwards along the arrow.",
+    "Closure: recursive languages are closed under complement, RE languages are not; both are closed under union, intersection, concatenation and star.",
+    "Decidability table: CFG membership and emptiness are decidable, but CFG equivalence, ambiguity and universality are not; CSL membership is decidable, CSL emptiness is not."
+  ],
+  "topics": [
+    {
+      "id": "toc-turing-machines.tm-model",
+      "title": "The Turing machine model",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        37,
+        422,
+        423
+      ],
+      "points": [
+        "A TM is the 7-tuple (Q, Σ, Γ, δ, q₀, q_accept, q_reject): Σ is the input alphabet without the blank, and Γ ⊇ Σ ∪ {⊔} is the tape alphabet.",
+        "The transition function δ: Q × Γ → Q × Γ × {L, R} reads one cell, writes a symbol, changes state and moves the head one cell; the head never stays put in the standard model.",
+        "A configuration is the triple (state, tape contents, head position); a computation is a sequence of configurations, each following from the previous by one move.",
+        "M accepts w if it enters q_accept, and rejects w if it enters q_reject. A third outcome exists: M may run forever, in which case w is not accepted but is not rejected either.",
+        "L(M) is the set of strings M accepts. A TM that halts on every input is called a decider (total TM)."
+      ],
+      "keyTerms": [
+        "tape alphabet",
+        "configuration",
+        "decider",
+        "blank symbol"
+      ],
+      "lesson": {
+        "why": "Every other result in this chapter is about what a Turing machine can do, so the exam expects you to read a machine description and know exactly what a move, a configuration and an outcome are.",
+        "intro": "A Turing machine has a finite set of states and a tape divided into cells, with a head that sits on one cell. The input string is written on the tape with blank cells on both sides. In each move the machine looks at its state and the symbol under the head, writes a symbol, switches to a new state and moves the head one cell left or right. A special accept state and a special reject state end the run. If the machine never enters either, it runs for ever. A snapshot of the state, the tape and the head position is called a configuration.",
+        "definitions": [
+          {
+            "term": "Tape alphabet",
+            "meaning": "The set of symbols that can sit on the tape. It holds every input symbol and also the blank."
+          },
+          {
+            "term": "Configuration",
+            "meaning": "The current state, the full tape contents and the head position, taken together at one instant."
+          },
+          {
+            "term": "Decider",
+            "meaning": "A Turing machine that halts on every input, by accepting or rejecting it."
+          }
+        ],
+        "principle": {
+          "text": "A machine is a 7-tuple. The transition function maps a state and a read symbol to a new state, a written symbol and a direction. The input alphabet excludes the blank, so the machine can find where the input ends.",
+          "tex": "M = (Q, \\Sigma, \\Gamma, \\delta, q_0, q_{acc}, q_{rej}), \\quad \\delta : Q \\times \\Gamma \\to Q \\times \\Gamma \\times \\{L, R\\}"
+        },
+        "limits": "A machine has three outcomes, not two: accept, reject or run for ever. Only a decider rules out the third. The standard model also has no stay-in-place move; machines that allow one compute the same languages but are not the same tuple.",
+        "example": {
+          "problem": "A machine has states q0 and acc. In q0 it reads 0, writes 1, moves right; reads 1, writes 0, moves right; reads a blank, writes a blank, moves right and enters acc. Run it on 101 and give the final tape and the number of moves.",
+          "steps": [
+            "Move 1: state q0 reads 1, writes 0, head moves right. The tape is 001.",
+            "Move 2: q0 reads 0, writes 1, head moves right. The tape is 011.",
+            "Move 3: q0 reads 1, writes 0, head moves right. The tape is 010 and the head is on a blank.",
+            "Move 4: q0 reads the blank, writes a blank, moves right and enters acc, so the run halts."
+          ],
+          "result": "The machine accepts with tape 010 after 4 moves: 3 for the input symbols and 1 for the blank."
+        },
+        "misconceptions": [
+          "Treating a machine that does not accept as one that rejects. It may also loop, and that third outcome is the root of the whole recursive versus RE distinction.",
+          "Putting the blank into the input alphabet. The blank belongs to the tape alphabet only; if inputs could contain it, the machine could not tell where the input stops."
+        ],
+        "recall": [
+          {
+            "q": "What are the three possible outcomes of a Turing machine on an input?",
+            "a": "It accepts, rejects, or runs for ever without entering either halting state."
+          },
+          {
+            "q": "How does the tape alphabet relate to the input alphabet?",
+            "a": "The tape alphabet contains the input alphabet and the blank; the input alphabet never contains the blank."
+          },
+          {
+            "q": "What is a configuration?",
+            "a": "The triple of current state, tape contents and head position."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The bit-flipping machine from the example (flip each bit moving right, accept on reading the first blank) is run on the string 110100. How many moves does it make before it enters the accept state?",
+          "answer": 7,
+          "explanation": "The string has 6 symbols, each read and flipped in one move, which is 6 moves. A seventh move reads the blank and enters acc. The answer 6 tempts because it counts only the input symbols and forgets that entering the accept state is itself a move."
+        },
+        "summary": "A Turing machine is a 7-tuple whose transition function reads, writes and moves one cell at a time. Runs end in accept, reject or never, and a decider is a machine for which the third case does not occur."
+      }
+    },
+    {
+      "id": "toc-turing-machines.tm-trace",
+      "title": "Tracing a Turing machine",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "To trace, keep the current state, the head position and the tape; apply exactly one transition per move and count moves, including the move that enters the halting state.",
+        "A machine that scans right to the first blank and then works leftwards spends |w| + 1 moves just reaching the last input symbol.",
+        "Binary increment is the classic example: scan to the right end, turn trailing 1s into 0s while moving left, then turn the first 0 (or the blank) into 1 and halt.",
+        "If no transition is defined for the current (state, symbol) pair, the machine halts without accepting."
+      ],
+      "keyTerms": [
+        "move count",
+        "binary increment"
+      ],
+      "lesson": {
+        "why": "Trace questions ask for a move count or the final tape, and a count that is off by one loses the whole mark, so the bookkeeping is the skill being tested.",
+        "intro": "To trace a machine, write down the state, the tape and the head position, then apply the one transition that matches the state and the symbol under the head. Repeat until the machine halts. Each application is one move, and the move that enters the accept state counts too. If the table has no transition for the current state and symbol, the machine stops without accepting. Binary increment is the usual machine to practise on: it walks to the right end of the number, then comes back turning 1s into 0s until it can write a 1.",
+        "definitions": [
+          {
+            "term": "Move count",
+            "meaning": "The number of transitions applied from the start configuration up to and including the one that enters a halting state."
+          }
+        ],
+        "principle": {
+          "text": "Count moves in three phases for binary increment: walk right over the n input symbols, step back from the blank onto the last symbol, then turn each trailing 1 into 0 and finish by writing 1 over a 0 or a blank. With t trailing ones the total is n plus 1 plus t plus 1.",
+          "tex": "\\text{moves} = n + 1 + t + 1 = n + t + 2"
+        },
+        "limits": "The formula is for the increment machine whose scan ends on the blank and which moves left once from there. A machine with a different scan or that writes during the scan has its own count, so derive it from the table instead of reusing the formula.",
+        "example": {
+          "problem": "The increment machine starts on the leftmost bit of 1011. In q0 it moves right over 0 and 1, and on a blank it moves left into q1. In q1, reading 1 it writes 0 and moves left; reading 0 or a blank it writes 1 and enters acc. Find the final tape and the number of moves.",
+          "steps": [
+            "Scan right: the head reads 1, 0, 1, 1 and moves right each time, 4 moves, and now stands on the blank.",
+            "Move 5: on the blank q0 moves left into q1, onto the last 1.",
+            "Moves 6 and 7: q1 reads a 1 at position 4 and then a 1 at position 3, writing 0 over each and moving left, so the tape ends in 00.",
+            "Move 8: q1 reads the 0 at position 2, writes 1 and enters acc. The tape is 1100."
+          ],
+          "result": "The final tape is 1100 and the machine makes 8 moves, which matches n + t + 2 = 4 + 2 + 2."
+        },
+        "misconceptions": [
+          "Stopping the count when the head writes the last symbol. The move that enters the accept state is still a move.",
+          "Forgetting the step left off the trailing blank: reaching the last symbol takes the n scan moves plus one more."
+        ],
+        "recall": [
+          {
+            "q": "What happens when no transition exists for the current state and symbol?",
+            "a": "The machine halts without accepting."
+          },
+          {
+            "q": "Which move counts are included when tracing to acceptance?",
+            "a": "Every move from the start, including the one that enters the accept state."
+          },
+          {
+            "q": "How does binary increment treat trailing 1s?",
+            "a": "It turns each into 0 moving left, then writes 1 over the first 0 or blank it meets."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Use the increment machine from the example on 110111, head on the leftmost bit. How many moves does it make before entering acc?",
+          "answer": 11,
+          "explanation": "The input has n = 6 symbols and t = 3 trailing ones. The scan takes 6 moves, the step off the blank is 1, the three 1s turn to 0 in 3 moves, and writing the final 1 over the 0 is 1 more, giving 11. The answer 10 tempts because it drops the last move into acc, and 7 because it counts only the scan and the turn."
+        },
+        "summary": "Tracing means applying one transition per move and counting every one, including the final move into the halting state. For binary increment the count is n plus the trailing ones plus 2."
+      }
+    },
+    {
+      "id": "toc-turing-machines.tm-variants",
+      "title": "Variants of the Turing machine",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        37,
+        423,
+        426
+      ],
+      "points": [
+        "Multi-tape, multi-track, two-way infinite tape, semi-infinite tape and stay-option TMs all recognise exactly the RE languages.",
+        "A non-deterministic TM accepts if some branch accepts; a deterministic TM simulates it by breadth-first search over the computation tree, so the power is the same but the time can grow exponentially.",
+        "A k-tape TM running in time t(n) is simulated by a single-tape TM in O(t(n)²) time: variants change efficiency, never the class of decidable problems.",
+        "A PDA with two stacks equals a TM, and so does a machine with two counters (Minsky). A PDA with one stack, and an LBA, are strictly weaker."
+      ],
+      "keyTerms": [
+        "multi-tape TM",
+        "NTM",
+        "two-stack PDA",
+        "counter machine"
+      ],
+      "lesson": {
+        "why": "GATE asks which extra features raise a Turing machine's power, and the answer for most of them is none, so you need the list of what is equal and what is weaker.",
+        "intro": "A variant changes how the standard machine is built: several tapes, a tape that stretches both ways, a head that may stay put, or a machine that may choose between several moves at once. The question is always whether the variant can decide or recognise languages the standard machine cannot. For these variants it cannot, because a standard machine can imitate the extra feature step by step. What can change is speed, not the set of languages. A machine that picks between moves is called non-deterministic and accepts when at least one of its choices leads to accept.",
+        "definitions": [
+          {
+            "term": "Non-deterministic TM (NTM)",
+            "meaning": "A machine whose transition may offer several moves for a state and symbol; it accepts if some sequence of choices reaches the accept state."
+          },
+          {
+            "term": "Multi-tape TM",
+            "meaning": "A machine with several tapes, each with its own head, all moved by one transition."
+          }
+        ],
+        "principle": {
+          "text": "Multi-tape, two-way tape, stay-option and non-deterministic machines all recognise exactly the RE languages. A deterministic machine imitates an NTM by searching its computation tree level by level, so the tree size, which grows with the branching, drives the running time and not the power.",
+          "tex": "\\text{nodes in a tree of branching } b \\text{ and depth } d = \\frac{b^{d+1}-1}{b-1}"
+        },
+        "limits": "Equal power is not equal strength everywhere. A PDA with one stack and a linear bounded automaton are strictly weaker than a Turing machine; only the two-stack PDA and the two-counter machine reach it. The simulation of an NTM may also take exponentially longer.",
+        "example": {
+          "problem": "An NTM has at most 3 choices at every step and every branch stops within 4 steps. A deterministic machine searches the whole computation tree level by level. At most how many configurations does it look at?",
+          "steps": [
+            "Level 0 has the start configuration, 1 node. Level 1 has 3, level 2 has 9, level 3 has 27 and level 4 has 81.",
+            "Add the levels: 1 + 3 + 9 + 27 + 81.",
+            "This equals (3^5 - 1) / 2 = 121."
+          ],
+          "result": "The search examines at most 121 configurations, and accepts if any of them is an accepting one."
+        },
+        "misconceptions": [
+          "Believing that non-determinism lets a Turing machine decide more languages. It saves time at best; the languages are the same.",
+          "Placing a one-stack PDA with the Turing-equivalent models. It needs a second stack, or a second counter in the counter-machine view, to match a Turing machine."
+        ],
+        "recall": [
+          {
+            "q": "Which class of languages do multi-tape and non-deterministic TMs recognise?",
+            "a": "Exactly the recursively enumerable languages, the same as the standard machine."
+          },
+          {
+            "q": "How does a deterministic machine simulate an NTM?",
+            "a": "It searches the computation tree breadth first and accepts when it finds an accepting configuration."
+          },
+          {
+            "q": "Which automata are strictly weaker than a Turing machine?",
+            "a": "The one-stack PDA and the linear bounded automaton."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An NTM has at most 2 choices at every step and every branch stops within 6 steps. A deterministic machine searches the whole computation tree breadth first. At most how many configurations does it examine?",
+          "answer": 127,
+          "explanation": "With branching 2 and depth 6 the levels hold 1, 2, 4, 8, 16, 32 and 64 nodes, and their sum is 2^7 - 1 = 127. The answer 64 tempts because it counts only the last level, and 126 because it leaves out the start configuration."
+        },
+        "summary": "Extra tapes, two-way tapes, stay moves and non-determinism leave the class of recognisable languages unchanged and affect only running time. Weaker models are the one-stack PDA and the LBA; two stacks or two counters match a Turing machine."
+      }
+    },
+    {
+      "id": "toc-turing-machines.universal-tm",
+      "title": "Universal TM and the Church-Turing thesis",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        37,
+        423,
+        426
+      ],
+      "points": [
+        "A universal TM U takes an encoding ⟨M, w⟩ and simulates M on w, accepting exactly when M accepts; this is the theoretical model of a stored-program computer.",
+        "U recognises A_TM = {⟨M, w⟩ : M accepts w}, which is why A_TM is RE.",
+        "The Church-Turing thesis states that every effectively computable procedure can be carried out by a TM. It is a thesis about the informal notion of algorithm, not a provable theorem."
+      ],
+      "keyTerms": [
+        "universal TM",
+        "encoding ⟨M⟩",
+        "Church-Turing thesis"
+      ],
+      "lesson": {
+        "why": "The universal machine is the reason A_TM is RE, and that fact is used in nearly every proof that a problem is undecidable, so it must be clear before the halting problem.",
+        "intro": "A Turing machine is a finite object, so it can be written down as a string of symbols; that string is its encoding, written with angle brackets around the machine. A universal Turing machine takes such an encoding together with an input w and does what the encoded machine would do on w, move by move. It is a machine that runs other machines, which is how a stored-program computer behaves. The Church-Turing thesis adds the claim that anything we would call an algorithm can be carried out by some Turing machine.",
+        "definitions": [
+          {
+            "term": "Encoding",
+            "meaning": "A string over a fixed alphabet that describes a machine completely, so another machine can read it as data."
+          },
+          {
+            "term": "A_TM",
+            "meaning": "The set of pairs of a machine and an input where the machine accepts that input."
+          }
+        ],
+        "principle": {
+          "text": "A universal machine U on input of a machine and a string w simulates the machine on w. U accepts exactly when the simulated machine accepts, so U recognises A_TM. It halts exactly when the simulated machine halts, so A_TM is RE.",
+          "tex": "U(\\langle M, w \\rangle) \\text{ accepts} \\iff M \\text{ accepts } w"
+        },
+        "limits": "U recognises A_TM but does not decide it: if M loops on w, then U loops too. The Church-Turing thesis is not a theorem, because 'effectively computable' is an informal notion and cannot be the subject of a proof.",
+        "example": {
+          "problem": "A machine M accepts the string w after exactly 12 moves. U is run on the pair with M and w, and it is allowed to simulate only a fixed number k of moves before giving up. What does U report for k = 10 and for k = 12?",
+          "steps": [
+            "With k = 10, U simulates 10 moves of M and sees neither acceptance nor rejection yet, so it has no answer and reports that the limit was reached.",
+            "With k = 12, U simulates 12 moves and the 12th enters the accept state, so U reports accept.",
+            "Without any limit U would simply keep simulating, and it would reach the same accept at move 12."
+          ],
+          "result": "U gives no answer for k = 10 and accepts for k = 12; with no bound it accepts after 12 simulated moves."
+        },
+        "misconceptions": [
+          "Saying U decides A_TM. It only recognises it, since on a looping machine it loops.",
+          "Calling the Church-Turing thesis a proven theorem. It links a formal model to an informal idea and can only be supported by evidence."
+        ],
+        "recall": [
+          {
+            "q": "What does a universal Turing machine do?",
+            "a": "It reads the encoding of a machine and an input and simulates that machine on that input."
+          },
+          {
+            "q": "Why is A_TM recursively enumerable?",
+            "a": "The universal machine accepts exactly the pairs where the simulated machine accepts, so it recognises A_TM."
+          },
+          {
+            "q": "Is the Church-Turing thesis a theorem?",
+            "a": "No. It is a thesis about the informal notion of an algorithm and cannot be proved."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A universal machine U is run on the encoding of a machine M and a string w, and M loops for ever on w. What does U do?",
+          "options": [
+            "U rejects, because M did not accept",
+            "U accepts, because M never rejected",
+            "U loops for ever, because it simulates M",
+            "U halts in a state that signals an infinite loop"
+          ],
+          "answer": 2,
+          "explanation": "U imitates M step by step, so a looping M makes U loop; there is no general way for U to detect the loop, since that would decide the halting problem. The first option tempts because rejecting seems the natural answer to not accepting, but U has no moment at which to reject."
+        },
+        "summary": "A universal machine simulates an encoded machine on an input, which makes A_TM recognisable but not decidable. The Church-Turing thesis says Turing machines capture all algorithms and stays an unproved thesis."
+      }
+    },
+    {
+      "id": "toc-turing-machines.recursive-re",
+      "title": "Recursive, RE, co-RE and non-RE languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        37,
+        423,
+        424,
+        426
+      ],
+      "points": [
+        "Recursive (decidable): some TM halts on every input and accepts exactly L. Recursively enumerable (Turing-recognisable): some TM accepts exactly the strings of L but may loop on strings outside L.",
+        "co-RE is the class of languages whose complement is RE. Recursive = RE ∩ co-RE: run the recognisers for L and L̄ in alternation, one of them must accept.",
+        "Consequence: if L is RE but not recursive, then L̄ is not RE. For any L exactly one of four cases holds: both recursive, L RE only, L̄ RE only, neither RE.",
+        "An undecidable problem can still be semi-decidable: A_TM and HALT are RE but not recursive.",
+        "Equivalently, L is RE exactly when some enumerator TM prints all its strings; L is recursive when some enumerator prints them in canonical (length-then-lexicographic) order."
+      ],
+      "keyTerms": [
+        "decidable",
+        "semi-decidable",
+        "co-RE",
+        "enumerator"
+      ],
+      "lesson": {
+        "why": "Most TOC questions on this chapter ask which class a language belongs to, and the whole answer rests on telling a machine that decides from a machine that only recognises.",
+        "intro": "A Turing machine reads a string and either accepts, rejects or runs for ever. A machine recognises a language if it accepts exactly the strings in it; for strings outside it may reject or loop. A machine decides a language if it also halts on every string, so it never loops. A language with a recogniser is recursively enumerable (RE). A language with a decider is recursive. Every decider is a recogniser, so recursive languages are RE, but the reverse can fail.",
+        "prerequisites": [
+          "toc-turing-machines.tm-model"
+        ],
+        "definitions": [
+          {
+            "term": "Recursive",
+            "meaning": "Some Turing machine halts on every input, accepting the strings of the language and rejecting all others."
+          },
+          {
+            "term": "RE",
+            "meaning": "Some Turing machine accepts exactly the strings of the language; on other strings it may loop."
+          },
+          {
+            "term": "co-RE",
+            "meaning": "A language whose complement is RE."
+          }
+        ],
+        "principle": {
+          "text": "A language is recursive exactly when both it and its complement are RE. Run the two recognisers one move at a time in turn; every string lies in one of the two sets, so one recogniser accepts after finitely many moves and settles the answer.",
+          "tex": "L \\text{ recursive} \\iff L \\in \\mathrm{RE} \\ \\text{and}\\ \\overline{L} \\in \\mathrm{RE}"
+        },
+        "limits": "The alternation needs a recogniser for both L and its complement. If only L is RE, nothing forces the other machine to ever answer, and L may be RE without being recursive; the halting language is the standard case.",
+        "example": {
+          "problem": "Machine A recognises L and machine B recognises the complement of L. On a string w in L, A would accept after 6 of its own moves, while B would only accept after 9 of its moves if w were outside L. Run A and B alternately, A first, one move each. After how many total moves is the answer known?",
+          "steps": [
+            "The order of moves is A1, B1, A2, B2, and so on, so A's k-th move is the (2k-1)-th move overall.",
+            "Machine A accepts on its 6th move, which is overall move 11. By then B has made 5 moves and has not accepted.",
+            "A accepted, so the decider answers yes."
+          ],
+          "result": "The decider says yes after 11 total moves: 6 by A and 5 by B."
+        },
+        "misconceptions": [
+          "Running the recogniser for L to completion and then the one for its complement does not work, because the first may loop on a string outside L and the second never gets a turn.",
+          "RE does not mean undecidable. Every recursive language is RE; the interesting languages are the RE ones that are not recursive."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between a machine that decides L and one that recognises L?",
+            "a": "A decider halts on every input; a recogniser must accept exactly the strings of L but may loop on others."
+          },
+          {
+            "q": "If L is RE and not recursive, what can be said about its complement?",
+            "a": "The complement is not RE; otherwise both would be RE and L would be recursive."
+          },
+          {
+            "q": "Why must the two recognisers run alternately rather than one after the other?",
+            "a": "Either one may loop on a string, so only taking turns guarantees that the one that accepts is reached."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Machine A recognises L and machine B recognises the complement of L. A string w is outside L, and B accepts it on its 5th move. Machine A would never halt on w. Run A and B alternately, A first, one move each. How many total moves have been made when the answer is known?",
+          "answer": 10,
+          "explanation": "The order is A1, B1, A2, B2, and so on, so B's 5th move is overall move 10, with A having made 5 moves. The answer 5 tempts because it counts only B's moves, and 9 tempts because it stops one move early; the count is of all moves made in turn, which is 10."
+        },
+        "summary": "Recursive means a machine decides the language; RE means a machine only recognises it. A language is recursive exactly when it and its complement are both RE."
+      }
+    },
+    {
+      "id": "toc-turing-machines.closure",
+      "title": "Closure properties of recursive and RE languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        424,
+        427,
+        430
+      ],
+      "points": [
+        "Recursive languages are closed under union, intersection, complement, difference, concatenation, Kleene star, reversal and inverse homomorphism.",
+        "RE languages are closed under union, intersection, concatenation, Kleene star and homomorphism, but not under complement or difference.",
+        "For union of RE languages, run both recognisers in parallel (alternate steps); running one after the other fails because the first may loop.",
+        "Recursive languages are not closed under arbitrary (erasing) homomorphism: every RE language is a homomorphic image of a recursive one.",
+        "Mixed case: if L₁ is recursive and L₂ is RE, then L₂ − L₁ = L₂ ∩ L̄₁ is RE, while L₁ − L₂ = L₁ ∩ L̄₂ need not be RE."
+      ],
+      "keyTerms": [
+        "closure",
+        "parallel simulation",
+        "homomorphism"
+      ],
+      "lesson": {
+        "why": "Closure questions ask whether an operation keeps a language inside its class, and the answers differ between recursive and RE languages in a few places that appear again and again.",
+        "intro": "A class of languages is closed under an operation if applying the operation to members always gives a member. To check it for recursive or RE languages, build a new machine from the given ones. Recursive languages have deciders that always halt, so swapping accept and reject gives a decider for the complement. RE languages only have recognisers that may loop, and swapping accept and reject does nothing about looping, so complement breaks.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re"
+        ],
+        "principle": {
+          "text": "Recursive languages are closed under union, intersection and complement. RE languages are closed under union and intersection but not under complement. For an RE union, run both recognisers in alternate moves, since one of them may loop."
+        },
+        "limits": "Closure of RE under complement would make every RE language recursive, which is false. Difference also fails for RE: L1 minus L2 is L1 intersected with the complement of L2, and the complement need not be RE.",
+        "example": {
+          "problem": "Machine M1 recognises L1 and loops on a string w. Machine M2 recognises L2 and accepts w after 4 of its own moves. To recognise the union of L1 and L2, we run M1 to the end first, then M2. Why does this fail on w, and how many total moves does alternating M1 and M2 need, M1 first?",
+          "steps": [
+            "Running M1 to the end first never finishes on w, because M1 loops. M2 never starts, so w is never accepted although it is in L2.",
+            "Alternating the machines gives M1's move, M2's move, M1's move, and so on.",
+            "M2's 4th move is overall move 8, and by then M1 has made 4 moves without accepting."
+          ],
+          "result": "Alternating accepts w at overall move 8; running one machine to the end first never accepts it."
+        },
+        "misconceptions": [
+          "Complement is not closed for RE just because the recursive case is easy; flipping accept and reject fails on strings where the machine loops.",
+          "A recursive language minus an RE language need not be RE, while an RE language minus a recursive language always is."
+        ],
+        "recall": [
+          {
+            "q": "Under which operations is the class of RE languages closed?",
+            "a": "Union, intersection, concatenation and Kleene star; it is not closed under complement or difference."
+          },
+          {
+            "q": "Why does swapping accept and reject complement a recursive language but not an RE one?",
+            "a": "A decider always halts, so its answers flip cleanly; a recogniser may loop, and a looping run stays looping."
+          },
+          {
+            "q": "If L1 is recursive and L2 is RE, is the difference of L2 and L1 RE?",
+            "a": "Yes: it equals L2 intersected with the complement of L1, and the complement of a recursive language is recursive, hence RE."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "L1 is a recursive language and L2 is a recursively enumerable language. Which of the following is guaranteed to be recursively enumerable?",
+          "options": [
+            "The complement of L2",
+            "The difference of L1 and L2, that is, strings in L1 and not in L2",
+            "The difference of L2 and L1, that is, strings in L2 and not in L1",
+            "The union of L1 and the complement of L2"
+          ],
+          "answer": 2,
+          "explanation": "The difference of L2 and L1 is L2 intersected with the complement of L1. The complement of L1 is recursive, hence RE, and RE is closed under intersection. The difference of L1 and L2 tempts because L1 is recursive, but with L1 equal to all strings and L2 the halting language it is the complement of the halting language, which is not RE. The other two options contain the complement of L2 in the same way."
+        },
+        "summary": "Recursive languages are closed under complement; RE languages are not, though they are closed under union and intersection by running recognisers in turn."
+      }
+    },
+    {
+      "id": "toc-turing-machines.halting-problem",
+      "title": "The halting problem",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        424,
+        426
+      ],
+      "points": [
+        "HALT = {⟨M, w⟩ : M halts on w} and A_TM = {⟨M, w⟩ : M accepts w} are both RE (simulate with a universal TM) and both undecidable.",
+        "Diagonal proof: suppose H decides HALT. Build D that on input ⟨M⟩ loops if H says M halts on ⟨M⟩ and halts otherwise. Then D halts on ⟨D⟩ exactly when it does not, a contradiction.",
+        "Since HALT is RE and not recursive, its complement (M loops on w) is not RE.",
+        "Halting with a step bound is decidable: 'does M halt on w within k moves?' is answered by simulating k moves."
+      ],
+      "keyTerms": [
+        "HALT",
+        "A_TM",
+        "diagonalisation"
+      ],
+      "lesson": {
+        "why": "The halting problem is the first undecidable problem; almost every later undecidability and non-RE result is built from it, and GATE asks both about its status and about its variants.",
+        "intro": "The halting problem asks whether a given program stops on a given input. It is tempting to think that one can just run the program and see. If it stops, that answers yes, but if it keeps going, no finite amount of waiting tells you that it never will. The result is that no Turing machine can answer correctly on every pair of a machine and an input. The proof is a diagonal argument, in which a machine is fed a description of itself and made to do the opposite of what a supposed decider predicts.",
+        "definitions": [
+          {
+            "term": "HALT",
+            "meaning": "The set of pairs of a machine and an input such that the machine halts on that input."
+          },
+          {
+            "term": "Diagonalisation",
+            "meaning": "A proof method that builds an object differing from the i-th object in the i-th position, so it matches none of them."
+          }
+        ],
+        "principle": {
+          "text": "HALT is RE, because a universal machine can simulate and accept when the simulation halts, but it is not recursive. Suppose a decider H existed; define D to loop when H says the machine halts on its own code and to halt otherwise. Then D on its own code halts exactly when it does not, a contradiction. So the complement of HALT is not RE.",
+          "tex": "\\mathrm{HALT} \\in \\mathrm{RE} \\setminus \\mathrm{REC}, \\qquad \\overline{\\mathrm{HALT}} \\notin \\mathrm{RE}"
+        },
+        "limits": "Halting is undecidable only without a bound. Asking whether M halts on w within k moves is decidable by simulating k moves, and a machine that is restricted to a finite number of tape cells also cannot loop undetected.",
+        "example": {
+          "problem": "Four machines M1 to M4 and their behaviour on their own codes: M1 halts, M2 does not, M3 halts, M4 does not. D is built to halt on the code of Mi exactly when Mi does not halt on its own code. Which of M1 to M4 could be D?",
+          "steps": [
+            "On the diagonal, the halting pattern of M1 to M4 is yes, no, yes, no.",
+            "D flips each entry, so D halts on the code of M1: no, M2: yes, M3: no, M4: yes.",
+            "D therefore differs from every Mi in the entry for its own code, so D equals none of M1 to M4."
+          ],
+          "result": "D can be none of them. Applied to all machines, the same flip shows that D is not on the list, and that is the contradiction."
+        },
+        "misconceptions": [
+          "Saying that the halting problem is undecidable because simulation can run for ever. That explains why the obvious method fails, but the proof is the diagonal argument.",
+          "Thinking HALT is not RE. It is RE; only its complement is not."
+        ],
+        "recall": [
+          {
+            "q": "Is HALT recursive, RE, or neither?",
+            "a": "It is RE but not recursive."
+          },
+          {
+            "q": "What is the status of the complement of HALT?",
+            "a": "It is not RE, since HALT is RE and not recursive."
+          },
+          {
+            "q": "Why is halting within k moves decidable?",
+            "a": "The machine simulates exactly k moves and reports whether the halt happened, which always terminates."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about the halting problem and its variants is correct?",
+          "options": [
+            "The set of pairs where M loops on w is recursively enumerable",
+            "The set of pairs where M halts on w is not recursively enumerable",
+            "The set of pairs where M halts on w within 100 moves is decidable",
+            "The set of pairs where M halts on w is decidable but slow"
+          ],
+          "answer": 2,
+          "explanation": "Simulating 100 moves always ends and shows whether the halt occurred, so that bounded set is decidable. The first option tempts because looping looks like the mirror image of halting, but it is the complement of an RE non-recursive set and so is not RE. The second and fourth contradict the facts that HALT is RE and undecidable."
+        },
+        "summary": "HALT is RE and not recursive, shown by a diagonal argument, so its complement is not RE. Bounding the number of moves makes the question decidable."
+      }
+    },
+    {
+      "id": "toc-turing-machines.reductions",
+      "title": "Many-one reductions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        424,
+        426
+      ],
+      "points": [
+        "A ≤ₘ B means a total computable f exists with w ∈ A exactly when f(w) ∈ B: f maps yes-instances to yes-instances and no-instances to no-instances.",
+        "If A ≤ₘ B and B is decidable (or RE), then A is decidable (or RE). Contrapositive: if A is undecidable (or not RE), so is B.",
+        "To prove a new problem B undecidable, reduce a known undecidable problem to B; reducing B to HALT proves only that B is no harder than HALT.",
+        "A ≤ₘ B also gives Ā ≤ₘ B̄ with the same f. Since H̄ALT is not RE, reducing H̄ALT to B shows B is not RE.",
+        "Standard construction: from ⟨M, w⟩ build M′ that ignores its input x, runs M on w, and accepts x if M halts. L(M′) = Σ* if M halts on w, else ∅. This reduces HALT to non-emptiness, to universality and to equivalence."
+      ],
+      "keyTerms": [
+        "many-one reduction",
+        "≤ₘ",
+        "computable function"
+      ],
+      "lesson": {
+        "why": "Proving a new problem undecidable is done by a reduction, and the exam checks whether you point the arrow the right way, which is the commonest slip in this chapter.",
+        "intro": "A reduction turns every instance of one problem A into an instance of another problem B, using a procedure that always halts. The conversion must keep the answer: a yes-instance of A becomes a yes-instance of B, and a no-instance becomes a no-instance. If you could solve B, you could then solve A by converting and asking B. So B is at least as hard as A. Thus, to show that a new problem is hard, you reduce a known hard problem to it, never the other way round.",
+        "definitions": [
+          {
+            "term": "Many-one reduction",
+            "meaning": "A total computable function f from instances of A to instances of B such that w is in A exactly when f(w) is in B."
+          }
+        ],
+        "principle": {
+          "text": "If A reduces to B, a decider for B gives a decider for A, and a recogniser for B gives one for A. Read backwards: if A is undecidable then B is undecidable, and if A is not RE then B is not RE. Easiness flows from B back to A; hardness flows from A forward to B.",
+          "tex": "A \\le_m B: \\; B \\in \\mathrm{REC} \\Rightarrow A \\in \\mathrm{REC}, \\quad B \\in \\mathrm{RE} \\Rightarrow A \\in \\mathrm{RE}"
+        },
+        "limits": "The conversion must halt on every input and must preserve both yes and no answers. A reduction in the wrong direction, from the new problem to a known hard one, proves nothing.",
+        "example": {
+          "problem": "Show that deciding whether a machine accepts at least one string, given its code, is undecidable, using the halting problem.",
+          "steps": [
+            "From a pair of a machine M and a string w, build M' that ignores its own input x, runs M on w, and accepts x if that run halts.",
+            "If M halts on w, M' accepts every x, so its language is everything and is non-empty.",
+            "If M loops on w, M' never accepts, so its language is empty.",
+            "Hence the pair is in HALT exactly when M' has a non-empty language, and the conversion always halts."
+          ],
+          "result": "HALT reduces to non-emptiness, so non-emptiness is undecidable."
+        },
+        "misconceptions": [
+          "Reducing the new problem to HALT and calling it undecidable. That shows only that the new problem is no harder than HALT.",
+          "Checking only that yes-instances map to yes-instances. No-instances must map to no-instances as well."
+        ],
+        "recall": [
+          {
+            "q": "If A reduces to B and B is decidable, what follows?",
+            "a": "A is decidable."
+          },
+          {
+            "q": "To prove a new problem B undecidable, which way does the reduction go?",
+            "a": "From a known undecidable problem to B."
+          },
+          {
+            "q": "What does a reduction from the complement of HALT to B show?",
+            "a": "B is not RE, because the complement of HALT is not RE."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A is a known undecidable problem and B is a new problem. Which reduction proves that B is undecidable?",
+          "options": [
+            "A reduces to B",
+            "B reduces to A",
+            "B reduces to the complement of A",
+            "None, since reductions never prove undecidability"
+          ],
+          "answer": 0,
+          "explanation": "If A reduces to B, a decider for B would decide A, so B cannot be decidable. The second option tempts because it is the direction used to show a problem is easy; B reducing to a hard A only says that B is no harder than A. The third has the same flaw."
+        },
+        "summary": "A reduction from A to B carries easiness back to A and hardness forward to B. To prove a new problem hard, reduce a known hard problem to it, keeping both yes and no answers."
+      }
+    },
+    {
+      "id": "toc-turing-machines.rice-theorem",
+      "title": "Rice's theorem",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        38,
+        424,
+        425,
+        426
+      ],
+      "points": [
+        "Rice's theorem: every non-trivial property of the languages recognised by TMs is undecidable, that is, {⟨M⟩ : L(M) has P} is undecidable.",
+        "Semantic: the property depends only on L(M), so two TMs with the same language agree on it. Non-trivial: at least one RE language has it and at least one does not.",
+        "Undecidable by Rice: is L(M) empty, finite, infinite, regular, context-free, equal to Σ*, does it contain 101, does it contain a string of prime length.",
+        "Rice does not apply to properties of the machine itself (number of states, alphabet size) or of its running time with a fixed bound (halts within 100 moves on blank tape); these are usually decidable.",
+        "Rice gives only undecidability. Whether the problem is still RE needs separate reasoning: L(M) ≠ ∅ is RE, L(M) = ∅ is co-RE, L(M) = Σ* is neither."
+      ],
+      "keyTerms": [
+        "semantic property",
+        "non-trivial property",
+        "index set"
+      ],
+      "lesson": {
+        "why": "Rice's theorem settles most questions of the form 'given a machine, decide whether its language has property P' in a single step, and the same question also shows when it does not apply.",
+        "intro": "A question about a Turing machine can be about what the machine accepts, which is its language, or about how the machine is built or how it runs. Rice's theorem covers only the first kind. A property is non-trivial if some machines have it and some do not. The theorem says that deciding any non-trivial property of the language of a given machine is impossible.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re"
+        ],
+        "definitions": [
+          {
+            "term": "Semantic property",
+            "meaning": "A property that depends only on the language the machine accepts, so two machines with the same language agree on it."
+          },
+          {
+            "term": "Non-trivial",
+            "meaning": "At least one machine language has the property and at least one does not."
+          }
+        ],
+        "principle": {
+          "text": "If a property of L(M) is semantic and non-trivial, then the set of encodings of machines with that property is undecidable.",
+          "tex": "\\{\\langle M\\rangle : L(M) \\text{ has } P\\} \\ \\text{undecidable for every non-trivial } P"
+        },
+        "limits": "The theorem says nothing about properties of the machine itself, such as its number of states, or of a run bounded by a fixed number of steps; these are usually decidable by inspection or by simulating a bounded run. It also gives undecidability only, not whether the problem is still RE.",
+        "example": {
+          "problem": "Is the set of machine encodings with 'L(M) contains the string 101' decidable? Is the set with 'M has at least 7 states' decidable?",
+          "steps": [
+            "The first property depends only on L(M), so it is semantic.",
+            "It is non-trivial: a machine that accepts every string has it, and a machine that accepts nothing does not. Rice's theorem applies, so it is undecidable.",
+            "The second property is about the description of the machine, not its language. Reading the encoding and counting the states always halts, so it is decidable."
+          ],
+          "result": "The first problem is undecidable by Rice's theorem; the second is decidable because it is about the machine's structure."
+        },
+        "misconceptions": [
+          "Not every question that mentions a Turing machine is undecidable; bounded-step questions and questions about the number of states are decidable.",
+          "A property being non-trivial is required: 'L(M) is recursively enumerable' holds for every machine, so it is trivially decidable (always yes)."
+        ],
+        "recall": [
+          {
+            "q": "What two conditions must a property meet for Rice's theorem to apply?",
+            "a": "It must depend only on the language L(M), and it must be non-trivial, held by some machine languages and not by others."
+          },
+          {
+            "q": "Give a property of a machine that Rice's theorem does not cover.",
+            "a": "The number of states, or whether the machine halts within a fixed number of steps on a fixed input."
+          },
+          {
+            "q": "Why is 'L(M) is recursively enumerable' decidable?",
+            "a": "Every Turing machine accepts an RE language, so the answer is always yes, and the property is trivial."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which one of the following problems about a given Turing machine M is decidable?",
+          "options": [
+            "Does L(M) contain at least one string of length 3?",
+            "Is L(M) a finite language?",
+            "Does the encoding of M list exactly 4 states?",
+            "Is L(M) the set of all strings that are palindromes?"
+          ],
+          "answer": 2,
+          "explanation": "Counting the states in the encoding always halts, and the property says nothing about L(M). Options 1, 2 and 4 are semantic and non-trivial: for each, one machine language has the property and another does not, so Rice's theorem makes them undecidable. They tempt because each looks like a simple inspection, but the language is not visible in the encoding."
+        },
+        "summary": "Rice's theorem makes every non-trivial property of L(M) undecidable; properties of the machine's structure or of bounded runs fall outside it and are usually decidable."
+      }
+    },
+    {
+      "id": "toc-turing-machines.tm-properties-classification",
+      "title": "Classifying questions about TMs",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Non-emptiness {⟨M⟩ : L(M) ≠ ∅} is RE: dovetail M over all strings and step counts, accept when any run accepts. Its complement, emptiness, is co-RE and not RE.",
+        "Totality {⟨M⟩ : M halts on every input}, universality L(M) = Σ*, finiteness of L(M) and equivalence L(M₁) = L(M₂) are neither RE nor co-RE.",
+        "Bounded questions are decidable: does M make at least k moves on w, does M visit state q within k steps, does M halt on blank tape within k moves.",
+        "A TM confined to n tape cells has only |Q| · n · |Γ|ⁿ configurations, so halting for such a machine is decidable: if it runs longer than that, it repeats a configuration and loops.",
+        "Questions whose answer is fixed in advance are trivially decidable even if they mention TMs, for example 'is L(M) RE?' (always yes)."
+      ],
+      "keyTerms": [
+        "dovetailing",
+        "totality",
+        "bounded simulation"
+      ],
+      "lesson": {
+        "why": "A common exam question asks whether a property of Turing machines is decidable, only semi-decidable or neither, and the answer needs a way to place each property in one of those three classes.",
+        "intro": "Some properties of a machine can be confirmed by running it long enough, though not refuted that way. Such a property is semi-decidable, which means RE. Its opposite is co-RE. A property that is neither can be confirmed or refuted by no finite run. A property that depends on a bounded run only is decidable, since the run always ends.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re",
+          "toc-turing-machines.rice-theorem"
+        ],
+        "definitions": [
+          {
+            "term": "Dovetailing",
+            "meaning": "Running many computations in stages, each stage adding more strings and more steps, so every computation gets as many steps as it needs."
+          }
+        ],
+        "principle": {
+          "text": "A property is RE if a finite run can confirm it by dovetailing. Non-emptiness of L(M) is RE, so emptiness is co-RE and not RE. Universality, finiteness and equivalence are neither RE nor co-RE. Bounded-step questions on a blank tape or a fixed input are decidable, since simulating k moves always ends."
+        },
+        "limits": "Dovetailing confirms a property only when some finite witness exists, such as an accepted string and the number of steps it took. When the property needs a check of all inputs, no finite run confirms it, and the property is not RE.",
+        "example": {
+          "problem": "Machine M accepts exactly one string, namely 1, and does so after 5 steps. Strings are numbered in order of length and then lexicographically, starting with the empty string as number 1. In stage k we run M for k steps on each of the first k strings. In which stage is M first seen to accept?",
+          "steps": [
+            "In the order empty string, 0, 1, the string 1 is number 3.",
+            "M needs 5 steps on it, so stage k must have k at least 3 and at least 5.",
+            "Both are satisfied first at stage 5, so the acceptance appears then, which shows that M's language is non-empty."
+          ],
+          "result": "M is first seen to accept in stage 5, which confirms non-emptiness."
+        },
+        "misconceptions": [
+          "Emptiness is not RE: if the language is empty, no run ever confirms it, so the search never answers.",
+          "Calling halts-within-k-moves undecidable because HALT is: a fixed bound makes simulation finite, so the question is decidable."
+        ],
+        "recall": [
+          {
+            "q": "Why is non-emptiness of L(M) RE?",
+            "a": "Dovetail M over all strings and step counts; if any run accepts, accept."
+          },
+          {
+            "q": "Which classes do universality and finiteness of L(M) fall into?",
+            "a": "Neither RE nor co-RE."
+          },
+          {
+            "q": "Why is 'does M halt on blank tape within k moves' decidable?",
+            "a": "Simulating exactly k moves always ends, so the answer is found."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Strings over {0,1} are numbered by length and then lexicographically, with the empty string as number 1. In stage k we run a machine M for k steps on each of the first k strings. M accepts only the string 010, and it does so after 6 steps. In which stage does M first accept?",
+          "answer": 10,
+          "explanation": "The string 010 is number 10: one empty string, 2 of length one, 4 of length two, and 010 is the third string of length three, so 1 + 2 + 4 + 3 = 10. M needs 6 steps, but stage k must also reach string number 10. Stage 6 tempts because it satisfies only the step count, and 3 tempts because it uses the position within its length; both miss the string, so the first stage is 10."
+        },
+        "summary": "Properties confirmed by a finite run are RE, their opposites are co-RE, and questions about a fixed number of steps are decidable; emptiness is co-RE and universality is neither."
+      }
+    },
+    {
+      "id": "toc-turing-machines.classic-undecidable",
+      "title": "Other classic undecidable problems",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        38,
+        425,
+        427
+      ],
+      "points": [
+        "Post correspondence problem: given dominoes (tᵢ, bᵢ), is there a non-empty sequence i₁ … i_k with t_{i1} … t_{ik} = b_{i1} … b_{ik}? It is undecidable but RE (try all sequences by length).",
+        "PCP is the usual source for CFG undecidability proofs; it stays undecidable over a two-letter alphabet but is decidable when the alphabet has one letter.",
+        "Undecidable for CFGs: equivalence, ambiguity, universality L(G) = Σ*, emptiness of L(G₁) ∩ L(G₂), and whether L(G) is regular.",
+        "Also undecidable: Hilbert's tenth problem (integer roots of a polynomial equation), tiling the plane with Wang tiles, and membership for unrestricted (Type 0) grammars."
+      ],
+      "keyTerms": [
+        "PCP",
+        "MPCP",
+        "Hilbert's tenth problem",
+        "CFG ambiguity"
+      ],
+      "lesson": {
+        "why": "Beyond the halting problem, the exam asks which questions about context-free grammars are decidable and which are not, and Post correspondence is the standard source of those undecidability results.",
+        "intro": "A domino has a string on top and a string on the bottom, and you may use each kind of domino as often as you like. The Post correspondence problem asks whether some non-empty row of dominoes makes the top strings, joined together, spell the same word as the bottom strings joined together. No algorithm can answer this for every set of dominoes. Many questions about grammars can be turned into this puzzle, which is how their undecidability is shown.",
+        "prerequisites": [
+          "toc-turing-machines.halting-problem",
+          "toc-turing-machines.reductions"
+        ],
+        "definitions": [
+          {
+            "term": "PCP instance",
+            "meaning": "A finite list of dominoes, each a pair of strings (top, bottom), over some alphabet."
+          },
+          {
+            "term": "Match",
+            "meaning": "A non-empty sequence of dominoes, repeats allowed, whose top strings concatenate to the same word as the bottom strings."
+          }
+        ],
+        "principle": {
+          "text": "PCP is undecidable but recursively enumerable: trying all sequences in order of length finds a match when one exists, and runs forever when none does. Reductions from PCP show that equivalence, ambiguity, universality and similar questions about context-free grammars are undecidable.",
+          "tex": "\\exists\\, i_1\\dots i_k \\ (k\\ge 1):\\; t_{i_1}\\cdots t_{i_k}=b_{i_1}\\cdots b_{i_k}"
+        },
+        "limits": "PCP over a one-letter alphabet is decidable, so the undecidability needs two letters or more. Membership for context-free grammars, emptiness and finiteness of a context-free language are decidable; do not carry the undecidable list over to them.",
+        "example": {
+          "problem": "Dominoes: 1 = (a, baa), 2 = (ab, aa), 3 = (bba, bb). Does the sequence 3, 2, 3, 1 give a match?",
+          "steps": [
+            "Join the tops in order: bba, ab, bba, a gives bbaabbbaa.",
+            "Join the bottoms in order: bb, aa, bb, baa gives bbaabbbaa.",
+            "The two words are equal and the sequence is non-empty, so it is a match."
+          ],
+          "result": "Yes: the sequence 3, 2, 3, 1 is a match, so this instance has a solution."
+        },
+        "misconceptions": [
+          "Finding a match for one instance does not make PCP decidable; no single method works for every instance, and failing to find a match after a long search proves nothing.",
+          "Not every grammar question is undecidable: membership, emptiness and finiteness of a CFL are decidable, while equivalence, ambiguity and universality are not."
+        ],
+        "recall": [
+          {
+            "q": "Is PCP decidable, and is it recursively enumerable?",
+            "a": "It is undecidable but recursively enumerable, because searching all sequences by length finds a match whenever one exists."
+          },
+          {
+            "q": "Name three undecidable questions about a context-free grammar G.",
+            "a": "Whether G is ambiguous, whether L(G) = Σ*, and whether two grammars generate the same language."
+          },
+          {
+            "q": "When does PCP become decidable?",
+            "a": "When the alphabet has only one letter."
+          },
+          {
+            "q": "Name two undecidable problems outside language theory that appear in this topic.",
+            "a": "Hilbert's tenth problem on integer roots of polynomials, and tiling the plane with Wang tiles."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which one of the following problems about a given context-free grammar G is decidable?",
+          "options": [
+            "Is G ambiguous?",
+            "Is L(G) empty?",
+            "Does L(G) equal the set of all strings over its alphabet?",
+            "Do G and a second grammar G' generate the same language?"
+          ],
+          "answer": 1,
+          "explanation": "Emptiness of a CFL is decidable by checking whether the start symbol can derive any terminal string. Ambiguity, universality and equivalence are undecidable, shown by reduction from PCP. They tempt because they sound like simple checks on the rules, but each asks about all derivations or all strings."
+        },
+        "summary": "PCP is undecidable yet RE, is the source for undecidability of CFG ambiguity, equivalence and universality, and leaves emptiness, finiteness and membership of CFLs decidable."
+      }
+    },
+    {
+      "id": "toc-turing-machines.decidability-table",
+      "title": "Decision problems across language classes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        37,
+        425,
+        427,
+        428,
+        430
+      ],
+      "points": [
+        "Regular (DFA): membership, emptiness, finiteness, universality, equivalence and inclusion are all decidable.",
+        "DCFL: membership, emptiness, finiteness, universality (complement the DPDA, test emptiness) and equivalence are decidable; inclusion is not. Ambiguity belongs to a grammar, not a language: every DCFL has an unambiguous (LR(1)) grammar, while deciding whether a given CFG is ambiguous stays undecidable.",
+        "CFL: membership (CYK, O(n³)), emptiness and finiteness are decidable; universality, equivalence, inclusion, ambiguity and intersection-emptiness are not.",
+        "CSL: membership is decidable because an LBA has finitely many configurations per input; emptiness, finiteness and equivalence are undecidable.",
+        "Recursive: membership decidable, everything else undecidable. RE: even membership is only semi-decidable."
+      ],
+      "keyTerms": [
+        "CYK",
+        "LBA",
+        "membership",
+        "emptiness"
+      ],
+      "lesson": {
+        "why": "Decision problems on automata and grammars are a standing GATE topic, and the table of which are decidable for each language class answers most of them without any proof.",
+        "intro": "A decision problem asks a yes or no question about an input, such as an automaton or a grammar. It is decidable if one algorithm always halts with the right answer. The questions are the same for every class: is a string in the language (membership), is the language empty, is it all strings, do two descriptions give the same language. The class decides the answer. Smaller classes allow more, and larger ones allow less.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re"
+        ],
+        "principle": {
+          "text": "For regular languages every standard question is decidable. For context-free languages membership, emptiness and finiteness are decidable, while universality, equivalence and inclusion are not. For recursive and RE languages given as Turing machines almost everything is undecidable, and even membership is only semi-decidable for RE."
+        },
+        "limits": "The table is for descriptions given as automata or grammars. A question that mixes a context-free language with a regular one can still be decidable, because intersection with a regular language keeps the result context-free. $L(G)\\subseteq L(R)$ is decidable, but $L(R)\\subseteq L(G)$ and $L(G)=L(R)$ are not: the regular expression can denote $\\Sigma^*$, which turns them into universality of $G$.",
+        "example": {
+          "problem": "A DFA has states 0 to 4 over {a,b}, with start state 0 and accepting state 4. From 0: a goes to 1, b to 0. From 1: a to 2, b to 0. From 2: a to 2, b to 3. State 3 loops to itself on a and b. State 4 loops to itself on a and b. Is its language empty?",
+          "steps": [
+            "Emptiness for a DFA is a graph search: the language is empty exactly when no accepting state is reachable from the start.",
+            "Starting at 0, the reachable states are 0, 1, 2 and 3.",
+            "State 4 is not reachable, so no string reaches an accepting state."
+          ],
+          "result": "The language is empty; the search visits the 4 reachable states 0, 1, 2, 3 and never reaches state 4."
+        },
+        "misconceptions": [
+          "Emptiness being decidable for context-free grammars does not carry over to universality; deciding whether a grammar generates every string is undecidable.",
+          "Undecidable does not mean a particular instance cannot be answered; it means no single algorithm answers all instances."
+        ],
+        "recall": [
+          {
+            "q": "Which problems are decidable for context-free grammars?",
+            "a": "Membership by CYK, emptiness and finiteness."
+          },
+          {
+            "q": "Is equivalence of two DFAs decidable?",
+            "a": "Yes: all standard questions are decidable for regular languages."
+          },
+          {
+            "q": "What is decidable about the recursively enumerable class?",
+            "a": "Nothing of the usual list; even membership is only semi-decidable."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "G is a context-free grammar and D is a DFA. Which of the following questions is decidable?",
+          "options": [
+            "Given two context-free grammars, is the language of one contained in the other?",
+            "Given a context-free grammar, does it generate every string over its alphabet?",
+            "Given a context-free grammar G and a DFA D, is L(G) contained in L(D)?",
+            "Given a Turing machine M and a string w, does M accept w?"
+          ],
+          "answer": 2,
+          "explanation": "L(G) is contained in L(D) exactly when L(G) intersected with the complement of L(D) is empty. The complement of a regular language is regular, the intersection of a context-free and a regular language is context-free, and emptiness of a context-free grammar is decidable. The first two options tempt because they look like the same question, but both are undecidable, and the last is the acceptance problem for Turing machines."
+        },
+        "summary": "Regular languages allow all the standard questions, context-free languages only membership, emptiness and finiteness, and recursive or RE languages almost none."
+      }
+    },
+    {
+      "id": "toc-turing-machines.chomsky-hierarchy",
+      "title": "Chomsky hierarchy",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        37,
+        425,
+        426,
+        427
+      ],
+      "points": [
+        "Type 3 regular grammars (A → aB | a) match finite automata; Type 2 context-free (A → α) match non-deterministic PDAs.",
+        "Type 1 context-sensitive grammars (αAβ → αγβ with γ non-empty, so rules never shrink) match linear bounded automata.",
+        "Type 0 unrestricted grammars generate exactly the RE languages, matching Turing machines.",
+        "The containments are strict: Regular ⊊ DCFL ⊊ CFL ⊊ CSL ⊊ Recursive ⊊ RE ⊊ all languages.",
+        "Witnesses: aⁿbⁿ is a DCFL but not regular; ww^R is a CFL but not a DCFL; aⁿbⁿcⁿ is a CSL but not a CFL; HALT is RE but not recursive."
+      ],
+      "keyTerms": [
+        "Type 0",
+        "Type 1",
+        "LBA",
+        "strict containment"
+      ],
+      "lesson": {
+        "why": "Matching each grammar type with its machine, and placing a given language in the right class, is a recurring exam question that ties the whole theory-of-computation course together.",
+        "intro": "Grammars can be sorted by how restricted their rewriting rules are. Each level generates a larger family of languages than the one below, and each family has a machine that recognises exactly it. Regular grammars have the tightest rules and are recognised by a finite automaton. Relaxing the rules step by step gives context-free grammars with pushdown automata, context-sensitive grammars with linear bounded automata, and finally unrestricted grammars with Turing machines.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re"
+        ],
+        "definitions": [
+          {
+            "term": "Context-sensitive rule",
+            "meaning": "A rule that rewrites a symbol in context and never shrinks the string, so the right side is at least as long as the left."
+          },
+          {
+            "term": "LBA",
+            "meaning": "A linear bounded automaton: a Turing machine whose tape is limited to the cells holding the input."
+          }
+        ],
+        "principle": {
+          "text": "Type 3 regular grammars match finite automata, Type 2 context-free match pushdown automata, Type 1 context-sensitive match linear bounded automata, and Type 0 unrestricted match Turing machines. Each class strictly contains the one before it.",
+          "tex": "\\text{Regular}\\subsetneq \\text{DCFL}\\subsetneq \\text{CFL}\\subsetneq \\text{CSL}\\subsetneq \\text{Recursive}\\subsetneq \\text{RE}"
+        },
+        "limits": "The chain places DCFL between regular and CFL, which is a machine-based class rather than a grammar type. A language belongs to the lowest class that contains it, so one witness language shows a class is not enough but never shows the next class is.",
+        "example": {
+          "problem": "Place L = {a^n b^n c^n : n >= 1} in the hierarchy.",
+          "steps": [
+            "A pushdown automaton has a single stack, which can count the a's against the b's but then has nothing left to compare with the c's, so L is not context-free.",
+            "A linear bounded automaton can mark one a, one b and one c per pass using only the input cells, so L is context-sensitive.",
+            "The lowest class containing L is therefore context-sensitive."
+          ],
+          "result": "L is context-sensitive but not context-free."
+        },
+        "misconceptions": [
+          "Type 0 does not mean the recursive languages: unrestricted grammars generate all RE languages, including ones no halting machine decides.",
+          "A language that is not regular is not automatically outside every simpler class: a^n b^n is not regular but is deterministic context-free."
+        ],
+        "recall": [
+          {
+            "q": "Which machine matches each of Types 3, 2, 1 and 0?",
+            "a": "Finite automaton, pushdown automaton, linear bounded automaton and Turing machine."
+          },
+          {
+            "q": "Give a witness language separating regular from DCFL.",
+            "a": "a^n b^n is a DCFL but not regular."
+          },
+          {
+            "q": "Give a witness separating CFL from CSL, and one separating DCFL from CFL.",
+            "a": "a^n b^n c^n is context-sensitive but not context-free; w w^R is context-free but not a DCFL."
+          },
+          {
+            "q": "Which class does the halting language belong to?",
+            "a": "It is RE but not recursive."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which one of the following languages over {a, b, c} is context-free but not regular?",
+          "options": [
+            "{a^n b^n : n >= 0}",
+            "a*b*",
+            "{a^n b^n c^n : n >= 0}",
+            "The set of strings with an even number of a's"
+          ],
+          "answer": 0,
+          "explanation": "a^n b^n needs unbounded counting, so no finite automaton accepts it, and one stack suffices for a pushdown automaton. $a^*b^*$ and the even-number-of-a's language are regular, since a finite automaton can track the needed order or parity. $a^n b^n c^n$ is context-sensitive but not context-free, because the single stack cannot also count the c's; it tempts because it extends $a^n b^n$."
+        },
+        "summary": "The four grammar types pair with FA, PDA, LBA and TM, and the classes nest strictly from regular up to RE, with a^n b^n, w w^R, a^n b^n c^n and HALT as witnesses."
+      }
+    },
+    {
+      "id": "toc-turing-machines.countability",
+      "title": "Countability: why non-RE languages exist",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Every TM has a finite description over a fixed alphabet, so the set of TMs is countable, and so are the RE languages.",
+        "The set of all languages over Σ is the power set of the countable set Σ*, which is uncountable by Cantor's diagonal argument.",
+        "So almost all languages are not RE. An explicit example is the diagonal language {⟨M⟩ : M does not accept ⟨M⟩}, or the complement of HALT.",
+        "Every finite language is regular, and the set of all regular languages is countable."
+      ],
+      "keyTerms": [
+        "countable",
+        "uncountable",
+        "diagonal language"
+      ],
+      "lesson": {
+        "why": "Countability explains why some languages are not even RE, and GATE asks which sets of languages or programs are countable.",
+        "intro": "A set is countable if its members can be put in one list with a first, a second, a third, and so on, so that each member appears at some place. The strings over a finite alphabet are countable: list them by length, then alphabetically. A Turing machine is a finite string, so Turing machines are countable. Languages are sets of strings, and there are more of them than any list can hold.",
+        "prerequisites": [
+          "toc-turing-machines.recursive-re"
+        ],
+        "analogy": {
+          "text": "Hotel rooms numbered 1, 2, 3 and so on: a set is countable if every guest can be given a room number.",
+          "breaksWhen": "A hotel with infinitely many rooms can still be full of guests that no numbering reaches, which is the case for the set of all languages."
+        },
+        "principle": {
+          "text": "Any set of objects described by finite strings is countable. The set of all languages over an alphabet is uncountable, because a list of languages can always be defeated by flipping its diagonal. Hence there are languages that no Turing machine recognises.",
+          "tex": "|\\{\\text{Turing machines}\\}| = \\aleph_0 < |\\mathcal{P}(\\Sigma^*)|"
+        },
+        "limits": "The argument shows that non-RE languages exist, but not which ones. An explicit example needs a separate construction, such as the diagonal language or the complement of the halting language.",
+        "example": {
+          "problem": "Four languages L1 to L4 are listed over strings w1 to w4, with row i giving membership of w1..w4 (1 means in the language): L1 = 1 0 1 1, L2 = 0 0 1 0, L3 = 1 1 1 0, L4 = 0 1 0 0. Build a language D that is not in the list.",
+          "steps": [
+            "Read the diagonal: L1 has w1 (1), L2 has w2 (0), L3 has w3 (1), L4 has w4 (0), so the diagonal is 1 0 1 0.",
+            "Flip each diagonal entry to get D = 0 1 0 1, meaning D contains w2 and w4.",
+            "D differs from Li at the string wi for each i, so D equals none of the four rows."
+          ],
+          "result": "D = 0 1 0 1 differs from every listed language in the diagonal position, so it is not on the list."
+        },
+        "misconceptions": [
+          "Infinite does not mean uncountable. The strings over {0,1} are infinite but countable; only the collection of all their subsets is uncountable.",
+          "Uncountably many languages does not give uncountably many Turing machines; there are only countably many machines, so most languages have none."
+        ],
+        "recall": [
+          {
+            "q": "Why is the set of Turing machines countable?",
+            "a": "Each machine is a finite string over a fixed alphabet, and such strings can be listed by length and then alphabetically."
+          },
+          {
+            "q": "Why is the set of all languages over {0,1} uncountable?",
+            "a": "Any list of languages is defeated by the language that flips the diagonal membership."
+          },
+          {
+            "q": "What follows about RE languages?",
+            "a": "There are only countably many, so most languages are not RE."
+          },
+          {
+            "q": "Why is the set of regular languages countable?",
+            "a": "Each regular language is given by a finite automaton, which is a finite string, and finite strings can be listed."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The strings over {0,1} are listed by length and then in lexicographic order, with the empty string as position 1. What is the position of the string 0110 in this list?",
+          "answer": 22,
+          "explanation": "There are 1 + 2 + 4 + 8 = 15 strings shorter than four symbols. Among the 16 strings of length four, 0110 is the binary number 6, which is the 7th string counting from 0000 as the first. Its position is 15 + 7 = 22. The value 6 tempts because it reads 0110 as a binary number only, and 21 tempts because it counts from zero."
+        },
+        "summary": "Anything described by finite strings is countable, including Turing machines, but the set of all languages is uncountable, so non-RE languages exist."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "toc-turing-machines.tm-tuple",
+      "name": "Turing machine 7-tuple and transition function",
+      "tex": "M = (Q, \\Sigma, \\Gamma, \\delta, q_0, q_{acc}, q_{rej}), \\quad \\delta : Q \\times \\Gamma \\to Q \\times \\Gamma \\times \\{L, R\\}",
+      "text": "M = (Q, Σ, Γ, δ, q₀, q_acc, q_rej), δ: Q × Γ → Q × Γ × {L, R}",
+      "where": [
+        [
+          "Γ",
+          "tape alphabet, containing Σ and the blank ⊔"
+        ],
+        [
+          "Σ",
+          "input alphabet, without the blank"
+        ]
+      ],
+      "note": "The input alphabet never contains the blank; that is how the machine finds the end of its input.",
+      "topic": "toc-turing-machines.tm-model",
+      "origin": "source",
+      "pages": [
+        37,
+        422,
+        423
+      ]
+    },
+    {
+      "id": "toc-turing-machines.recursive-intersection",
+      "name": "Recursive = RE ∩ co-RE",
+      "tex": "L \\in \\mathrm{REC} \\iff L \\in \\mathrm{RE} \\ \\text{and}\\ \\overline{L} \\in \\mathrm{RE}",
+      "text": "L recursive ⟺ L ∈ RE and L̄ ∈ RE",
+      "note": "Used backwards most often: if L is RE but not recursive, then L̄ cannot be RE.",
+      "topic": "toc-turing-machines.recursive-re",
+      "origin": "source",
+      "pages": [
+        423,
+        426,
+        429,
+        430
+      ]
+    },
+    {
+      "id": "toc-turing-machines.many-one-reduction",
+      "name": "Many-one reduction",
+      "tex": "A \\le_m B \\iff \\exists \\text{ total computable } f : \\; w \\in A \\Leftrightarrow f(w) \\in B",
+      "text": "A ≤ₘ B ⟺ there is a total computable f with w ∈ A ⟺ f(w) ∈ B",
+      "where": [
+        [
+          "f",
+          "the reduction, computed by a TM that halts on every input"
+        ]
+      ],
+      "note": "Both directions of the ⟺ matter: no-instances must map to no-instances.",
+      "topic": "toc-turing-machines.reductions",
+      "origin": "source",
+      "pages": [
+        38,
+        424
+      ]
+    },
+    {
+      "id": "toc-turing-machines.reduction-transfer",
+      "name": "What a reduction transfers",
+      "tex": "A \\le_m B: \\; B \\in \\mathrm{REC} \\Rightarrow A \\in \\mathrm{REC}, \\quad B \\in \\mathrm{RE} \\Rightarrow A \\in \\mathrm{RE}",
+      "text": "A ≤ₘ B: B recursive ⇒ A recursive; B RE ⇒ A RE",
+      "note": "Contrapositive: A undecidable ⇒ B undecidable, and A not RE ⇒ B not RE. Hardness flows forward along the arrow, easiness backwards.",
+      "topic": "toc-turing-machines.reductions",
+      "origin": "source",
+      "pages": [
+        38,
+        424
+      ]
+    },
+    {
+      "id": "toc-turing-machines.rice",
+      "name": "Rice's theorem",
+      "tex": "\\emptyset \\ne P \\subsetneq \\mathrm{RE} \\;\\Rightarrow\\; \\{\\langle M \\rangle : L(M) \\in P\\} \\text{ is undecidable}",
+      "text": "∅ ≠ P ⊊ RE ⇒ {⟨M⟩ : L(M) ∈ P} is undecidable",
+      "where": [
+        [
+          "P",
+          "a property, viewed as a set of RE languages"
+        ]
+      ],
+      "note": "Applies only to properties of L(M). The number of states or a fixed step bound is not a property of the language.",
+      "topic": "toc-turing-machines.rice-theorem",
+      "origin": "source",
+      "pages": [
+        38,
+        424
+      ]
+    },
+    {
+      "id": "toc-turing-machines.chomsky-chain",
+      "name": "Chomsky containment chain",
+      "tex": "\\mathrm{REG} \\subsetneq \\mathrm{DCFL} \\subsetneq \\mathrm{CFL} \\subsetneq \\mathrm{CSL} \\subsetneq \\mathrm{REC} \\subsetneq \\mathrm{RE}",
+      "text": "REG ⊊ DCFL ⊊ CFL ⊊ CSL ⊊ REC ⊊ RE",
+      "note": "CSL ⊊ Recursive: every CSL is decidable, but some decidable languages are not context-sensitive.",
+      "topic": "toc-turing-machines.chomsky-hierarchy",
+      "origin": "source",
+      "pages": [
+        37,
+        425,
+        430
+      ]
+    },
+    {
+      "id": "toc-turing-machines.bounded-configurations",
+      "name": "Configurations of a TM confined to n cells",
+      "tex": "C = |Q| \\cdot n \\cdot |\\Gamma|^{n}",
+      "text": "C = |Q| · n · |Γ|ⁿ",
+      "where": [
+        [
+          "|Q|",
+          "number of states"
+        ],
+        [
+          "n",
+          "number of usable tape cells"
+        ],
+        [
+          "|Γ|",
+          "tape alphabet size"
+        ]
+      ],
+      "note": "A run longer than C moves repeats a configuration and so loops forever. This is why LBA membership, and so CSL membership, is decidable.",
+      "topic": "toc-turing-machines.tm-properties-classification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.countability-gap",
+      "name": "Countably many TMs, uncountably many languages",
+      "tex": "|\\{M\\}| = \\aleph_0 < 2^{\\aleph_0} = |\\mathcal{P}(\\Sigma^*)|",
+      "text": "|{TMs}| = ℵ₀ < 2^ℵ₀ = |P(Σ*)|",
+      "note": "Proves non-RE languages exist without naming one.",
+      "topic": "toc-turing-machines.countability",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "toc-turing-machines.multitape-simulation",
+      "name": "k-tape TM simulated on one tape",
+      "worst": "O(t(n)²)",
+      "notes": "Polynomial slowdown only, so multi-tape machines decide the same languages in comparable time classes.",
+      "topic": "toc-turing-machines.tm-variants",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.ntm-simulation",
+      "name": "NTM simulated by a deterministic TM",
+      "worst": "2^O(t(n))",
+      "notes": "Breadth-first search of the computation tree: same power, possibly exponential time.",
+      "topic": "toc-turing-machines.tm-variants",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.dfa-membership",
+      "name": "DFA membership",
+      "worst": "O(|w|)",
+      "space": "O(1)",
+      "notes": "One transition per input symbol.",
+      "topic": "toc-turing-machines.decidability-table",
+      "origin": "source",
+      "pages": [
+        37
+      ]
+    },
+    {
+      "id": "toc-turing-machines.cyk-membership",
+      "name": "CFG membership by CYK (grammar in CNF)",
+      "worst": "O(n³ · |G|)",
+      "space": "O(n²)",
+      "notes": "Dynamic programming over all substrings; proves CFL membership decidable.",
+      "topic": "toc-turing-machines.decidability-table",
+      "origin": "source",
+      "pages": [
+        427
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "toc-turing-machines.pt-classify-problem",
+      "title": "Classify a problem as recursive, RE only, co-RE only or neither",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Check for a step bound or a purely syntactic question first; those are decidable by simulation or inspection.",
+        "If it asks about L(M) and is non-trivial, it is undecidable by Rice.",
+        "Ask whether a yes-answer has a finite certificate (one accepting run): then it is RE. If a no-answer has one, it is co-RE.",
+        "If neither side has a finite certificate (totality, universality, equivalence, finiteness), it is neither RE nor co-RE."
+      ],
+      "trap": "Rice proves undecidability only; L(M) ≠ ∅ is still RE, and its complement L(M) = ∅ is not RE.",
+      "topic": "toc-turing-machines.tm-properties-classification",
+      "origin": "source",
+      "pages": [
+        37,
+        38,
+        424
+      ]
+    },
+    {
+      "id": "toc-turing-machines.pt-rice-applicability",
+      "title": "Does Rice's theorem apply?",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Check that the property depends only on L(M): two machines with the same language must get the same answer.",
+        "Check non-triviality: name one RE language with the property and one without.",
+        "If both hold, the problem is undecidable; otherwise reason directly (inspect the machine or simulate a bounded number of steps)."
+      ],
+      "trap": "'Does M have at least 5 states?' and 'does M halt within 50 moves on blank tape?' mention TMs but are not language properties, and are decidable.",
+      "topic": "toc-turing-machines.rice-theorem",
+      "origin": "source",
+      "pages": [
+        38,
+        425,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.pt-reduction-direction",
+      "title": "Reading off consequences of A ≤ₘ B",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Draw the arrow A → B: an algorithm for B gives one for A.",
+        "Easiness (decidable, RE) moves from B back to A; hardness (undecidable, not RE) moves from A forward to B.",
+        "Nothing follows about B from A being decidable, or about A from B being undecidable."
+      ],
+      "trap": "Reducing the new problem to HALT proves nothing about its undecidability; the known hard problem must be on the left.",
+      "topic": "toc-turing-machines.reductions",
+      "origin": "source",
+      "pages": [
+        38,
+        424,
+        428,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.pt-closure",
+      "title": "Closure combinations of recursive and RE languages",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Rewrite difference as intersection with a complement: L₁ − L₂ = L₁ ∩ L̄₂.",
+        "Complement a recursive language freely; complementing an RE-not-recursive language gives a non-RE language.",
+        "Union and intersection of RE languages stay RE; of recursive languages stay recursive.",
+        "For 'necessarily' claims, test with an extreme choice such as L₁ = ∅ or L₁ = Σ*."
+      ],
+      "trap": "Treating RE as closed under complement, or concluding that union of recursive and RE must be recursive.",
+      "topic": "toc-turing-machines.closure",
+      "origin": "source",
+      "pages": [
+        424,
+        427,
+        428,
+        430
+      ]
+    },
+    {
+      "id": "toc-turing-machines.pt-decidability-table",
+      "title": "Which decision problem is decidable for regular, CFL or CSL?",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Membership is decidable for every class up to recursive.",
+        "Emptiness and finiteness are decidable for regular and CFL, not for CSL.",
+        "Equivalence and universality are decidable for regular languages and DCFLs (universality via complement and emptiness), but not for CFLs; ambiguity of CFGs is undecidable."
+      ],
+      "trap": "CSL membership is decidable even though almost every other CSL question is undecidable.",
+      "topic": "toc-turing-machines.decidability-table",
+      "origin": "source",
+      "pages": [
+        37,
+        425,
+        429,
+        430
+      ]
+    },
+    {
+      "id": "toc-turing-machines.pt-tm-trace",
+      "title": "Trace a given TM: moves, final tape or function computed",
+      "frequency": "low",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the configuration as tape with the head marked and the current state.",
+        "Apply one transition per move, updating the cell before moving the head.",
+        "Count every move, including the one into the halting state, and read the tape after halting."
+      ],
+      "trap": "Forgetting the move that steps back off the trailing blank, or the final move into the halt state.",
+      "topic": "toc-turing-machines.tm-trace",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "toc-turing-machines.q-halt-class",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "HALT = {⟨M, w⟩ : TM M halts on input w}. Which statement is correct?",
+      "options": [
+        "HALT is recursive",
+        "HALT is recursively enumerable but not recursive",
+        "HALT is co-RE but not recursively enumerable",
+        "Neither HALT nor its complement is recursively enumerable"
+      ],
+      "answer": 1,
+      "explanation": "A universal TM simulates M on w and accepts if the simulation halts, so HALT is RE. The diagonal argument shows no TM decides it, so it is not recursive. Its complement is therefore not RE, which rules out the third and fourth options.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.halting-problem",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2017) — Halting",
+      "pages": [
+        424,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-recursive-iff",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A language L is recursive if and only if:",
+      "options": [
+        "L is recursively enumerable",
+        "Both L and its complement are recursively enumerable",
+        "The complement of L is recursively enumerable",
+        "L is accepted by a non-deterministic TM"
+      ],
+      "answer": 1,
+      "explanation": "If recognisers exist for L and L̄, run them alternately step by step; every string is in exactly one of the two, so one recogniser accepts and the combined machine always halts. Conversely a decider for L gives deciders, hence recognisers, for both L and L̄. An NTM accepts exactly the RE languages, so the last option is just 'L is RE'.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.recursive-re",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Recursive vs RE",
+      "pages": [
+        423,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-reduction-direction",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "To prove that a new problem P is undecidable using the halting problem HALT, it is enough to show:",
+      "options": [
+        "P ≤ₘ HALT",
+        "HALT ≤ₘ P",
+        "P ≤ₘ Q for some decidable problem Q",
+        "The complement of P reduces to HALT"
+      ],
+      "answer": 1,
+      "explanation": "If HALT ≤ₘ P, a decider for P combined with the reduction would decide HALT, which is impossible, so P is undecidable. P ≤ₘ HALT only says P is no harder than HALT (decidable problems reduce to HALT too). P ≤ₘ Q with Q decidable would make P decidable.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.reductions",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Reduction",
+      "pages": [
+        424,
+        428,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-reduction-not-re",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Let A be the complement of HALT, and suppose A ≤ₘ B for some language B. Which conclusion is valid?",
+      "options": [
+        "B is recursive",
+        "B is recursively enumerable but not recursive",
+        "B is not recursively enumerable",
+        "B is the complement of a recursive language"
+      ],
+      "answer": 2,
+      "explanation": "HALT is RE and not recursive, so its complement A is not RE. If B were RE, then A ≤ₘ B would make A RE as well. Hence B is not RE, which also excludes recursive B and complements of recursive languages (those are recursive).",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.reductions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-closure-mixed",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Let L₁ be recursive and let L₂ be recursively enumerable but not recursive. Which of the following are necessarily true?",
+      "options": [
+        "The complement of L₂ is not recursively enumerable",
+        "L₁ ∩ L₂ is recursively enumerable",
+        "L₁ ∪ L₂ is recursive",
+        "L₂ − L₁ is recursively enumerable"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "(A) If L̄₂ were RE, L₂ would be recursive. (B) L₁ is RE and RE is closed under intersection. (C) Fails for L₁ = ∅: the union is L₂, which is not recursive. (D) L₂ − L₁ = L₂ ∩ L̄₁, and L̄₁ is recursive, so the intersection of two RE languages is RE.",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.closure",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2018) — RE",
+      "pages": [
+        424,
+        428,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-recursive-closure",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Under which of the following operations is the class of recursive languages closed?",
+      "options": [
+        "Complement",
+        "Kleene star",
+        "Union",
+        "Arbitrary homomorphism (symbols may map to the empty string)"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Swap the accept and reject states for complement; run two deciders in sequence for union; for star, a decider tries every split of the input into pieces, finitely many. Homomorphism fails: for any RE language L recognised by M, {w#cᵏ : M accepts w within k moves} is recursive, and erasing # and c maps it onto L, which can be non-recursive.",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.closure",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-rice-decidable",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which of the following problems about a Turing machine M is decidable?",
+      "options": [
+        "Does M accept at least one string?",
+        "Is L(M) a regular language?",
+        "Does M have at least 5 states?",
+        "Is L(M) finite?"
+      ],
+      "answer": 2,
+      "explanation": "The number of states is read off the encoding ⟨M⟩; it is not a property of L(M), so Rice does not apply and the problem is decidable. The other three are non-trivial properties of L(M) (some RE languages have them, some do not), so they are undecidable by Rice's theorem.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.rice-theorem",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Rice",
+      "pages": [
+        38,
+        425,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-bounded-decidable",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following problems are decidable?",
+      "options": [
+        "Given a TM M, does M make at least 10 moves when started on a blank tape?",
+        "Given a TM M, is L(M) = ∅?",
+        "Given a TM M and a string w, does M enter state q within the first |w|² moves on w?",
+        "Given a TM M, does M halt on every input?"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "(A) Simulate at most 10 moves and check whether the machine is still running. (C) Simulate |w|² moves and watch for q; the bound is computable from w. (B) Emptiness is a non-trivial property of L(M), undecidable by Rice (it is co-RE, not RE). (D) Totality is undecidable; HALT reduces to it by building a machine that ignores its input and runs M on w.",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.tm-properties-classification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-emptiness-classes",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Let E = {⟨M⟩ : L(M) = ∅} and NE = {⟨M⟩ : L(M) ≠ ∅}. Which statement is correct?",
+      "options": [
+        "Both E and NE are recursively enumerable",
+        "NE is recursively enumerable but not recursive, and E is not recursively enumerable",
+        "E is recursively enumerable but not recursive, and NE is not recursively enumerable",
+        "Neither E nor NE is recursively enumerable"
+      ],
+      "answer": 1,
+      "explanation": "NE is RE: dovetail M over all strings, running stage k on the first k strings for k moves, and accept when any run accepts. NE is undecidable by Rice. E is the complement of NE, so if E were RE, NE would be recursive. Hence E is co-RE but not RE.",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.tm-properties-classification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-count-undecidable",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many of the following problems are undecidable? (i) membership of a string in L(D) for a DFA D; (ii) emptiness of L(G) for a CFG G; (iii) equivalence of two CFGs; (iv) ambiguity of a CFG; (v) the Post correspondence problem; (vi) emptiness of L(M) for a TM M; (vii) membership of a string in a context-sensitive language; (viii) whether L(M) is regular for a TM M.",
+      "answer": 5,
+      "explanation": "Decidable: (i) simulate the DFA, (ii) mark generating variables and check the start symbol, (vii) an LBA has finitely many configurations per input. Undecidable: (iii), (iv) and (v) (PCP is the reduction source for the CFG results), (vi) and (viii) by Rice's theorem. That is 5 undecidable problems.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.decidability-table",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Decidable problems",
+      "pages": [
+        37,
+        38,
+        425,
+        430
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-csl-decidable",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "For context-sensitive languages given by context-sensitive grammars, which of the following problems is decidable?",
+      "options": [
+        "Membership: is w ∈ L(G)?",
+        "Emptiness: is L(G) = ∅?",
+        "Equivalence: is L(G₁) = L(G₂)?",
+        "Universality: is L(G) = Σ*?"
+      ],
+      "answer": 0,
+      "explanation": "Context-sensitive rules never shrink a sentential form, so a derivation of w uses only forms of length at most |w|; there are finitely many, and a search decides membership (equivalently, an LBA on input w has finitely many configurations). Emptiness, equivalence and universality are undecidable for CSLs.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.decidability-table",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Membership",
+      "pages": [
+        425,
+        428,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-type0",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The class of languages generated by Type 0 (unrestricted) grammars is exactly:",
+      "options": [
+        "The recursive languages",
+        "The recursively enumerable languages",
+        "The context-sensitive languages",
+        "The languages accepted by linear bounded automata"
+      ],
+      "answer": 1,
+      "explanation": "A TM can enumerate all derivations of an unrestricted grammar, and conversely any TM can be turned into a grammar that simulates its moves backwards, so Type 0 grammars generate exactly the RE languages. Membership for them is therefore only semi-decidable, which rules out 'recursive'. CSLs and LBA languages are the Type 1 class.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.chomsky-hierarchy",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Chomsky",
+      "pages": [
+        425,
+        428,
+        429
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-weaker-model",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which of the following machine models is strictly less powerful than a standard deterministic Turing machine?",
+      "options": [
+        "A PDA with two stacks",
+        "A machine with two counters",
+        "A multi-tape non-deterministic Turing machine",
+        "A linear bounded automaton"
+      ],
+      "answer": 3,
+      "explanation": "Two stacks simulate the tape (left and right halves), two counters simulate a TM (Minsky), and multi-tape or non-deterministic TMs are simulated by a single-tape DTM. An LBA is confined to its input cells and accepts only context-sensitive languages, a proper subclass of the recursive languages.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.tm-variants",
+      "origin": "source",
+      "sourceLabel": "Practice Q2–Q3 — TM variants",
+      "pages": [
+        37,
+        423,
+        427
+      ]
+    },
+    {
+      "id": "toc-turing-machines.q-increment-moves",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A TM with states q₀ (start), q₁ and q_h (halt) has the transitions δ(q₀, 0) = (q₀, 0, R), δ(q₀, 1) = (q₀, 1, R), δ(q₀, ⊔) = (q₁, ⊔, L), δ(q₁, 1) = (q₁, 0, L), δ(q₁, 0) = (q_h, 1, L), δ(q₁, ⊔) = (q_h, 1, L). It starts in q₀ on the leftmost symbol of the input 10111. How many moves does it make before entering q_h?",
+      "answer": 10,
+      "explanation": "q₀ moves right over the 5 input symbols (5 moves) and then steps left off the blank (1 move), now on the last 1. q₁ turns the three trailing 1s into 0s, moving left each time (3 moves), then reads the 0, writes 1 and moves into q_h (1 move). Total 5 + 1 + 3 + 1 = 10 moves; the tape ends as 11000, so the machine adds 1 to a binary number (23 → 24).",
+      "difficulty": "medium",
+      "topic": "toc-turing-machines.tm-trace",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-bounded-configs",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A deterministic TM has 5 states and a tape alphabet of 3 symbols, and on a particular input it never leaves a fixed block of 4 tape cells. How many distinct configurations (state, head position, contents of the 4 cells) are possible?",
+      "answer": 1620,
+      "explanation": "Configurations = |Q| · n · |Γ|ⁿ = 5 · 4 · 3⁴ = 5 · 4 · 81 = 1620. If the machine runs for more than 1620 moves it must repeat a configuration and, being deterministic, loops forever; this bound is what makes halting decidable for space-bounded machines.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.tm-properties-classification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-pcp-shortest",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A Post correspondence instance has four dominoes written as (top, bottom): d₁ = (b, ca), d₂ = (a, ab), d₃ = (ca, a), d₄ = (abc, c). A match is a non-empty sequence of dominoes, repetition allowed, whose top string equals its bottom string. What is the minimum number of dominoes in a match?",
+      "answer": 5,
+      "explanation": "The first domino must have one string a prefix of the other: only d₂ = (a, ab) works. Then bottom leads by b, forcing d₁ (top ab, bottom abca), then bottom leads by ca, forcing d₃ (abca / abcaa), then d₂ (abcaa / abcaaab), and d₄ closes it: top abcaaabc, bottom abcaaabc. The sequence d₂ d₁ d₃ d₂ d₄ has 5 dominoes, and a breadth-first search over all sequences finds none shorter.",
+      "difficulty": "hard",
+      "topic": "toc-turing-machines.classic-undecidable",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-turing-machines.q-utm",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The existence of a universal Turing machine is the theoretical basis for which idea?",
+      "options": [
+        "Every language is recursively enumerable",
+        "A single stored-program computer can run any program given to it as data",
+        "Non-deterministic machines are exponentially faster than deterministic ones",
+        "The halting problem is decidable for machines with finitely many states"
+      ],
+      "answer": 1,
+      "explanation": "A universal TM receives ⟨M, w⟩ on its tape and simulates M on w: the program is data, exactly the stored-program principle. Non-RE languages exist, the NTM speed claim is unproven, and halting stays undecidable even though every TM has finitely many states.",
+      "difficulty": "easy",
+      "topic": "toc-turing-machines.universal-tm",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — UTM",
+      "pages": [
+        423,
+        426,
+        429
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "RE languages are not closed under complement. If L is RE but not recursive, L̄ is not RE at all, not merely 'also RE'.",
+      "origin": "source",
+      "pages": [
+        424,
+        429
+      ]
+    },
+    {
+      "text": "Rice's theorem covers properties of L(M) only. Questions about the number of states, the alphabet or a fixed step bound are usually decidable.",
+      "origin": "source",
+      "pages": [
+        425,
+        429
+      ]
+    },
+    {
+      "text": "CSL membership is decidable, even though CSL emptiness, equivalence and universality are not.",
+      "origin": "source",
+      "pages": [
+        425,
+        429
+      ]
+    },
+    {
+      "text": "Every TM variant (multi-tape, non-deterministic, two-way tape, two stacks, two counters) has the same power; only speed differs. An LBA or a one-stack PDA does not.",
+      "origin": "source",
+      "pages": [
+        423,
+        429
+      ]
+    },
+    {
+      "text": "Reversing a reduction: showing P ≤ₘ HALT proves nothing about P's undecidability. The known undecidable problem goes on the left.",
+      "origin": "source",
+      "pages": [
+        424,
+        428
+      ]
+    },
+    {
+      "text": "Undecidable does not mean 'not RE'. HALT and L(M) ≠ ∅ are undecidable yet RE; check certificates for yes and no separately.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Looping is not rejecting: a TM that runs forever on w has not entered q_reject, which is exactly why a recogniser is weaker than a decider.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Model and classes",
+      "lines": [
+        "TM = (Q, Σ, Γ, δ, q₀, q_acc, q_rej), δ: Q × Γ → Q × Γ × {L, R}",
+        "All variants equivalent: multi-tape, NTM, 2-way tape, 2 stacks, 2 counters",
+        "REG ⊊ DCFL ⊊ CFL ⊊ CSL ⊊ REC ⊊ RE",
+        "REC = RE ∩ co-RE; L RE but not REC ⇒ L̄ not RE"
+      ],
+      "origin": "source",
+      "pages": [
+        37,
+        423,
+        430
+      ]
+    },
+    {
+      "heading": "Closure",
+      "lines": [
+        "REC: ∪, ∩, complement, concat, star, reversal",
+        "RE: ∪, ∩, concat, star, homomorphism; NOT complement",
+        "REC not closed under erasing homomorphism"
+      ],
+      "origin": "source",
+      "pages": [
+        424,
+        430
+      ]
+    },
+    {
+      "heading": "Undecidability toolkit",
+      "lines": [
+        "HALT, A_TM: RE, not REC; complements not RE",
+        "A ≤ₘ B: A undecidable ⇒ B undecidable; B RE ⇒ A RE",
+        "Rice: non-trivial property of L(M) ⇒ undecidable",
+        "L(M) ≠ ∅ RE; L(M) = ∅ co-RE; L(M) = Σ*, finite, total: neither",
+        "Step bounds and syntax of M: decidable"
+      ],
+      "origin": "source",
+      "pages": [
+        38,
+        424,
+        425,
+        430
+      ]
+    },
+    {
+      "heading": "Decidability table",
+      "lines": [
+        "Regular: everything decidable",
+        "CFL: membership, emptiness, finiteness yes; equivalence, ambiguity, Σ* no",
+        "CSL: membership yes; emptiness and the rest no",
+        "PCP, Hilbert 10, Type 0 membership: undecidable"
+      ],
+      "origin": "source",
+      "pages": [
+        37,
+        425,
+        430
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 424,
+      "claim": "HALT reduces to the emptiness problem 'L(M) = ∅?'.",
+      "correction": "No many-one reduction HALT ≤ₘ E_TM exists: E_TM is co-RE, so such a reduction would make HALT co-RE and hence recursive. The standard reduction maps ⟨M, w⟩ to a machine M′ with L(M′) = Σ* if M halts on w and ∅ otherwise; this reduces HALT to non-emptiness, which proves emptiness undecidable via its complement."
+    },
+    {
+      "page": 425,
+      "claim": "'Does M accept only finite strings?' is listed as an undecidable language property under Rice's theorem.",
+      "correction": "Every string is finite, so every TM has this property; it is trivial and therefore decidable. The intended undecidable property is 'is L(M) a finite language?'."
+    },
+    {
+      "page": 430,
+      "claim": "Recursive languages are closed under all operations (also on page 424: all standard operations).",
+      "correction": "Recursive languages are closed under union, intersection, complement, concatenation, star, reversal and inverse homomorphism, but not under arbitrary (erasing) homomorphism: every RE language is a homomorphic image of a recursive language."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "toc-tm-undecidability",
+      "status": "covered",
+      "topics": [
+        "toc-turing-machines.tm-model",
+        "toc-turing-machines.tm-variants",
+        "toc-turing-machines.universal-tm",
+        "toc-turing-machines.recursive-re",
+        "toc-turing-machines.closure",
+        "toc-turing-machines.halting-problem",
+        "toc-turing-machines.reductions",
+        "toc-turing-machines.rice-theorem",
+        "toc-turing-machines.classic-undecidable",
+        "toc-turing-machines.decidability-table",
+        "toc-turing-machines.chomsky-hierarchy",
+        "toc-turing-machines.tm-properties-classification",
+        "toc-turing-machines.tm-trace"
+      ]
+    }
+  ]
+}

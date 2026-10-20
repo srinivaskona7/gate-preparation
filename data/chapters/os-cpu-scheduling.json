@@ -1,0 +1,1521 @@
+{
+  "id": "os-cpu-scheduling",
+  "summary": "CPU scheduling decides which ready process gets the processor next, and disk scheduling decides which pending I/O request the head serves next. GATE tests both mostly through computation: draw the Gantt chart or head-movement trace carefully, then read off waiting, turnaround and response times or the total seek distance. The rest is knowing which policy is optimal, which can starve, and how the time quantum changes round robin.",
+  "highYield": [
+    "Average waiting and turnaround time from an arrival/burst table under FCFS, SJF, SRTF and round robin: a 2-mark numerical in most papers.",
+    "Optimality and starvation facts: SJF is optimal among non-preemptive policies, SRTF overall; SJF, SRTF and priority without aging can starve.",
+    "Round robin at the extremes: a huge quantum degenerates to FCFS, a tiny one spends the CPU on context switches.",
+    "Total head movement for SCAN vs LOOK vs SSTF on one request queue, which differ only in where the head turns."
+  ],
+  "topics": [
+    {
+      "id": "os-cpu-scheduling.scheduler-levels",
+      "title": "Long-, medium- and short-term schedulers",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        486
+      ],
+      "points": [
+        "The long-term (job) scheduler admits jobs into memory and so controls the degree of multiprogramming.",
+        "The medium-term scheduler swaps partially executed processes out to disk and back in, freeing memory under pressure.",
+        "The short-term (CPU) scheduler picks the next ready process every few milliseconds, so it must be fast; the dispatcher then performs the context switch."
+      ],
+      "keyTerms": [
+        "degree of multiprogramming",
+        "swapping",
+        "dispatcher"
+      ],
+      "lesson": {
+        "why": "Questions ask which scheduler controls the degree of multiprogramming and which one runs most often. Knowing the three levels settles both at once.",
+        "intro": "A computer holds more jobs than it can run at once, so three separate decisions are made at three different speeds. First, which waiting jobs are allowed into memory at all. Second, whether a job already in memory should be moved out to disk for a while. Third, which job in memory that is ready to compute gets the processor next. A different scheduler makes each decision, and each runs at a different frequency.",
+        "definitions": [
+          {
+            "term": "Degree of multiprogramming",
+            "meaning": "The number of processes held in memory at the same time."
+          },
+          {
+            "term": "Swapping",
+            "meaning": "Moving a partly executed process out to disk, and back into memory later, to free memory."
+          },
+          {
+            "term": "Dispatcher",
+            "meaning": "The module that gives the CPU to the process the short-term scheduler chose, by performing the context switch."
+          }
+        ],
+        "principle": {
+          "text": "The long-term scheduler decides admission into memory and so sets the degree of multiprogramming. The medium-term scheduler swaps processes out and in. The short-term scheduler picks the next ready process and runs every few milliseconds, so it must be fast."
+        },
+        "limits": "Many modern systems have no long-term scheduler and admit every job at once, and the medium-term level exists only on systems that swap. The short-term scheduler is the one every system has.",
+        "example": {
+          "problem": "Memory holds at most 4 processes. A job pool has 10 waiting jobs and memory is full. Two running processes finish. What happens, and which scheduler acts?",
+          "steps": [
+            "Two finished processes leave memory, so only 2 remain and the degree of multiprogramming drops from 4 to 2.",
+            "The long-term scheduler admits 2 jobs from the pool, which brings the degree of multiprogramming back to 4.",
+            "Among the 4 processes in memory, the short-term scheduler picks the one that runs next, and it makes this choice again after every few milliseconds."
+          ],
+          "result": "The long-term scheduler restores the degree of multiprogramming to 4, 8 jobs remain in the pool, and the short-term scheduler decides who runs."
+        },
+        "misconceptions": [
+          "The dispatcher is not the short-term scheduler: the scheduler chooses a process and the dispatcher carries out the switch to it.",
+          "Swapping out a process does not end it. The process stays alive on disk and returns to memory later, which is why the medium-term scheduler is separate from the long-term one."
+        ],
+        "recall": [
+          {
+            "q": "Which scheduler controls the degree of multiprogramming?",
+            "a": "The long-term scheduler, because it decides which jobs enter memory."
+          },
+          {
+            "q": "Which scheduler runs most often, and why must it be fast?",
+            "a": "The short-term scheduler, which runs every few milliseconds; a slow one would waste a large share of CPU time on choosing."
+          },
+          {
+            "q": "What does the medium-term scheduler do?",
+            "a": "It swaps partly executed processes out to disk and back in to relieve memory pressure."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A system is short of memory, so it moves a half-finished process to disk and plans to bring it back later. Which scheduler performs this?",
+          "options": [
+            "Long-term scheduler",
+            "Medium-term scheduler",
+            "Short-term scheduler",
+            "Dispatcher"
+          ],
+          "answer": 1,
+          "explanation": "Moving a partly executed process out to disk and back is swapping, which belongs to the medium-term scheduler. The long-term scheduler is tempting because it also touches memory, but it only admits new jobs. The short-term scheduler picks among processes already in memory, and the dispatcher only switches the CPU."
+        },
+        "summary": "Long-term admits jobs and sets the degree of multiprogramming, medium-term swaps processes to disk, and short-term picks the next ready process every few milliseconds."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.criteria",
+      "title": "Scheduling criteria",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        44,
+        487
+      ],
+      "points": [
+        "Maximise CPU utilisation and throughput (processes completed per unit time).",
+        "Minimise turnaround time (completion − arrival), waiting time (time spent in the ready queue) and response time (first CPU access − arrival).",
+        "Response time matters for interactive systems; for a preemptive schedule it is usually much smaller than waiting time."
+      ],
+      "keyTerms": [
+        "throughput",
+        "turnaround time",
+        "waiting time",
+        "response time"
+      ],
+      "lesson": {
+        "why": "Almost every scheduling question asks for an average waiting time, turnaround time or response time. Mixing up these definitions gives a wrong answer even when the Gantt chart is right.",
+        "intro": "To compare scheduling policies we need measurements. Each process has an arrival time, when it enters the ready queue, and a burst time, the CPU time it needs. Once a schedule is drawn, each process also has a completion time. From these three numbers we measure how long a process stayed in the system, how long it sat waiting, and how soon it first got the CPU. System-wide we also measure how busy the CPU was and how many processes finished per unit of time.",
+        "definitions": [
+          {
+            "term": "Turnaround time",
+            "meaning": "Completion time minus arrival time: the total time a process spends in the system."
+          },
+          {
+            "term": "Waiting time",
+            "meaning": "Time spent in the ready queue, which is turnaround time minus burst time when the process does no I/O."
+          },
+          {
+            "term": "Response time",
+            "meaning": "Time from arrival to the first moment the process gets the CPU."
+          },
+          {
+            "term": "Throughput",
+            "meaning": "Processes completed per unit of time."
+          }
+        ],
+        "principle": {
+          "text": "Maximise CPU utilisation and throughput; minimise turnaround, waiting and response time. A process with no I/O satisfies the relation below.",
+          "tex": "\\mathrm{TAT}=\\mathrm{CT}-\\mathrm{AT},\\qquad \\mathrm{WT}=\\mathrm{TAT}-\\mathrm{BT},\\qquad \\mathrm{RT}=t_{\\text{first run}}-\\mathrm{AT}"
+        },
+        "limits": "If a process also does input or output, its I/O time must be subtracted as well, since waiting time counts only the ready queue. For a non-preemptive policy response time equals waiting time; for a preemptive one response time can be much smaller.",
+        "example": {
+          "problem": "Under First Come First Serve, P1 arrives at 0 with burst 3, P2 at 1 with burst 2, and P3 at 2 with burst 4. Find the waiting time of P3.",
+          "steps": [
+            "P1 runs from 0 to 3, P2 from 3 to 5, and P3 from 5 to 9, so the completion time of P3 is 9.",
+            "Turnaround time of P3 is 9 - 2 = 7.",
+            "Waiting time of P3 is 7 - 4 = 3, and its response time is 5 - 2 = 3."
+          ],
+          "result": "P3 waits 3 units. P1 waits 0 and P2 waits 2, so the average waiting time is 5/3."
+        },
+        "misconceptions": [
+          "Waiting time is not completion time minus arrival time. That is turnaround time, and waiting time also removes the burst.",
+          "Response time is not the time to finish the first burst. It stops when the process first receives the CPU."
+        ],
+        "recall": [
+          {
+            "q": "How are turnaround time and waiting time related?",
+            "a": "Waiting time equals turnaround time minus burst time, when the process does no I/O."
+          },
+          {
+            "q": "When does response time stop counting?",
+            "a": "At the first moment the process gets the CPU, measured from its arrival."
+          },
+          {
+            "q": "When are response time and waiting time equal?",
+            "a": "Under a non-preemptive policy, because the process waits once and then runs to the end of its burst."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Under First Come First Serve, P1 arrives at 0 with burst 4, P2 at 1 with burst 3, and P3 at 2 with burst 1. Find the sum of the waiting times of the three processes.",
+          "answer": 8,
+          "explanation": "P1 runs 0 to 4, P2 4 to 7 and P3 7 to 8. Waiting times are 0, 4 - 1 = 3 and 7 - 2 = 5, so the sum is 8. A tempting mistake is to subtract only the arrival time from the completion time, which gives turnaround times 4, 6 and 6 and a sum of 16."
+        },
+        "summary": "Turnaround time is completion minus arrival, waiting time is turnaround minus burst, and response time is first CPU access minus arrival; utilisation and throughput measure the system as a whole."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.preemption",
+      "title": "Preemptive vs non-preemptive scheduling",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        487,
+        489
+      ],
+      "points": [
+        "Non-preemptive: a running process keeps the CPU until it finishes or blocks for I/O.",
+        "Preemptive: the OS can take the CPU away on a timer interrupt or when a higher-priority (or shorter) process arrives.",
+        "Preemption improves response time and stops long jobs monopolising the CPU, at the cost of extra context switches."
+      ],
+      "lesson": {
+        "why": "Every scheduling question starts by asking whether a running process can be interrupted, and the answer decides which algorithms are even possible.",
+        "intro": "A scheduler chooses which ready process gets the CPU. The only question here is what happens while that process is running. If the scheduler may take the CPU away before the process finishes its burst, the policy is preemptive. If the process keeps the CPU until it finishes or blocks for input or output, the policy is non-preemptive.",
+        "prerequisites": [
+          "os-cpu-scheduling.scheduler-levels"
+        ],
+        "analogy": {
+          "text": "A single-lane bridge: a non-preemptive rule lets the car on the bridge finish crossing; a preemptive rule lets an ambulance force the car to back off.",
+          "breaksWhen": "A preempted process loses nothing but time, because the system saves its state and resumes it later, which a car cannot do."
+        },
+        "definitions": [
+          {
+            "term": "CPU burst",
+            "meaning": "The stretch of time a process computes before it next waits for input or output or ends."
+          },
+          {
+            "term": "Preemption",
+            "meaning": "The scheduler removes the running process from the CPU before its burst ends."
+          }
+        ],
+        "principle": {
+          "text": "A policy has a preemptive form exactly when something can displace the running process: a better-ranked arrival, or a timer that expires."
+        },
+        "limits": "Priority and shortest-job policies come in both forms, so the name alone does not settle it; the question must say whether newcomers can interrupt. First Come First Serve ranks only by arrival time, so no newcomer ever outranks the running process.",
+        "example": {
+          "problem": "P1 arrives at time 0 with burst 5. P2 arrives at time 1 with burst 1. Under shortest-remaining-time scheduling, when does P2 start?",
+          "steps": [
+            "At time 1, P1 has run for 1 unit, so 4 units remain.",
+            "P2 needs 1 unit, which is less than 4, so P2 outranks P1.",
+            "The scheduler preempts P1 and starts P2 at time 1."
+          ],
+          "result": "P2 starts at time 1; under First Come First Serve it would wait until time 5."
+        },
+        "misconceptions": [
+          "Round Robin is not a different kind of ranking; it is First Come First Serve plus a timer, and the timer is exactly what makes it preemptive.",
+          "Shortest Remaining Time First is not a separate idea from Shortest Job First; it is the same ranking with preemption added."
+        ],
+        "recall": [
+          {
+            "q": "What makes a scheduling policy preemptive?",
+            "a": "The scheduler can take the CPU from the running process before its burst ends."
+          },
+          {
+            "q": "Why can First Come First Serve not be preemptive?",
+            "a": "It ranks by arrival time, and no later arrival can outrank the process already running."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about preemptive scheduling is correct?",
+          "options": [
+            "A preempted process is terminated and must restart from the beginning.",
+            "Round Robin preempts the running process when its time quantum expires.",
+            "First Come First Serve preempts a process when a newcomer has a shorter burst.",
+            "Non-preemptive scheduling lets a newcomer take the CPU at once."
+          ],
+          "answer": 1,
+          "explanation": "Round Robin uses a timer, and expiry of the quantum removes the running process. A preempted process is only paused and resumes later, so the first option is false. First Come First Serve ignores burst length, and a non-preemptive policy never lets a newcomer interrupt."
+        },
+        "summary": "Preemptive means the running process can be interrupted by a better-ranked arrival or a timer; First Come First Serve has neither, so it stays non-preemptive."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.fcfs",
+      "title": "FCFS and the convoy effect",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        44,
+        487
+      ],
+      "points": [
+        "First-come first-served runs processes in arrival order from a FIFO queue; it is non-preemptive and never starves anyone.",
+        "Convoy effect: short jobs queued behind one long job inflate the average waiting time.",
+        "Bursts 24, 3, 3 in that order give waiting times 0, 24, 27 (average 17); reordering to 3, 3, 24 gives 0, 3, 6 (average 3)."
+      ],
+      "lesson": {
+        "why": "First Come First Serve is the baseline every other policy is compared with, and its waiting-time arithmetic is the quickest scheduling calculation to get right under exam pressure.",
+        "intro": "First Come First Serve keeps the ready processes in one queue in the order they arrived. The process at the front gets the CPU and keeps it until its burst ends; then the next one in line runs. A process's waiting time is the time it spends in the queue, which is its start time minus its arrival time when it does no input or output.",
+        "prerequisites": [
+          "os-cpu-scheduling.criteria",
+          "os-cpu-scheduling.preemption"
+        ],
+        "analogy": {
+          "text": "A single supermarket checkout: customers are served in the order they joined the line, and nobody can be pushed aside mid-purchase.",
+          "breaksWhen": "A real cashier may fetch a price check and serve someone else meanwhile, but the CPU never switches away from a running process under this policy."
+        },
+        "definitions": [
+          {
+            "term": "Waiting time",
+            "meaning": "The time a process sits in the ready queue: start time minus arrival time when it has a single burst and no input or output."
+          },
+          {
+            "term": "Convoy effect",
+            "meaning": "Short processes stuck behind one long process, which raises the average waiting time."
+          }
+        ],
+        "principle": {
+          "text": "Each process starts at the later of its own arrival time and the moment the previous process finishes, and its waiting time is that start time minus its arrival time.",
+          "tex": "\\mathrm{start}_i = \\max(\\mathrm{AT}_i,\\ \\mathrm{start}_{i-1} + \\mathrm{BT}_{i-1}), \\qquad \\mathrm{WT}_i = \\mathrm{start}_i - \\mathrm{AT}_i"
+        },
+        "limits": "The order of arrival fixes the schedule, so the average waiting time depends on luck: the same bursts can give a large or a small average. If the CPU is idle when a process arrives, the process starts at once and waits 0, so the maximum in the rule matters.",
+        "example": {
+          "problem": "P1 arrives at time 0 with burst 6, P2 arrives at time 1 with burst 3, and P3 arrives at time 2 with burst 3. Find the average waiting time under First Come First Serve.",
+          "steps": [
+            "P1 starts at 0 and runs until 6, so its waiting time is 0.",
+            "P2 arrived at 1 and starts at 6, so it waits 6 - 1 = 5. It runs until 9.",
+            "P3 arrived at 2 and starts at 9, so it waits 9 - 2 = 7.",
+            "The total waiting time is 0 + 5 + 7 = 12 over 3 processes."
+          ],
+          "result": "The average waiting time is 12 / 3 = 4."
+        },
+        "misconceptions": [
+          "Waiting time is not the start time. A process that arrives at 10 and starts at 10 waits 0, so always subtract the arrival time.",
+          "The order in a table is not always the arrival order. Sort by arrival time first, and when two arrive together follow the tie-break the question states."
+        ],
+        "recall": [
+          {
+            "q": "What is the convoy effect?",
+            "a": "Short processes queue behind one long process, so the average waiting time rises."
+          },
+          {
+            "q": "When does a process under First Come First Serve start?",
+            "a": "At the later of its arrival time and the finish time of the process before it."
+          },
+          {
+            "q": "Can First Come First Serve starve a process?",
+            "a": "No. Every process moves forward in the queue, so each one eventually runs."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Processes P, Q, R and S arrive at times 0, 1, 2 and 3 with bursts 4, 2, 6 and 1. The scheduler is First Come First Serve and there is no input or output. What is the average waiting time?",
+          "answer": 4,
+          "explanation": "P runs 0 to 4, Q 4 to 6, R 6 to 12 and S 12 to 13. The waits are 0, 4 - 1 = 3, 6 - 2 = 4 and 12 - 3 = 9, which total 16, so the average is 4. Taking S as next because it is shortest is tempting, but this policy ignores burst length."
+        },
+        "summary": "First Come First Serve runs processes in arrival order without interruption; each waits from its arrival until the previous one finishes, and one long process at the front inflates everyone's wait."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.sjf-srtf",
+      "title": "SJF and SRTF",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        44,
+        487,
+        488
+      ],
+      "points": [
+        "Shortest Job First runs the ready process with the smallest next burst; it minimises average waiting time among non-preemptive policies when all jobs are available together.",
+        "Shortest Remaining Time First is preemptive SJF: on every arrival, compare the newcomer's burst with the running process's remaining time.",
+        "SRTF minimises average waiting time over all policies when burst times are known; both SJF and SRTF can starve long jobs."
+      ],
+      "lesson": {
+        "why": "Shortest-job questions test whether you can trace a schedule when new processes keep arriving.",
+        "intro": "Shortest Job First looks at the ready processes and runs the one whose next CPU burst is smallest. Once it starts, it runs to the end of its burst. Shortest Remaining Time First is the same idea with interruption allowed: whenever a process arrives, the scheduler compares the newcomer's burst with the time the running process still needs, and switches if the newcomer is smaller.",
+        "prerequisites": [
+          "os-cpu-scheduling.fcfs",
+          "os-cpu-scheduling.preemption"
+        ],
+        "analogy": {
+          "text": "A copy shop that lets the person with one page jump ahead of the person with a hundred pages, which keeps the line moving.",
+          "breaksWhen": "A copy shop can see how long each job is, whereas a real scheduler only has estimates of the next burst, and the person with the hundred pages may wait indefinitely."
+        },
+        "definitions": [
+          {
+            "term": "Remaining time",
+            "meaning": "The part of a process's burst that has not yet run; Shortest Remaining Time First ranks by this value, not by the original burst."
+          },
+          {
+            "term": "Starvation",
+            "meaning": "A ready process that never gets the CPU because better-ranked processes keep arriving."
+          }
+        ],
+        "principle": {
+          "text": "At every decision point run the ready process with the smallest next burst (non-preemptive) or smallest remaining time (preemptive). Running short work first lowers the average waiting time because each short job delays fewer others."
+        },
+        "limits": "The scheduler must know burst lengths in advance, which real systems can only estimate. Long processes can starve. Decisions happen only when a process finishes under the non-preemptive form, but also at every arrival under the preemptive form. Compare ties by arrival time unless the question says otherwise.",
+        "example": {
+          "problem": "A arrives at 0 with burst 7, B arrives at 1 with burst 3, and C arrives at 2 with burst 1. Find the average waiting time under Shortest Remaining Time First.",
+          "steps": [
+            "At time 1, A has 6 left and B needs 3, so B preempts A.",
+            "At time 2, B has 2 left and C needs 1, so C preempts B and runs from 2 to 3.",
+            "B resumes at 3 and finishes at 5. A resumes at 5 and finishes at 11, because 7 + 3 + 1 = 11.",
+            "Waiting time is completion minus arrival minus burst: A waits 11 - 0 - 7 = 4, B waits 5 - 1 - 3 = 1, C waits 3 - 2 - 1 = 0."
+          ],
+          "result": "The total wait is 5, so the average is 5 / 3, about 1.67."
+        },
+        "misconceptions": [
+          "Do not compare the newcomer with the running process's original burst. Under Shortest Remaining Time First the comparison is with what is left.",
+          "Shortest Job First does not interrupt. If a shorter job arrives while another runs, it waits until that burst ends.",
+          "The waiting time of a preempted process includes every pause, not just the first wait, so use completion minus arrival minus burst."
+        ],
+        "recall": [
+          {
+            "q": "What does Shortest Remaining Time First compare on each arrival?",
+            "a": "The newcomer's burst against the running process's remaining time; the smaller one runs."
+          },
+          {
+            "q": "Why does running short jobs first lower the average waiting time?",
+            "a": "Each short job delays fewer processes behind it than a long job would."
+          },
+          {
+            "q": "Which processes can starve under shortest-job policies?",
+            "a": "Long ones, because shorter processes may keep arriving and outrank them."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Non-preemptive Shortest Job First runs on processes A, B and C. A arrives at 0 with burst 4, B arrives at 1 with burst 2, and C arrives at 2 with burst 1. What is the average waiting time?",
+          "answer": 2,
+          "explanation": "Only A is present at time 0, so it runs from 0 to 4 without interruption. Then C (burst 1) beats B (burst 2): C runs 4 to 5 and B runs 5 to 7. The waits are 0, 5 - 1 = 4 and 4 - 2 = 2, total 6, so the average is 2. Letting B preempt A at time 1 is tempting but would need the preemptive form."
+        },
+        "summary": "Shortest Job First picks the smallest burst at each completion; Shortest Remaining Time First also re-picks on every arrival using remaining time. Both give small averages and both can starve long jobs."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.burst-prediction",
+      "title": "Predicting the next CPU burst",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        488,
+        490
+      ],
+      "points": [
+        "Burst times are not known in advance, so SJF implementations predict them from history.",
+        "Exponential averaging blends the last measured burst with the previous prediction: $\\tau_{n+1} = \\alpha t_n + (1-\\alpha)\\tau_n$.",
+        "$\\alpha = 0$ ignores recent history entirely; $\\alpha = 1$ trusts only the last burst."
+      ],
+      "lesson": {
+        "why": "Shortest-job scheduling needs the next burst length, which nobody knows. Exponential averaging is the standard way to estimate it, and it can be asked as a short numeric question.",
+        "intro": "A scheduler that picks the shortest job needs to know how long each job will compute next, but a process does not announce this. The scheduler therefore guesses from the past. A simple guess blends two things: the length of the burst that just finished, and the previous guess. A weight between 0 and 1 says how much to trust the latest burst.",
+        "definitions": [
+          {
+            "term": "Predicted burst",
+            "meaning": "The scheduler's estimate of the next CPU burst, written as tau."
+          },
+          {
+            "term": "Smoothing weight",
+            "meaning": "The number alpha between 0 and 1 that sets how strongly the latest measured burst changes the estimate."
+          }
+        ],
+        "principle": {
+          "text": "The next prediction is a weighted blend of the last measured burst and the last prediction. Older bursts fade geometrically with each step.",
+          "tex": "\\tau_{n+1}=\\alpha\\,t_n+(1-\\alpha)\\,\\tau_n,\\qquad 0\\le\\alpha\\le1"
+        },
+        "limits": "With alpha equal to 0 the prediction never changes from its starting value, and with alpha equal to 1 only the last burst counts. The method only works for processes whose bursts resemble their history.",
+        "example": {
+          "problem": "The first guess is $\\tau_0 = 10$ and $\\alpha = 0.5$. The measured bursts are 6, 4 and 6. Find the prediction after the third burst.",
+          "steps": [
+            "After the first burst: $\\tau_1 = 0.5(6) + 0.5(10) = 8$.",
+            "After the second burst: $\\tau_2 = 0.5(4) + 0.5(8) = 6$.",
+            "After the third burst: $\\tau_3 = 0.5(6) + 0.5(6) = 6$."
+          ],
+          "result": "The prediction for the fourth burst is 6."
+        },
+        "misconceptions": [
+          "A larger alpha does not make the prediction smoother. It makes the prediction follow the last burst more closely, so it is jumpier.",
+          "The prediction does not ignore the initial guess after one step. It fades by the factor $(1-\\alpha)$ at each step but never reaches zero weight."
+        ],
+        "recall": [
+          {
+            "q": "What does alpha equal to 1 mean in exponential averaging?",
+            "a": "The next prediction equals the last measured burst; history is ignored."
+          },
+          {
+            "q": "What does alpha equal to 0 mean?",
+            "a": "The prediction stays at its initial value; recent bursts are ignored."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A scheduler predicts bursts by exponential averaging with $\\alpha = 0.25$. The current prediction is 8 and the burst that has just finished measured 12. Find the next prediction.",
+          "answer": 9,
+          "explanation": "The new prediction is $0.25(12) + 0.75(8) = 3 + 6 = 9$. A tempting mistake is to swap the weights and compute $0.75(12) + 0.25(8) = 11$, which trusts the latest burst too much."
+        },
+        "summary": "Exponential averaging predicts the next burst as alpha times the last measured burst plus one minus alpha times the last prediction, so alpha sets how fast history fades."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.priority-aging",
+      "title": "Priority scheduling and aging",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        44,
+        488
+      ],
+      "points": [
+        "Each process carries a priority and the highest-priority ready process runs; whether a smaller number means higher priority is a convention the question must state.",
+        "Both preemptive and non-preemptive variants exist; SJF is priority scheduling with priority = predicted burst.",
+        "Low-priority processes can starve; aging gradually raises the priority of processes that have waited long."
+      ],
+      "lesson": {
+        "why": "Priority questions combine a ranking rule with a convention you must read from the question, and the starvation and aging ideas are asked as concept questions as well.",
+        "intro": "Each process carries a priority, and the scheduler gives the CPU to the ready process with the highest priority. Some systems use a small number for high priority and others a large number, so the question must say which. In the preemptive form a higher-priority arrival takes the CPU at once; in the non-preemptive form it waits for the running burst to end. A steady stream of high-priority work can keep a low-priority process waiting forever, and aging is the cure: the longer a process waits, the more its priority is raised.",
+        "prerequisites": [
+          "os-cpu-scheduling.sjf-srtf"
+        ],
+        "definitions": [
+          {
+            "term": "Starvation",
+            "meaning": "A ready process that never runs because higher-priority processes keep arriving or keep being chosen."
+          },
+          {
+            "term": "Aging",
+            "meaning": "Raising a waiting process's priority step by step over time so that it eventually outranks the others."
+          }
+        ],
+        "principle": {
+          "text": "Run the ready process with the best priority value; on an arrival, preempt only if the newcomer's priority is strictly better and the policy is preemptive. Aging adds a rule that waiting improves priority, so every process reaches the top after a bounded wait."
+        },
+        "limits": "Aging fixes starvation but does not change the ranking rule at any single moment. Shortest Job First is priority scheduling in which the priority is the burst length, so the same trace method works. First Come First Serve and Round Robin rank by arrival or turn, so they do not starve.",
+        "example": {
+          "problem": "Lower numbers mean higher priority, and the policy is preemptive. A (arrives 0, burst 5, priority 3), B (arrives 1, burst 2, priority 1), C (arrives 2, burst 3, priority 2). Find the average waiting time.",
+          "steps": [
+            "A runs from 0. At time 1, B has better priority (1 against 3), so B preempts A, which has 4 left.",
+            "B runs 1 to 3. C arrives at 2, but its priority 2 is worse than B's 1, so B keeps the CPU. At time 3, C (priority 2) beats A (priority 3), so C runs 3 to 6.",
+            "A resumes at 6 and finishes at 10.",
+            "Waiting time is completion minus arrival minus burst: A waits 10 - 0 - 5 = 5, B waits 3 - 1 - 2 = 0, C waits 6 - 2 - 3 = 1."
+          ],
+          "result": "The total wait is 6, so the average is 2."
+        },
+        "misconceptions": [
+          "A larger number is not always a higher priority. Read the convention in the question before ranking anything.",
+          "Preemptive priority switches only for a strictly better priority. Equal priorities do not preempt each other.",
+          "Aging does not make low-priority work run first; it only guarantees that waiting eventually earns the CPU."
+        ],
+        "recall": [
+          {
+            "q": "Why can priority scheduling starve a process?",
+            "a": "Higher-priority processes can keep arriving, so a low-priority one never becomes the best choice."
+          },
+          {
+            "q": "What does aging do?",
+            "a": "It raises a waiting process's priority over time, so every process eventually gets the CPU."
+          },
+          {
+            "q": "How does Shortest Job First relate to priority scheduling?",
+            "a": "It is priority scheduling where the priority is the predicted burst length, shorter meaning higher."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Lower numbers mean higher priority. A waiting process starts at priority number 50, and its number drops by 1 for every 8 ms it waits without running. How many ms until it reaches priority number 0?",
+          "answer": 400,
+          "explanation": "Reaching 0 from 50 takes 50 drops, and each drop takes 8 ms, so 50 x 8 = 400 ms. Answering 50 forgets the 8 ms per step. Answering 58 adds instead of multiplying."
+        },
+        "summary": "Priority scheduling runs the best-ranked ready process, preemptively or not, and can starve low-priority work; aging raises the priority of waiting processes so starvation cannot last."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.round-robin",
+      "title": "Round robin and the time quantum",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        44,
+        488
+      ],
+      "points": [
+        "Each process runs for at most one quantum q, then goes to the back of the ready queue; it is preemptive and fair to interactive work.",
+        "A very large quantum makes RR behave like FCFS; a very small one spends most of the CPU on context switches. Typical values are 10–100 ms.",
+        "With n ready processes, nobody waits more than $(n-1)q$ for its next quantum, so RR cannot starve a process."
+      ],
+      "lesson": {
+        "why": "Round Robin is the standard time-sharing policy, and its questions test whether you can keep the ready queue in the right order as processes are preempted and re-queued.",
+        "intro": "Round Robin gives every ready process the CPU for at most one fixed slice of time, called the quantum. If the process needs longer, the timer interrupts it and it goes to the back of the ready queue; if it finishes sooner, the CPU passes on at once. The scheduler keeps cycling through the queue until every process is done.",
+        "prerequisites": [
+          "os-cpu-scheduling.fcfs",
+          "os-cpu-scheduling.preemption"
+        ],
+        "analogy": {
+          "text": "Children sharing one toy, each allowed a fixed turn before it passes to the next in the circle.",
+          "breaksWhen": "Passing the toy costs nothing, but each CPU switch costs a context switch, so a very small quantum wastes time."
+        },
+        "definitions": [
+          {
+            "term": "Time quantum",
+            "meaning": "The longest time a process may run before the timer interrupt returns it to the ready queue."
+          },
+          {
+            "term": "Context switch",
+            "meaning": "Saving the state of the running process and loading the next one's."
+          }
+        ],
+        "principle": {
+          "text": "The running process uses min(q, remaining) time, then re-joins the back of the queue if work remains. With n processes ready, none waits more than (n - 1)q for its next turn, so none starves."
+        },
+        "limits": "With a quantum larger than every burst, Round Robin behaves like First Come First Serve. With a very small quantum, switching overhead dominates. When a process arrives at the same moment another one is preempted, the question or convention decides who joins the queue first.",
+        "example": {
+          "problem": "A, B and C all arrive at 0 in that order, with bursts 5, 4 and 2, and the quantum is 3. Find the average waiting time.",
+          "steps": [
+            "A runs 0 to 3 (2 left), B runs 3 to 6 (1 left), C runs 6 to 8 and finishes.",
+            "The queue is now A, B. A runs 8 to 10 and finishes; B runs 10 to 11 and finishes.",
+            "Completion times are A 10, B 11, C 8. With arrival 0, waiting time is completion minus burst: A waits 5, B waits 7, C waits 6."
+          ],
+          "result": "The total wait is 18, so the average is 6."
+        },
+        "misconceptions": [
+          "A process that finishes before its quantum ends does not hold the CPU for the rest of the slice; the next process starts immediately.",
+          "Round Robin does not minimise average waiting time. It trades some of that for fair, quick responses.",
+          "Remaining work goes to the back of the queue, not the front, so the next process in line runs before the preempted one runs again."
+        ],
+        "recall": [
+          {
+            "q": "What happens when a process's quantum expires and it still has work?",
+            "a": "It is preempted and placed at the back of the ready queue."
+          },
+          {
+            "q": "What does Round Robin become when the quantum is larger than every burst?",
+            "a": "First Come First Serve."
+          },
+          {
+            "q": "Why can Round Robin not starve a process?",
+            "a": "With n ready processes each waits at most (n - 1) quanta for its next turn."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "P, Q and R arrive together at time 0 in that order with bursts 4, 3 and 2. Round Robin uses a quantum of 2. At what time does Q finish?",
+          "answer": 9,
+          "explanation": "P runs 0 to 2, Q runs 2 to 4, R runs 4 to 6 and finishes. P runs 6 to 8 and finishes. Q has 1 unit left and runs 8 to 9. Answering 4 stops after Q's first slice, and answering 5 forgets that P and R run before Q's second slice."
+        },
+        "summary": "Round Robin lets each ready process run for at most one quantum and sends unfinished work to the back of the queue; trace the queue order carefully, since the order decides every completion time."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.multilevel-queues",
+      "title": "Multilevel queue and multilevel feedback queue",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        44,
+        45,
+        488,
+        489
+      ],
+      "points": [
+        "A multilevel queue splits processes into fixed classes (system, interactive, batch), each with its own algorithm, scheduled against each other by priority or time slicing.",
+        "In a multilevel feedback queue a process that uses its whole quantum drops to a lower-priority queue, while I/O-bound processes stay near the top.",
+        "MLFQ approximates SJF without knowing burst times; promoting long-waiting processes upward prevents starvation."
+      ],
+      "lesson": {
+        "why": "Queue-based schedulers appear in conceptual questions about starvation and about how a scheduler can favour short jobs without knowing burst times.",
+        "intro": "A single ready queue treats every process the same way. A multilevel queue scheduler instead keeps several queues, each with its own rule, for example a queue for interactive work and a queue for batch work. The queues themselves are ranked: in the common strict-priority form, a lower queue runs only when the higher ones are empty, and some designs time-slice between queues instead. In the feedback version a process is not stuck in one queue: it moves between them depending on how it behaves.",
+        "definitions": [
+          {
+            "term": "Multilevel queue",
+            "meaning": "Several ready queues for fixed classes of process, each with its own algorithm."
+          },
+          {
+            "term": "Multilevel feedback queue",
+            "meaning": "A multilevel queue in which a process moves between queues according to its recent behaviour."
+          }
+        ],
+        "principle": {
+          "text": "In a multilevel feedback queue a process that uses its whole quantum drops to a lower-priority queue, while a process that gives up the CPU early stays high. This sorts short and I/O-bound jobs ahead of long ones, and promoting long-waiting processes upward prevents starvation."
+        },
+        "limits": "In a plain multilevel queue with strict priority between queues a low queue can starve, and processes never move between queues. The feedback design needs promotion, or aging, to remove that risk.",
+        "example": {
+          "problem": "Queue 1 is Round Robin with quantum 4 and queue 2 is First Come First Serve. P1 (burst 10) and P2 (burst 3) both arrive at time 0 in queue 1, with P1 first. Find the completion time of each.",
+          "steps": [
+            "P1 runs 0 to 4, uses its whole quantum and drops to queue 2 with 6 units left.",
+            "P2 runs 4 to 7 and finishes within its quantum, at time 7.",
+            "Queue 1 is now empty, so P1 runs in queue 2 from 7 to 13."
+          ],
+          "result": "P2 completes at 7 and P1 at 13."
+        },
+        "misconceptions": [
+          "Multilevel feedback does not need to know burst times. It learns about them from behaviour, since a process that uses its whole quantum is treated as long.",
+          "A multilevel queue is not the same as a multilevel feedback queue: in the plain version a process never changes queue."
+        ],
+        "recall": [
+          {
+            "q": "Why does a multilevel feedback queue demote a process that uses its full quantum?",
+            "a": "Using the whole quantum suggests a long job, so it is placed below short and I/O-bound jobs."
+          },
+          {
+            "q": "How is starvation of low queues prevented in a feedback queue?",
+            "a": "Processes that wait a long time are promoted to a higher queue."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about a multilevel feedback queue scheduler is correct?",
+          "options": [
+            "It needs the exact burst time of every process in advance.",
+            "A process never moves from the queue it first entered.",
+            "It approximates shortest-job-first by demoting processes that use their whole quantum.",
+            "Low-priority queues can never starve, even without promotion."
+          ],
+          "answer": 2,
+          "explanation": "Demoting processes that use a full quantum pushes long jobs down and keeps short ones high, which approximates shortest-job-first with no burst knowledge. The first option confuses it with SJF itself and the second describes a plain multilevel queue. The last is false, because without promotion a low queue can starve."
+        },
+        "summary": "A multilevel queue keeps separate ranked queues for classes of process; the feedback form demotes processes that use whole quanta and promotes long waiters, approximating shortest-job-first without burst times."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.gantt-method",
+      "title": "The Gantt-chart method",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        45,
+        490
+      ],
+      "points": [
+        "Sort processes by arrival, then step through time, recording which process runs in each interval and why.",
+        "Scheduling decisions happen only at arrivals, completions and quantum expiries, so mark exactly those instants.",
+        "Read each completion time off the chart, then compute TAT and WT per process before averaging."
+      ],
+      "lesson": {
+        "why": "Most numeric scheduling questions are solved by drawing a Gantt chart. A neat chart gives every completion time, and the averages follow in one line each.",
+        "intro": "A Gantt chart is a timeline with one box for each stretch of time during which a single process holds the CPU. To build it, move the clock forward and at each decision point ask which ready process the policy picks. Decisions are only needed at a few moments: when a process arrives, when one finishes, and when a time quantum runs out. Once the chart is drawn, the completion time of each process can be read from it.",
+        "definitions": [
+          {
+            "term": "Gantt chart",
+            "meaning": "A timeline showing which process runs during each interval, including idle gaps."
+          }
+        ],
+        "principle": {
+          "text": "Step through time, deciding only at arrivals, completions and quantum expiries. Read each completion time off the chart, then compute turnaround and waiting time per process before averaging.",
+          "tex": "\\mathrm{TAT}=\\mathrm{CT}-\\mathrm{AT},\\qquad \\mathrm{WT}=\\mathrm{TAT}-\\mathrm{BT}"
+        },
+        "limits": "The method assumes the tie-break rule is known, such as lower process id first. If no process has arrived the CPU stays idle and the clock still moves forward.",
+        "example": {
+          "problem": "Non-preemptive shortest job first. P1 arrives at 2 with burst 3, P2 at 3 with burst 1, P3 at 4 with burst 2. Find the average waiting time.",
+          "steps": [
+            "The CPU is idle until time 2, when P1 arrives, so P1 runs 2 to 5.",
+            "At time 5, P2 (burst 1) and P3 (burst 2) are waiting. P2 is shorter, so P2 runs 5 to 6 and P3 runs 6 to 8.",
+            "Waiting times are P1: 0, P2: 5 - 3 = 2, P3: 6 - 4 = 2."
+          ],
+          "result": "The average waiting time is 4/3."
+        },
+        "misconceptions": [
+          "Starting the chart at time 0 is wrong when nothing has arrived. The first box begins at the first arrival.",
+          "Waiting time is not read from the chart directly. Read the completion time first, then subtract arrival and burst."
+        ],
+        "recall": [
+          {
+            "q": "At which moments does a scheduling decision happen on a Gantt chart?",
+            "a": "At arrivals, at completions and at quantum expiries."
+          },
+          {
+            "q": "How do you get waiting time from a Gantt chart?",
+            "a": "Read the completion time, subtract the arrival time for turnaround, then subtract the burst time."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "First Come First Serve. P1 arrives at 1 with burst 2, P2 at 2 with burst 3, and P3 at 9 with burst 1. Find the completion time of P3.",
+          "answer": 10,
+          "explanation": "The CPU is idle until 1. P1 runs 1 to 3 and P2 runs 3 to 6. The CPU is then idle from 6 to 9, because P3 has not arrived, and P3 runs 9 to 10. The tempting mistake is to ignore the idle gap and finish at 6 + 1 = 7."
+        },
+        "summary": "Build the chart by deciding at arrivals, completions and quantum expiries, count idle gaps, then derive turnaround and waiting time from each completion time."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.hrrn",
+      "title": "Highest response ratio next",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "HRRN is non-preemptive: when the CPU frees up, it picks the process with the largest response ratio $(W + S)/S$, where W is the time waited so far and S the burst.",
+        "Short jobs are favoured, but a long job's ratio grows as it waits, so HRRN cannot starve anyone."
+      ],
+      "lesson": {
+        "why": "HRRN is a standard example of a policy that favours short jobs and still cannot starve anyone, which is a frequent conceptual question.",
+        "intro": "Shortest job first is quick for short jobs but can leave a long job waiting forever. Highest response ratio next fixes this. Whenever the CPU becomes free, it computes a score for each waiting process: the time the process has waited plus its burst, divided by its burst. Every job starts with a score of 1; a short job's score climbs faster as it waits, and a long job's score keeps rising until it overtakes the others. The process with the highest score runs to completion.",
+        "definitions": [
+          {
+            "term": "Response ratio",
+            "meaning": "Waiting time so far plus burst time, divided by burst time."
+          }
+        ],
+        "principle": {
+          "text": "When the CPU is free, run the waiting process with the largest response ratio, without preemption. Waiting raises the ratio, so no process starves.",
+          "tex": "R=\\frac{W+S}{S}"
+        },
+        "limits": "HRRN needs the burst time S in advance, as shortest job first does. The ratio is evaluated only when the CPU frees up, because the policy is non-preemptive.",
+        "example": {
+          "problem": "P1 arrives at 0 with burst 6 and runs first. P2 arrives at 1 with burst 4, P3 at 2 with burst 2, and P4 at 3 with burst 6. Which runs next at time 6?",
+          "steps": [
+            "P2 has waited 5, so R = (5 + 4)/4 = 2.25.",
+            "P3 has waited 4, so R = (4 + 2)/2 = 3.",
+            "P4 has waited 3, so R = (3 + 6)/6 = 1.5."
+          ],
+          "result": "P3 has the highest ratio, 3, and runs next."
+        },
+        "misconceptions": [
+          "HRRN is not preemptive. A newcomer with a higher ratio waits until the running process finishes.",
+          "A new arrival's ratio is always 1 because W is 0, so it starts at the lowest possible value and grows as it waits."
+        ],
+        "recall": [
+          {
+            "q": "What is the response ratio of a process?",
+            "a": "Time waited so far plus burst time, all divided by burst time."
+          },
+          {
+            "q": "Why does HRRN not starve long jobs?",
+            "a": "A long job's ratio grows with its waiting time until it becomes the highest."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The CPU becomes free at time 10. A (burst 5) arrived at 0, B (burst 2) arrived at 8, and C (burst 4) arrived at 9. Which does HRRN run next?",
+          "options": [
+            "A",
+            "B",
+            "C",
+            "A and B tie"
+          ],
+          "answer": 0,
+          "explanation": "A has waited 10, so R = (10 + 5)/5 = 3. B has waited 2, so R = (2 + 2)/2 = 2. C has waited 1, so R = (1 + 4)/4 = 1.25. A wins. B is tempting because shortest job first would choose it, but HRRN also rewards long waiting."
+        },
+        "summary": "HRRN runs, without preemption, the waiting process with the highest ratio of waiting time plus burst to burst, so short jobs go early and long jobs cannot starve."
+      }
+    },
+    {
+      "id": "os-cpu-scheduling.disk-scheduling",
+      "title": "Disk scheduling",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        489,
+        490
+      ],
+      "points": [
+        "FCFS serves requests in order; SSTF serves the closest cylinder next and can starve far requests.",
+        "SCAN (elevator) sweeps to the end of the disk, then reverses; C-SCAN sweeps one way and jumps back to the start.",
+        "LOOK and C-LOOK behave like SCAN and C-SCAN but turn at the last pending request instead of the disk end."
+      ],
+      "keyTerms": [
+        "seek time",
+        "SSTF",
+        "SCAN",
+        "C-SCAN",
+        "LOOK",
+        "C-LOOK"
+      ],
+      "lesson": {
+        "why": "Disk scheduling questions ask for a total head movement or a service order, and each is a short calculation once you know each policy's rule for choosing the next cylinder.",
+        "intro": "A disk is divided into concentric tracks, and a cylinder is the track position the head sits over, numbered from 0 at the outer edge. A disk head must move to the cylinder of a request before it can read or write, and that movement, the seek, is the slow part. When several requests are waiting, the order in which they are served decides how far the head travels in total. A disk-scheduling policy is a rule for picking that order, aiming to keep the total distance small. Shortest Seek Time First (SSTF) always serves the pending request nearest the head. SCAN moves the head in one direction to the disk end, serving requests on the way, then reverses. C-SCAN does the same but after reaching the end jumps back to the other end and sweeps in the same direction again. LOOK and C-LOOK behave like SCAN and C-SCAN but turn, or jump back, at the last pending request instead of the disk end.",
+        "analogy": {
+          "text": "A lift answering floor buttons: serving the nearest floor first, or sweeping up then down, saves travel compared with going in the order buttons were pressed.",
+          "breaksWhen": "A lift stops to let people in and out, but the head cost here is only distance, and some policies avoid far requests for a long time."
+        },
+        "definitions": [
+          {
+            "term": "Cylinder",
+            "meaning": "A track position on the disk, numbered from 0; a request names the cylinder it needs."
+          },
+          {
+            "term": "Seek distance",
+            "meaning": "The number of cylinders the head moves between two requests: the absolute difference of their cylinder numbers."
+          },
+          {
+            "term": "Sweep",
+            "meaning": "One pass of the head across the disk in a single direction while serving requests on the way."
+          }
+        ],
+        "principle": {
+          "text": "The total head movement is the sum of the absolute differences between consecutive cylinders visited, starting from the head's current cylinder. Each policy only changes the visiting order.",
+          "tex": "D = \\sum_{i=1}^{n} \\left| c_i - c_{i-1} \\right|, \\qquad c_0 = \\text{starting head position}"
+        },
+        "limits": "SSTF can starve far requests when nearer ones keep arriving. SCAN and C-SCAN go to the disk end even if no request lies there, whereas LOOK and C-LOOK turn at the last request. The initial direction matters for the sweep policies, so read it from the question. The jump back in C-SCAN and C-LOOK counts as head movement unless the question says otherwise. When two pending requests are equally near, SSTF needs a stated tie rule, so read the question for it. When a question prices direction changes, count each reversal of the head separately from the distance travelled.",
+        "example": {
+          "problem": "The head is at cylinder 50. Requests wait at 82, 170, 43, 140, 24, 16 and 190. Find the total head movement under Shortest Seek Time First.",
+          "steps": [
+            "From 50 the closest is 43 (distance 7). From 43 the closest is 24 (19), then 16 (8).",
+            "From 16 the closest is 82 (66). Then 140 (58), 170 (30) and 190 (20).",
+            "Add the distances: 7 + 19 + 8 + 66 + 58 + 30 + 20 = 208."
+          ],
+          "result": "The total head movement is 208 cylinders; serving the same requests in the given order would take 642."
+        },
+        "misconceptions": [
+          "Shortest Seek Time First picks the closest request to the current head position at each step, not the closest to the start.",
+          "SCAN does not stop at the last request; it runs to the disk end first, which LOOK does not do.",
+          "The head's starting direction changes the SCAN and LOOK order, so reading it wrongly gives a different total."
+        ],
+        "recall": [
+          {
+            "q": "What is the seek distance between cylinders a and b?",
+            "a": "The absolute difference |a - b|."
+          },
+          {
+            "q": "How does LOOK differ from SCAN?",
+            "a": "LOOK turns at the last pending request, while SCAN continues to the end of the disk before reversing."
+          },
+          {
+            "q": "Which policy can starve far-away requests?",
+            "a": "Shortest Seek Time First, since nearer requests can keep arriving."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The head is at cylinder 40 moving toward higher numbers. Requests wait at 90, 20, 60 and 10. The disk has cylinders 0 to 199. What is the total head movement under LOOK?",
+          "answer": 130,
+          "explanation": "Moving up, LOOK serves 60 and 90 and turns at 90, the last request in that direction: 90 - 40 = 50. It then sweeps down to 20 and 10, the last request there: 90 - 10 = 80. The total is 50 + 80 = 130. Going to cylinder 199 first gives 348, which is the SCAN total, not LOOK."
+        },
+        "summary": "Total head movement is the sum of distances between consecutive cylinders; SSTF takes the nearest each time, SCAN sweeps to the disk end, and LOOK sweeps only as far as the last request."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "os-cpu-scheduling.turnaround-time",
+      "name": "Turnaround time",
+      "tex": "\\mathrm{TAT} = \\mathrm{CT} - \\mathrm{AT}",
+      "text": "TAT = CT − AT",
+      "where": [
+        [
+          "CT",
+          "completion time"
+        ],
+        [
+          "AT",
+          "arrival time"
+        ]
+      ],
+      "topic": "os-cpu-scheduling.criteria",
+      "origin": "source",
+      "pages": [
+        44,
+        487
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.waiting-time",
+      "name": "Waiting time",
+      "tex": "\\mathrm{WT} = \\mathrm{TAT} - \\mathrm{BT}",
+      "text": "WT = TAT − BT",
+      "where": [
+        [
+          "BT",
+          "total CPU burst time"
+        ]
+      ],
+      "note": "If a process also does I/O, subtract the I/O time as well: WT is time spent in the ready queue only.",
+      "topic": "os-cpu-scheduling.criteria",
+      "origin": "source",
+      "pages": [
+        44,
+        487
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.response-time",
+      "name": "Response time",
+      "tex": "\\mathrm{RT} = t_{\\text{first run}} - \\mathrm{AT}",
+      "text": "RT = first CPU access − AT",
+      "topic": "os-cpu-scheduling.criteria",
+      "origin": "source",
+      "pages": [
+        44,
+        487
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.cpu-utilisation",
+      "name": "CPU utilisation",
+      "tex": "U = \\frac{\\text{CPU busy time}}{\\text{total elapsed time}} \\times 100\\%",
+      "text": "U = CPU busy time / total time × 100%",
+      "note": "Idle gaps before arrivals and context-switch time both count as not busy.",
+      "topic": "os-cpu-scheduling.criteria",
+      "origin": "source",
+      "pages": [
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.throughput",
+      "name": "Throughput",
+      "tex": "\\text{Throughput} = \\frac{n}{T}",
+      "text": "Throughput = n / T",
+      "where": [
+        [
+          "n",
+          "processes completed"
+        ],
+        [
+          "T",
+          "length of the schedule"
+        ]
+      ],
+      "topic": "os-cpu-scheduling.criteria",
+      "origin": "source",
+      "pages": [
+        487
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.exponential-averaging",
+      "name": "Exponential averaging of burst length",
+      "tex": "\\tau_{n+1} = \\alpha\\, t_n + (1 - \\alpha)\\, \\tau_n, \\quad 0 \\le \\alpha \\le 1",
+      "text": "τ(n+1) = α·t(n) + (1 − α)·τ(n)",
+      "where": [
+        [
+          "t_n",
+          "measured length of the n-th burst"
+        ],
+        [
+          "τ_n",
+          "predicted length of the n-th burst"
+        ]
+      ],
+      "topic": "os-cpu-scheduling.burst-prediction",
+      "origin": "curated",
+      "pages": [
+        490
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.rr-wait-bound",
+      "name": "Round-robin worst-case wait",
+      "tex": "W_{\\max} = (n - 1)(q + s)",
+      "text": "W_max = (n − 1)(q + s)",
+      "where": [
+        [
+          "n",
+          "ready processes"
+        ],
+        [
+          "q",
+          "time quantum"
+        ],
+        [
+          "s",
+          "context-switch time"
+        ]
+      ],
+      "note": "The longest a process waits before its next quantum; with s = 0 it is (n − 1)q.",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-cpu-scheduling.rr-efficiency",
+      "name": "CPU efficiency with context switches",
+      "tex": "\\eta = \\frac{q}{q + s}",
+      "text": "η = q / (q + s)",
+      "note": "Valid when every process uses its full quantum; a process that blocks early contributes its actual burst in place of q.",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-cpu-scheduling.response-ratio",
+      "name": "HRRN response ratio",
+      "tex": "R = \\frac{W + S}{S}",
+      "text": "R = (W + S) / S",
+      "where": [
+        [
+          "W",
+          "time spent waiting so far"
+        ],
+        [
+          "S",
+          "expected service (burst) time"
+        ]
+      ],
+      "topic": "os-cpu-scheduling.hrrn",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-cpu-scheduling.head-movement",
+      "name": "Total head movement",
+      "tex": "D = \\sum_{i=1}^{k} \\lvert c_i - c_{i-1} \\rvert",
+      "text": "D = Σ |c(i) − c(i−1)|",
+      "where": [
+        [
+          "c_0",
+          "starting head position"
+        ],
+        [
+          "c_i",
+          "i-th cylinder visited, including any turn-around point"
+        ]
+      ],
+      "note": "For SCAN moving up from h on a disk ending at E with lowest request m: D = (E − h) + (E − m).",
+      "topic": "os-cpu-scheduling.disk-scheduling",
+      "origin": "source",
+      "pages": [
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.disk-access-time",
+      "name": "Disk access time",
+      "tex": "T_{\\text{access}} = T_{\\text{seek}} + \\tfrac{1}{2}T_{\\text{rotation}} + T_{\\text{transfer}}",
+      "text": "T_access = T_seek + ½·T_rotation + T_transfer",
+      "note": "The ½ rotation is the average rotational latency.",
+      "topic": "os-cpu-scheduling.disk-scheduling",
+      "origin": "source",
+      "pages": [
+        63
+      ]
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "os-cpu-scheduling.avg-wt-tat",
+      "title": "Average waiting / turnaround time from an arrival-burst table",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "List the processes by arrival time and note the policy's tie-break rule (usually arrival order, then lower process id).",
+        "Draw the Gantt chart, making scheduling decisions only at arrivals, completions and quantum expiries.",
+        "Read each process's completion time CT off the chart.",
+        "Compute TAT = CT − AT and WT = TAT − BT for every process, then average."
+      ],
+      "trap": "If the CPU sits idle because nothing has arrived yet, the idle gap still moves the clock forward.",
+      "topic": "os-cpu-scheduling.gantt-method",
+      "origin": "source",
+      "pages": [
+        45,
+        490,
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.srtf-trace",
+      "title": "SRTF trace with staggered arrivals",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "At each arrival, compare the newcomer's burst with the running process's remaining time.",
+        "Preempt only if the newcomer is strictly shorter; on a tie the running process normally continues.",
+        "Keep a running table of remaining times so later decisions use the updated values."
+      ],
+      "trap": "Forgetting to subtract the time already executed before comparing remaining times.",
+      "topic": "os-cpu-scheduling.sjf-srtf",
+      "origin": "source",
+      "pages": [
+        488,
+        492,
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.rr-trace",
+      "title": "Round-robin trace and context-switch count",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Maintain the ready queue explicitly; a process whose quantum expires goes to the tail.",
+        "When an arrival and a quantum expiry coincide, enqueue the newcomer first unless the question says otherwise.",
+        "Count a context switch every time the running process changes, if the question asks for overhead."
+      ],
+      "trap": "The arrival-versus-preempted-process ordering changes the whole schedule: say which convention you used.",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "source",
+      "pages": [
+        488,
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.policy-properties",
+      "title": "Which policy is optimal, fair or starvation-prone",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Optimal average WT: SJF among non-preemptive policies, SRTF overall (bursts known).",
+        "Starvation: SJF, SRTF, priority without aging and SSTF can starve; FCFS, RR and HRRN cannot.",
+        "Degenerate cases: RR with a huge quantum is FCFS; priority with priority = burst is SJF."
+      ],
+      "topic": "os-cpu-scheduling.sjf-srtf",
+      "origin": "source",
+      "pages": [
+        488,
+        491,
+        492,
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.disk-movement",
+      "title": "Total head movement under a disk-scheduling policy",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Sort the request queue and mark the head position and direction.",
+        "Write out the visiting order for the policy, including the disk end for SCAN and C-SCAN.",
+        "Sum the absolute cylinder differences along that order."
+      ],
+      "trap": "SCAN travels to the physical end of the disk before reversing; LOOK turns at the last request.",
+      "topic": "os-cpu-scheduling.disk-scheduling",
+      "origin": "source",
+      "pages": [
+        489,
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.overhead-utilisation",
+      "title": "CPU utilisation with context-switch overhead",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find the useful CPU time in one scheduling cycle (a full quantum, or the actual burst if shorter).",
+        "Add the context-switch time charged to that cycle.",
+        "Utilisation = useful time / (useful time + overhead)."
+      ],
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "os-cpu-scheduling.q-srtf-average-wait",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Four processes arrive as P1 (arrival 0, burst 8), P2 (1, 4), P3 (2, 9) and P4 (3, 5). Under SRTF scheduling, what is the average waiting time (ms)?",
+      "answer": 6.5,
+      "tolerance": 0.01,
+      "explanation": "Gantt chart: P1 0–1, P2 1–5, P4 5–10, P1 10–17, P3 17–26. Waiting times are 17−0−8 = 9, 5−1−4 = 0, 26−2−9 = 15 and 10−3−5 = 2, a total of 26, so the average is 6.5 ms.",
+      "difficulty": "medium",
+      "topic": "os-cpu-scheduling.sjf-srtf",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Avg WT",
+      "pages": [
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-rr-average-tat",
+      "type": "nat",
+      "marks": 1,
+      "stem": "P1, P2 and P3 arrive at time 0 in that order with bursts 4, 3 and 1. Using round robin with quantum 2, what is the average turnaround time? (2 decimals)",
+      "answer": 6.67,
+      "tolerance": 0.01,
+      "explanation": "Gantt chart: P1 0–2, P2 2–4, P3 4–5, P1 5–7, P2 7–8. Completion times are 7, 8 and 5, all arrivals are 0, so average TAT = 20/3 ≈ 6.67.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — RR",
+      "pages": [
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-rr-average-wait",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Three processes arrive at time 0 with bursts 8, 4 and 12 (in that queue order). With round robin and a quantum of 4, what is the average waiting time?",
+      "answer": 8,
+      "explanation": "P1 0–4, P2 4–8 (done), P3 8–12, P1 12–16 (done), P3 16–24 (done). Completion times 16, 8, 24 give waiting times 8, 4 and 12, so the average is 8.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "source",
+      "pages": [
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-scan-head-movement",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A disk has cylinders 0–199 and the head is at 53 moving towards higher cylinders. The queue is 98, 183, 37, 122, 14, 124, 65, 67. What is the total head movement under SCAN?",
+      "answer": 331,
+      "explanation": "SCAN serves 65, 67, 98, 122, 124, 183 on the way up and continues to the end, 199: 199 − 53 = 146. It then reverses and serves 37 and 14: 199 − 14 = 185. Total = 146 + 185 = 331 cylinders.",
+      "difficulty": "medium",
+      "topic": "os-cpu-scheduling.disk-scheduling",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Disk SCAN",
+      "pages": [
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-look-head-movement",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Same disk and queue as the SCAN case (head at 53 moving up; requests 98, 183, 37, 122, 14, 124, 65, 67), but the policy is LOOK. What is the total head movement?",
+      "answer": 299,
+      "explanation": "LOOK turns at the last request instead of the disk end: up from 53 to 183 is 130, then down from 183 to 14 is 169. Total = 299 cylinders, 32 fewer than SCAN because it skips the 183 → 199 → 183 detour.",
+      "difficulty": "medium",
+      "topic": "os-cpu-scheduling.disk-scheduling",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-cpu-scheduling.q-exponential-average",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A scheduler predicts burst lengths with exponential averaging, α = 0.5 and initial guess τ₀ = 10 ms. The next three measured bursts are 6, 4 and 6 ms. What is the prediction τ₃ (ms)?",
+      "answer": 6,
+      "explanation": "τ₁ = 0.5·6 + 0.5·10 = 8; τ₂ = 0.5·4 + 0.5·8 = 6; τ₃ = 0.5·6 + 0.5·6 = 6 ms.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.burst-prediction",
+      "origin": "curated",
+      "pages": [
+        490
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-rr-utilisation",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Round robin uses a 4 ms quantum and every context switch costs 1 ms. If every process is CPU-bound and always uses its full quantum, what is the CPU utilisation in percent?",
+      "answer": 80,
+      "explanation": "Each cycle does 4 ms of useful work and 1 ms of switching, so utilisation = 4 / (4 + 1) = 80%.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-cpu-scheduling.q-optimal-nonpreemptive",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "All jobs are available at time 0. Which non-preemptive policy minimises the average waiting time?",
+      "options": [
+        "FCFS",
+        "Shortest Job First",
+        "Priority scheduling",
+        "Round robin"
+      ],
+      "answer": 1,
+      "explanation": "Running shorter jobs first means fewer jobs wait behind long ones; an exchange argument shows SJF minimises the sum of waiting times among non-preemptive orders. Round robin is preemptive.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.sjf-srtf",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — SJF",
+      "pages": [
+        488,
+        492
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-starvation",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these policies can starve a process indefinitely?",
+      "options": [
+        "FCFS",
+        "SJF (non-preemptive)",
+        "Priority scheduling without aging",
+        "Round robin"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "Under SJF a long job can be postponed forever if shorter jobs keep arriving, and the same holds for low-priority jobs without aging. FCFS eventually reaches every job, and round robin bounds the wait at (n − 1)q.",
+      "difficulty": "medium",
+      "topic": "os-cpu-scheduling.priority-aging",
+      "origin": "source",
+      "pages": [
+        488,
+        491
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-large-quantum",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "As the round-robin time quantum grows larger than every CPU burst, the policy behaves like:",
+      "options": [
+        "FCFS",
+        "SJF",
+        "SRTF",
+        "Priority scheduling"
+      ],
+      "answer": 0,
+      "explanation": "If no process ever exhausts its quantum, nothing is preempted and processes run to completion in queue order: exactly FCFS.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.round-robin",
+      "origin": "source",
+      "pages": [
+        488,
+        491
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-mlfq-demotion",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a multilevel feedback queue, a process that uses its entire quantum at the top level is usually:",
+      "options": [
+        "Promoted to a higher-priority queue",
+        "Moved to a lower-priority queue",
+        "Kept in the same queue with a doubled quantum",
+        "Terminated"
+      ],
+      "answer": 1,
+      "explanation": "Using the full quantum signals CPU-bound behaviour, so MLFQ demotes the process; interactive, I/O-bound processes give up the CPU early and stay near the top.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.multilevel-queues",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Multilevel feedback",
+      "pages": [
+        489,
+        493
+      ]
+    },
+    {
+      "id": "os-cpu-scheduling.q-hrrn-pick",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Under HRRN, the CPU becomes free and three processes are waiting: A has waited 8 ms with a 4 ms burst, B has waited 5 ms with a 1 ms burst, C has waited 10 ms with a 10 ms burst. Which runs next?",
+      "options": [
+        "A",
+        "B",
+        "C",
+        "A and C tie"
+      ],
+      "answer": 1,
+      "explanation": "Response ratios are (8+4)/4 = 3 for A, (5+1)/1 = 6 for B and (10+10)/10 = 2 for C. B has the highest ratio.",
+      "difficulty": "easy",
+      "topic": "os-cpu-scheduling.hrrn",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Waiting time counts only time in the ready queue; turnaround time also includes the burst. Do not swap them in an average.",
+      "origin": "source",
+      "pages": [
+        493
+      ]
+    },
+    {
+      "text": "SRTF re-decides at every arrival, not only when the running process finishes.",
+      "origin": "source",
+      "pages": [
+        493
+      ]
+    },
+    {
+      "text": "In round robin, the order in which a new arrival and a just-preempted process join the queue changes the answer; follow the question's convention.",
+      "origin": "source",
+      "pages": [
+        488,
+        493
+      ]
+    },
+    {
+      "text": "SCAN goes to the disk end before reversing while LOOK turns at the last request: on the same queue they give 331 and 299.",
+      "origin": "source",
+      "pages": [
+        493
+      ]
+    },
+    {
+      "text": "Response time and waiting time coincide only for non-preemptive schedules.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Criteria",
+      "lines": [
+        "TAT = completion − arrival",
+        "WT = TAT − burst",
+        "Response = first CPU access − arrival"
+      ],
+      "origin": "source",
+      "pages": [
+        494
+      ]
+    },
+    {
+      "heading": "Algorithms",
+      "lines": [
+        "FCFS: non-preemptive, convoy effect",
+        "SJF: optimal average WT (non-preemptive)",
+        "SRTF: optimal average WT (preemptive)",
+        "Priority: starvation → fix with aging",
+        "RR: huge q → FCFS; tiny q → switch overhead",
+        "MLQ fixed classes; MLFQ moves processes between queues"
+      ],
+      "origin": "source",
+      "pages": [
+        494
+      ]
+    },
+    {
+      "heading": "Disk",
+      "lines": [
+        "FCFS, SSTF (can starve)",
+        "SCAN = elevator, goes to the disk end",
+        "C-SCAN sweeps one way, jumps back",
+        "LOOK / C-LOOK turn at the last request"
+      ],
+      "origin": "source",
+      "pages": [
+        494
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 492,
+      "claim": "The SRTF example P1(0,8), P2(1,4), P3(2,9), P4(3,5) has an average waiting time of roughly 6–7.5.",
+      "correction": "The value is exactly 6.5: P1 0–1, P2 1–5, P4 5–10, P1 10–17, P3 17–26 gives waiting times 9, 0, 15 and 2."
+    },
+    {
+      "page": 492,
+      "claim": "Round robin with quantum 2 on bursts 4, 3, 1 gives the standard result.",
+      "correction": "Completion times are 7, 8 and 5, so the average turnaround time is 20/3 ≈ 6.67."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "os-cpu-io-scheduling",
+      "status": "covered",
+      "topics": [
+        "os-cpu-scheduling.fcfs",
+        "os-cpu-scheduling.sjf-srtf",
+        "os-cpu-scheduling.priority-aging",
+        "os-cpu-scheduling.round-robin",
+        "os-cpu-scheduling.multilevel-queues",
+        "os-cpu-scheduling.disk-scheduling"
+      ]
+    }
+  ]
+}

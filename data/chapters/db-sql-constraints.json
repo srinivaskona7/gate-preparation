@@ -1,0 +1,1886 @@
+{
+  "id": "db-sql-constraints",
+  "summary": "SQL is the declarative language of relational databases: DDL defines tables and their constraints, and DML reads and changes rows. A SELECT is evaluated logically as FROM, WHERE, GROUP BY, HAVING, SELECT, DISTINCT and ORDER BY, and NULL brings a third truth value, UNKNOWN, into every comparison. Domain, key and referential constraints keep the data consistent, and foreign-key actions decide what happens to child rows when a parent changes. GATE asks for the exact output of a query on small tables, so NULLs, duplicates, outer joins and empty subqueries are where marks are lost.",
+  "highYield": [
+    "Logical evaluation order FROM → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY: WHERE filters rows before grouping, HAVING filters groups after it.",
+    "NULL semantics: every comparison with NULL is UNKNOWN, WHERE keeps only TRUE rows, and NOT IN against a list that contains NULL never returns a row.",
+    "Aggregates skip NULLs except COUNT(*): COUNT(col) counts non-NULL values, and AVG divides by that count rather than by the number of rows.",
+    "Subquery operators: IN and EXISTS behave as semijoins; over an empty subquery > ALL is TRUE and > ANY is FALSE; double NOT EXISTS expresses 'for all'.",
+    "Duplicates: UNION, INTERSECT and EXCEPT remove them, while the ALL forms keep m + n, min(m, n) and max(m − n, 0) copies of each row.",
+    "Referential actions: CASCADE deletes child rows recursively, SET NULL only clears the foreign key, and the default NO ACTION rejects the parent delete."
+  ],
+  "topics": [
+    {
+      "id": "db-sql-constraints.sql-categories",
+      "title": "SQL statement categories",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        51,
+        527,
+        528,
+        534,
+        536
+      ],
+      "points": [
+        "DDL defines structure: CREATE, ALTER and DROP for tables, plus TRUNCATE, CREATE INDEX and CREATE VIEW. DML works on rows: SELECT reads them, and INSERT, UPDATE and DELETE change them.",
+        "DCL controls access with GRANT and REVOKE; TCL ends or partly undoes transactions with COMMIT, ROLLBACK and SAVEPOINT.",
+        "DELETE removes the rows its WHERE clause selects and fires row triggers; TRUNCATE removes every row at once and is faster; DROP TABLE removes the rows and the table definition.",
+        "TRUNCATE is DDL in many systems: Oracle and MySQL commit it implicitly, so it cannot be rolled back there, while PostgreSQL can roll it back inside a transaction."
+      ],
+      "keyTerms": [
+        "DDL",
+        "DML",
+        "DCL",
+        "TCL",
+        "TRUNCATE"
+      ],
+      "lesson": {
+        "why": "Questions ask which category a statement belongs to and what DELETE, TRUNCATE and DROP each leave behind, so the four groups and these three commands need to be exact.",
+        "intro": "SQL statements fall into groups by what they act on. Some define the shape of the database, such as the tables and their columns. Some work on the rows stored in those tables. Some decide who may do what, and some end a unit of work or undo part of it. Naming the group tells you what a statement can change and whether it can be taken back.",
+        "definitions": [
+          {
+            "term": "DDL",
+            "meaning": "Data definition language: CREATE, ALTER, DROP, TRUNCATE, CREATE INDEX and CREATE VIEW define structure."
+          },
+          {
+            "term": "DML",
+            "meaning": "Data manipulation language: SELECT reads rows; INSERT, UPDATE and DELETE change them."
+          },
+          {
+            "term": "DCL",
+            "meaning": "Data control language: GRANT and REVOKE give and take away access."
+          },
+          {
+            "term": "TCL",
+            "meaning": "Transaction control language: COMMIT, ROLLBACK and SAVEPOINT end a transaction or partly undo it."
+          }
+        ],
+        "principle": {
+          "text": "DDL changes structure, DML reads or changes rows, DCL changes access rights and TCL controls transactions. Of the three ways to empty a table, DELETE removes the rows its WHERE selects, TRUNCATE removes every row at once, and DROP TABLE removes the rows and the table itself."
+        },
+        "limits": "Whether TRUNCATE can be rolled back depends on the system: Oracle and MySQL commit it implicitly, while PostgreSQL can roll it back inside a transaction. Treat it as DDL unless a question says otherwise.",
+        "example": {
+          "problem": "Classify each statement as DDL, DML, DCL or TCL: (1) ALTER TABLE Emp ADD age INT; (2) UPDATE Emp SET age = 30; (3) REVOKE SELECT ON Emp FROM guest; (4) ROLLBACK.",
+          "steps": [
+            "ALTER TABLE changes the definition of the table by adding a column, so (1) is DDL.",
+            "UPDATE changes values in existing rows, so (2) is DML.",
+            "REVOKE takes away a privilege, so (3) is DCL.",
+            "ROLLBACK undoes the work of the current transaction, so (4) is TCL."
+          ],
+          "result": "(1) DDL, (2) DML, (3) DCL, (4) TCL."
+        },
+        "misconceptions": [
+          "SELECT is not DML because it changes nothing. It is classed as DML because it works on rows, even though it does not modify them.",
+          "TRUNCATE is just a faster DELETE with the same behaviour. It removes all rows without a WHERE, is usually DDL, and does not fire row triggers the way DELETE does."
+        ],
+        "recall": [
+          {
+            "q": "Which category do GRANT and REVOKE belong to?",
+            "a": "DCL, data control language."
+          },
+          {
+            "q": "What does DROP TABLE remove that DELETE does not?",
+            "a": "The table definition itself, along with all its rows."
+          },
+          {
+            "q": "Which statements end a transaction?",
+            "a": "COMMIT and ROLLBACK, both TCL."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Table Log has 100 rows. After which single statement does Log still exist as a table but hold no rows?",
+          "options": [
+            "DELETE FROM Log WHERE 1 = 0;",
+            "TRUNCATE TABLE Log;",
+            "DROP TABLE Log;",
+            "REVOKE ALL ON Log FROM PUBLIC;"
+          ],
+          "answer": 1,
+          "explanation": "TRUNCATE removes every row and keeps the table definition. DELETE with a condition that is never true removes nothing, which is why it tempts when you read DELETE as emptying a table. DROP TABLE removes the table too, and REVOKE only changes access rights."
+        },
+        "summary": "DDL defines structure, DML works on rows, DCL controls access and TCL controls transactions. DELETE removes selected rows, TRUNCATE all rows, and DROP TABLE the rows and the table."
+      }
+    },
+    {
+      "id": "db-sql-constraints.select-evaluation",
+      "title": "How a SELECT statement is evaluated",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        528,
+        532,
+        533
+      ],
+      "points": [
+        "A query is written SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, but its logical evaluation order is FROM (including joins) → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY.",
+        "Because SELECT is evaluated after WHERE, a column alias defined in SELECT cannot be used in WHERE, but ORDER BY, which comes last, can use it.",
+        "SQL tables and query results are bags (multisets): SELECT keeps duplicate rows unless DISTINCT is written, whereas a relational algebra projection removes them.",
+        "Listing tables in FROM forms their Cartesian product, so FROM A, B WHERE A.x = B.x is an inner join. Only ORDER BY guarantees the order of the output rows.",
+        "The logical order defines the result, not the execution plan: the optimiser may reorder joins and push filters down as long as the result is unchanged."
+      ],
+      "keyTerms": [
+        "logical evaluation order",
+        "DISTINCT",
+        "bag semantics"
+      ],
+      "lesson": {
+        "why": "Output-count questions on SQL hinge on which clause runs first, so knowing the logical order lets you trace any query row by row.",
+        "intro": "You write a query starting with SELECT, but the database does not work in that order. It first reads the tables named in FROM, then throws away rows that fail WHERE, then forms groups, then keeps or drops groups, and only then computes the columns listed in SELECT. Duplicate removal and sorting come last. A result table is also allowed to repeat rows: SQL keeps every row unless you write DISTINCT.",
+        "definitions": [
+          {
+            "term": "Logical evaluation order",
+            "meaning": "The order in which the clauses are applied to define the result: FROM, WHERE, GROUP BY, HAVING, SELECT, DISTINCT, ORDER BY."
+          },
+          {
+            "term": "Bag",
+            "meaning": "A collection that may contain the same row more than once; SQL query results are bags unless DISTINCT is used."
+          }
+        ],
+        "principle": {
+          "text": "The result of a query is defined by applying its clauses in logical order, so a clause can use only what earlier clauses have produced."
+        },
+        "limits": "The order describes the meaning of the result, not how the database runs the query: the optimiser may reorder work as long as the result is the same. Row order in the output is guaranteed only when ORDER BY is present.",
+        "example": {
+          "problem": "Table Item(name, price) holds (pen, 10), (ink, 25), (pad, 40), (cap, 25). How many rows does SELECT DISTINCT price FROM Item WHERE price > 20 return?",
+          "steps": [
+            "FROM reads all 4 rows of Item.",
+            "WHERE price > 20 drops pen, leaving 3 rows with prices 25, 40 and 25.",
+            "SELECT keeps the price column, giving the bag 25, 40, 25.",
+            "DISTINCT removes the repeated 25, leaving 25 and 40."
+          ],
+          "result": "2 rows. Without DISTINCT the same query returns 3 rows."
+        },
+        "misconceptions": [
+          "A column alias defined in SELECT can be used in WHERE. It cannot in standard SQL, because WHERE runs before SELECT has created the alias; only ORDER BY, which runs last, can use it.",
+          "SELECT removes duplicate rows like a relational algebra projection. SQL keeps duplicates unless DISTINCT is written."
+        ],
+        "recall": [
+          {
+            "q": "In what logical order are the clauses of a SELECT applied?",
+            "a": "FROM, WHERE, GROUP BY, HAVING, SELECT, DISTINCT, ORDER BY."
+          },
+          {
+            "q": "Why can WHERE not use an alias created in SELECT?",
+            "a": "WHERE is applied before SELECT, so the alias does not exist yet."
+          },
+          {
+            "q": "Does SELECT without DISTINCT remove duplicate rows?",
+            "a": "No. The result is a bag and keeps every row."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Table Score(id, marks) is given. Under standard SQL rules, what happens when this query runs? SELECT marks * 2 AS dbl FROM Score WHERE dbl > 80;",
+          "options": [
+            "It returns the rows whose doubled marks exceed 80.",
+            "It returns every row, because WHERE ignores aliases.",
+            "It is rejected, because dbl does not exist when WHERE is applied.",
+            "It returns one row holding the largest doubled value."
+          ],
+          "answer": 2,
+          "explanation": "WHERE is applied before SELECT, so the alias dbl has not been created and the name is unknown. The first option is tempting because the query reads naturally, but the written order of clauses is not the order of evaluation. Writing WHERE marks * 2 > 80 or using ORDER BY dbl would be accepted."
+        },
+        "summary": "A query is evaluated as FROM, WHERE, GROUP BY, HAVING, SELECT, DISTINCT, ORDER BY. Each clause sees only earlier results, and duplicates survive unless DISTINCT removes them."
+      }
+    },
+    {
+      "id": "db-sql-constraints.sql-joins",
+      "title": "Inner, outer, natural and self joins",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        529,
+        532,
+        533,
+        535
+      ],
+      "points": [
+        "INNER JOIN … ON keeps the pairs of rows that satisfy the ON condition, and a bare JOIN means INNER JOIN. CROSS JOIN is the Cartesian product.",
+        "LEFT OUTER JOIN keeps every row of the left table, padding the right table's columns with NULL when nothing matches. RIGHT JOIN is the mirror image, and FULL JOIN keeps the unmatched rows of both sides.",
+        "In an outer join, a condition in ON only decides which rows match, so every preserved row still appears. The same condition in WHERE runs after the join and removes the NULL-padded rows, which turns the outer join into an inner join.",
+        "NATURAL JOIN equates all same-named columns and keeps one copy of each. It is fragile, because adding a column with a shared name silently changes the join; USING (col) names the join columns explicitly.",
+        "A self join lists one table twice under different aliases, as in FROM Emp e JOIN Emp m ON e.mgr = m.eid, which pairs each employee with their manager. NULL join values never match, not even each other."
+      ],
+      "keyTerms": [
+        "INNER JOIN",
+        "LEFT OUTER JOIN",
+        "FULL OUTER JOIN",
+        "NATURAL JOIN",
+        "self join"
+      ],
+      "lesson": {
+        "why": "Join questions ask how many rows a query returns, and the answer depends on which side an outer join preserves and where the condition is placed.",
+        "intro": "A join pairs rows from two tables. An inner join keeps only the pairs that satisfy the condition after ON. An outer join also keeps rows that found no partner, filling the missing side with NULL. LEFT keeps the unmatched rows of the first table, RIGHT those of the second, and FULL keeps both. So for the same data an outer join never returns fewer rows than the inner join.",
+        "definitions": [
+          {
+            "term": "Matched pair",
+            "meaning": "A row from each table that together satisfy the ON condition."
+          },
+          {
+            "term": "Preserved side",
+            "meaning": "The table whose unmatched rows an outer join still returns, padded with NULL."
+          }
+        ],
+        "principle": {
+          "text": "An outer join returns the matched pairs plus the unmatched rows of its preserved side or sides, padded with NULL. Inner join is a subset of left and right join, and both are a subset of full join."
+        },
+        "limits": "A condition in ON only decides which rows match. A condition in WHERE runs afterwards and removes NULL-padded rows whenever it tests a column of the padded side, which turns the outer join back into an inner join. NULL join values never match, even each other.",
+        "example": {
+          "problem": "Dept(did) holds D1, D2, D3. Emp(eid, did) holds (E1, D1), (E2, D1), (E3, D2), (E4, D9). How many rows does Dept FULL JOIN Emp ON Dept.did = Emp.did return?",
+          "steps": [
+            "Matched pairs: E1 and E2 with D1, E3 with D2. That is 3 rows.",
+            "Dept row D3 has no employee, so it adds 1 row padded with NULL.",
+            "Emp row E4 refers to D9, which is not in Dept, so it adds 1 row padded with NULL.",
+            "Total is 3 + 1 + 1."
+          ],
+          "result": "5 rows. Inner join gives 3, left join 4, right join 4."
+        },
+        "misconceptions": [
+          "Moving a filter from ON to WHERE changes nothing in a left join. It does: the WHERE version deletes the NULL-padded rows, so the unmatched rows disappear.",
+          "NULL equals NULL in a join condition. A comparison with NULL is UNKNOWN, so rows with NULL join values never match."
+        ],
+        "recall": [
+          {
+            "q": "What does a LEFT OUTER JOIN return beyond the matched pairs?",
+            "a": "Every row of the left table that had no match, with NULL in the right table's columns."
+          },
+          {
+            "q": "Which of inner, left, right and full join is certain to contain all rows of the others?",
+            "a": "The full outer join."
+          },
+          {
+            "q": "Why can a WHERE condition on the right table undo a left join?",
+            "a": "It runs after the join, and a test on a NULL-padded column is not TRUE, so those rows are removed."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Team(t) holds T1, T2, T3. Player(p, t) holds (P1, T1), (P2, T1), (P3, T2). How many rows does SELECT * FROM Team LEFT JOIN Player ON Team.t = Player.t WHERE Player.p <> 'P1' return?",
+          "answer": 2,
+          "explanation": "The left join gives (T1,P1), (T1,P2), (T2,P3) and (T3,NULL). WHERE keeps only rows where p <> 'P1' is TRUE: P2 and P3 pass. The padded row for T3 has p NULL, so the test is UNKNOWN and the row is removed, as is P1. Answering 3 assumes T3 survives; it would survive only if the condition sat in ON."
+        },
+        "summary": "Outer joins add unmatched rows of the preserved side with NULL padding. Inner is contained in left and right, which are contained in full. A WHERE test on the padded side removes the padded rows."
+      }
+    },
+    {
+      "id": "db-sql-constraints.group-by-having",
+      "title": "GROUP BY and HAVING",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        529,
+        532,
+        533,
+        534,
+        535
+      ],
+      "points": [
+        "GROUP BY makes one group per distinct combination of the grouping columns and outputs one row per group. All rows whose grouping column is NULL fall into a single group.",
+        "Each column in the SELECT list must be a grouping column or appear inside an aggregate. Standard SQL also accepts a column that the grouping columns functionally determine, such as any column of a table grouped by its primary key.",
+        "WHERE filters rows before groups exist and cannot contain aggregates. HAVING filters whole groups after aggregation and may test aggregates that the SELECT list does not show.",
+        "Without GROUP BY, a query with aggregates treats its whole input as one group and returns one row, even on an empty table, unless a HAVING clause rejects it: COUNT(*) gives 0 and SUM gives NULL. With GROUP BY, an empty input gives no rows."
+      ],
+      "keyTerms": [
+        "GROUP BY",
+        "HAVING",
+        "grouping column"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "db-sql-constraints.select-evaluation"
+        ],
+        "why": "Grouping questions ask for the number of result rows or a computed value, and they turn on whether a condition is applied to rows or to groups.",
+        "intro": "GROUP BY collects rows that share the same value of the grouping columns into one group and returns one output row per group. Aggregate functions such as SUM and COUNT then work inside each group. Two filters exist because rows and groups are different things: WHERE removes individual rows before groups are formed, and HAVING removes whole groups after the aggregates are known.",
+        "definitions": [
+          {
+            "term": "Group",
+            "meaning": "The set of rows that agree on every grouping column; rows with NULL in a grouping column form one group together."
+          },
+          {
+            "term": "Aggregate",
+            "meaning": "A function such as COUNT, SUM or AVG that turns the rows of a group into one value."
+          }
+        ],
+        "principle": {
+          "text": "Apply WHERE to rows, then form the groups, compute the aggregates, and finally apply HAVING to the groups. Each group yields at most one output row."
+        },
+        "limits": "WHERE cannot contain an aggregate, because groups do not exist yet when it runs. A query with aggregates but no GROUP BY treats the whole input as one group. SUM, AVG and COUNT(column) ignore NULL values while COUNT(*) counts rows, and a NULL grouping value is still a group of its own.",
+        "example": {
+          "problem": "Sales(city, amt) holds (A,10), (A,30), (B,20), (B,NULL), (C,50), (NULL,5), (NULL,15). How many rows does SELECT city, SUM(amt) FROM Sales WHERE amt > 8 GROUP BY city HAVING SUM(amt) > 25 return?",
+          "steps": [
+            "WHERE amt > 8 keeps (A,10), (A,30), (B,20), (C,50), (NULL,15). The NULL amount and amount 5 are dropped.",
+            "GROUP BY city forms groups A, B, C and one for NULL city.",
+            "The sums are A = 40, B = 20, C = 50 and NULL group = 15.",
+            "HAVING SUM(amt) > 25 keeps A and C."
+          ],
+          "result": "2 rows: (A, 40) and (C, 50)."
+        },
+        "misconceptions": [
+          "HAVING and WHERE are interchangeable. WHERE filters rows before grouping and cannot use aggregates; HAVING filters groups afterwards.",
+          "Rows with a NULL grouping value are dropped. They form one group together, as the NULL city does in the example."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between WHERE and HAVING?",
+            "a": "WHERE filters rows before grouping and cannot use aggregates; HAVING filters groups after aggregation."
+          },
+          {
+            "q": "How many output rows does a group produce?",
+            "a": "At most one, and exactly one unless HAVING rejects it."
+          },
+          {
+            "q": "How are rows with NULL in the grouping column treated?",
+            "a": "They all fall into a single group."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Orders(cust, qty) holds (x,2), (x,3), (y,4), (z,1), (z,1), (z,2). How many rows does SELECT cust FROM Orders WHERE qty >= 2 GROUP BY cust HAVING COUNT(*) >= 2 return?",
+          "answer": 1,
+          "explanation": "WHERE first keeps (x,2), (x,3), (y,4), (z,2). Counting inside these groups gives x = 2, y = 1, z = 1, so only x passes HAVING. Answering 2 counts z with its three original rows, but two of them were already removed by WHERE before the groups were formed."
+        },
+        "summary": "WHERE picks rows, GROUP BY makes one group per distinct key, aggregates summarise each group, and HAVING picks groups. Counts after HAVING come from the rows WHERE left."
+      }
+    },
+    {
+      "id": "db-sql-constraints.null-logic",
+      "title": "NULL and three-valued logic",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        531,
+        533,
+        534,
+        535
+      ],
+      "points": [
+        "NULL marks a missing or unknown value. Every comparison involving NULL, including NULL = NULL, yields UNKNOWN, the third truth value of SQL's logic.",
+        "AND: FALSE AND UNKNOWN = FALSE and TRUE AND UNKNOWN = UNKNOWN. OR: TRUE OR UNKNOWN = TRUE and FALSE OR UNKNOWN = UNKNOWN. NOT UNKNOWN = UNKNOWN.",
+        "WHERE, HAVING and ON keep a row only when the condition is TRUE, so UNKNOWN behaves like FALSE there. A CHECK constraint does the opposite and rejects a row only when its condition is FALSE.",
+        "Test with IS NULL or IS NOT NULL, never with = NULL. COALESCE(x, d) returns its first non-NULL argument and supplies a default; arithmetic with a NULL operand gives NULL.",
+        "GROUP BY, DISTINCT and the set operations treat all NULLs as one value, even though NULL = NULL is UNKNOWN in a comparison."
+      ],
+      "keyTerms": [
+        "UNKNOWN",
+        "IS NULL",
+        "COALESCE",
+        "three-valued logic"
+      ],
+      "lesson": {
+        "why": "NULL appears in many output-count and MCQ questions, and the usual mistake is assuming a comparison with NULL is false when it is unknown.",
+        "intro": "NULL means a value is missing or not known. If you do not know someone's department, you cannot say that it is CS, and you cannot say that it is not CS either. SQL therefore has three truth values: TRUE, FALSE and UNKNOWN. Any comparison with NULL gives UNKNOWN, and the logical operators combine the three values by fixed tables.",
+        "definitions": [
+          {
+            "term": "UNKNOWN",
+            "meaning": "The third truth value, produced by a comparison that involves NULL."
+          },
+          {
+            "term": "IS NULL",
+            "meaning": "The only correct test for a missing value; it returns TRUE or FALSE, never UNKNOWN."
+          },
+          {
+            "term": "COALESCE",
+            "meaning": "COALESCE(x, d) returns its first non-NULL argument, so it supplies a default for NULL."
+          }
+        ],
+        "principle": {
+          "text": "A comparison with NULL, including NULL = NULL, is UNKNOWN. FALSE AND UNKNOWN is FALSE and TRUE OR UNKNOWN is TRUE; every other mix with UNKNOWN stays UNKNOWN, and NOT UNKNOWN is UNKNOWN. WHERE, HAVING and ON keep a row only when the condition is TRUE.",
+          "tex": "\\text{TRUE} \\vee \\text{UNKNOWN} = \\text{TRUE} \\qquad \\text{FALSE} \\wedge \\text{UNKNOWN} = \\text{FALSE} \\qquad \\neg\\,\\text{UNKNOWN} = \\text{UNKNOWN}"
+        },
+        "limits": "A CHECK constraint is the exception: it rejects a row only when its condition is FALSE, so UNKNOWN passes. GROUP BY, DISTINCT and the set operations also treat all NULLs as one value, even though NULL = NULL is UNKNOWN.",
+        "example": {
+          "problem": "Emp(name, dept) holds (a, CS), (b, NULL), (c, EC), (d, CS). How many rows does SELECT * FROM Emp WHERE dept <> 'CS' return?",
+          "steps": [
+            "Row a: 'CS' <> 'CS' is FALSE, so it is dropped.",
+            "Row b: NULL <> 'CS' is UNKNOWN, and WHERE keeps only TRUE rows, so it is dropped.",
+            "Row c: 'EC' <> 'CS' is TRUE, so it is kept.",
+            "Row d: 'CS' <> 'CS' is FALSE, so it is dropped."
+          ],
+          "result": "1 row, c. Adding OR dept IS NULL would also keep b and give 2 rows."
+        },
+        "misconceptions": [
+          "NULL = NULL is TRUE because both are empty. It is UNKNOWN, so a WHERE built on it returns no rows; write IS NULL.",
+          "NOT (dept = 'CS') returns the NULL row because the inner test is false. The inner test is UNKNOWN, NOT UNKNOWN is UNKNOWN, and the row is still dropped."
+        ],
+        "recall": [
+          {
+            "q": "What does NULL = NULL evaluate to?",
+            "a": "UNKNOWN, not TRUE."
+          },
+          {
+            "q": "What is FALSE AND UNKNOWN, and what is TRUE OR UNKNOWN?",
+            "a": "FALSE AND UNKNOWN is FALSE, and TRUE OR UNKNOWN is TRUE."
+          },
+          {
+            "q": "Which rows does WHERE keep?",
+            "a": "Only rows for which the condition is TRUE; UNKNOWN rows are dropped."
+          },
+          {
+            "q": "How does a CHECK constraint treat UNKNOWN?",
+            "a": "It accepts the row, because it rejects only when the condition is FALSE."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Table T(x) holds the values 1, NULL and 3. How many rows does SELECT * FROM T WHERE x > 1 OR x <= 1 return?",
+          "options": [
+            "3",
+            "2",
+            "1",
+            "0"
+          ],
+          "answer": 1,
+          "explanation": "For x = 1 the test x <= 1 is TRUE, and for x = 3 the test x > 1 is TRUE, so those two rows are kept. For NULL both comparisons are UNKNOWN and UNKNOWN OR UNKNOWN is UNKNOWN, so that row is dropped. Answer 3 tempts because the two conditions look like they cover every number, but NULL is not a number."
+        },
+        "summary": "Comparisons with NULL are UNKNOWN, and WHERE, HAVING and ON keep only TRUE rows. Test with IS NULL; a CHECK constraint is the one place where UNKNOWN passes."
+      }
+    },
+    {
+      "id": "db-sql-constraints.aggregates-null",
+      "title": "Aggregate functions and NULLs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        529,
+        531,
+        533,
+        534,
+        536
+      ],
+      "points": [
+        "COUNT(*) counts rows, whatever they contain. COUNT(col) counts the non-NULL values of col, and COUNT(DISTINCT col) counts its distinct non-NULL values.",
+        "SUM, AVG, MIN and MAX ignore NULLs. AVG(col) is SUM(col) / COUNT(col), so it differs from SUM(col) / COUNT(*) when col has a NULL and its non-NULL values do not sum to 0. When every value is NULL, both are NULL.",
+        "On an empty input or an all-NULL column, COUNT returns 0, while SUM, AVG, MIN and MAX return NULL.",
+        "Aggregates cannot appear in WHERE and cannot be nested directly in standard SQL; compare a value with an aggregate through a subquery or a HAVING clause."
+      ],
+      "keyTerms": [
+        "COUNT(*)",
+        "COUNT(col)",
+        "AVG"
+      ],
+      "lesson": {
+        "why": "Aggregate questions on columns with NULLs test whether you know which functions count or skip them, and the answers differ between COUNT(*), COUNT(col) and AVG.",
+        "intro": "An aggregate function reduces many rows to one value, such as a count or a total. When a column holds NULL, some aggregates count the row anyway and some skip the NULL. COUNT(*) counts rows, so it never looks at the column. The others look at the column and ignore any missing values.",
+        "definitions": [
+          {
+            "term": "COUNT(*)",
+            "meaning": "The number of rows in the input, whatever they contain."
+          },
+          {
+            "term": "COUNT(col)",
+            "meaning": "The number of rows where col is not NULL."
+          }
+        ],
+        "principle": {
+          "text": "COUNT(*) counts rows. COUNT(col), SUM, AVG, MIN and MAX ignore NULLs, and AVG(col) is SUM(col) divided by COUNT(col), not by COUNT(*). On empty or all-NULL input, COUNT returns 0 and SUM, AVG, MIN and MAX return NULL.",
+          "tex": "\\text{AVG}(c) = \\frac{\\text{SUM}(c)}{\\text{COUNT}(c)}"
+        },
+        "limits": "The rule covers the standard aggregates. Aggregates cannot appear in WHERE, so a comparison with an aggregate goes through HAVING or a subquery.",
+        "example": {
+          "problem": "Column m of table M holds 10, NULL, 20, 30, NULL. Find COUNT(*), COUNT(m), SUM(m) and AVG(m).",
+          "steps": [
+            "There are 5 rows, so COUNT(*) is 5.",
+            "Three rows hold a value (10, 20, 30), so COUNT(m) is 3.",
+            "SUM(m) skips the NULLs and adds 10 + 20 + 30 = 60.",
+            "AVG(m) is SUM(m) / COUNT(m) = 60 / 3 = 20."
+          ],
+          "result": "COUNT(*) = 5, COUNT(m) = 3, SUM(m) = 60, AVG(m) = 20."
+        },
+        "misconceptions": [
+          "AVG treats a NULL as 0. It skips the row, so the divisor is the count of non-NULL values; 60 / 5 = 12 would be wrong above.",
+          "COUNT(col) and COUNT(*) always agree. They differ as soon as col has a NULL."
+        ],
+        "recall": [
+          {
+            "q": "Which aggregate counts rows with NULLs?",
+            "a": "Only COUNT(*)."
+          },
+          {
+            "q": "What do SUM and AVG return on an all-NULL column?",
+            "a": "NULL."
+          },
+          {
+            "q": "What does COUNT return on an all-NULL column?",
+            "a": "It returns 0, unlike SUM and AVG."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Column m of table N holds 2, NULL, 4, 6, NULL, 8. What is the value of COUNT(*) + AVG(m), using real division for AVG?",
+          "answer": 11,
+          "explanation": "COUNT(*) is 6 because there are six rows. AVG(m) skips the two NULLs, so it is (2 + 4 + 6 + 8) / 4 = 5, and the total is 11. Dividing the sum 20 by 6 gives about 3.33, which tempts because the table has six rows, but AVG divides by the count of non-NULL values."
+        },
+        "summary": "COUNT(*) counts rows; COUNT(col), SUM, AVG, MIN and MAX skip NULLs. AVG divides by COUNT(col), and on empty or all-NULL input COUNT gives 0 while the others give NULL."
+      }
+    },
+    {
+      "id": "db-sql-constraints.subqueries",
+      "title": "Scalar, correlated and derived-table subqueries",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        530,
+        532,
+        534
+      ],
+      "points": [
+        "A scalar subquery returns a single value and can be used wherever a value can. Returning more than one row is a runtime error, and returning no row gives NULL.",
+        "A non-correlated subquery does not refer to the outer query and can be evaluated once. A correlated subquery uses a column of the outer query and is, logically, re-evaluated for every outer row.",
+        "Subqueries may appear in SELECT, in FROM as a derived table (most systems require an alias), in WHERE and in HAVING. INSERT INTO … SELECT inserts the result of a query.",
+        "Classic correlated pattern: WHERE salary > (SELECT AVG(salary) FROM Emp WHERE dept = e.dept) compares each employee with the average of their own department, not with the company average."
+      ],
+      "keyTerms": [
+        "scalar subquery",
+        "correlated subquery",
+        "derived table"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "db-sql-constraints.select-evaluation"
+        ],
+        "why": "Subquery questions ask what a nested query compares against, and the common error is mistaking a company-wide value for a per-row one.",
+        "intro": "A subquery is a query written inside another query. If it returns a single value, you can use it like a number, for example in price > (subquery). If it refers to a column of the outer query, the database logically re-runs it for every outer row with that row's value filled in; such a subquery is called correlated. If it does not refer to the outer query, it runs once and gives one fixed result.",
+        "definitions": [
+          {
+            "term": "Scalar subquery",
+            "meaning": "A subquery that returns one value; with no rows it gives NULL, and with several rows it is an error."
+          },
+          {
+            "term": "Correlated subquery",
+            "meaning": "A subquery that uses a column of the outer query, so its result can differ for each outer row."
+          }
+        ],
+        "principle": {
+          "text": "An uncorrelated subquery is evaluated once over its own tables. A correlated subquery is evaluated once per outer row, with the outer column fixed to that row's value."
+        },
+        "limits": "A subquery sees only its own FROM and WHERE plus the outer columns it names; the outer GROUP BY or outer WHERE does not change what its own FROM contains. Correlation is logical only, and the optimiser may compute the same result differently.",
+        "example": {
+          "problem": "Emp(name, dept, sal) holds (a,D1,10), (b,D1,30), (c,D2,60), (d,D2,40), (e,D2,20). Which names does SELECT name FROM Emp e WHERE sal > (SELECT AVG(sal) FROM Emp WHERE dept = e.dept) return?",
+          "steps": [
+            "The subquery uses e.dept, so it is correlated and gives the average of the current employee's own department.",
+            "Department D1 averages 20, so b with 30 passes and a with 10 does not.",
+            "Department D2 averages 40, so c with 60 passes while d with 40 and e with 20 do not."
+          ],
+          "result": "b and c. Without the correlation the company average 32 would return c and d instead."
+        },
+        "misconceptions": [
+          "A subquery in WHERE automatically uses the outer query's groups or filters. It does not; unless it names an outer column it ranges over its own whole table.",
+          "A scalar subquery that finds several rows just takes the first. It is an error at run time."
+        ],
+        "recall": [
+          {
+            "q": "What makes a subquery correlated?",
+            "a": "It uses a column of the outer query, so it is evaluated again for each outer row."
+          },
+          {
+            "q": "How many times is an uncorrelated subquery evaluated?",
+            "a": "Once; its single result is reused for every outer row."
+          },
+          {
+            "q": "What does a scalar subquery return when it finds no rows?",
+            "a": "NULL."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Part(pid, price) holds (1,5), (2,15), (3,25), (4,35). What does SELECT COUNT(*) FROM Part WHERE price > (SELECT AVG(price) FROM Part WHERE price < 20) return?",
+          "answer": 3,
+          "explanation": "The subquery is uncorrelated and looks only at prices below 20, which are 5 and 15, so it returns 10. The outer query counts the prices above 10, which are 15, 25 and 35. Using the average of all four prices, 20, would give 2; that is wrong because the subquery has its own WHERE."
+        },
+        "summary": "A subquery is a query used as a value or a set. Uncorrelated ones run once over their own tables; correlated ones run per outer row and can give a different value each time."
+      }
+    },
+    {
+      "id": "db-sql-constraints.in-exists-any-all",
+      "title": "IN, EXISTS, ANY and ALL",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        530,
+        532,
+        534,
+        535
+      ],
+      "points": [
+        "x IN (S) is TRUE when some value of S equals x; it is the same as x = ANY (S). EXISTS (S) is TRUE when the subquery returns at least one row, whatever the row holds, and is never UNKNOWN.",
+        "x > ALL (S) is TRUE when x exceeds every value of S, and x > ANY (S) when it exceeds at least one. Over an empty S, ALL is TRUE and ANY is FALSE.",
+        "x NOT IN (S) means x <> ALL (S). If S contains a NULL the condition can never be TRUE: it is FALSE when x matches a value of S and UNKNOWN otherwise. NOT EXISTS has no such trap.",
+        "IN and EXISTS act as semijoins: an outer row appears once however many subquery rows match. The equivalent join repeats outer rows unless the subquery column is unique.",
+        "Double NOT EXISTS expresses 'for all': keep a student for whom no course exists that the student is not enrolled in. This is how SQL writes relational division."
+      ],
+      "keyTerms": [
+        "IN",
+        "EXISTS",
+        "ANY",
+        "ALL",
+        "semijoin"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "db-sql-constraints.subqueries"
+        ],
+        "why": "These operators decide row counts in many subquery questions, and NULL and empty sets change their answers in ways the plain reading hides.",
+        "intro": "IN checks whether a value equals some value returned by a subquery. EXISTS ignores the values and only asks whether the subquery returned at least one row. ANY and ALL combine a comparison with the subquery: x > ANY means greater than at least one value, x > ALL means greater than every value. NOT IN is the opposite of IN, but it is trickier than it looks once the subquery can contain NULL.",
+        "definitions": [
+          {
+            "term": "UNKNOWN",
+            "meaning": "The truth value of a comparison with NULL; a WHERE clause keeps a row only when its condition is TRUE."
+          },
+          {
+            "term": "Semijoin",
+            "meaning": "A test that returns an outer row at most once if some matching row exists, however many match."
+          },
+          {
+            "term": "Relational division",
+            "meaning": "Keeping the rows related to every row of a set A, written as NOT EXISTS (A EXCEPT B) with B the rows related to the candidate; A minus B is empty when A is contained in B."
+          }
+        ],
+        "principle": {
+          "text": "x IN (S) is x = ANY (S), and x NOT IN (S) is x <> ALL (S). EXISTS is TRUE exactly when the subquery has a row. Over an empty S, ALL is TRUE and ANY is FALSE. NOT EXISTS (A EXCEPT B) is TRUE exactly when every row of A is also in B, which is how SQL says \"for all\"."
+        },
+        "limits": "If S contains a NULL, x NOT IN (S) is never TRUE, because the comparison with NULL is UNKNOWN. NOT EXISTS with a correlated condition does not have this problem. IN and EXISTS return an outer row once, while an equivalent join may repeat it. In NOT EXISTS (A EXCEPT B), B must be correlated to the outer row, otherwise the test is the same for every row.",
+        "example": {
+          "problem": "T(x) holds 1, 2, 3 and S(y) holds 2 and NULL. How many rows does SELECT x FROM T WHERE x NOT IN (SELECT y FROM S) return, and how many does the NOT EXISTS version with WHERE S.y = T.x return?",
+          "steps": [
+            "x NOT IN (2, NULL) means x <> 2 AND x <> NULL.",
+            "For x = 1 the first part is TRUE but x <> NULL is UNKNOWN, so the whole condition is UNKNOWN. The same holds for x = 3, and x = 2 gives FALSE.",
+            "So NOT IN keeps no row.",
+            "NOT EXISTS asks whether any S row has y equal to x. NULL never equals anything, so only x = 2 has a match, and x = 1 and x = 3 are kept."
+          ],
+          "result": "NOT IN returns 0 rows; NOT EXISTS returns 2 rows (1 and 3)."
+        },
+        "misconceptions": [
+          "NOT IN and NOT EXISTS always give the same rows. They differ as soon as the subquery column can be NULL.",
+          "x > ALL (S) is FALSE when S is empty. It is TRUE, because no value can contradict it."
+        ],
+        "recall": [
+          {
+            "q": "Which quantified comparison is x IN (S) equal to?",
+            "a": "x = ANY (S)."
+          },
+          {
+            "q": "What is x > ALL (S) when S is empty, and what is x > ANY (S)?",
+            "a": "ALL is TRUE and ANY is FALSE."
+          },
+          {
+            "q": "Why does NOT IN return nothing when the subquery has a NULL?",
+            "a": "Every row gets FALSE or UNKNOWN, since comparing with NULL is UNKNOWN, and WHERE keeps only TRUE."
+          },
+          {
+            "q": "What does NOT EXISTS (A EXCEPT B) test?",
+            "a": "That A is a subset of B, so the candidate row is related to every row of A."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A(v) holds 5, 10, 15, 20 and B(w) holds 10, 15 and NULL. How many rows does SELECT v FROM A WHERE v > ANY (SELECT w FROM B) return?",
+          "answer": 2,
+          "explanation": "v > ANY is TRUE as soon as one comparison is TRUE, and UNKNOWN comparisons with the NULL do not block that. 15 > 10 and 20 > 10 are TRUE, so 15 and 20 qualify. For 5 and 10 every comparison is FALSE or UNKNOWN, so they fail. Answering 0 applies the NULL trap of ALL and NOT IN, which does not hold for ANY."
+        },
+        "summary": "IN is = ANY, NOT IN is <> ALL, EXISTS tests for any row. Empty sets make ALL true and ANY false, and a NULL in the subquery makes NOT IN return nothing."
+      }
+    },
+    {
+      "id": "db-sql-constraints.set-operations",
+      "title": "UNION, INTERSECT and EXCEPT",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        530,
+        533,
+        534,
+        535
+      ],
+      "points": [
+        "UNION, INTERSECT and EXCEPT (MINUS in Oracle) need union-compatible queries: the same number of columns, with compatible types, matched by position. The result takes its column names from the first query.",
+        "The plain forms return sets and remove duplicates, even duplicates inside one operand. The ALL forms work on bags: a row with m copies on the left and n on the right appears m + n times in UNION ALL, min(m, n) in INTERSECT ALL and max(m − n, 0) in EXCEPT ALL.",
+        "When matching rows and removing duplicates, set operations treat two NULLs as equal, unlike the = operator.",
+        "UNION ALL is cheaper than UNION because it skips duplicate elimination, so it is the better choice when duplicates cannot occur or are wanted."
+      ],
+      "keyTerms": [
+        "union compatibility",
+        "UNION ALL",
+        "INTERSECT ALL",
+        "EXCEPT ALL"
+      ],
+      "lesson": {
+        "why": "Set-operation questions ask for row counts with duplicates, and the plain and ALL forms give different answers on the same data.",
+        "intro": "UNION, INTERSECT and EXCEPT combine the results of two queries into one, like the set operations on two lists. The two queries must have the same number of columns with compatible types, matched by position. The plain forms treat the results as sets and remove repeated rows. The ALL forms keep repeats and count how many copies of each row exist on each side.",
+        "definitions": [
+          {
+            "term": "Union compatibility",
+            "meaning": "Both queries return the same number of columns with compatible types, matched by position."
+          },
+          {
+            "term": "UNION ALL",
+            "meaning": "Combines both results keeping every row, so it skips duplicate elimination and is cheaper than UNION."
+          }
+        ],
+        "principle": {
+          "text": "Plain UNION, INTERSECT and EXCEPT return sets, so each distinct row appears once, even if one operand repeated it. If a row has m copies on the left and n on the right, the ALL forms give the counts below.",
+          "tex": "\\text{UNION ALL}: m+n \\qquad \\text{INTERSECT ALL}: \\min(m,n) \\qquad \\text{EXCEPT ALL}: \\max(m-n,\\,0)"
+        },
+        "limits": "Set operations treat two NULLs as equal when matching rows, unlike the = operator. The result takes its column names from the first query, and Oracle writes MINUS for EXCEPT.",
+        "example": {
+          "problem": "Query R returns the values 1, 1, 2, 3 and query S returns 1, 2, 2, 4. How many rows do R UNION, R UNION ALL, R INTERSECT and R EXCEPT return?",
+          "steps": [
+            "R UNION ALL keeps everything: 4 + 4 = 8 rows.",
+            "R UNION drops repeats and leaves the distinct values 1, 2, 3, 4: 4 rows.",
+            "R INTERSECT keeps the distinct values in both, 1 and 2: 2 rows.",
+            "R EXCEPT keeps the distinct values of R that are not in S, which is only 3: 1 row."
+          ],
+          "result": "UNION 4, UNION ALL 8, INTERSECT 2, EXCEPT 1."
+        },
+        "misconceptions": [
+          "Plain UNION removes duplicates only between the two queries. It also removes duplicates inside a single operand, so R UNION R has no repeated 1.",
+          "EXCEPT ALL subtracts one copy per match and can go negative. The count is max(m - n, 0), so it never goes below zero."
+        ],
+        "recall": [
+          {
+            "q": "What must two queries share to be combined by UNION?",
+            "a": "The same number of columns with compatible types, matched by position."
+          },
+          {
+            "q": "How many copies does INTERSECT ALL give a row with m left and n right copies?",
+            "a": "min(m, n)."
+          },
+          {
+            "q": "Why is UNION ALL cheaper than UNION?",
+            "a": "It skips duplicate elimination."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Query R returns 5, 5, 5, 7 and query S returns 5, 7, 7. How many rows does (R EXCEPT ALL S) UNION ALL (S EXCEPT ALL R) return?",
+          "answer": 3,
+          "explanation": "R EXCEPT ALL S gives max(3 - 1, 0) = 2 copies of 5 and max(1 - 2, 0) = 0 copies of 7, so 2 rows. S EXCEPT ALL R gives max(2 - 1, 0) = 1 copy of 7 and none of 5, so 1 row. UNION ALL adds them for 3 rows. Treating both as plain sets gives 0, since each is {5, 7}. Answer 2 comes from forgetting the S EXCEPT ALL R half."
+        },
+        "summary": "Plain UNION, INTERSECT and EXCEPT return sets; the ALL forms give m+n, min(m,n) and max(m-n,0) copies. Matching treats NULLs as equal."
+      }
+    },
+    {
+      "id": "db-sql-constraints.views",
+      "title": "Views and materialized views",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        51,
+        530,
+        531,
+        533,
+        534,
+        536
+      ],
+      "points": [
+        "A view is a named query used as a virtual table. Its rows are computed from the base tables each time it is queried, so it always shows current data and stores nothing itself.",
+        "A materialized view stores its result: reads are fast, but it must be refreshed when the base tables change and can be stale between refreshes.",
+        "A view is updatable when each of its rows maps to exactly one base-table row: typically a single table with no aggregates, GROUP BY, DISTINCT or set operations. WITH CHECK OPTION rejects changes that would move a row out of the view.",
+        "Views give logical data independence and security: a user can be granted access to a view that exposes only some rows or columns of a table."
+      ],
+      "keyTerms": [
+        "view",
+        "materialized view",
+        "updatable view"
+      ],
+      "lesson": {
+        "why": "Views appear in questions on what a view stores, when it can be updated and why it helps security, so the difference from a base table and from a materialized view must be clear.",
+        "intro": "A view is a saved query that you can use like a table. It holds no rows of its own: each time you read it, the database runs the saved query on the base tables, so you always see current data. A materialized view is different, because it stores the result of its query so that reads are fast, at the price of having to refresh it.",
+        "definitions": [
+          {
+            "term": "View",
+            "meaning": "A named query used as a virtual table; it stores nothing and is recomputed from the base tables on each use."
+          },
+          {
+            "term": "Materialized view",
+            "meaning": "A view whose result is stored, so reads are fast but the data can be stale until it is refreshed."
+          },
+          {
+            "term": "WITH CHECK OPTION",
+            "meaning": "Rejects an insert or update through the view that would make the row fall outside the view's query."
+          }
+        ],
+        "principle": {
+          "text": "A view is updatable when each of its rows maps to exactly one base-table row: typically one table and no aggregates, GROUP BY, DISTINCT or set operations. Views give logical data independence and security, because a user can be granted a view that shows only some rows or columns."
+        },
+        "limits": "A view built with aggregates, GROUP BY, DISTINCT or set operations is normally not updatable. A materialized view can be out of date between refreshes, which an ordinary view never is.",
+        "example": {
+          "problem": "View CsStud is defined as SELECT id, cgpa FROM Student WHERE dept = 'CS' WITH CHECK OPTION. Student(id, dept, cgpa) has a CS row (1, 8.2). What happens when cgpa of student 1 is updated through CsStud, and when the base row is changed to dept 'EC' afterwards?",
+          "steps": [
+            "The view maps each row to one Student row with no aggregate, so the update through CsStud is allowed and changes the base table.",
+            "Reading CsStud later runs the query again, so it shows the new cgpa at once; nothing was stored in the view.",
+            "After the base row's dept becomes 'EC', the query no longer selects that row, so it disappears from CsStud.",
+            "WITH CHECK OPTION only guards changes made through the view; a change made on the base table is not blocked by it."
+          ],
+          "result": "The view always reflects the base table; its rows are never stored."
+        },
+        "misconceptions": [
+          "A view stores a copy of the data. Only a materialized view does; an ordinary view is recomputed on each use.",
+          "Every view can be updated. A view with GROUP BY or DISTINCT has no one-to-one mapping to base rows, so it normally cannot."
+        ],
+        "recall": [
+          {
+            "q": "Does an ordinary view store rows?",
+            "a": "No. It is a named query recomputed from the base tables each time."
+          },
+          {
+            "q": "What is the drawback of a materialized view?",
+            "a": "It can be stale between refreshes, and it must be refreshed when the base tables change."
+          },
+          {
+            "q": "What does WITH CHECK OPTION do?",
+            "a": "It rejects changes through the view that would move a row out of the view."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which view is the most likely to be updatable?",
+          "options": [
+            "SELECT dept, AVG(cgpa) FROM Student GROUP BY dept",
+            "SELECT DISTINCT dept FROM Student",
+            "SELECT id, cgpa FROM Student WHERE cgpa > 7",
+            "SELECT id FROM Student UNION SELECT id FROM Alumni"
+          ],
+          "answer": 2,
+          "explanation": "Only the third view keeps one view row for each Student row, with a single table and no aggregate, DISTINCT or set operation. The grouped, DISTINCT and UNION views merge base rows, so there is no single row to change. The DISTINCT view tempts because it looks simple, but it collapses duplicate departments."
+        },
+        "summary": "A view is a stored query with no rows of its own; a materialized view stores its result and can go stale. A view is updatable when each row maps to one base row, and views support data independence and security."
+      }
+    },
+    {
+      "id": "db-sql-constraints.integrity-constraints",
+      "title": "Domain, key and referential integrity",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        528,
+        531,
+        532,
+        533,
+        535
+      ],
+      "points": [
+        "Domain constraints limit a column's values through its data type, NOT NULL, DEFAULT and CHECK. A table-level CHECK can relate several columns of the same row, as in CHECK (start_date < end_date).",
+        "PRIMARY KEY means UNIQUE and NOT NULL, and a table has at most one (entity integrity). UNIQUE alone allows NULLs; standard SQL allows several, since NULLs are not equal to each other.",
+        "A CHECK rejects a row only when its condition is FALSE. A NULL makes the condition UNKNOWN, so CHECK (age >= 18) accepts a row whose age is NULL unless the column is also NOT NULL.",
+        "Referential integrity: every non-NULL foreign key value must equal a key value of the referenced table, which may be the same table. Inserting or updating a child row, or deleting or updating a referenced parent row, can violate it.",
+        "CREATE ASSERTION states a condition over the whole database but is rarely implemented; triggers or application code enforce such rules instead."
+      ],
+      "keyTerms": [
+        "domain constraint",
+        "entity integrity",
+        "referential integrity",
+        "CHECK",
+        "UNIQUE"
+      ],
+      "lesson": {
+        "why": "Constraint questions ask which inserts or statements a table accepts, and the answers depend on how NULL is treated by each rule.",
+        "intro": "A constraint is a rule the database enforces on every insert and update. NOT NULL forbids missing values. UNIQUE forbids two rows with the same value in a column. PRIMARY KEY is UNIQUE plus NOT NULL, and a table has one. CHECK demands that a condition holds for the row. A FOREIGN KEY says that a value must also appear as a key in another table, or be NULL.",
+        "definitions": [
+          {
+            "term": "Entity integrity",
+            "meaning": "No part of a primary key may be NULL."
+          },
+          {
+            "term": "Referential integrity",
+            "meaning": "Every non-NULL foreign key value matches a key value in the referenced table."
+          }
+        ],
+        "principle": {
+          "text": "A statement is rejected when it makes a constraint FALSE or leaves a UNIQUE value duplicated. A NULL makes a CHECK UNKNOWN, which passes, and NULLs never count as duplicates for UNIQUE."
+        },
+        "limits": "A CHECK passes a NULL unless the column is also NOT NULL. A foreign key may be NULL, and it may point to the same table. A table may have many foreign keys, and PRIMARY KEY columns can never be NULL even though UNIQUE columns can.",
+        "example": {
+          "problem": "Dept holds D1, D2. Emp(id PRIMARY KEY, email UNIQUE, age CHECK (age >= 18), dept REFERENCES Dept). Five inserts are tried in order: (1,'a',20,D1), (2,'a',30,D2), (3,NULL,NULL,NULL), (4,NULL,17,D1), (5,NULL,25,D9). How many rows does Emp hold afterwards?",
+          "steps": [
+            "Insert 1 satisfies all rules and is accepted.",
+            "Insert 2 repeats email 'a' and breaks UNIQUE, so it is rejected.",
+            "Insert 3 has NULL email (allowed), NULL age (CHECK is UNKNOWN, so it passes) and NULL dept (allowed), so it is accepted.",
+            "Insert 4 has age 17, the CHECK is FALSE, so it is rejected.",
+            "Insert 5 names D9, which is not in Dept, so it is rejected."
+          ],
+          "result": "2 rows, with ids 1 and 3."
+        },
+        "misconceptions": [
+          "UNIQUE allows only one NULL. In standard SQL it allows many, since NULLs are not equal to each other.",
+          "A CHECK on a column rejects NULL. It rejects only a FALSE condition, so NULL passes unless NOT NULL is also declared."
+        ],
+        "recall": [
+          {
+            "q": "What does PRIMARY KEY add to UNIQUE?",
+            "a": "NOT NULL, and a table can have only one primary key."
+          },
+          {
+            "q": "Does CHECK (age >= 18) reject a row whose age is NULL?",
+            "a": "No. The condition is UNKNOWN, and only a FALSE result rejects the row."
+          },
+          {
+            "q": "What must hold for a non-NULL foreign key value?",
+            "a": "It must equal a key value of the referenced table."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "T(k INT UNIQUE, v INT CHECK (v > 0)) is empty. These rows are inserted in order, each as its own statement: (1,5), (1,6), (NULL,7), (NULL,8), (2,NULL), (3,0). How many rows does T hold at the end?",
+          "answer": 4,
+          "explanation": "(1,5) is accepted. (1,6) repeats k = 1 and is rejected. (NULL,7) and (NULL,8) are both accepted, because NULLs do not clash under UNIQUE. (2,NULL) is accepted since the CHECK is UNKNOWN. (3,0) makes v > 0 FALSE and is rejected. Answering 3 treats the second NULL key as a duplicate, and answering 5 forgets the failed CHECK."
+        },
+        "summary": "PRIMARY KEY is UNIQUE and NOT NULL. UNIQUE and foreign keys tolerate NULL, and CHECK rejects only a FALSE result. A statement fails if any constraint is violated."
+      }
+    },
+    {
+      "id": "db-sql-constraints.referential-actions",
+      "title": "Foreign-key actions: CASCADE, SET NULL and RESTRICT",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        528,
+        531,
+        533,
+        534,
+        535
+      ],
+      "points": [
+        "ON DELETE and ON UPDATE choose what happens to child rows when the parent row they reference is deleted or has its key changed: CASCADE, SET NULL, SET DEFAULT, RESTRICT or NO ACTION.",
+        "CASCADE deletes or updates the child rows as well, and their own children in turn, so one delete can remove a whole chain, including inside a self-referencing table.",
+        "SET NULL keeps the child rows and sets their foreign key to NULL, so the change goes no further; it fails if the column is NOT NULL. SET DEFAULT uses the column default, which must exist in the parent.",
+        "NO ACTION, the default, and RESTRICT reject a parent change while child rows still refer to it. NO ACTION checks at the end of the statement and can be deferred; RESTRICT cannot be deferred, and SQLite also checks it at once.",
+        "The actions apply only to changes on the parent side. Inserting a child row whose foreign key matches no parent is always rejected."
+      ],
+      "keyTerms": [
+        "ON DELETE CASCADE",
+        "SET NULL",
+        "NO ACTION",
+        "RESTRICT"
+      ],
+      "lesson": {
+        "why": "Foreign-key questions ask how many rows a delete removes, and the count depends on which action each reference declares.",
+        "intro": "A foreign key links a child row to a parent row. When the parent row is deleted, the database must decide what to do with the children that point at it. The declared action answers this. CASCADE deletes those children too. SET NULL keeps them and blanks their reference. NO ACTION and RESTRICT refuse to delete the parent while any child still points at it.",
+        "prerequisites": [
+          "db-sql-constraints.integrity-constraints"
+        ],
+        "definitions": [
+          {
+            "term": "ON DELETE CASCADE",
+            "meaning": "Deleting a parent row also deletes every child row that refers to it."
+          },
+          {
+            "term": "ON DELETE SET NULL",
+            "meaning": "Deleting a parent row keeps its child rows and sets their foreign key to NULL."
+          }
+        ],
+        "principle": {
+          "text": "A delete spreads only from parent to child, and it keeps spreading only through rows that are actually deleted. CASCADE deletes the child and repeats the rule for that child's own children. SET NULL changes the child and the spread stops there."
+        },
+        "limits": "The actions fire only on changes to the parent side. Inserting a child whose foreign key matches no parent is always rejected. SET NULL fails if the foreign key column is NOT NULL, and deleting a child row never affects its parent.",
+        "example": {
+          "problem": "Dept holds D1, D2. Emp(e1,D1), (e2,D1), (e3,D2) references Dept with ON DELETE CASCADE. Task(t1,e1), (t2,e2), (t3,e3), (t4,e1) references Emp with ON DELETE SET NULL. Dept row D1 is deleted. How many Task rows end with a NULL employee?",
+          "steps": [
+            "Deleting D1 cascades to the Emp rows that refer to D1, which are e1 and e2. Both are deleted; e3 stays.",
+            "Deleting e1 and e2 triggers SET NULL on the Task rows that refer to them: t1, t2 and t4.",
+            "Those three Task rows stay and their employee becomes NULL. Task t3 refers to e3, which still exists, so it is unchanged."
+          ],
+          "result": "3 Task rows have a NULL employee; Dept keeps 1 row, Emp keeps 1 row and Task keeps all 4."
+        },
+        "misconceptions": [
+          "SET NULL does not delete the child row, so a chain that reaches a SET NULL reference stops there and removes nothing further.",
+          "Deleting a child row does not touch its parent. A delete travels only along the arrows from parent to child."
+        ],
+        "recall": [
+          {
+            "q": "What does ON DELETE CASCADE do to child rows?",
+            "a": "It deletes every child row that refers to the deleted parent, and repeats the rule for rows that refer to those children."
+          },
+          {
+            "q": "Why does a chain of deletes stop at a SET NULL reference?",
+            "a": "SET NULL only changes the child row and deletes nothing, so there is no deleted row to trigger the next step."
+          },
+          {
+            "q": "What do NO ACTION and RESTRICT do on a parent delete?",
+            "a": "They reject the delete while any child row still refers to the parent."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Node(id, parent) has parent as a foreign key to Node.id with ON DELETE CASCADE. It holds (1,NULL), (2,1), (3,1), (4,2), (5,4), (6,3), (7,NULL). The row with id 2 is deleted. How many rows does Node hold afterwards?",
+          "answer": 4,
+          "explanation": "Deleting 2 cascades to its child 4, which cascades to its child 5. Rows 2, 4 and 5 are gone, leaving 1, 3, 6 and 7. Answering 6 counts only the deleted row, forgetting that the cascade repeats on children. Answering 5 stops after the direct child 4."
+        },
+        "summary": "CASCADE deletes children and repeats down the chain, SET NULL blanks the reference and stops, and NO ACTION or RESTRICT refuse the parent delete. Deletes move only from parent to child."
+      }
+    },
+    {
+      "id": "db-sql-constraints.triggers",
+      "title": "Triggers",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        532,
+        533,
+        535
+      ],
+      "points": [
+        "A trigger is stored code that the DBMS runs automatically on an INSERT, UPDATE or DELETE on a table, BEFORE or AFTER the change, either once per affected row (FOR EACH ROW) or once per statement.",
+        "Row triggers can read the old and new versions of the row, which suits audit logs, derived columns and rules that a CHECK cannot express.",
+        "Triggers follow the event-condition-action model. They are procedural rather than declarative, and a trigger that modifies tables can fire further triggers."
+      ],
+      "keyTerms": [
+        "trigger",
+        "FOR EACH ROW",
+        "event-condition-action"
+      ],
+      "lesson": {
+        "why": "Trigger questions ask how many times a trigger fires and which kind of rule suits a trigger, so the row and statement forms must be clear.",
+        "intro": "A trigger is code stored in the database that runs by itself when a row is inserted, updated or deleted on a table. You choose whether it runs before or after the change, and whether it runs once for every row affected or once for the whole statement. You never call it; the change is the event that starts it.",
+        "definitions": [
+          {
+            "term": "Trigger",
+            "meaning": "Stored code that the DBMS runs automatically on an INSERT, UPDATE or DELETE on a table."
+          },
+          {
+            "term": "FOR EACH ROW",
+            "meaning": "Makes a row trigger, which runs once per affected row and can read the old and new versions of that row."
+          },
+          {
+            "term": "Event-condition-action",
+            "meaning": "The trigger model: an event occurs, a condition is tested, and then the action runs."
+          }
+        ],
+        "principle": {
+          "text": "A trigger follows the event-condition-action model. A row trigger runs once per affected row, a statement trigger runs once per statement, and BEFORE or AFTER says whether it runs before or after the change. A trigger that changes tables can fire further triggers."
+        },
+        "limits": "Triggers are procedural, not declarative, so a rule that a CHECK or key constraint can state should use that instead. Chains of triggers that modify tables are hard to trace, because each change can fire more triggers.",
+        "example": {
+          "problem": "Account has an AFTER UPDATE FOR EACH ROW trigger that writes one line to an audit table. A single UPDATE statement changes 3 rows. How many audit lines are written?",
+          "steps": [
+            "The trigger event is the UPDATE, and the trigger is a row trigger.",
+            "A row trigger fires once for each affected row.",
+            "Three rows were changed, so the trigger fires 3 times and writes one line each time."
+          ],
+          "result": "3 audit lines; a statement-level trigger would have run once."
+        },
+        "misconceptions": [
+          "A trigger runs once per statement whatever its form. Only a statement trigger does; a FOR EACH ROW trigger runs once per affected row.",
+          "A trigger has to be called from the application. The DBMS fires it automatically on the event."
+        ],
+        "recall": [
+          {
+            "q": "How often does a FOR EACH ROW trigger run for one statement?",
+            "a": "Once for every row the statement affects."
+          },
+          {
+            "q": "What can a row trigger read that a statement trigger usually cannot?",
+            "a": "The old and new versions of the affected row."
+          },
+          {
+            "q": "What model do triggers follow?",
+            "a": "Event-condition-action."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Table Item has an AFTER DELETE FOR EACH ROW trigger and an AFTER DELETE statement-level trigger. One DELETE statement removes 5 rows. How many trigger executions occur in total, if neither trigger changes any table?",
+          "answer": 6,
+          "explanation": "The row trigger runs once for each of the 5 deleted rows, which is 5 executions, and the statement trigger runs once, which makes 6. Answer 5 tempts if you count only the row trigger, and answer 10 if you assume both kinds run per row."
+        },
+        "summary": "A trigger is stored code run automatically on INSERT, UPDATE or DELETE, before or after the change, per row or per statement. Row triggers see old and new row values."
+      }
+    },
+    {
+      "id": "db-sql-constraints.window-functions",
+      "title": "Window functions",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        51
+      ],
+      "points": [
+        "A window function computes a value from the rows related to the current row without collapsing them: f() OVER (PARTITION BY … ORDER BY …). Unlike GROUP BY, every input row stays in the output.",
+        "ROW_NUMBER numbers the rows 1, 2, 3, … within each partition; RANK gives tied rows the same number and leaves a gap after them (1, 1, 3); DENSE_RANK leaves no gap (1, 1, 2).",
+        "Window functions are evaluated after WHERE, GROUP BY and HAVING, so they cannot appear in WHERE; filter on their values in an outer query."
+      ],
+      "keyTerms": [
+        "OVER",
+        "PARTITION BY",
+        "RANK",
+        "DENSE_RANK",
+        "ROW_NUMBER"
+      ],
+      "lesson": {
+        "why": "Window functions are low-frequency, but a ranking query with ties asks you to tell RANK, DENSE_RANK and ROW_NUMBER apart, and to know where such a function may appear in a query.",
+        "intro": "Normally an aggregate such as a total collapses many rows into one. A window function also looks at a group of related rows, but it hands back a value for every row and keeps all the rows. You say which rows form the group with PARTITION BY and in what order to line them up with ORDER BY. The most common use is numbering rows in order, which is where ties make the three ranking functions differ.",
+        "definitions": [
+          {
+            "term": "OVER",
+            "meaning": "The clause that turns a function into a window function and describes its partition and ordering."
+          },
+          {
+            "term": "PARTITION BY",
+            "meaning": "Splits the rows into independent groups; the function restarts in each group. Without it, all rows form one group."
+          },
+          {
+            "term": "ROW_NUMBER",
+            "meaning": "Gives each row in the partition a distinct number 1, 2, 3, ... in the ORDER BY order; tied rows still get different numbers."
+          },
+          {
+            "term": "RANK",
+            "meaning": "Gives tied rows the same number and skips the numbers they used up, as in 1, 2, 2, 4."
+          },
+          {
+            "term": "DENSE_RANK",
+            "meaning": "Gives tied rows the same number and skips nothing, as in 1, 2, 2, 3."
+          }
+        ],
+        "principle": {
+          "text": "A window function f() OVER (PARTITION BY p ORDER BY o) is computed after WHERE, GROUP BY and HAVING, and it adds a column without removing rows. Within a partition ordered by o, ROW_NUMBER counts rows, RANK is one more than the number of rows strictly ahead, and DENSE_RANK is one more than the number of distinct values strictly ahead.",
+          "tex": "\\mathrm{RANK}(r) = 1 + \\bigl|\\{\\,x : x \\text{ strictly before } r\\,\\}\\bigr| \\qquad \\mathrm{DENSE\\_RANK}(r) = 1 + \\bigl|\\{\\,\\text{distinct values strictly before } r\\,\\}\\bigr|"
+        },
+        "limits": "A window function cannot appear in WHERE, GROUP BY or HAVING, because it is evaluated after them; to filter on a rank, compute it in a subquery and filter in the outer query. Without ORDER BY inside OVER, the order of ROW_NUMBER among tied or unordered rows is not defined.",
+        "example": {
+          "problem": "Table S(name, score) holds A 90, B 80, C 80, D 70. For SELECT name, score, ROW_NUMBER() OVER (ORDER BY score DESC) AS rn, RANK() OVER (ORDER BY score DESC) AS rk, DENSE_RANK() OVER (ORDER BY score DESC) AS dr FROM S, give rn, rk and dr for D.",
+          "steps": [
+            "Order by score descending: A 90, then B 80 and C 80 tied, then D 70. There is no PARTITION BY, so all four rows are one group.",
+            "ROW_NUMBER counts rows: A is 1, B and C take 2 and 3 in some order, so D is 4.",
+            "RANK: three rows are strictly ahead of D (A, B, C), so rk = 1 + 3 = 4.",
+            "DENSE_RANK: the distinct values ahead of D are 90 and 80, so dr = 1 + 2 = 3."
+          ],
+          "result": "For D, rn = 4, rk = 4 and dr = 3. For the tied rows B and C, rk = 2 and dr = 2 for both."
+        },
+        "misconceptions": [
+          "A window function collapses rows like GROUP BY. It does not; every input row stays in the output with an extra column.",
+          "RANK and DENSE_RANK give the same numbers. They agree until a tie occurs; after a tie RANK skips numbers and DENSE_RANK does not.",
+          "A window function can be used in WHERE to keep the top rows. It cannot, because it is computed after WHERE; use an outer query on the computed column."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between a window function and an aggregate with GROUP BY?",
+            "a": "A window function keeps every row and adds a computed column, while GROUP BY collapses each group into one row."
+          },
+          {
+            "q": "For values 10, 10, 5 in descending order, what do RANK and DENSE_RANK give the row with 5?",
+            "a": "RANK gives 3 and DENSE_RANK gives 2."
+          },
+          {
+            "q": "How do you filter rows by the value of a window function?",
+            "a": "Compute it in a subquery or derived table and put the condition in the outer query's WHERE."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Table T(name, score) holds P 50, Q 50, R 50, U 40, V 30. The query computes RANK() OVER (ORDER BY score DESC) for every row. What value does V get?",
+          "answer": 5,
+          "explanation": "Four rows (P, Q, R, U) have a strictly higher score than V, so RANK = 1 + 4 = 5. Answer 3 tempts if you use DENSE_RANK, which counts only the distinct higher values 50 and 40 and gives 1 + 2 = 3, and answer 4 tempts if you count the four higher rows but forget to add 1."
+        },
+        "summary": "A window function computes a value per row over a partition without removing rows, and it is evaluated after WHERE, GROUP BY and HAVING. ROW_NUMBER is always distinct, RANK skips after ties, and DENSE_RANK does not."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "db-sql-constraints.bag-multiplicities",
+      "name": "Copies kept by the ALL set operations",
+      "tex": "\\text{UNION ALL}: m + n \\qquad \\text{INTERSECT ALL}: \\min(m, n) \\qquad \\text{EXCEPT ALL}: \\max(m - n,\\, 0)",
+      "text": "UNION ALL: m + n; INTERSECT ALL: min(m, n); EXCEPT ALL: max(m − n, 0)",
+      "where": [
+        [
+          "m",
+          "copies of a row in the left query's result"
+        ],
+        [
+          "n",
+          "copies of the same row in the right query's result"
+        ]
+      ],
+      "note": "Without ALL, each operation first reduces every positive count to 1, so the result is a set.",
+      "topic": "db-sql-constraints.set-operations",
+      "origin": "curated",
+      "pages": [
+        530
+      ]
+    },
+    {
+      "id": "db-sql-constraints.average-with-nulls",
+      "name": "AVG ignores NULLs",
+      "tex": "\\text{AVG}(c) = \\frac{\\text{SUM}(c)}{\\text{COUNT}(c)} \\ne \\frac{\\text{SUM}(c)}{\\text{COUNT}(*)} \\quad \\text{when } c \\text{ has a NULL and } \\text{SUM}(c) \\ne 0",
+      "text": "AVG(c) = SUM(c) / COUNT(c), which differs from SUM(c) / COUNT(*) when c has a NULL and SUM(c) is not 0",
+      "note": "Six rows with salaries 50, NULL, 40, 40, NULL and 60 give AVG = 190 / 4 = 47.5, while SUM / COUNT(*) = 190 / 6 ≈ 31.67 with real division. On an INTEGER column SQLite and PostgreSQL divide integers and return 31.",
+      "topic": "db-sql-constraints.aggregates-null",
+      "origin": "curated",
+      "pages": [
+        531
+      ]
+    },
+    {
+      "id": "db-sql-constraints.left-join-size",
+      "name": "LEFT JOIN row count",
+      "tex": "|R \\;\\text{LEFT JOIN}\\; S \\;\\text{ON}\\; \\theta| = |R \\;\\text{JOIN}\\; S \\;\\text{ON}\\; \\theta| + u",
+      "text": "|R LEFT JOIN S ON θ| = |R JOIN S ON θ| + u",
+      "where": [
+        [
+          "u",
+          "rows of R for which no row of S satisfies the whole ON condition θ"
+        ]
+      ],
+      "note": "A WHERE clause is applied after this result is formed, so it can remove the padded rows again.",
+      "topic": "db-sql-constraints.sql-joins",
+      "origin": "curated",
+      "pages": [
+        529
+      ]
+    },
+    {
+      "id": "db-sql-constraints.not-in-expansion",
+      "name": "NOT IN as a conjunction",
+      "tex": "x \\;\\text{NOT IN}\\; (s_1, \\dots, s_k) \\;\\equiv\\; (x \\ne s_1) \\wedge \\dots \\wedge (x \\ne s_k)",
+      "text": "x NOT IN (s₁, …, sₖ) ≡ (x ≠ s₁) ∧ … ∧ (x ≠ sₖ)",
+      "note": "A single NULL sᵢ makes its conjunct UNKNOWN, so the whole condition can only be FALSE or UNKNOWN. With k = 0, the empty conjunction is TRUE.",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "origin": "curated",
+      "pages": [
+        535
+      ]
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "db-sql-constraints.query-output-count",
+      "title": "Count the rows a query returns on given tables",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Build the FROM result first: the product or join of the listed tables, with NULL padding for outer joins.",
+        "Apply WHERE row by row and keep only the rows where it is TRUE; then form the groups and test HAVING on each group.",
+        "Evaluate SELECT, then DISTINCT, and only then count; duplicates stay unless DISTINCT or a set operator removes them."
+      ],
+      "trap": "Counting rows whose WHERE condition is UNKNOWN, or forgetting that the NULLs of a grouping column form a group of their own.",
+      "topic": "db-sql-constraints.select-evaluation",
+      "origin": "source",
+      "pages": [
+        533,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.null-traps",
+      "title": "Predict a result when NULLs are present",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Replace every comparison involving NULL with UNKNOWN, then combine the parts with the three-valued truth tables.",
+        "WHERE and HAVING keep only TRUE rows; a CHECK constraint rejects only FALSE ones.",
+        "For aggregates, drop the NULLs first; COUNT(*) is the only aggregate that counts them."
+      ],
+      "trap": "Treating x <> 'CS' as TRUE for a NULL x, or trusting NOT IN when its subquery can return NULL.",
+      "topic": "db-sql-constraints.null-logic",
+      "origin": "source",
+      "pages": [
+        531,
+        535,
+        536
+      ]
+    },
+    {
+      "id": "db-sql-constraints.group-having-output",
+      "title": "GROUP BY and HAVING: output and validity",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Partition the rows that survive WHERE by the grouping columns; all NULLs share one group.",
+        "Compute each aggregate per group, then test HAVING on the group as a whole.",
+        "For validity, check that every non-aggregated SELECT column is a grouping column and that no aggregate sits in WHERE."
+      ],
+      "trap": "Applying HAVING to individual rows, or expecting a group for a value that WHERE has already removed.",
+      "topic": "db-sql-constraints.group-by-having",
+      "origin": "source",
+      "pages": [
+        529,
+        534,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.subquery-semantics",
+      "title": "Evaluate IN, EXISTS, ANY, ALL and correlated subqueries",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For a correlated subquery, fix one outer row, substitute its values and evaluate the inner query for that row alone.",
+        "Translate the operators: IN is = ANY, NOT IN is <> ALL, and EXISTS asks only whether any row comes back.",
+        "Check the empty-subquery case: ALL and NOT IN are TRUE, ANY, IN and EXISTS are FALSE."
+      ],
+      "trap": "Assuming IN equals an inner join when the subquery column has duplicates, or missing that one NULL inside NOT IN removes every row.",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "origin": "source",
+      "pages": [
+        530,
+        534,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.outer-join-count",
+      "title": "Row count of an outer join with filters",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Pair the matching rows using the whole ON condition, including any filter written inside it.",
+        "Add each unmatched row of the preserved side once, padded with NULLs.",
+        "Apply WHERE last; a condition on a padded column removes those rows again."
+      ],
+      "trap": "Moving a filter from ON to WHERE and expecting the same count.",
+      "topic": "db-sql-constraints.sql-joins",
+      "origin": "curated",
+      "pages": [
+        529
+      ]
+    },
+    {
+      "id": "db-sql-constraints.cascade-propagation",
+      "title": "Rows affected by foreign-key actions",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Delete the target row, then find every child row whose foreign key equals the deleted key.",
+        "Apply that foreign key's action: CASCADE deletes the child and repeats the search from it, SET NULL only clears the column, and NO ACTION or RESTRICT rejects the whole statement.",
+        "Count each deleted row once, and stop when a round finds no new children."
+      ],
+      "trap": "Counting the originally deleted row as an extra deletion, or cascading further from rows that SET NULL kept alive.",
+      "topic": "db-sql-constraints.referential-actions",
+      "origin": "source",
+      "pages": [
+        528,
+        534,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.set-op-duplicates",
+      "title": "Row counts of set operations with duplicates",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Tabulate how many copies of each value each operand holds.",
+        "For plain UNION, INTERSECT and EXCEPT, treat every positive count as 1.",
+        "For the ALL forms, take m + n, min(m, n) or max(m − n, 0) per value and add them up."
+      ],
+      "trap": "Forgetting that plain UNION also removes duplicates that occur within a single operand.",
+      "topic": "db-sql-constraints.set-operations",
+      "origin": "source",
+      "pages": [
+        530,
+        533,
+        535
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "db-sql-constraints.q-count-and-average",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Emp(id, dept, salary) holds (1, CS, 50), (2, CS, NULL), (3, EE, 40), (4, NULL, 40), (5, EE, NULL) and (6, CS, 60). What does SELECT COUNT(*), COUNT(salary), AVG(salary) FROM Emp return?",
+      "options": [
+        "6, 6, 31.67 (to two decimals)",
+        "6, 4, 47.5",
+        "6, 4, 31.67 (to two decimals)",
+        "4, 4, 47.5"
+      ],
+      "answer": 1,
+      "explanation": "COUNT(*) counts all 6 rows. COUNT(salary) skips the two NULL salaries and gives 4. AVG also ignores NULLs: it divides the sum 50 + 40 + 40 + 60 = 190 by the 4 non-NULL values, giving 47.5. Dividing by all 6 rows (about 31.67) is what AVG(COALESCE(salary, 0)) would compute.",
+      "difficulty": "easy",
+      "topic": "db-sql-constraints.aggregates-null",
+      "origin": "curated",
+      "pages": [
+        531,
+        536
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-having-null-group",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Emp(id, dept, salary) holds (1, CS, 50), (2, CS, NULL), (3, EE, 40), (4, NULL, 40), (5, EE, NULL) and (6, CS, 60). How many rows does SELECT dept, COUNT(*) FROM Emp GROUP BY dept HAVING COUNT(salary) < 2 return?",
+      "answer": 2,
+      "explanation": "GROUP BY puts the NULL dept into a group of its own, so there are three groups. CS (ids 1, 2 and 6) has 2 non-NULL salaries and fails the test. EE (ids 3 and 5) has 1, and the NULL group (id 4) has 1, so both pass. The result is (EE, 2) and (NULL, 1): 2 rows.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.group-by-having",
+      "origin": "curated",
+      "pages": [
+        529
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-not-in-null",
+      "type": "nat",
+      "marks": 1,
+      "stem": "R(a) holds the values 1, 2, 3 and 4. S(b) holds the values 2 and NULL. How many rows does SELECT a FROM R WHERE a NOT IN (SELECT b FROM S) return?",
+      "answer": 0,
+      "explanation": "a NOT IN (2, NULL) means a <> 2 AND a <> NULL. The second comparison is UNKNOWN for every a, so the condition is FALSE for a = 2 and UNKNOWN for 1, 3 and 4. WHERE keeps only TRUE rows, so no row is returned. NOT EXISTS (SELECT * FROM S WHERE S.b = R.a) would return 1, 3 and 4.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "origin": "source",
+      "pages": [
+        535,
+        536
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-correlated-average",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Emp(name, dept, salary) holds (A, CS, 60), (B, CS, 40), (C, CS, 50), (D, EE, 70), (E, EE, 70) and (F, ME, 30). Which names does SELECT name FROM Emp e WHERE salary > (SELECT AVG(salary) FROM Emp WHERE dept = e.dept) return?",
+      "options": [
+        "A, D and E",
+        "A, C, D, E and F",
+        "A only",
+        "No names"
+      ],
+      "answer": 2,
+      "explanation": "The subquery is correlated: for each outer row it averages that row's department. CS averages (60 + 40 + 50) / 3 = 50, so only A (60) is strictly above it; C equals it. EE averages 70, and neither D nor E exceeds 70. ME averages 30, which F only equals. The result is A alone. Comparing with the overall average of about 53.33 would wrongly give A, D and E, and using >= would give A, C, D, E and F.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.subqueries",
+      "origin": "curated",
+      "pages": [
+        530
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-empty-subquery",
+      "type": "msq",
+      "marks": 2,
+      "stem": "T(x) holds the values 5 and 8, and table S(y) is empty. Used as the WHERE condition of SELECT x FROM T, which of these make the query return both rows of T?",
+      "options": [
+        "x > ALL (SELECT y FROM S)",
+        "x > ANY (SELECT y FROM S)",
+        "EXISTS (SELECT y FROM S)",
+        "x NOT IN (SELECT y FROM S)"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "Over an empty set, a condition required of every element holds vacuously, and one required of some element fails. x > ALL over the empty set is TRUE, and NOT IN means <> ALL, so it is TRUE as well; both return 5 and 8. x > ANY over the empty set is FALSE, and EXISTS on an empty result is FALSE, so those two return no rows.",
+      "difficulty": "hard",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "origin": "curated",
+      "pages": [
+        530,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-null-comparison",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Student(id, dept) holds (1, CS), (2, NULL) and (3, NULL). Query Q1 is SELECT COUNT(*) FROM Student WHERE dept = NULL, and query Q2 is SELECT COUNT(*) FROM Student WHERE dept <> 'CS'. What do they return?",
+      "options": [
+        "Q1: 2, Q2: 2",
+        "Q1: 2, Q2: 0",
+        "Q1: 0, Q2: 2",
+        "Q1: 0, Q2: 0"
+      ],
+      "answer": 3,
+      "explanation": "dept = NULL is UNKNOWN for every row, even the rows whose dept is NULL, so Q1 counts nothing and returns 0. In Q2 the CS row gives FALSE and the two NULL rows give UNKNOWN, so again no row is counted and the result is 0. WHERE dept IS NULL would count 2, and so would dept <> 'CS' OR dept IS NULL.",
+      "difficulty": "easy",
+      "topic": "db-sql-constraints.null-logic",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — NULL",
+      "pages": [
+        531,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-cascade-chain",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Emp(eid, mgr) has primary key eid, and mgr is a foreign key referencing Emp(eid) with ON DELETE CASCADE. The table holds (10, 30), (20, 10), (30, 40), (40, 30), (50, 20), (60, 20), (70, 50) and (80, 40). The tuple (20, 10) is deleted. How many other tuples does the cascade delete?",
+      "answer": 3,
+      "explanation": "Deleting eid 20 cascades to the rows whose mgr is 20: (50, 20) and (60, 20). Deleting 50 cascades to (70, 50). No row has mgr 60 or 70, so the chain stops there. Rows 10, 30, 40 and 80 survive; 10 is the manager of 20, not a subordinate, and cascades only run from parent to child. Three other tuples are deleted.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.referential-actions",
+      "origin": "curated",
+      "pages": [
+        528,
+        534
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-set-null-action",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Dept(did) holds 10 and 20. Emp(eid, did) holds (1, 10), (2, 10) and (3, 20), and Emp.did references Dept ON DELETE SET NULL. Project(pid, lead) holds (p1, 1), (p2, 2) and (p3, 3), and Project.lead references Emp(eid) ON DELETE CASCADE. What is the effect of DELETE FROM Dept WHERE did = 10?",
+      "options": [
+        "The delete is rejected, because employees 1 and 2 still refer to department 10",
+        "Department 10, employees 1 and 2, and projects p1 and p2 are all deleted",
+        "Department 10 is deleted, employees 1 and 2 remain with did = NULL, and all three projects remain",
+        "Department 10 is deleted, employees 1 and 2 get did = NULL, and projects p1 and p2 are deleted"
+      ],
+      "answer": 2,
+      "explanation": "SET NULL keeps the child rows and only clears their foreign key, so employees 1 and 2 stay, with did = NULL. No Emp row is deleted, so the CASCADE rule on Project.lead never fires and all three projects remain. Under NO ACTION or RESTRICT the delete would have been rejected instead.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.referential-actions",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — FOREIGN KEY action",
+      "pages": [
+        531,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-constraint-inserts",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Table T(id, email, age, mgr) is declared with id PRIMARY KEY, email UNIQUE, CHECK (age >= 18), and mgr REFERENCES T(id). It holds one row, (1, 'a@x', 30, NULL). Each insert below is tried on its own against this state. Which ones succeed?",
+      "options": [
+        "INSERT INTO T VALUES (2, NULL, NULL, 1)",
+        "INSERT INTO T VALUES (NULL, 'b@x', 20, 1)",
+        "INSERT INTO T VALUES (3, 'b@x', 20, 9)",
+        "INSERT INTO T VALUES (4, 'c@x', 18, NULL)"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "The row with id 2 succeeds: a NULL email cannot clash under UNIQUE, CHECK (NULL >= 18) is UNKNOWN and a CHECK rejects only FALSE, and manager 1 exists. The insert with a NULL id breaks entity integrity, since a primary key cannot be NULL. The row with id 3 names manager 9, which does not exist, so referential integrity rejects it. The row with id 4 succeeds: age 18 satisfies the CHECK, and a NULL foreign key is allowed.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.integrity-constraints",
+      "origin": "curated",
+      "pages": [
+        528,
+        531,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-in-versus-join",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(a) holds the values 1, 2 and 3; S(a) holds the values 1, 1 and 2. Query Q1 is SELECT R.a FROM R WHERE R.a IN (SELECT a FROM S), and query Q2 is SELECT R.a FROM R JOIN S ON R.a = S.a. How many rows does each return?",
+      "options": [
+        "Q1: 2, Q2: 2",
+        "Q1: 3, Q2: 3",
+        "Q1: 3, Q2: 2",
+        "Q1: 2, Q2: 3"
+      ],
+      "answer": 3,
+      "explanation": "IN tests membership, so each R row appears at most once: 1 and 2 qualify, giving 2 rows. The join pairs R's 1 with both copies of 1 in S and R's 2 with the single 2, giving 3 rows. The two queries agree only when the subquery column is unique; otherwise the join repeats outer rows.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "origin": "curated",
+      "pages": [
+        530,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-group-by-validity",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Emp(eid, name, dept, salary) has primary key eid; name and dept are not keys. Which of these queries are valid in standard SQL?",
+      "options": [
+        "SELECT dept, name, AVG(salary) FROM Emp GROUP BY dept",
+        "SELECT dept, COUNT(*) FROM Emp GROUP BY dept HAVING AVG(salary) > 50",
+        "SELECT COUNT(*) FROM Emp GROUP BY dept",
+        "SELECT dept, AVG(salary) FROM Emp WHERE AVG(salary) > 50 GROUP BY dept"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "In the first query name is neither grouped nor aggregated, and one department has many names, so it is invalid. HAVING may test an aggregate that the SELECT list does not show, and a query need not output its grouping column, so the second and third queries are valid. WHERE runs before groups exist and cannot contain an aggregate, so the fourth is invalid; that condition belongs in HAVING.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.group-by-having",
+      "origin": "source",
+      "pages": [
+        529,
+        534
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-union-count",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A(x) holds the values 1, 1, 2 and 3; B(x) holds the values 2, 2 and 4. How many rows do SELECT x FROM A UNION SELECT x FROM B and SELECT x FROM A UNION ALL SELECT x FROM B return?",
+      "options": [
+        "4 and 7",
+        "5 and 7",
+        "7 and 4",
+        "4 and 4"
+      ],
+      "answer": 0,
+      "explanation": "UNION removes every duplicate, including the repeated 1 inside A, leaving {1, 2, 3, 4}: 4 rows. UNION ALL keeps all copies from both operands: 4 + 3 = 7 rows.",
+      "difficulty": "easy",
+      "topic": "db-sql-constraints.set-operations",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — UNION",
+      "pages": [
+        530,
+        535
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-bag-operations",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A(x) holds the values 1, 1, 1, 2, 2 and 3; B(x) holds the values 1, 1, 2, 2, 2 and 4. How many rows do SELECT x FROM A INTERSECT ALL SELECT x FROM B and SELECT x FROM A EXCEPT ALL SELECT x FROM B return?",
+      "options": [
+        "2 and 1",
+        "4 and 2",
+        "6 and 1",
+        "4 and 4"
+      ],
+      "answer": 1,
+      "explanation": "Count the copies of each value. INTERSECT ALL keeps min(m, n): value 1 gives min(3, 2) = 2, value 2 gives min(2, 3) = 2, and values 3 and 4 give 0, so 4 rows. EXCEPT ALL keeps max(m − n, 0): value 1 gives 1, value 2 gives 0 and value 3 gives 1, so 2 rows. Without ALL the counts would be 2 ({1, 2}) and 1 ({3}).",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.set-operations",
+      "origin": "curated",
+      "pages": [
+        530
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-left-join-filter",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Emp(eid, did) holds (1, 10), (2, 20), (3, 30) and (4, NULL). Dept(did, city) holds (10, Pune), (20, Delhi) and (40, Pune). Query Q1 is SELECT e.eid FROM Emp e LEFT JOIN Dept d ON e.did = d.did AND d.city = 'Pune', and query Q2 is SELECT e.eid FROM Emp e LEFT JOIN Dept d ON e.did = d.did WHERE d.city = 'Pune'. How many rows does each return?",
+      "options": [
+        "Q1: 4, Q2: 1",
+        "Q1: 1, Q2: 1",
+        "Q1: 4, Q2: 4",
+        "Q1: 2, Q2: 1"
+      ],
+      "answer": 0,
+      "explanation": "In Q1 the city test is part of the ON condition, so it only decides matching. Employee 1 matches department 10 in Pune; employees 2, 3 and 4 find no qualifying department and are padded with NULLs, so all 4 rows appear. In Q2 the join first gives (1, Pune), (2, Delhi), (3, NULL) and (4, NULL); WHERE then drops Delhi and the two NULL cities, whose test is UNKNOWN. Only 1 row remains.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.sql-joins",
+      "origin": "curated",
+      "pages": [
+        529
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-three-valued-logic",
+      "type": "nat",
+      "marks": 2,
+      "stem": "T(a, b) holds (6, 2), (6, NULL), (4, NULL), (NULL, 1), (NULL, 5) and (7, 4). How many rows does SELECT * FROM T WHERE NOT (a > 5 AND b < 3) return?",
+      "answer": 3,
+      "explanation": "Evaluate a > 5 AND b < 3 for each row, then negate. (6, 2): TRUE, so NOT gives FALSE. (6, NULL): TRUE AND UNKNOWN = UNKNOWN, still UNKNOWN after NOT. (4, NULL): FALSE AND UNKNOWN = FALSE, so NOT gives TRUE. (NULL, 1): UNKNOWN AND TRUE = UNKNOWN. (NULL, 5): UNKNOWN AND FALSE = FALSE, so TRUE. (7, 4): TRUE AND FALSE = FALSE, so TRUE. The rows (4, NULL), (NULL, 5) and (7, 4) are returned: 3.",
+      "difficulty": "medium",
+      "topic": "db-sql-constraints.null-logic",
+      "origin": "curated",
+      "pages": [
+        531
+      ]
+    },
+    {
+      "id": "db-sql-constraints.q-double-not-exists",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Student(sid, name), Course(cid, title) and Enrolled(sid, cid) are tables. What does SELECT s.sid FROM Student s WHERE NOT EXISTS (SELECT * FROM Course c WHERE NOT EXISTS (SELECT * FROM Enrolled e WHERE e.sid = s.sid AND e.cid = c.cid)) return?",
+      "options": [
+        "Students enrolled in at least one course",
+        "Students enrolled in no course",
+        "Students enrolled in every course",
+        "Students enrolled in exactly one course"
+      ],
+      "answer": 2,
+      "explanation": "The inner NOT EXISTS is TRUE for a course c that student s has not taken. The outer NOT EXISTS keeps s only when no such course exists, which means s is enrolled in every course. This is relational division written in SQL; if Course is empty, every student qualifies vacuously.",
+      "difficulty": "hard",
+      "topic": "db-sql-constraints.subqueries",
+      "origin": "curated",
+      "pages": [
+        530
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "x = NULL is never TRUE, not even when x is NULL; use IS NULL. The same goes for <>, so dept <> 'CS' also skips the rows whose dept is NULL.",
+      "origin": "source",
+      "pages": [
+        531,
+        535,
+        536
+      ]
+    },
+    {
+      "text": "NOT IN against a subquery that can return NULL returns no rows at all. NOT EXISTS, or a subquery filtered with IS NOT NULL, gives the intended result.",
+      "origin": "source",
+      "pages": [
+        535,
+        536
+      ]
+    },
+    {
+      "text": "Every non-aggregated column in SELECT must appear in GROUP BY, and a condition on an aggregate belongs in HAVING, never in WHERE.",
+      "origin": "source",
+      "pages": [
+        529,
+        534,
+        536
+      ]
+    },
+    {
+      "text": "AVG, SUM, MIN, MAX and COUNT(col) skip NULLs, so AVG(col) is not SUM(col) / COUNT(*) once the column has a NULL, unless its non-NULL values sum to 0.",
+      "origin": "source",
+      "pages": [
+        531,
+        536
+      ]
+    },
+    {
+      "text": "A condition on the right table placed in WHERE after a LEFT JOIN discards the NULL-padded rows and silently turns the outer join into an inner join.",
+      "origin": "curated",
+      "pages": [
+        529
+      ]
+    },
+    {
+      "text": "NATURAL JOIN matches every same-named column, so an extra shared column such as name or updated_at changes the join without any error.",
+      "origin": "source",
+      "pages": [
+        529,
+        536
+      ]
+    },
+    {
+      "text": "Rewriting IN (subquery) as a join repeats outer rows whenever the subquery column has duplicates.",
+      "origin": "curated",
+      "pages": [
+        530
+      ]
+    },
+    {
+      "text": "TRUNCATE commits implicitly and cannot be rolled back in Oracle or MySQL, unlike DELETE.",
+      "origin": "source",
+      "pages": [
+        536
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Query evaluation",
+      "lines": [
+        "FROM → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY",
+        "WHERE filters rows, HAVING filters groups; SELECT aliases are usable only in ORDER BY",
+        "SELECT keeps duplicates unless DISTINCT is written"
+      ],
+      "origin": "source",
+      "pages": [
+        528,
+        532,
+        536
+      ]
+    },
+    {
+      "heading": "NULL and aggregates",
+      "lines": [
+        "Comparison with NULL → UNKNOWN; WHERE keeps only TRUE",
+        "FALSE AND UNKNOWN = FALSE; TRUE OR UNKNOWN = TRUE",
+        "COUNT(*) counts rows; every other aggregate skips NULLs",
+        "NOT IN with a NULL in the list → no rows"
+      ],
+      "origin": "source",
+      "pages": [
+        531,
+        536
+      ]
+    },
+    {
+      "heading": "Subqueries and set operations",
+      "lines": [
+        "IN and EXISTS = semijoin; NOT IN = <> ALL",
+        "Empty subquery: ALL → TRUE, ANY → FALSE, EXISTS → FALSE",
+        "UNION, INTERSECT, EXCEPT remove duplicates; ALL forms keep m + n, min(m, n), max(m − n, 0)"
+      ],
+      "origin": "source",
+      "pages": [
+        530,
+        536
+      ]
+    },
+    {
+      "heading": "Constraints",
+      "lines": [
+        "PRIMARY KEY = UNIQUE + NOT NULL; UNIQUE alone allows NULLs",
+        "CHECK rejects only FALSE, so a NULL passes",
+        "FK actions: CASCADE, SET NULL, SET DEFAULT, RESTRICT, NO ACTION (default)"
+      ],
+      "origin": "source",
+      "pages": [
+        531,
+        536
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 535,
+      "claim": "NOT IN with a NULL in the subquery result is always UNKNOWN.",
+      "correction": "It is never TRUE, but not always UNKNOWN: x NOT IN (…) is FALSE when x equals a non-NULL value in the list and UNKNOWN otherwise. Either way the WHERE clause returns no rows. If the subquery returns no rows at all, NOT IN is TRUE."
+    },
+    {
+      "page": 535,
+      "claim": "WHERE id IN (SELECT id FROM …) is equivalent to an INNER JOIN.",
+      "correction": "IN is a semijoin: each outer row appears at most once. An inner join repeats an outer row once per matching subquery row, so the two agree only when the subquery column is unique, such as a key. EXISTS is the faithful rewrite."
+    },
+    {
+      "page": 531,
+      "claim": "UNIQUE implies NOT NULL typically, and one NULL may be allowed depending on the DBMS.",
+      "correction": "UNIQUE does not imply NOT NULL. Standard SQL treats NULLs as distinct for UNIQUE, so PostgreSQL, MySQL, Oracle and SQLite accept several NULLs in a UNIQUE column; SQL Server is the main exception and allows only one."
+    },
+    {
+      "page": 531,
+      "claim": "A FOREIGN KEY references the primary key of another table.",
+      "correction": "A foreign key may reference any PRIMARY KEY or UNIQUE column set, including one in the same table: a self-referencing key such as Emp.mgr referencing Emp.eid is standard and common in cascade questions."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "db-sql",
+      "status": "covered",
+      "topics": [
+        "db-sql-constraints.sql-categories",
+        "db-sql-constraints.select-evaluation",
+        "db-sql-constraints.sql-joins",
+        "db-sql-constraints.group-by-having",
+        "db-sql-constraints.null-logic",
+        "db-sql-constraints.aggregates-null",
+        "db-sql-constraints.subqueries",
+        "db-sql-constraints.in-exists-any-all",
+        "db-sql-constraints.set-operations",
+        "db-sql-constraints.views",
+        "db-sql-constraints.window-functions"
+      ]
+    },
+    {
+      "item": "db-integrity-constraints",
+      "status": "covered",
+      "topics": [
+        "db-sql-constraints.integrity-constraints",
+        "db-sql-constraints.referential-actions",
+        "db-sql-constraints.triggers"
+      ]
+    }
+  ]
+}

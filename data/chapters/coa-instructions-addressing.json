@@ -1,0 +1,2246 @@
+{
+  "id": "coa-instructions-addressing",
+  "summary": "An instruction is an opcode plus operand fields, and an addressing mode is the rule that turns those fields into the operand's effective address (EA). GATE tests this chapter mostly by arithmetic: partition a fixed instruction width into opcode, register, mode and immediate fields; count encodings under an expanding opcode; compute the EA or loaded value under each mode; find a PC-relative branch target or a return address; and count memory references in a short loop. The conceptual questions ask which mode suits constants, pointers, arrays, relocation and branches, and how RISC differs from CISC.",
+  "highYield": [
+    "Bit partitioning of a fixed-width instruction: opcode bits = ⌈log₂ N⌉, register field = ⌈log₂ R⌉, and whatever is left is the immediate or displacement, whose largest unsigned value is 2^k − 1.",
+    "Expanding-opcode counting: each instruction class consumes (count) × 2^(operand bits) encodings out of 2^W, and the last class gets the leftover divided by its own 2^(operand bits).",
+    "Value loaded under direct, indirect, register indirect, indexed and PC-relative modes from one register-and-memory table, with PC-relative using the already incremented PC.",
+    "Data memory references and instruction addresses in a short loop program, including the return address saved when an interrupt arrives mid-instruction.",
+    "Mode-to-use matching: immediate for constants, indirect and register indirect for pointers, indexed for arrays, based and PC-relative for relocatable code."
+  ],
+  "topics": [
+    {
+      "id": "coa-instructions-addressing.architecture-models",
+      "title": "Von Neumann, Harvard and modified Harvard organisation",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        245,
+        246
+      ],
+      "points": [
+        "Von Neumann machines keep instructions and data in one memory reached over one path, so an instruction fetch and a data access cannot overlap; this serialisation is the Von Neumann bottleneck.",
+        "Harvard machines give instructions and data separate memories and buses, so a fetch and a data access proceed in the same cycle at the cost of duplicated hardware.",
+        "Modern processors are modified Harvard: split L1 instruction and data caches feed the pipeline in parallel while L2 and main memory stay unified, so software still sees one address space.",
+        "The split matters for pipelining: a structural hazard between instruction fetch and a load disappears when the two use separate L1 caches."
+      ],
+      "keyTerms": [
+        "stored-program concept",
+        "Von Neumann bottleneck",
+        "split L1 cache"
+      ],
+      "lesson": {
+        "why": "Questions on pipelines, caches and instruction sets often turn on whether instructions and data share one memory path, so you need the two organisations clear before them.",
+        "intro": "A processor needs two kinds of things from memory: the instructions it runs and the data those instructions work on. In a Von Neumann machine both live in one memory reached over one path, so only one of them can be transferred at a time. In a Harvard machine instructions and data have separate memories and separate paths, so a fetch and a data access can happen together. Real processors use a mix: separate first-level caches for instructions and data, and one shared memory behind them. What the program can see and depend on, the instructions, addressing modes and programmer-visible registers, is the instruction set architecture (ISA). How a chip is built to honour it, such as cache sizes and clock rate, is its implementation.",
+        "analogy": {
+          "text": "One counter at a post office serves both people posting letters and people collecting parcels, so they queue together. Two counters let a poster and a collector be served at the same moment.",
+          "breaksWhen": "Two counters cost two clerks, and the extra hardware is real; also a program still sees one set of addresses even when the caches underneath are split."
+        },
+        "definitions": [
+          {
+            "term": "Von Neumann bottleneck",
+            "meaning": "The limit that one shared path to memory puts on how fast instructions and data can both be supplied."
+          },
+          {
+            "term": "Modified Harvard",
+            "meaning": "Separate instruction and data caches next to the processor, with unified main memory behind them."
+          },
+          {
+            "term": "Instruction set architecture (ISA)",
+            "meaning": "The contract visible to software: the instructions and their encodings, addressing modes, data types and programmer-visible registers."
+          }
+        ],
+        "principle": {
+          "text": "With one memory port, instruction fetches and data accesses take turns, so memory time is their sum. With separate ports they overlap, so memory time is the larger of the two.",
+          "tex": "T_{\\text{unified}} = N_I + N_D \\qquad T_{\\text{split}} = \\max(N_I,\\, N_D)"
+        },
+        "limits": "The formula assumes one access per cycle on each port and perfect overlap, and it ignores cache misses. Splitting the caches does not split the address space: software still sees one memory, and what an instruction means does not change. Cache size, number of cache levels, pipeline depth and clock frequency belong to the implementation, not the ISA; the number of programmer-visible registers does belong to the ISA.",
+        "example": {
+          "problem": "A program executes 100 instructions, and 40 of them also read or write one data word. Every memory access takes one cycle and each port serves one access per cycle. Compare the memory cycles on a unified memory and on separate instruction and data memories.",
+          "steps": [
+            "Each of the 100 instructions needs one fetch, so $N_I = 100$. The 40 loads and stores need one data access each, so $N_D = 40$.",
+            "With one port the 140 accesses happen one after another: 140 cycles.",
+            "With two ports a data access overlaps with the next fetch, so the 40 data accesses hide inside the 100 fetch cycles: $\\max(100, 40) = 100$ cycles."
+          ],
+          "result": "140 cycles on the unified memory against 100 cycles on the split memories."
+        },
+        "misconceptions": [
+          "Modified Harvard does not give a program two address spaces; the split exists only in the L1 caches, and the program still addresses one memory.",
+          "The speed gain does not come from a faster memory; it comes from letting a fetch and a data access happen in the same cycle.",
+          "Cache size, number of cache levels or clock rate are part of the ISA. They change speed but not what any instruction means, so two chips with different ones can run the same binary; the count of programmer-visible registers is part of the ISA because instructions name them."
+        ],
+        "recall": [
+          {
+            "q": "What is the Von Neumann bottleneck?",
+            "a": "Instructions and data share one path to memory, so a fetch and a data access cannot happen in the same cycle."
+          },
+          {
+            "q": "Why do modern processors split only the L1 cache?",
+            "a": "It lets the pipeline fetch an instruction and access data together, while the unified lower levels keep one address space for software."
+          },
+          {
+            "q": "Which structural hazard does a split L1 cache remove?",
+            "a": "The clash between an instruction fetch and a load or store wanting memory in the same cycle."
+          },
+          {
+            "q": "What belongs to the ISA and what to the implementation?",
+            "a": "The ISA holds instructions, addressing modes, data types and visible registers; cache sizes and levels, pipeline depth and clock frequency are implementation."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A program executes 250 instructions, of which 70 make one data access each. Each access takes one cycle, and each memory port serves one access per cycle. How many memory cycles does the separate instruction and data memory organisation save compared with one unified memory?",
+          "answer": 70,
+          "explanation": "Unified: 250 + 70 = 320 cycles. Split: the 70 data accesses overlap with fetches, so only max(250, 70) = 250 cycles are needed. The saving is 320 - 250 = 70, which equals the number of data accesses. Answering 250 or 320 tempts because they are one of the two totals rather than their difference."
+        },
+        "summary": "Von Neumann shares one memory path and serialises fetches with data accesses; Harvard separates them so they overlap; modern chips split only the L1 caches and keep one address space."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.instruction-format",
+      "title": "Instruction fields and where operands live",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        16,
+        246,
+        247
+      ],
+      "points": [
+        "An instruction carries an opcode naming the operation, one or more operand fields, and, in ISAs with selectable modes, a mode field per operand that says how to interpret its address field.",
+        "Operands live in registers (few, fast, named by a short field), in memory (large, slower, named by an address or an address computation), in the instruction itself (immediate), or implicitly (accumulator, stack pointer, condition codes).",
+        "A k-bit mode field selects among 2^k addressing modes; the mode bits plus the register or address bits of that operand together define its effective address.",
+        "Register operands keep instructions short: 32 registers cost 5 bits, while a direct memory operand in a 32-bit address space costs 32 bits.",
+        "Implied (implicit) addressing: the opcode alone names the operand, as in CLA (clear the accumulator), PUSH and POP using SP, or RET popping PC; the instruction carries no operand field for it."
+      ],
+      "keyTerms": [
+        "opcode",
+        "operand field",
+        "mode field",
+        "implicit operand",
+        "implied mode"
+      ],
+      "lesson": {
+        "why": "Every encoding and addressing question starts from what fields an instruction holds, so you must know which parts name the operation, which name operands, and where an operand can live.",
+        "intro": "An instruction is a row of bits cut into fields. The opcode field says which operation to perform. Each operand field says where one input or the result is. Where the machine offers several ways to interpret an operand field, a mode field says which way applies. An operand can sit in a register, in memory, inside the instruction itself (an immediate), or nowhere in the instruction because the opcode already implies it, such as the stack pointer for PUSH.",
+        "prerequisites": [
+          "coa-instructions-addressing.architecture-models"
+        ],
+        "definitions": [
+          {
+            "term": "Opcode",
+            "meaning": "The field that names the operation the instruction performs."
+          },
+          {
+            "term": "Mode field",
+            "meaning": "A field that tells the hardware how to turn an operand field into the operand or its address."
+          },
+          {
+            "term": "Implied operand",
+            "meaning": "An operand the opcode names by itself, so the instruction carries no field for it."
+          }
+        ],
+        "principle": {
+          "text": "The instruction width is the sum of its fields. Naming one of $N$ things takes $\\lceil \\log_2 N \\rceil$ bits, and whatever the fixed fields leave over is the room for an address or an immediate.",
+          "tex": "W = \\lceil \\log_2 N_{\\text{op}} \\rceil + \\sum \\left( \\lceil \\log_2 N_{\\text{modes}} \\rceil + \\lceil \\log_2 N_{\\text{regs}} \\rceil \\right) + w_{\\text{rest}}"
+        },
+        "limits": "This count assumes every field has a fixed width. Machines with variable-length instructions, or with an expanding opcode that borrows operand bits, do not give each field a fixed share. An implied operand costs no bits at all.",
+        "example": {
+          "problem": "A machine has 24-bit instructions, 100 operations, 6 addressing modes and 16 registers. An instruction has one opcode field, one mode field, one register field and an immediate field that takes all remaining bits. How wide is the immediate field, and what is the largest unsigned value it holds?",
+          "steps": [
+            "The opcode must name 100 operations, so it needs $\\lceil \\log_2 100 \\rceil = 7$ bits.",
+            "The mode field names 6 modes: $\\lceil \\log_2 6 \\rceil = 3$ bits. The register field names 16 registers: 4 bits.",
+            "The fields so far use $7 + 3 + 4 = 14$ bits, which leaves $24 - 14 = 10$ bits for the immediate.",
+            "An unsigned 10-bit field holds values up to $2^{10} - 1 = 1023$."
+          ],
+          "result": "The immediate field is 10 bits wide and holds unsigned values from 0 to 1023."
+        },
+        "misconceptions": [
+          "Using $\\log_2 N$ without rounding up: 100 operations need 7 bits, not 6.64.",
+          "Giving an implied operand a field. PUSH needs no field for the stack pointer, because the opcode already names it.",
+          "Counting the mode field once for the whole instruction when each operand has its own mode field."
+        ],
+        "recall": [
+          {
+            "q": "What do the opcode, mode and operand fields each do?",
+            "a": "The opcode names the operation, the operand fields locate the operands, and a mode field says how to interpret an operand field."
+          },
+          {
+            "q": "How many bits name one of 32 registers?",
+            "a": "Five bits, since $\\lceil \\log_2 32 \\rceil = 5$."
+          },
+          {
+            "q": "Where can an operand live?",
+            "a": "In a register, in memory, inside the instruction as an immediate, or implied by the opcode."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A machine has 32-bit instructions with 90 operations. Each instruction has an opcode and two operands. Each operand has a mode field choosing among 4 modes and a field naming one of 16 registers. How many bits are left over for other uses?",
+          "answer": 13,
+          "explanation": "The opcode takes $\\lceil \\log_2 90 \\rceil = 7$ bits. Each operand takes $2 + 4 = 6$ bits, so two operands take $12$ bits. Total used is $19$ bits, leaving $32 - 19 = 13$ bits. Counting only one mode field leaves 15, which tempts when the mode field is read as shared."
+        },
+        "summary": "An instruction is an opcode, optional mode fields and operand fields; each field costs the ceiling of a base-2 logarithm of its choices, and an implied operand costs nothing."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.address-count",
+      "title": "Three-, two-, one- and zero-address instructions",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        16,
+        246,
+        248,
+        249,
+        250
+      ],
+      "points": [
+        "Three-address: ADD X, A, B computes X ← A + B; programs are shortest but each instruction is widest. X = A + B + C takes 2 instructions: ADD T, A, B then ADD X, T, C.",
+        "Two-address: ADD A, B computes A ← A + B, so one source is destroyed; a MOV is needed first whenever the original value must survive.",
+        "One-address: an implicit accumulator is both source and destination (LOAD A, ADD B, STORE X). X = (A + B) × (C + D) takes 7 instructions: LOAD A, ADD B, STORE T, LOAD C, ADD D, MUL T, STORE X.",
+        "Zero-address: arithmetic pops its operands from a stack and pushes the result, so the code is the postfix form of the expression. X = (A + B) × (C − D) is PUSH A, PUSH B, ADD, PUSH C, PUSH D, SUB, MUL, POP X: 8 instructions.",
+        "In a stack machine SUB and DIV compute (second from top) op (top): for PUSH C, PUSH D, SUB the result is C − D, not D − C.",
+        "Fewer addresses per instruction means shorter instructions but more instructions per program and more traffic through the accumulator or stack."
+      ],
+      "keyTerms": [
+        "accumulator",
+        "stack machine",
+        "postfix",
+        "destructive operand"
+      ],
+      "lesson": {
+        "why": "GATE asks how many instructions an expression takes on a machine with a given number of addresses per instruction, and what a stack machine leaves on top of the stack.",
+        "intro": "The address count is how many memory or register names one arithmetic instruction carries. Three-address instructions name both sources and the destination. Two-address instructions overwrite one source with the result. One-address instructions use a hidden register, the accumulator, as the other source and the destination. Zero-address instructions use a stack: the operands are taken from the top of the stack and the result is pushed back. Fewer addresses make each instruction shorter but the program longer.",
+        "prerequisites": [
+          "coa-instructions-addressing.instruction-format"
+        ],
+        "definitions": [
+          {
+            "term": "Accumulator",
+            "meaning": "A register that is an implied source and the implied destination of one-address arithmetic."
+          },
+          {
+            "term": "Postfix",
+            "meaning": "Writing operands first and the operator after them, which is the order a stack machine executes."
+          }
+        ],
+        "principle": {
+          "text": "Three-address code needs one instruction per operator. One-address code adds a LOAD, a STORE and temporaries. Zero-address code pushes each operand, applies each operator in postfix order, and pops the result. For a binary operation on a stack, the deeper item is the left operand.",
+          "tex": "\\text{SUB: } \\text{top} \\leftarrow \\text{second} - \\text{top}"
+        },
+        "limits": "The counts hold only for the instruction sets as defined here, with no instruction combining a load and an operation. A two-address machine destroys one source, so an extra MOV is needed whenever that value is used again. Register-register machines with several free registers can beat these counts.",
+        "example": {
+          "problem": "Write X = A*B + C*D on a three-address, a one-address and a zero-address machine, and count the instructions.",
+          "steps": [
+            "Three-address: MUL T1, A, B then MUL T2, C, D then ADD X, T1, T2. That is one instruction per operator, 3 in all.",
+            "One-address: LOAD A, MUL B, STORE T, LOAD C, MUL D, ADD T, STORE X. The first product must be saved in T before the accumulator is reused, 7 in all.",
+            "Zero-address, in postfix A B * C D * +: PUSH A, PUSH B, MUL, PUSH C, PUSH D, MUL, ADD, POP X. That is 4 pushes, 3 operators and 1 pop, 8 in all."
+          ],
+          "result": "The counts are 3, 7 and 8 instructions."
+        },
+        "misconceptions": [
+          "Reading SUB on a stack as top minus second. The second item from the top is the left operand, so PUSH 9, PUSH 4, SUB gives 5.",
+          "Forgetting the final STORE or POP of the result when counting a one-address or zero-address program.",
+          "Assuming a shorter instruction means a shorter program. Fewer addresses per instruction usually means more instructions."
+        ],
+        "recall": [
+          {
+            "q": "What does a two-address ADD A, B do to its operands?",
+            "a": "It computes A = A + B, so the old value of A is lost."
+          },
+          {
+            "q": "Why does a one-address machine need a temporary for A*B + C*D?",
+            "a": "The accumulator holds one value at a time, so the first product must be stored before the second is computed."
+          },
+          {
+            "q": "In what order does a stack machine execute an expression?",
+            "a": "In postfix order: each operator comes after its operands."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A zero-address stack machine runs PUSH 30, PUSH 6, SUB, PUSH 4, DIV. SUB and DIV compute (second from top) op (top). What value is on top of the stack afterwards?",
+          "answer": 6,
+          "explanation": "PUSH 30, PUSH 6, SUB leaves $30 - 6 = 24$. Then PUSH 4 and DIV give $24 / 4 = 6$. Taking top minus second at the SUB gives $6 - 30 = -24$ and a final $4 / (-24)$, which tempts when the operand order is reversed."
+        },
+        "summary": "More addresses per instruction give shorter programs; fewer give shorter instructions. On a stack machine write the expression in postfix and remember the deeper item is the left operand."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.encoding-bits",
+      "title": "Partitioning instruction bits",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        246,
+        249,
+        250,
+        251,
+        252
+      ],
+      "points": [
+        "N distinct opcodes need ⌈log₂ N⌉ bits: 128 opcodes need 7, 200 need 8 because 2⁷ = 128 < 200 ≤ 256 = 2⁸.",
+        "A register field for R registers needs ⌈log₂ R⌉ bits, and a k-bit field names at most 2^k registers: 4 bits name 16.",
+        "A K-bit address field reaches 2^K addressable cells; with byte addressing a 24-bit address covers 2²⁴ B = 16 MB.",
+        "Width = opcode bits + Σ operand-field bits. For a fixed width W, the leftover after opcode and register fields is the immediate or displacement: 32 − 6 − 6 − 6 = 14 bits for 45 opcodes and two of 64 registers.",
+        "An unsigned k-bit immediate ranges 0 to 2^k − 1; a two's-complement one ranges −2^(k−1) to 2^(k−1) − 1. A 14-bit unsigned immediate tops out at 16383.",
+        "When the computed width is not a byte or word multiple, the ISA pads it: 29 bits are typically stored in a 32-bit word."
+      ],
+      "keyTerms": [
+        "⌈log₂ N⌉",
+        "immediate field",
+        "displacement field",
+        "padding"
+      ],
+      "lesson": {
+        "why": "Counting how many bits an instruction needs, or how many are left for an immediate, is a direct arithmetic question that appears again and again, and it is quick marks once the method is automatic.",
+        "intro": "An instruction is a fixed number of bits cut into fields. One field says which operation to perform, the opcode. Other fields name registers. Whatever is left over holds a constant carried inside the instruction, called the immediate, or an offset. A field of $k$ bits can hold $2^k$ different values, so to tell $N$ things apart you need enough bits that $2^k \\ge N$, and you round up to a whole number of bits.",
+        "definitions": [
+          {
+            "term": "Opcode",
+            "meaning": "The field that names the operation the instruction performs."
+          },
+          {
+            "term": "Immediate",
+            "meaning": "A constant stored inside the instruction word instead of in a register or in memory."
+          }
+        ],
+        "principle": {
+          "text": "A field that must distinguish $N$ items takes the ceiling of the base-2 logarithm of $N$ bits. The immediate gets the bits that the other fields leave.",
+          "tex": "\\text{imm bits} = W - \\lceil \\log_2 N_{\\text{op}} \\rceil - n_R \\lceil \\log_2 R \\rceil"
+        },
+        "limits": "This assumes every field has a fixed width and no bits are reserved for modes, flags or padding; if the question lists such fields, subtract them too. If opcodes can vary in length, counting is different and the expanding-opcode topic applies. With two formats separated by a type bit, the opcode is that bit plus the bits for the operations in one type, and each format's leftover field is computed separately because the formats have different numbers of register fields.",
+        "example": {
+          "problem": "A 32-bit instruction has an opcode chosen from 100 operations, two register fields, and an immediate. The machine has 32 registers. How many bits does the immediate get, and what unsigned and signed values can it hold?",
+          "steps": [
+            "The opcode needs $\\lceil \\log_2 100 \\rceil = 7$ bits, since $2^6 = 64 < 100 \\le 128 = 2^7$.",
+            "Each register field needs $\\lceil \\log_2 32 \\rceil = 5$ bits, so two take 10 bits.",
+            "The immediate gets $32 - 7 - 10 = 15$ bits.",
+            "Unsigned it holds $0$ to $2^{15} - 1 = 32767$; in two's complement it holds $-16384$ to $16383$."
+          ],
+          "result": "The immediate has 15 bits: 0 to 32767 unsigned, or -16384 to 16383 signed."
+        },
+        "misconceptions": [
+          "Using the floor instead of the ceiling: 12 registers need 4 bits, not 3, because 3 bits name only 8.",
+          "Taking the exact value of $\\log_2 N$ when $N$ is not a power of two; a field cannot have a fractional number of bits.",
+          "Assuming both formats have the same leftover field: formats with different numbers of register fields leave different widths for the immediate or unused field, so compute each one separately."
+        ],
+        "recall": [
+          {
+            "q": "How many bits does a field need to distinguish N items?",
+            "a": "The ceiling of $\\log_2 N$, because a $k$-bit field holds $2^k$ values."
+          },
+          {
+            "q": "What range does a $k$-bit two's-complement immediate cover?",
+            "a": "From $-2^{k-1}$ to $2^{k-1} - 1$."
+          },
+          {
+            "q": "How do you find the immediate width in a fixed-width format?",
+            "a": "Subtract the opcode, register and any mode fields from the instruction width."
+          },
+          {
+            "q": "A 1-bit type field separates two formats, and 90 operations split equally between them. How many bits is the opcode?",
+            "a": "$1 + \\lceil \\log_2 45 \\rceil = 1 + 6 = 7$ bits, because the operations are counted per type."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 36-bit instruction has an opcode field for 70 operations, two register fields, and the rest is an immediate. The machine has 20 registers. How many bits are available for the immediate?",
+          "answer": 19,
+          "explanation": "The opcode needs 7 bits because 64 < 70 <= 128. Each register field needs 5 bits because 16 < 20 <= 32, so two take 10. The immediate gets 36 - 7 - 10 = 19 bits. Using 4 bits per register, as if 20 fitted in 16, tempts and gives 21."
+        },
+        "summary": "Every field is the ceiling of log2 of the items it must tell apart; in a fixed-width format the immediate is the width minus the opcode and register fields."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.expanding-opcode",
+      "title": "Expanding opcodes and encoding-space counting",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "With an expanding opcode, instruction classes with fewer operand bits reuse opcode patterns left unused by classes with more operand bits, so the opcode length varies inside a fixed-width instruction.",
+        "A W-bit format has 2^W encodings. A class of n instructions whose operand fields total b bits consumes n × 2^b of them, so the classes are feasible exactly when Σ nᵢ × 2^(bᵢ) ≤ 2^W.",
+        "The largest count for the last class is (2^W − encodings used by the others) ÷ 2^(b_last), rounded down.",
+        "Example: 16-bit instructions with 4-bit address fields and 15 three-address, 14 two-address and 31 one-address instructions leave 65536 − 61440 − 3584 − 496 = 16 zero-address encodings.",
+        "Equivalent prefix view: with a 4-bit R-type opcode and 6-bit I-type opcode in 16 bits, each unused 4-bit prefix yields 4 I-type opcodes, so 8 I-type opcodes use 2 prefixes and leave 14 R-type opcodes."
+      ],
+      "keyTerms": [
+        "expanding opcode",
+        "encoding space",
+        "escape prefix"
+      ],
+      "lesson": {
+        "why": "Expanding-opcode questions ask for the largest number of opcodes one class can have, and they are solved by one repeated step that is easy to get wrong without a clear picture.",
+        "intro": "An instruction with more operands has fewer bits left for its opcode. A fixed-width format therefore gives different instruction classes opcodes of different lengths. The decoder reads the opcode from the left, so no short opcode may be the start of a longer one. A short code that is not used for a short instruction can be extended with extra bits into several longer codes, and that is how the classes share the space.",
+        "prerequisites": [
+          "coa-instructions-addressing.encoding-bits"
+        ],
+        "definitions": [
+          {
+            "term": "Prefix-free",
+            "meaning": "No opcode is the beginning of another opcode, so the decoder can always tell where an opcode ends."
+          },
+          {
+            "term": "Escape prefix",
+            "meaning": "An unused short opcode that is extended with more bits to form longer opcodes."
+          }
+        ],
+        "principle": {
+          "text": "Take the opcode lengths from shortest to longest. Free codes at one level, times $2^{\\text{extra bits}}$, give the codes available at the next level, and the next class uses some of them.",
+          "tex": "F_{j+1} = (F_j - n_j)\\, 2^{\\,\\ell_{j+1} - \\ell_j}"
+        },
+        "limits": "The two classes must be told apart by their opcode lengths, with the shorter-opcode class holding the escape codes. The formula gives the exact maximum for the longer class when the shorter class's count is given. When the longer class's count is given instead, work backwards: see the last recall pair. It does not apply to fixed-size opcodes.",
+        "example": {
+          "problem": "A 12-bit instruction format with 8 registers has class A with two register operands and class B with one register operand. There are 20 A opcodes. What is the largest number of B opcodes?",
+          "steps": [
+            "A register field takes 3 bits, so A has $12 - 6 = 6$ opcode bits and B has $12 - 3 = 9$ opcode bits.",
+            "There are $2^6 = 64$ six-bit codes. A uses 20, so 44 are free.",
+            "Each free six-bit code extends by $9 - 6 = 3$ bits into $2^3 = 8$ nine-bit codes.",
+            "B can use at most $44 \\times 8 = 352$ opcodes."
+          ],
+          "result": "The largest number of B opcodes is 352."
+        },
+        "misconceptions": [
+          "Subtracting the used opcodes at the long length: using 20 short codes does not remove 20 long codes, it removes $20 \\times 8$ of them.",
+          "Forgetting to multiply by the extension factor after subtracting, which stops the count at 44 instead of 352.",
+          "Computing opcode lengths in the wrong order: work out each class's length from the instruction width first, then chain the levels from the shortest opcode to the longest.",
+          "When the long class's count is given and the short class's maximum is asked, subtracting that count from the short codes directly: every short code that is extended is consumed whole, however few of its long codes are used."
+        ],
+        "recall": [
+          {
+            "q": "How long is the opcode of a class in a fixed-width format?",
+            "a": "The instruction width minus the bits of that class's operand fields."
+          },
+          {
+            "q": "Why can a used short opcode not be extended?",
+            "a": "It would be the start of a longer opcode, and the decoder could no longer tell which instruction it was reading."
+          },
+          {
+            "q": "How many longer codes does one free short code give?",
+            "a": "$2^{\\text{extra bits}}$, where the extra bits are the length difference."
+          },
+          {
+            "q": "The longer class has $n$ opcodes and the shorter class's maximum is asked. How many short codes does the longer class consume?",
+            "a": "$\\lceil n / 2^{\\text{extra bits}} \\rceil$, since each extended short code yields $2^{\\text{extra bits}}$ long codes; the remaining short codes stay free for the shorter class."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A 16-bit format has 16 registers. Class X has two register operands, class Y has one. There are 100 X opcodes. What is the largest number of Y opcodes?",
+          "options": [
+            "2496",
+            "156",
+            "3996",
+            "1600"
+          ],
+          "answer": 0,
+          "explanation": "X has 16 - 8 = 8 opcode bits and Y has 16 - 4 = 12. There are 256 eight-bit codes and X uses 100, leaving 156. Each extends by 4 bits into 16 codes, so Y gets 156 x 16 = 2496. The option 156 skips the extension, 3996 subtracts 100 from all 4096 twelve-bit codes, and 1600 multiplies the used codes instead of the free ones."
+        },
+        "summary": "Find each class's opcode length, then repeat free codes times $2^{\\text{extra bits}}$ from the shortest level down to the class you are asked about."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.fixed-vs-variable",
+      "title": "Fixed-length versus variable-length instructions",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        16,
+        248
+      ],
+      "points": [
+        "Fixed-length instructions (RISC-V, MIPS, 32-bit ARM) can be fetched and decoded in one step and the next PC is always PC + 4, which keeps the pipeline simple.",
+        "Variable-length instructions (x86, 1 to 15 bytes) pack common operations densely and allow long immediates and full memory addresses, so code is smaller, but decode must find each instruction's length before the next one can start.",
+        "Fixed length wastes bits on short operations and cannot hold a full 32-bit constant or address, so such ISAs build constants in two instructions (for example LUI then ADDI)."
+      ],
+      "keyTerms": [
+        "code density",
+        "decode complexity",
+        "LUI"
+      ],
+      "lesson": {
+        "why": "Questions compare code size and decode effort of fixed-length and variable-length instruction sets, so you need the trade-off and a quick size calculation.",
+        "intro": "In a fixed-length instruction set every instruction has the same number of bytes, commonly four. The next instruction always starts at the current address plus four, so the hardware can fetch and decode without first working out where it ends. In a variable-length set, a simple instruction can take one or two bytes and a complex one many more. Programs shrink, but the hardware must read the first bytes of an instruction to learn how long it is before it can find the next one.",
+        "prerequisites": [
+          "coa-instructions-addressing.instruction-format"
+        ],
+        "definitions": [
+          {
+            "term": "Code density",
+            "meaning": "How few bytes a program needs for the work it does; higher density means a smaller program."
+          }
+        ],
+        "principle": {
+          "text": "Program size is the sum of the instruction lengths. A fixed-length set pays its full width on every instruction, while a variable-length set pays only what each one needs, at the cost of harder decoding.",
+          "tex": "\\text{size}_{\\text{fixed}} = n \\cdot L, \\qquad \\text{size}_{\\text{var}} = \\sum_i n_i L_i"
+        },
+        "limits": "The size gain depends on the instruction mix, so a variable-length set is not always smaller. A fixed-length set cannot hold a full 32-bit constant in one instruction, so it builds one in two (for example LUI then ADDI). Decode cost matters mainly for pipelined machines.",
+        "example": {
+          "problem": "A program has 1000 instructions. In a variable-length encoding, 600 take 2 bytes, 300 take 4 bytes and 100 take 6 bytes. A fixed-length encoding takes 4 bytes for each instruction. Compare the sizes.",
+          "steps": [
+            "Fixed length: $1000 \\times 4 = 4000$ bytes.",
+            "Variable length: $600 \\times 2 + 300 \\times 4 + 100 \\times 6 = 1200 + 1200 + 600 = 3000$ bytes.",
+            "The variable encoding saves $4000 - 3000 = 1000$ bytes, but the fixed encoding lets the next address always be PC + 4."
+          ],
+          "result": "The fixed program is 4000 bytes and the variable program is 3000 bytes."
+        },
+        "misconceptions": [
+          "Assuming variable length always wins on size. It wins only when most instructions are shorter than the fixed width.",
+          "Saying fixed length makes decoding harder. It makes it simpler, since the start of every instruction is known.",
+          "Thinking a fixed-length 32-bit set can load any 32-bit constant in one instruction. Some bits go to the opcode and registers, so two instructions are needed."
+        ],
+        "recall": [
+          {
+            "q": "What is the next PC in a fixed 4-byte instruction set?",
+            "a": "PC + 4, regardless of the instruction."
+          },
+          {
+            "q": "What is the main benefit of variable-length instructions?",
+            "a": "Higher code density, so programs are smaller, and room for long immediates and addresses."
+          },
+          {
+            "q": "What is the main cost of variable-length instructions?",
+            "a": "Decode must find each instruction's length before the next one can start."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A program has 500 instructions. A fixed-length encoding uses 4 bytes each. A variable-length encoding uses 1 byte for 200 of them, 3 bytes for 200 and 5 bytes for 100. How many bytes does the variable encoding save?",
+          "answer": 700,
+          "explanation": "Fixed: $500 \\times 4 = 2000$. Variable: $200 + 600 + 500 = 1300$. The saving is $2000 - 1300 = 700$ bytes. Using the average length of the three sizes, $(1+3+5)/3 = 3$, gives a wrong total because the three groups are not the same size."
+        },
+        "summary": "Fixed length gives simple decode and PC + 4; variable length gives denser code and long immediates at the price of harder decode."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.basic-modes",
+      "title": "Immediate, register, direct, indirect and register indirect modes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        16,
+        247,
+        249,
+        250,
+        253
+      ],
+      "points": [
+        "Immediate: the operand value is the field itself (MOV R1, #5). No operand memory access, but the value is limited by the field width.",
+        "Register: the operand is in the named register (ADD R1, R2); no memory access and the shortest operand field.",
+        "Direct (absolute): the field is the EA, so the operand is M[A]; one memory access. With M[200] = 42, LOAD 200 loads 42.",
+        "Memory indirect: the field addresses a pointer, EA = M[A] and the operand is M[M[A]]; two memory accesses. With M[100] = 200 and M[200] = 50, LOAD @100 loads 50.",
+        "Register indirect: the register holds the EA, so the operand is M[R]; one memory access and no address field. With R1 = 300 and M[300] = 77, LOAD (R1) loads 77.",
+        "Immediate holds the value, direct holds the address of the value, indirect holds the address of the address: each step adds one memory access."
+      ],
+      "keyTerms": [
+        "effective address",
+        "immediate",
+        "absolute",
+        "pointer"
+      ],
+      "lesson": {
+        "why": "GATE hands you a memory and register state and asks what a load returns under immediate, direct, indirect or register indirect addressing, or how many memory accesses it makes.",
+        "intro": "An addressing mode is the rule that turns the operand field of an instruction into the operand. The effective address is the memory address the operand is finally read from. In immediate mode the field is the value itself. In register mode the operand is in the named register. In direct mode the field is the effective address. In memory indirect mode the field is the address of a memory word that holds the effective address. In register indirect mode a register holds the effective address.",
+        "prerequisites": [
+          "coa-instructions-addressing.instruction-format"
+        ],
+        "definitions": [
+          {
+            "term": "Effective address",
+            "meaning": "The memory address the operand is finally read from or written to, after the mode has done its work."
+          },
+          {
+            "term": "Pointer",
+            "meaning": "A stored value that is itself the address of another item."
+          }
+        ],
+        "principle": {
+          "text": "Each step of indirection adds one memory access. Let $A$ be the instruction field, $M$ memory and $R$ a register.",
+          "tex": "\\begin{aligned} \\text{immediate: } & A \\\\ \\text{direct: } & M[A] \\\\ \\text{memory indirect: } & M[M[A]] \\\\ \\text{register indirect: } & M[R] \\end{aligned}"
+        },
+        "limits": "The access counts leave out fetching the instruction itself. Register indirect has no address field, so its reach is limited by the register width. Immediate holds only values that fit the field. A mode name in a question may differ between textbooks, so rely on the formula for the effective address.",
+        "example": {
+          "problem": "Memory holds M[40] = 60 and M[60] = 15. Register R1 holds 40. An instruction has the operand field 40. What operand does each mode give: immediate, direct, memory indirect and register indirect through R1?",
+          "steps": [
+            "Immediate: the operand is the field, 40.",
+            "Direct: the operand is $M[40] = 60$.",
+            "Memory indirect: first $M[40] = 60$, which is the address; then $M[60] = 15$.",
+            "Register indirect: the effective address is R1 = 40, so the operand is $M[40] = 60$."
+          ],
+          "result": "The operands are 40, 60, 15 and 60."
+        },
+        "misconceptions": [
+          "Reading direct as the field being the operand. Direct uses the field as an address; only immediate uses it as the value.",
+          "Counting one memory access for memory indirect. It takes two, one for the pointer and one for the operand.",
+          "Confusing register mode with register indirect: register mode takes the register contents as the operand, while register indirect takes them as an address."
+        ],
+        "recall": [
+          {
+            "q": "How many operand memory accesses does immediate addressing make?",
+            "a": "None, since the value is in the instruction."
+          },
+          {
+            "q": "What is the effective address in memory indirect mode?",
+            "a": "The word stored at the address given by the field, so EA = M[A]."
+          },
+          {
+            "q": "What is the difference between register and register indirect mode?",
+            "a": "Register mode uses the register contents as the operand; register indirect uses them as the address of the operand."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Memory holds M[30] = 70, M[70] = 9 and M[9] = 500. An instruction LOAD @30 uses memory indirect addressing with the field 30. What value does it load?",
+          "answer": 9,
+          "explanation": "The field 30 addresses a pointer: $M[30] = 70$. That pointer is the effective address, so the operand is $M[70] = 9$. Stopping after one step gives 70, which is the direct result, and following the chain one step too far gives 500."
+        },
+        "summary": "Immediate holds the value, direct holds its address, memory indirect holds the address of the address, and register indirect keeps the address in a register."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.displacement-modes",
+      "title": "Indexed, based, base-plus-index and scaled modes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        16,
+        247,
+        249,
+        250,
+        251
+      ],
+      "points": [
+        "Displacement modes compute EA = register + constant. LOAD 4(R1) with R1 = 100 reads M[104].",
+        "Indexed: the constant is the array's base address and the index register holds the element offset, so incrementing the register walks the array.",
+        "Based (base + offset): the register holds a base such as the frame or segment start and the constant is a field offset, which suits locals in a stack frame and fields of a struct.",
+        "Base + index (+ displacement): EA = base + index + disp, the form used for A[i] inside a record or a row of a 2-D array; x86 adds a scale so EA = base + index × s + disp with s ∈ {1, 2, 4, 8}.",
+        "Indexed and based share one EA formula; what differs is which part is fixed at compile time. A question asking for LW R1, 20(R2) expects displacement (base or indexed) addressing, not register indirect.",
+        "Array access: for 4-byte ints with A at 2000, indexed mode puts 2000 in the instruction and 4i in the index register, so i = 7 reads M[2028]. With a scale factor the register holds i itself: EA = 1000 + 5 × 4 + 8 = 1028 for base 1000, index 5, s = 4, d = 8."
+      ],
+      "keyTerms": [
+        "displacement",
+        "index register",
+        "base register",
+        "scale factor",
+        "SIB"
+      ],
+      "lesson": {
+        "why": "Array elements, struct fields and stack variables are all reached with a register plus a constant, and GATE asks you to identify the mode or compute the address.",
+        "intro": "Many data items are found by starting at a known place and moving a known distance. Displacement addressing does exactly that: the effective address (the memory address the operand is finally read from or written to) is the contents of a register plus a constant in the instruction. If the register holds a starting address and the constant is the distance to a field, it is based addressing. If the constant is the array's start and the register holds the element offset, it is indexed addressing. Some machines add a second register and a scale factor.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes"
+        ],
+        "definitions": [
+          {
+            "term": "Effective address",
+            "meaning": "The memory address the operand is actually read from or written to, after the addressing mode has done its arithmetic."
+          },
+          {
+            "term": "Scale factor",
+            "meaning": "A small constant, usually 1, 2, 4 or 8, that the index register is multiplied by to match the element size."
+          }
+        ],
+        "principle": {
+          "text": "Displacement modes add a register and a constant. The general form adds a second register scaled by the element size.",
+          "tex": "\\text{EA} = \\text{base} + \\text{index} \\times s + d"
+        },
+        "limits": "Based and indexed use the same sum; the difference is which operand is fixed at compile time. The scale factor exists only on machines that provide it; otherwise the program must multiply the index first. The constant has a limited number of bits, so a far offset needs another mode. Exams and many texts call X(R) 'index' or 'displacement' interchangeably, whichever register role it plays, so judge the mode by the sum register plus constant. A struct field's offset is the sum of the sizes of the fields before it, ignoring padding unless the question mentions it.",
+        "example": {
+          "problem": "An array of 4-byte integers starts at address 5000. A register holds the byte offset of element 9. Which address does LOAD R1, 5000(R2) read?",
+          "steps": [
+            "Element 9 is $9 \\times 4 = 36$ bytes from the start, so R2 holds 36.",
+            "The effective address is the constant plus the register: $5000 + 36$."
+          ],
+          "result": "The instruction reads address 5036."
+        },
+        "misconceptions": [
+          "Treating X(R1) as register indirect: register indirect has no constant, so the address is just R1.",
+          "Adding the element number without multiplying by the element size when the machine has no scale factor.",
+          "Rejecting 'index addressing X(R1)' for a struct field because it is really based: the names are used loosely, and what matters is that the address is R1 plus a constant."
+        ],
+        "recall": [
+          {
+            "q": "What is the effective address in displacement addressing?",
+            "a": "The register contents plus the constant in the instruction."
+          },
+          {
+            "q": "Which part is fixed in based addressing and which in indexed?",
+            "a": "Based keeps the register as the starting place and fixes the constant offset; indexed fixes the constant as the array start and varies the register."
+          },
+          {
+            "q": "What does the scale factor do?",
+            "a": "It multiplies the index register by the element size, so the register can hold the element number."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A machine computes EA = base + index x scale + displacement. The base register holds 2400, the index register holds 7, the scale is 8, and the displacement is 12. What is the effective address?",
+          "answer": 2468,
+          "explanation": "The index is scaled first: 7 x 8 = 56. Then EA = 2400 + 56 + 12 = 2468. Leaving the index unscaled gives 2419, and applying the scale to the displacement or to the base also gives a wrong value, which tempts when the formula is read quickly."
+        },
+        "summary": "Displacement addressing adds a register and a constant; base, index and scale extend it, and the sum reaches struct fields and array elements."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.auto-inc-dec",
+      "title": "Auto-increment and auto-decrement",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        16,
+        247,
+        249,
+        250,
+        252
+      ],
+      "points": [
+        "Auto-increment (R)+ uses EA = R and then adds the operand size to R (post-increment); auto-decrement −(R) first subtracts the size and then uses EA = R (pre-decrement).",
+        "The step equals the size of the data item: 1 for a byte, 4 for a 32-bit word on a byte-addressable machine. LOAD (R1)+ with R1 = 100 on 4-byte words leaves R1 = 104.",
+        "Pre-decrement push and post-increment pop give a stack that grows toward lower addresses in one instruction each, and post-increment steps through an array in a loop.",
+        "The register update is a side effect of the instruction, so it does not make code self-relocating and does not need a separate ALU: the existing address adder computes it."
+      ],
+      "keyTerms": [
+        "post-increment",
+        "pre-decrement",
+        "side effect"
+      ],
+      "lesson": {
+        "why": "Register updates by auto-increment and auto-decrement drive stack and array questions, and GATE asks for the register value or the address accessed after a sequence of them.",
+        "intro": "Auto-increment and auto-decrement are register indirect addressing with a built-in update of the register. With auto-increment, written (R)+, the machine uses the register as the address and afterwards adds the size of the item to it. With auto-decrement, written -(R), the machine first subtracts the size and then uses the new value as the address. The step always matches the data size: 4 for a 4-byte word on a byte-addressable machine.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes"
+        ],
+        "definitions": [
+          {
+            "term": "Post-increment",
+            "meaning": "Use the register as the address first, then add the item size to it."
+          },
+          {
+            "term": "Pre-decrement",
+            "meaning": "Subtract the item size from the register first, then use it as the address."
+          }
+        ],
+        "principle": {
+          "text": "Post-increment uses the old register value as the address; pre-decrement uses the new one. In both the register changes by the size $s$ of the item.",
+          "tex": "(R)+:\\ \\text{EA} = R,\\ R \\leftarrow R + s \\qquad -(R):\\ R \\leftarrow R - s,\\ \\text{EA} = R"
+        },
+        "limits": "The step equals the item size only when memory is byte-addressable and the access is one item wide; on a word-addressable machine the step is 1. The register change is a side effect, so a later instruction sees the updated register. The pair -(R) for push and (R)+ for pop assumes a stack growing toward lower addresses.",
+        "example": {
+          "problem": "R1 holds 2000 and words are 4 bytes. Three instructions run in order: LOAD R2, (R1)+ then LOAD R3, (R1)+ then LOAD R4, -(R1). At which address does each load read, and what does R1 hold at the end?",
+          "steps": [
+            "The first load reads address 2000, then R1 becomes 2004.",
+            "The second load reads address 2004, then R1 becomes 2008.",
+            "The third subtracts first: R1 becomes 2004, and the load reads address 2004."
+          ],
+          "result": "The loads read addresses 2000, 2004 and 2004, and R1 ends at 2004."
+        },
+        "misconceptions": [
+          "Using the new value as the address for (R)+. It is the old value; the increment comes afterwards.",
+          "Using the old value for -(R). The decrement comes first, so the address is the lowered value.",
+          "Adding 1 to the register on a byte-addressable machine with 4-byte words; the step is the item size, 4."
+        ],
+        "recall": [
+          {
+            "q": "In (R)+, is the address taken before or after the register update?",
+            "a": "Before: the old register value is the address and the update follows."
+          },
+          {
+            "q": "What is the step for a 4-byte word on a byte-addressable machine?",
+            "a": "4, the item size in bytes."
+          },
+          {
+            "q": "Which pair of modes builds a downward-growing stack?",
+            "a": "Pre-decrement to push and post-increment to pop."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A stack grows toward lower addresses and SP starts at 1000. A push is STORE R, -(SP) and a pop is LOAD R, (SP)+. Words are 4 bytes. After three pushes and one pop, what does SP hold?",
+          "answer": 992,
+          "explanation": "Three pushes lower SP by $3 \\times 4 = 12$ to 988. The pop reads address 988 and then raises SP by 4 to 992. Ignoring the pop gives 988, and adding 1 per step instead of 4 gives a value near 1000, which tempts if the word size is forgotten."
+        },
+        "summary": "Post-increment uses then adds, pre-decrement subtracts then uses, and the step is the item size; together they give one-instruction push and pop."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.pc-relative",
+      "title": "PC-relative addressing and branch range",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        16,
+        247,
+        249,
+        250,
+        252
+      ],
+      "points": [
+        "PC-relative: EA = PC + offset, where PC already points past the current instruction once it has been fetched. A 4-byte branch at address 1000 with an offset of −12 words targets 1004 + 4 × (−12) = 956.",
+        "A signed n-bit offset reaches −2^(n−1) to 2^(n−1) − 1 units from the updated PC: an 8-bit offset gives −128 to +127.",
+        "When the offset counts words, multiply by the word size: a 16-bit word offset on 4-byte instructions spans about ±128 KB.",
+        "Targets are distances, not absolute addresses, so code using them is position independent and runs unchanged wherever the loader places it.",
+        "Branches outside the offset range need a register-indirect or absolute jump, which costs an extra instruction to build the full address."
+      ],
+      "keyTerms": [
+        "updated PC",
+        "signed offset",
+        "position-independent code"
+      ],
+      "lesson": {
+        "why": "Branch-target questions are short calculations, and almost every wrong answer comes from measuring from the wrong place.",
+        "intro": "A branch instruction needs to say where to go. Instead of a full address it can store a distance from the program counter. By the time the branch runs, the program counter already points at the next instruction, so the distance is measured from there. A negative distance jumps backwards, which is how loops are written.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes"
+        ],
+        "definitions": [
+          {
+            "term": "Program counter",
+            "meaning": "The register that holds the address of the next instruction to run."
+          },
+          {
+            "term": "Position-independent code",
+            "meaning": "Code that runs correctly wherever it is loaded, because it uses distances and not absolute addresses."
+          }
+        ],
+        "principle": {
+          "text": "The target is the address of the next instruction plus the signed offset. If the offset counts words, multiply it by the word size first.",
+          "tex": "\\text{target} = \\text{PC}_{\\text{next}} + \\text{offset} \\times \\text{unit}"
+        },
+        "limits": "Some machines measure from the branch itself, and the question states the rule, so read it before you compute. An $n$-bit signed offset reaches only $-2^{n-1}$ to $2^{n-1} - 1$ units; a farther target needs a register or absolute jump.",
+        "example": {
+          "problem": "Instructions are 4 bytes long and the offset is measured in bytes from the next instruction. A branch at address 2000 must jump to address 1960. What offset is stored?",
+          "steps": [
+            "The next instruction is at $2000 + 4 = 2004$.",
+            "The offset is the target minus that address: $1960 - 2004 = -44$ bytes.",
+            "If the machine counts words instead, the stored value is $-44 / 4 = -11$."
+          ],
+          "result": "The byte offset is -44, which is -11 in words."
+        },
+        "misconceptions": [
+          "Measuring from the branch instruction itself gives a result that is 4 bytes off, so a backward loop appears to need -40 instead of -44.",
+          "Forgetting that a word offset must be multiplied by the instruction size before it is added to the address."
+        ],
+        "recall": [
+          {
+            "q": "From which address is a PC-relative offset measured?",
+            "a": "From the address of the next instruction, because the program counter has already moved past the branch."
+          },
+          {
+            "q": "Why is PC-relative code position independent?",
+            "a": "The target is a distance from the branch, and a distance stays the same wherever the program is loaded."
+          },
+          {
+            "q": "What range does an n-bit signed offset reach?",
+            "a": "$-2^{n-1}$ to $2^{n-1} - 1$ units from the updated program counter."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Each instruction is 4 bytes. A branch at address 3000 jumps to address 3100, and its offset is counted in instructions from the next instruction. What offset is stored?",
+          "answer": 24,
+          "explanation": "The next instruction is at 3004, so the distance is 3100 - 3004 = 96 bytes, which is 96 / 4 = 24 instructions. Measuring from the branch at 3000 gives 100 bytes or 25 instructions, which tempts because it forgets the program counter has advanced."
+        },
+        "summary": "The branch target is the next instruction's address plus the signed offset in its unit; measuring from the branch itself is the usual error."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.mode-uses",
+      "title": "Choosing a mode: constants, pointers, arrays, relocation",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        247,
+        249
+      ],
+      "points": [
+        "Constants use immediate mode; global variables at fixed addresses use direct mode.",
+        "Pointers use memory indirect or register indirect: the operand's address is itself data held in memory or in a register.",
+        "Arrays use indexed or base + index mode; sequential traversal uses auto-increment; stack push and pop use auto-decrement and auto-increment.",
+        "Run-time relocation needs modes whose EA does not embed an absolute address: based (change the base register when the program moves) and PC-relative (distances do not change). Absolute and memory-indirect fields hold fixed addresses and break when the program moves.",
+        "Local variables and parameters use base + offset from the frame pointer; procedure-relative branches use PC-relative."
+      ],
+      "keyTerms": [
+        "relocation",
+        "frame pointer",
+        "global variable"
+      ],
+      "lesson": {
+        "why": "Questions of this type give a data shape or a requirement and ask for the right mode, so you need a ready mapping from need to mode.",
+        "intro": "Each addressing mode fits one shape of data. A constant that never changes can sit inside the instruction. A variable at a fixed place has its address in the instruction. A pointer holds the address of another value, so one extra step is needed. An array or a struct is reached from a start plus a distance. A program that may be moved to another place in memory must avoid addresses that are written into the instruction.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes",
+          "coa-instructions-addressing.displacement-modes",
+          "coa-instructions-addressing.pc-relative"
+        ],
+        "principle": {
+          "text": "Match the mode to what the operand is: a constant needs immediate, a global needs direct, a pointer needs indirect, an array element needs index or base plus index, a record field needs base plus offset, and a movable program needs base or PC-relative."
+        },
+        "limits": "Several modes can reach the same data, so the question usually asks for the one that is most natural or efficient. Which modes a machine supports also varies; on a machine without one, the compiler builds it from simpler steps.",
+        "example": {
+          "problem": "Choose a mode for each: (a) the constant 10 in n = n + 10; (b) the value that pointer q points to; (c) a local variable at offset 8 in the stack frame; (d) a branch inside code that the loader may place anywhere.",
+          "steps": [
+            "The constant 10 never changes, so it is stored in the instruction: immediate.",
+            "The pointer holds an address, so the operand is reached through it: register indirect or memory indirect.",
+            "The frame pointer holds the start of the frame and 8 is the fixed distance: base plus offset.",
+            "A branch should not hold an absolute address if the code may move, so it stores a distance: PC-relative."
+          ],
+          "result": "(a) immediate, (b) indirect, (c) base plus offset, (d) PC-relative."
+        },
+        "misconceptions": [
+          "Choosing immediate for a variable: immediate holds a value written at assembly time, so it cannot follow a variable that changes.",
+          "Assuming based addressing breaks on relocation; it survives, because only the base register changes when the program moves."
+        ],
+        "recall": [
+          {
+            "q": "Which mode suits a pointer?",
+            "a": "Indirect, because the operand is reached through an address that is itself stored in a register or in memory."
+          },
+          {
+            "q": "Which modes survive run-time relocation?",
+            "a": "Based and PC-relative, because the address is built from a register or a distance rather than fixed in the instruction."
+          },
+          {
+            "q": "Why does direct addressing break when a program moves?",
+            "a": "The instruction holds an absolute address, which stays the same while the data has moved."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A loader moves a program to a new place in memory after it was assembled. Which instruction stops working correctly unless it is patched?",
+          "options": [
+            "A branch using PC-relative addressing",
+            "A load of a local variable using the frame pointer plus an offset",
+            "A load of a global variable with its absolute address in the instruction",
+            "An add that uses an immediate constant"
+          ],
+          "answer": 2,
+          "explanation": "The absolute address is fixed in the instruction while the global has moved, so it must be patched. The PC-relative branch keeps its distance, the frame-pointer access follows the register, and an immediate constant does not depend on any address. The frame-pointer option tempts because it uses a register, but the register is updated at run time."
+        },
+        "summary": "Immediate for constants, direct for fixed variables, indirect for pointers, index or base plus offset for arrays and records, and base or PC-relative when code must be relocatable."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.memory-references",
+      "title": "Counting memory references and tracing instruction addresses",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Operand accesses per mode: immediate and register 0, direct and register indirect 1, displacement 1, memory indirect 2. Instruction fetch adds one access per instruction word.",
+        "A two-word LOAD @A (opcode word plus address word) costs 4 accesses: 2 fetches, 1 to read the pointer M[A], 1 to read the operand.",
+        "To count data references in a loop, count the accesses in one iteration, multiply by the trip count, and add the accesses outside the loop. A loop body with one load and one store run 10 times after one initial load makes 1 + 10 × 2 = 21 data references.",
+        "Instruction k starts at start + Σ sizes of instructions 1 to k − 1; on a byte-addressable machine with sizes given in words, multiply each size by the bytes per word.",
+        "An interrupt is recognised only after the current instruction completes, so the return address pushed is the address of the next instruction, not of the interrupted one."
+      ],
+      "keyTerms": [
+        "memory reference",
+        "trip count",
+        "return address",
+        "interrupt"
+      ],
+      "lesson": {
+        "why": "Trace and counting questions ask for exact memory accesses or addresses, and one forgotten instruction fetch or one wrong instruction size changes the answer.",
+        "intro": "Every instruction costs memory accesses before it does anything else: each word of the instruction itself has to be fetched. After that, the operand may need zero, one or two more accesses, depending on where the addressing mode says the data lives. Add the two parts for one pass, multiply by how many times the code runs, and add whatever runs only once. Addresses are traced the same way: the next instruction starts where the current one ends.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes"
+        ],
+        "definitions": [
+          {
+            "term": "Trip count",
+            "meaning": "The number of times a loop body runs."
+          },
+          {
+            "term": "Return address",
+            "meaning": "The address of the instruction after the one that was interrupted or called; execution resumes there."
+          },
+          {
+            "term": "Direct mode",
+            "meaning": "The instruction holds the address of the operand, so one memory read fetches it."
+          },
+          {
+            "term": "Memory indirect mode",
+            "meaning": "The instruction holds the address of a word that holds the operand's address, so two reads are needed."
+          },
+          {
+            "term": "Interrupt",
+            "meaning": "A signal that makes the processor finish the current instruction, save the return address and run a handler."
+          }
+        ],
+        "principle": {
+          "text": "Total accesses are instruction-word fetches plus operand accesses. Immediate and register operands add none, direct and register indirect add one, and memory indirect adds two. Instruction k starts at the start address plus the sizes of all earlier instructions.",
+          "tex": "\\text{total} = \\text{once} + n\\,(\\text{fetches} + \\text{operand accesses})"
+        },
+        "limits": "The counts assume no cache and no prefetch, and that every instruction word is fetched separately; a question that gives a different cost model overrides these rules. Sizes must be converted to bytes first when memory is byte addressable.",
+        "example": {
+          "problem": "A one-word instruction CLR R1 runs once. Then a loop runs 5 times: LOAD @A (two words, memory indirect), ADD R1,R2 (one word, registers only) and STORE B (two words, direct). Count all memory accesses.",
+          "steps": [
+            "LOAD @A: 2 fetches, 1 read of the pointer at A and 1 read of the operand, so 4 accesses.",
+            "ADD R1,R2: 1 fetch and no operand access, so 1. STORE B: 2 fetches and 1 write, so 3. One pass costs $4 + 1 + 3 = 8$.",
+            "Five passes cost $5 \\times 8 = 40$, and CLR R1 adds 1 fetch."
+          ],
+          "result": "The program makes 41 memory accesses."
+        },
+        "misconceptions": [
+          "Counting only data references and leaving out the instruction fetches, which are accesses too unless the question asks for data references only.",
+          "Treating the interrupted instruction as the return address; the interrupt is recognised after it completes, so the next instruction's address is saved.",
+          "Assuming a conditional branch back to the loop returns to the first instruction; it lands on the address it names, and instructions before that target (such as an initial load) run only once."
+        ],
+        "recall": [
+          {
+            "q": "How many operand accesses does a memory indirect mode need?",
+            "a": "Two: one to read the pointer and one to read the operand it points to."
+          },
+          {
+            "q": "How do you find the start address of the k-th instruction?",
+            "a": "Add the sizes of instructions 1 to k-1 to the start address, converting words to bytes on a byte-addressable machine."
+          },
+          {
+            "q": "Which address is pushed when an interrupt arrives?",
+            "a": "The address of the next instruction, because the current one finishes first."
+          },
+          {
+            "q": "A loop ends with DEC R1 then BNZ to its second instruction. Which instructions repeat?",
+            "a": "Those from the branch target through BNZ repeat until R1 reaches zero; the first instruction runs once, so values it loads are not reloaded each pass."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Memory is byte addressable and a word is 4 bytes. A program starts at address 600 with instructions of 2, 1, 3 and 2 words in that order. At what address does the fourth instruction start?",
+          "answer": 624,
+          "explanation": "The first three instructions occupy 2 + 1 + 3 = 6 words, which is 24 bytes, so the fourth starts at 600 + 24 = 624. Answering 606 tempts because it adds the word counts without multiplying by 4 bytes."
+        },
+        "summary": "Count fetched instruction words plus operand accesses per pass, scale by the trip count, and find addresses by summing earlier instruction sizes in bytes."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.instruction-types",
+      "title": "Instruction classes and control transfer",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        247,
+        248,
+        251
+      ],
+      "points": [
+        "Data transfer (MOV, LOAD, STORE, PUSH, POP), arithmetic and logic (ADD, SUB, AND, OR, SHL, SHR), control flow (JMP, BEQ, BNE, CALL, RET), I/O (IN, OUT or memory-mapped loads and stores) and system (INT, TRAP, SYSCALL).",
+        "Unconditional branches always change PC; conditional branches test condition codes or a register comparison and fall through to PC + size when the test fails.",
+        "A direct branch carries its target (absolute or PC-relative) in the instruction; an indirect branch takes it from a register or memory word, which is how RET, switch tables and virtual calls work.",
+        "CALL saves the address of the next instruction (on the stack or in a link register) and jumps; RET restores it into PC. Nested calls need the stack, because one link register would be overwritten.",
+        "With a stack that grows toward lower addresses and 4-byte return addresses, a 4-byte CALL at 2000 with SP = 1000 sets SP ← 996, M[996] ← 2004 and PC ← target; the matching RET sets PC ← M[996] = 2004 and SP ← 1000."
+      ],
+      "keyTerms": [
+        "condition codes",
+        "link register",
+        "indirect branch",
+        "TRAP",
+        "stack pointer"
+      ],
+      "lesson": {
+        "why": "Control-transfer questions test whether you know what CALL and RET do to the stack pointer and program counter, and a one-step slip in either gives a wrong address.",
+        "intro": "Instructions fall into a few groups: moving data, doing arithmetic or logic, changing the flow of execution, input and output, and requests to the system. Flow-changing instructions are the interesting ones. A jump simply replaces the program counter. A call also has to remember where to come back to, so it saves the address of the next instruction before jumping, and a return puts that saved address back. Moving data has its own rule on a load-store machine: only LOAD and STORE touch memory, so arithmetic such as ADD works on registers alone and an operand in memory must be loaded first.",
+        "prerequisites": [
+          "coa-instructions-addressing.basic-modes"
+        ],
+        "definitions": [
+          {
+            "term": "Stack pointer",
+            "meaning": "A register holding the address of the top of the stack."
+          },
+          {
+            "term": "Link register",
+            "meaning": "A register that holds the return address instead of the stack."
+          },
+          {
+            "term": "Indirect branch",
+            "meaning": "A branch whose target is read from a register or memory word and not from the instruction."
+          },
+          {
+            "term": "Load-store architecture",
+            "meaning": "A design where only LOAD and STORE access memory; ADD and other computation instructions take registers only."
+          }
+        ],
+        "analogy": {
+          "text": "A call is like putting a bookmark in a book before looking something up, and a return is going back to the bookmark.",
+          "breaksWhen": "Nested calls need one bookmark per level, so a single bookmark or one link register is not enough without a stack."
+        },
+        "principle": {
+          "text": "CALL pushes the address of the following instruction and jumps; RET pops it into the program counter. With a stack growing to lower addresses, push decreases SP by the entry size before the write, and pop reads then increases SP.",
+          "tex": "\\text{CALL: } SP \\leftarrow SP - s,\\ M[SP] \\leftarrow PC_{\\text{next}} \\qquad \\text{RET: } PC \\leftarrow M[SP],\\ SP \\leftarrow SP + s"
+        },
+        "limits": "Some machines grow the stack upward or decrement after the write, and many RISC machines put the return address in a link register and push it only for nested calls. Use the order and direction the question states.",
+        "example": {
+          "problem": "The stack grows toward lower addresses, return addresses are 4 bytes and SP is 800. A 4-byte CALL at 5000 runs, and the callee executes a 4-byte CALL at 7000. Then two RETs run. Give SP and PC after each step.",
+          "steps": [
+            "The first CALL saves 5004: $SP = 796$, $M[796] = 5004$. The second saves 7004: $SP = 792$, $M[792] = 7004$.",
+            "The first RET sets $PC = M[792] = 7004$ and $SP = 796$.",
+            "The second RET sets $PC = M[796] = 5004$ and $SP = 800$."
+          ],
+          "result": "The stack is empty again at SP = 800 and execution resumes at 5004."
+        },
+        "misconceptions": [
+          "Saving the CALL's own address; the saved value is the address of the instruction after it.",
+          "Assuming a single link register handles nested calls, when the second call overwrites the first return address.",
+          "Writing ADD Z, X, Y with memory names on a load-store machine; X and Y must be loaded into registers first, and the result stored from a register."
+        ],
+        "recall": [
+          {
+            "q": "What does CALL save, and where?",
+            "a": "The address of the next instruction, on the stack or in a link register."
+          },
+          {
+            "q": "How does a conditional branch behave when its test fails?",
+            "a": "It falls through, so the program counter becomes the address of the next instruction."
+          },
+          {
+            "q": "Why do nested calls need a stack?",
+            "a": "Each call needs its own saved return address, and a stack keeps them in last-in first-out order."
+          },
+          {
+            "q": "On a load-store machine, how is Z = X + Y compiled when X, Y and Z are in memory?",
+            "a": "LOAD X and Y into two registers, ADD them into a third register, then STORE that register into Z."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A stack grows toward lower addresses and holds 4-byte return addresses. SP is 1000. Three nested CALLs execute, then one RET. What is SP?",
+          "answer": 992,
+          "explanation": "Each CALL lowers SP by 4, so three calls give 1000 - 12 = 988, and the RET raises it by 4 to 992. Answering 988 tempts because it forgets the RET, and 1008 comes from moving the stack in the wrong direction, which gives 1000 + 12 - 4."
+        },
+        "summary": "CALL pushes the next instruction's address and jumps, RET pops it back, and the stack lets calls nest to any depth."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.risc-cisc",
+      "title": "RISC versus CISC",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        248,
+        249,
+        251,
+        253
+      ],
+      "points": [
+        "RISC: few simple instructions, fixed length, few addressing modes, large register file, CPI close to 1, and a load-store architecture in which only LOAD and STORE touch memory. ARM, MIPS and RISC-V are RISC.",
+        "CISC: many complex instructions, variable length, many addressing modes, and ALU instructions that may take memory operands directly, with cycle counts that vary per instruction. x86 is CISC.",
+        "RISC regularity makes pipelining easy and suits hardwired control; CISC traditionally relies on microprogrammed control, and modern x86 cracks instructions into RISC-like micro-operations.",
+        "CISC programs need fewer instructions; RISC programs need more instructions but each is cheaper, so neither wins on instruction count alone."
+      ],
+      "keyTerms": [
+        "load-store architecture",
+        "CPI",
+        "micro-operation",
+        "hardwired control"
+      ],
+      "lesson": {
+        "why": "Characteristic-matching questions on RISC versus CISC are quick marks if you know which design traits go together and why.",
+        "intro": "A processor's instruction set can be kept small and regular, or made large with powerful instructions. The small, regular style is called RISC. Its instructions all have the same length, only loads and stores reach memory, and each instruction does little, so the hardware to run it can be simple and quick. The large style is called CISC. One instruction may reach memory, do arithmetic and use a complex address, so programs are shorter but each instruction takes a variable number of cycles. The control unit that decodes instructions follows the same split: simple instructions let it be built from fixed logic gates, while complex ones are usually driven from a stored table of steps.",
+        "prerequisites": [
+          "coa-instructions-addressing.fixed-vs-variable"
+        ],
+        "definitions": [
+          {
+            "term": "Load-store architecture",
+            "meaning": "A design where only LOAD and STORE access memory and every other instruction uses registers."
+          },
+          {
+            "term": "CPI",
+            "meaning": "Clock cycles per instruction, averaged over a program."
+          },
+          {
+            "term": "Hardwired control",
+            "meaning": "A control unit whose signals come from fixed logic gates, which is fast but hard to change."
+          },
+          {
+            "term": "Microprogrammed control",
+            "meaning": "A control unit that reads each instruction's steps from a stored table of micro-instructions, the control store, which is easier to change but slower."
+          }
+        ],
+        "principle": {
+          "text": "Run time is the instruction count times the average cycles per instruction times the cycle time. RISC lowers CPI and accepts a higher instruction count; CISC lowers the instruction count and accepts a higher CPI.",
+          "tex": "T = IC \\times CPI \\times t_{\\text{cycle}}"
+        },
+        "limits": "The split is a tendency, not a law: modern x86 chips translate instructions into RISC-like micro-operations internally, so a CISC instruction set can still run on a pipelined core.",
+        "example": {
+          "problem": "Compile C = A + B, with A, B and C in memory, for a CISC machine whose ADD may take a memory operand and for a load-store machine. Compare instruction counts.",
+          "steps": [
+            "CISC: MOV R1,A then ADD R1,B then MOV C,R1. That is 3 instructions, and ADD reaches memory itself.",
+            "Load-store: LOAD R1,A, LOAD R2,B, ADD R3,R1,R2 and STORE C,R3. That is 4 instructions.",
+            "Both move the same three values to or from memory, so the difference is in instruction count and in how simple each instruction is."
+          ],
+          "result": "CISC uses 3 instructions and the load-store RISC uses 4, each one simpler."
+        },
+        "misconceptions": [
+          "Believing RISC always runs faster; it executes more instructions, and only the lower CPI and faster clock repay that.",
+          "Thinking a hardwired control unit belongs to CISC; simple fixed-length RISC instructions are what make hardwired control practical."
+        ],
+        "recall": [
+          {
+            "q": "Name three typical RISC characteristics.",
+            "a": "Fixed-length instructions, a load-store architecture and few addressing modes."
+          },
+          {
+            "q": "Which control unit style does RISC usually use?",
+            "a": "Hardwired, because simple instructions need no control store."
+          },
+          {
+            "q": "Why can a CISC program have fewer instructions?",
+            "a": "One instruction can combine a memory access, an operation and a complex address."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A CISC program runs 200 instructions at an average of 3 cycles each. The same program on a RISC machine runs 320 instructions at an average of 1.25 cycles each. By how many cycles does the RISC run finish earlier?",
+          "answer": 200,
+          "explanation": "CISC needs 200 x 3 = 600 cycles and RISC needs 320 x 1.25 = 400 cycles, a gap of 200. Choosing the machine with fewer instructions tempts because instruction count alone ignores CPI."
+        },
+        "summary": "RISC means simple, fixed-length, load-store instructions with low CPI and hardwired control; CISC trades a lower instruction count for complex, variable-cycle instructions."
+      }
+    },
+    {
+      "id": "coa-instructions-addressing.byte-addressing",
+      "title": "Byte versus word addressing, alignment and endianness",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Byte-addressable memory gives every byte its own address, so consecutive 4-byte words sit at addresses differing by 4; word-addressable memory gives each word one address, so they differ by 1.",
+        "A K-bit address reaches 2^K cells: 2^K bytes when byte-addressed, 2^K × w bytes when each cell is a w-byte word.",
+        "An aligned w-byte access starts at an address divisible by w; RISC ISAs usually trap or split misaligned accesses.",
+        "A w-byte item at address a is aligned exactly when a mod w = 0: 1004 is 4-byte aligned but not 8-byte aligned, and 1002 is neither.",
+        "Big-endian stores the most significant byte at the lowest address, little-endian the least significant. 0x12345678 at address 100 puts 0x12 at 100 in big-endian and 0x78 at 100 in little-endian; x86 and RISC-V are little-endian.",
+        "In little-endian order the byte at address a + i of a word stored at a is byte i counted from the least significant end: 0xA1B2C3D4 at 400 puts 0xB2 at 402, while big-endian puts 0xC3 there."
+      ],
+      "keyTerms": [
+        "byte-addressable",
+        "word-addressable",
+        "alignment",
+        "big-endian",
+        "little-endian"
+      ],
+      "lesson": {
+        "why": "Address-arithmetic questions depend on knowing what one address names, and endianness or alignment slips give answers that look plausible but are wrong.",
+        "intro": "Memory is a long row of cells, and each cell has an address. On a byte-addressable machine every cell is one byte, so a 4-byte word covers four consecutive addresses. On a word-addressable machine every cell is a whole word, and the next word is one address further. When a multi-byte value is stored, the machine must also choose which of its bytes goes at the lowest address: the most significant byte first is big-endian, the least significant first is little-endian. This also fixes how arrays are stepped through: on a byte-addressable machine, consecutive elements of a w-byte array are w addresses apart, and shifting a value left by k bits multiplies it by $2^k$.",
+        "prerequisites": [
+          "coa-instructions-addressing.memory-references"
+        ],
+        "definitions": [
+          {
+            "term": "Alignment",
+            "meaning": "A w-byte item is aligned when its address is a multiple of w."
+          },
+          {
+            "term": "Endianness",
+            "meaning": "The order in which a value's bytes are placed at increasing addresses."
+          }
+        ],
+        "principle": {
+          "text": "A K-bit address names $2^K$ cells, and each cell holds w bytes (1 on a byte-addressable machine). Little-endian places byte $i$ of a value, counted from the least significant end, at address $a + i$; big-endian places it at $a + w - 1 - i$.",
+          "tex": "\\text{capacity} = 2^{K} \\times w\\ \\text{bytes}"
+        },
+        "limits": "The formula for capacity uses the cell size, so it changes with the machine's addressing unit. Endianness concerns byte order only; the bits inside a byte are not reordered.",
+        "example": {
+          "problem": "The 4-byte value 0x5A6B7C8D is stored at address 300. Give the byte at each address for little-endian order, and say whether the word is aligned.",
+          "steps": [
+            "Little-endian puts the least significant byte first: address 300 holds 0x8D, 301 holds 0x7C, 302 holds 0x6B and 303 holds 0x5A.",
+            "Big-endian would put 0x5A at 300, so the byte at 300 alone tells the two orders apart.",
+            "Alignment: $300 \\bmod 4 = 0$, so the word is 4-byte aligned."
+          ],
+          "result": "Little-endian bytes are 8D, 7C, 6B, 5A at 300 to 303, and the word is aligned."
+        },
+        "misconceptions": [
+          "Reversing the bits within each byte; only the order of whole bytes differs between the two conventions.",
+          "Using $2^K$ bytes for a word-addressable memory, when each of the $2^K$ cells holds a whole word."
+        ],
+        "recall": [
+          {
+            "q": "How far apart are consecutive 4-byte words on a byte-addressable machine?",
+            "a": "4 addresses; on a word-addressable machine they are 1 apart."
+          },
+          {
+            "q": "What does little-endian store at the lowest address?",
+            "a": "The least significant byte of the value."
+          },
+          {
+            "q": "When is a w-byte access aligned?",
+            "a": "When its starting address is divisible by w."
+          },
+          {
+            "q": "Element i of a 4-byte int array starts at which address on a byte-addressable machine?",
+            "a": "At the base address plus $4i$, so moving to the next element adds 4."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A machine is word addressable with 4-byte words and a 14-bit address. How many bytes of memory can it address?",
+          "answer": 65536,
+          "explanation": "There are $2^{14} = 16384$ words of 4 bytes, so $16384 \\times 4 = 65536$ bytes. Answering 16384 tempts because it treats the machine as byte addressable."
+        },
+        "summary": "Know the cell size an address names, compute capacity as cells times bytes per cell, check alignment by divisibility, and place bytes by the stated endianness."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "coa-instructions-addressing.opcode-bits",
+      "name": "Bits for N opcodes or N registers",
+      "tex": "b = \\lceil \\log_2 N \\rceil",
+      "text": "b = ⌈log₂ N⌉",
+      "where": [
+        [
+          "N",
+          "number of distinct opcodes, registers or modes to encode"
+        ],
+        [
+          "b",
+          "field width in bits"
+        ]
+      ],
+      "note": "Always round up: 45 opcodes need 6 bits, 200 need 8. Conversely a b-bit field encodes at most 2^b values.",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "source",
+      "pages": [
+        246,
+        248,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.instruction-width",
+      "name": "Instruction width",
+      "tex": "W = b_{\\text{op}} + b_{\\text{mode}} + \\sum b_{\\text{operand}}",
+      "text": "W = b_op + b_mode + Σ b_operand",
+      "where": [
+        [
+          "b_op",
+          "opcode bits"
+        ],
+        [
+          "b_mode",
+          "mode-field bits, if any"
+        ],
+        [
+          "b_operand",
+          "bits of each register, address or immediate field"
+        ]
+      ],
+      "note": "Count only the fields the format actually has: a register–memory two-address instruction has one register field and one address field.",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "source",
+      "pages": [
+        246,
+        250,
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.immediate-range",
+      "name": "Range of a k-bit immediate or offset",
+      "tex": "\\text{unsigned: } [0,\\ 2^{k}-1] \\qquad \\text{signed: } [-2^{k-1},\\ 2^{k-1}-1]",
+      "text": "unsigned: 0 to 2^k − 1; signed (two's complement): −2^(k−1) to 2^(k−1) − 1",
+      "where": [
+        [
+          "k",
+          "width of the immediate or offset field"
+        ]
+      ],
+      "note": "The signed range is asymmetric: 8 bits give −128 to +127, not ±128 or ±127.",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "source",
+      "pages": [
+        249,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.address-space",
+      "name": "Addressable memory",
+      "tex": "\\text{memory} = 2^{K} \\times w \\ \\text{bytes}",
+      "text": "memory = 2^K × w bytes",
+      "where": [
+        [
+          "K",
+          "address width in bits"
+        ],
+        [
+          "w",
+          "bytes per addressable cell (1 for byte addressing)"
+        ]
+      ],
+      "note": "A 24-bit byte address reaches 16 MB; the same 24 bits addressing 4-byte words reach 64 MB.",
+      "topic": "coa-instructions-addressing.byte-addressing",
+      "origin": "source",
+      "pages": [
+        246,
+        250
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.endian-byte",
+      "name": "Byte at offset i of a w-byte word",
+      "tex": "\\text{LE: } B_{a+i} = \\left\\lfloor x / 2^{8i} \\right\\rfloor \\bmod 256 \\qquad \\text{BE: } B_{a+i} = \\left\\lfloor x / 2^{8(w-1-i)} \\right\\rfloor \\bmod 256",
+      "text": "little-endian: B(a+i) = ⌊x / 2^(8i)⌋ mod 256; big-endian: B(a+i) = ⌊x / 2^(8(w−1−i))⌋ mod 256",
+      "where": [
+        [
+          "x",
+          "the w-byte value stored at address a"
+        ],
+        [
+          "i",
+          "byte offset, 0 to w − 1"
+        ],
+        [
+          "w",
+          "word size in bytes"
+        ]
+      ],
+      "note": "Little-endian puts the least significant byte at the lowest address. Alignment is a separate test: the word is aligned when a mod w = 0.",
+      "topic": "coa-instructions-addressing.byte-addressing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.expanding-opcode-budget",
+      "name": "Expanding-opcode encoding budget",
+      "tex": "\\sum_i n_i \\, 2^{b_i} \\le 2^{W}",
+      "text": "Σ nᵢ × 2^(bᵢ) ≤ 2^W",
+      "where": [
+        [
+          "n_i",
+          "number of instructions in class i"
+        ],
+        [
+          "b_i",
+          "total operand bits of class i"
+        ],
+        [
+          "W",
+          "instruction width"
+        ]
+      ],
+      "note": "The last class gets ⌊(2^W − encodings used by the other classes) ÷ 2^(b_last)⌋ opcodes.",
+      "topic": "coa-instructions-addressing.expanding-opcode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.ea-direct-indirect",
+      "name": "Direct, indirect and register indirect EA",
+      "tex": "\\mathrm{EA}_{\\text{dir}} = A, \\quad \\mathrm{EA}_{\\text{ind}} = M[A], \\quad \\mathrm{EA}_{\\text{reg-ind}} = R",
+      "text": "direct EA = A; indirect EA = M[A]; register indirect EA = R",
+      "where": [
+        [
+          "A",
+          "address field of the instruction"
+        ],
+        [
+          "R",
+          "contents of the named register"
+        ],
+        [
+          "M[x]",
+          "memory word at x"
+        ]
+      ],
+      "note": "The operand is M[EA]. Immediate mode has no EA: the operand is A itself.",
+      "topic": "coa-instructions-addressing.basic-modes",
+      "origin": "source",
+      "pages": [
+        247,
+        253
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.ea-displacement",
+      "name": "Displacement-family EA",
+      "tex": "\\mathrm{EA} = R_{\\text{base}} + R_{\\text{index}} \\times s + d",
+      "text": "EA = R_base + R_index × s + d",
+      "where": [
+        [
+          "R_base",
+          "base register"
+        ],
+        [
+          "R_index",
+          "index register"
+        ],
+        [
+          "s",
+          "scale factor (1, 2, 4 or 8)"
+        ],
+        [
+          "d",
+          "displacement constant in the instruction"
+        ]
+      ],
+      "note": "Drop terms to get the simpler modes: indexed or based is register + d, base + index is R_base + R_index.",
+      "topic": "coa-instructions-addressing.displacement-modes",
+      "origin": "source",
+      "pages": [
+        16,
+        247
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pc-relative-target",
+      "name": "PC-relative branch target",
+      "tex": "T = (\\mathrm{PC}_{\\text{instr}} + L) + d \\times u",
+      "text": "T = (PC_instr + L) + d × u",
+      "where": [
+        [
+          "PC_instr",
+          "address of the branch instruction"
+        ],
+        [
+          "L",
+          "branch instruction length in bytes"
+        ],
+        [
+          "d",
+          "signed offset field"
+        ],
+        [
+          "u",
+          "bytes per offset unit (1 if the offset counts bytes)"
+        ]
+      ],
+      "note": "If the question already gives the incremented PC, add d × u to it directly; do not add L twice.",
+      "topic": "coa-instructions-addressing.pc-relative",
+      "origin": "source",
+      "pages": [
+        249,
+        250,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.auto-increment-step",
+      "name": "Auto-increment and auto-decrement update",
+      "tex": "(R)+:\\ \\mathrm{EA}=R,\\ R \\leftarrow R + s \\qquad -(R):\\ R \\leftarrow R - s,\\ \\mathrm{EA}=R",
+      "text": "(R)+: EA = R then R ← R + s; −(R): R ← R − s then EA = R",
+      "where": [
+        [
+          "s",
+          "operand size in addressable units"
+        ]
+      ],
+      "note": "s is the data-item size, 4 for a word on a byte-addressable machine, not always 1.",
+      "topic": "coa-instructions-addressing.auto-inc-dec",
+      "origin": "source",
+      "pages": [
+        247,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.instruction-address",
+      "name": "Address of the k-th instruction",
+      "tex": "\\mathrm{addr}_k = S + c \\sum_{j=1}^{k-1} \\ell_j",
+      "text": "addr_k = S + c × Σ_{j<k} ℓⱼ",
+      "where": [
+        [
+          "S",
+          "load address of the first instruction"
+        ],
+        [
+          "ℓ_j",
+          "size of instruction j in words"
+        ],
+        [
+          "c",
+          "addressable units per word (4 for 32-bit words, byte addressing)"
+        ]
+      ],
+      "note": "The return address saved on an interrupt during instruction k is addr_(k+1).",
+      "topic": "coa-instructions-addressing.memory-references",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.call-ret-stack",
+      "name": "CALL and RET on a downward-growing stack, SP at the last item pushed",
+      "tex": "\\text{CALL: } SP \\leftarrow SP - r,\\ M[SP] \\leftarrow PC_{\\text{next}},\\ PC \\leftarrow T \\qquad \\text{RET: } PC \\leftarrow M[SP],\\ SP \\leftarrow SP + r",
+      "text": "CALL: SP ← SP − r, M[SP] ← PC_next, PC ← T; RET: PC ← M[SP], SP ← SP + r",
+      "where": [
+        [
+          "SP",
+          "stack pointer, holding the address of the last item pushed"
+        ],
+        [
+          "r",
+          "size of a return address in addressable units"
+        ],
+        [
+          "PC_next",
+          "address of the instruction after the CALL"
+        ],
+        [
+          "T",
+          "subroutine entry address"
+        ]
+      ],
+      "note": "PC_next = CALL address + CALL length; saving the CALL's own address would re-execute the CALL on return. What SP points to fixes the order: at the last item pushed, move SP and then store; at the next free slot, store and then move SP. Growth direction only decides whether CALL moves SP by −r or +r.",
+      "topic": "coa-instructions-addressing.instruction-types",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "coa-instructions-addressing.pt-bit-partition",
+      "title": "Field widths and largest immediate in a fixed-width instruction",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Opcode bits = ⌈log₂ (number of opcodes)⌉, register bits = ⌈log₂ (number of registers)⌉ per register operand, plus any mode bits.",
+        "Subtract them from the instruction width to get the immediate or displacement width k.",
+        "Answer with 2^k − 1 for unsigned, −2^(k−1) to 2^(k−1) − 1 for signed, or 2^k for the number of values."
+      ],
+      "trap": "Forgetting to round ⌈log₂ N⌉ up for a non-power-of-two count, or counting only one of two register operands.",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "source",
+      "pages": [
+        249,
+        251,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pt-expanding-opcode",
+      "title": "Maximum instructions of one class under an expanding opcode",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Compute the operand bits bᵢ for each class from its register and immediate fields.",
+        "Each class consumes nᵢ × 2^(bᵢ) of the 2^W encodings; add these up for every class whose count is given.",
+        "Divide the remaining encodings by 2^(b) of the unknown class and round down."
+      ],
+      "trap": "Subtracting opcode counts instead of encoding counts: classes with different operand widths cannot be compared by opcode count alone.",
+      "topic": "coa-instructions-addressing.expanding-opcode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.pt-ea-value",
+      "title": "Effective address or loaded value under a given mode",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Write the EA rule for the mode: A, M[A], R, R + A, PC + A.",
+        "Use the PC after fetch for PC-relative and the register value before any auto-increment for (R)+.",
+        "Read the operand as M[EA], except in immediate mode where the operand is the field itself."
+      ],
+      "trap": "Stopping one memory read early in indirect mode (reporting the pointer instead of the operand) or one read late in direct mode.",
+      "topic": "coa-instructions-addressing.basic-modes",
+      "origin": "source",
+      "pages": [
+        250,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pt-mode-identification",
+      "title": "Name the mode, or pick the mode for a purpose",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Look at the syntax: #k is immediate, (R) register indirect, d(R) displacement, @A or (A) memory indirect, (R)+ and −(R) auto modes.",
+        "For a purpose, match it: constants to immediate, pointers to indirect, arrays to indexed, relocation to based or PC-relative."
+      ],
+      "trap": "Calling d(R) register indirect because of the parentheses; the added constant makes it displacement addressing.",
+      "topic": "coa-instructions-addressing.mode-uses",
+      "origin": "source",
+      "pages": [
+        247,
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pt-branch-target",
+      "title": "PC-relative target, branch range and return address",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find the address of the branch and add its length to get the updated PC.",
+        "Scale the signed offset by the offset unit (bytes or words) and add it.",
+        "For a range, use −2^(n−1) to 2^(n−1) − 1 units relative to the updated PC; for a return address, take the address of the next instruction."
+      ],
+      "trap": "Adding the offset to the address of the branch itself, or forgetting to multiply a word offset by 4.",
+      "topic": "coa-instructions-addressing.pc-relative",
+      "origin": "source",
+      "pages": [
+        249,
+        250,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pt-memory-references",
+      "title": "Memory references and instruction addresses in a loop program",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Mark each instruction's data accesses: a load or store with a memory operand costs 1 (2 if indirect), register-only instructions cost 0.",
+        "Find the trip count from the loop counter's initial value and the exit test.",
+        "Total = accesses outside the loop + trip count × accesses per iteration; add fetches only if the question asks for all references.",
+        "For addresses, accumulate instruction sizes from the load address, scaled to bytes when memory is byte-addressable."
+      ],
+      "trap": "Counting INC, DEC or register-to-register ADD as memory references, or including instruction fetches when only data references are asked.",
+      "topic": "coa-instructions-addressing.memory-references",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.pt-address-count-code",
+      "title": "Code length for an expression in 0-, 1-, 2- or 3-address form",
+      "frequency": "low",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "For zero-address code, write the postfix form; every operand is a PUSH, every operator one instruction, plus a final POP.",
+        "For one-address code, keep a running value in the accumulator and STORE to a temporary whenever a second subexpression must be computed."
+      ],
+      "trap": "In stack code the non-commutative operators apply (second from top) op (top), so the push order decides the sign.",
+      "topic": "coa-instructions-addressing.address-count",
+      "origin": "source",
+      "pages": [
+        249,
+        250,
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.pt-memory-layout",
+      "title": "Byte layout, alignment and stack contents after CALL",
+      "frequency": "low",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "For endianness, split the value into bytes; little-endian stores the least significant byte at the lowest address, big-endian the most significant.",
+        "For alignment, test address mod item size = 0.",
+        "For CALL, compute the return address as CALL address + its length, then apply the stack rule: with SP at the last item pushed, move SP by the address size (down for a downward-growing stack) and then store; with SP at the next free slot, store and then move SP."
+      ],
+      "trap": "Pushing the CALL's own address, or reading byte offsets from the wrong end of the word.",
+      "topic": "coa-instructions-addressing.byte-addressing",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "coa-instructions-addressing.q-total-bits",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An instruction has a 5-bit opcode, a 4-bit addressing-mode field, a 5-bit register field and a 16-bit memory address field. How many bits wide is the instruction?",
+      "options": [
+        "25",
+        "26",
+        "30",
+        "32"
+      ],
+      "answer": 2,
+      "explanation": "Width is the sum of the fields: 5 + 4 + 5 + 16 = 30 bits. 25 drops the mode field, 26 drops the register field, and 32 is the padded storage size, not the field total.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2017) — Operand bits",
+      "pages": [
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-max-immediate",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A machine has 32-bit, one-word instructions and 64 registers. It must support 45 instructions, each with two register operands and an unsigned immediate operand, all in one word. What is the largest value the immediate operand can hold?",
+      "answer": 16383,
+      "explanation": "Opcode: ⌈log₂ 45⌉ = 6 bits. Two register fields: 2 × ⌈log₂ 64⌉ = 12 bits. Immediate: 32 − 6 − 12 = 14 bits, so the largest unsigned value is 2¹⁴ − 1 = 16383.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-two-address-width",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An ISA has 32 opcodes, 16 general-purpose registers and 16-bit memory addresses. A two-address instruction names one register operand and one direct memory operand. What is the minimum width of this instruction?",
+      "options": [
+        "21 bits",
+        "25 bits",
+        "29 bits",
+        "37 bits"
+      ],
+      "answer": 1,
+      "explanation": "Opcode ⌈log₂ 32⌉ = 5 bits, one register field ⌈log₂ 16⌉ = 4 bits, one address field 16 bits: 5 + 4 + 16 = 25. 29 would need two register fields plus the address (three operands); 37 counts two addresses; 21 forgets the register field.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.encoding-bits",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-expanding-four-types",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A processor has 16 integer registers and 64 floating-point registers and a 16-bit instruction format. Type-1 has 4 instructions with three integer register operands. Type-2 has 8 instructions with two floating-point register operands. Type-3 has 14 instructions with one integer and one floating-point register operand. Type-4 has N instructions with one floating-point register operand. What is the maximum value of N?",
+      "answer": 32,
+      "explanation": "Operand bits: Type-1 3 × 4 = 12, Type-2 2 × 6 = 12, Type-3 4 + 6 = 10, Type-4 6. Encodings used: 4 × 2¹² = 16384, 8 × 2¹² = 32768, 14 × 2¹⁰ = 14336, total 63488. Left: 65536 − 63488 = 2048. Each Type-4 instruction needs 2⁶ = 64 encodings, so N = 2048 / 64 = 32.",
+      "difficulty": "hard",
+      "topic": "coa-instructions-addressing.expanding-opcode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-expanding-i-r-type",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A processor has 64 registers and 16-bit instructions of two types. An I-type instruction holds an opcode, one register name and a 4-bit immediate. An R-type instruction holds an opcode and two register names. If there are 8 distinct I-type opcodes, what is the maximum number of distinct R-type opcodes?",
+      "answer": 14,
+      "explanation": "Register names take 6 bits. I-type operand bits = 6 + 4 = 10, so each I-type opcode consumes 2¹⁰ encodings: 8 × 1024 = 8192. R-type operand bits = 12, so each R-type opcode consumes 2¹² = 4096. Remaining encodings: 65536 − 8192 = 57344, and 57344 / 4096 = 14.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.expanding-opcode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-displacement-mode",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The instruction LD R1, 5(R2) loads into R1 the word at the address formed by adding 5 to the contents of R2. Which addressing mode does the source operand use?",
+      "options": [
+        "Immediate",
+        "Register indirect",
+        "Displacement (base or indexed)",
+        "Memory indirect"
+      ],
+      "answer": 2,
+      "explanation": "EA = R2 + 5, a register plus a constant from the instruction: displacement addressing, called indexed or base + offset depending on which part is the base. Register indirect would use EA = R2 with no constant; immediate would load the value 5; memory indirect would read a pointer from memory first.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.displacement-modes",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Addressing identification",
+      "pages": [
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-indirect-value",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Memory holds M[100] = 200 and M[200] = 50. The instruction LOAD @100 uses memory indirect addressing. Which value is loaded?",
+      "options": [
+        "100",
+        "200",
+        "50",
+        "250"
+      ],
+      "answer": 2,
+      "explanation": "Indirect: EA = M[100] = 200, operand = M[200] = 50. 200 is the pointer (what direct mode would load), 100 is what immediate mode would load, and 250 adds the two memory words.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.basic-modes",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2013) — Indirect",
+      "pages": [
+        250,
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-mode-table",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A two-word LOAD instruction occupies words 200 and 201 of a word-addressable memory; its address field is 500, and after fetch PC = 202. Register R1 = 400. Memory holds M[400] = 700, M[500] = 800, M[702] = 325, M[800] = 300 and M[900] = 200. Which statements about the value loaded are correct?",
+      "options": [
+        "Direct mode loads 800",
+        "Memory indirect mode loads 300",
+        "PC-relative mode loads 325",
+        "Indexed mode with R1 as index loads 700"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Direct: EA = 500, value 800. Indirect: EA = M[500] = 800, value M[800] = 300. PC-relative: EA = 202 + 500 = 702, value 325. Indexed: EA = 500 + 400 = 900, value M[900] = 200, not 700; 700 is what register indirect (EA = R1 = 400) loads.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.basic-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-auto-increment-facts",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Consider these statements about auto-increment addressing. I. It is useful for creating self-relocating code. II. Including it in an ISA requires an additional ALU for effective-address calculation. III. The amount of increment depends on the size of the data item accessed. Which are true?",
+      "options": [
+        "I only",
+        "II only",
+        "III only",
+        "II and III only"
+      ],
+      "answer": 2,
+      "explanation": "III is true: (R)+ advances R by the operand size, 4 for a 32-bit word on a byte-addressable machine. I is false: relocation comes from based or PC-relative modes, not from a register side effect. II is false: the existing address adder performs the update, so no extra ALU is needed.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.auto-inc-dec",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-relocation-modes",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which addressing modes allow a program to be relocated in memory at run time without modifying its instructions?",
+      "options": [
+        "Absolute (direct)",
+        "Based (base register + offset)",
+        "PC-relative",
+        "Memory indirect"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "Based mode: the OS reloads the base register with the new start address and every EA moves with it. PC-relative: targets are distances from the PC, which do not change when the whole program moves. Absolute and memory indirect fields hold fixed addresses that point to the old location.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.mode-uses",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-branch-range",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A branch instruction holds an 8-bit two's-complement offset, counted in bytes and added to the updated PC. What range of targets can it reach relative to the updated PC?",
+      "options": [
+        "−127 to +127",
+        "−128 to +127",
+        "−128 to +128",
+        "0 to +255"
+      ],
+      "answer": 1,
+      "explanation": "An n-bit two's-complement field spans −2ⁿ⁻¹ to 2ⁿ⁻¹ − 1, so 8 bits give −128 to +127. ±127 is sign-magnitude, ±128 needs 9 bits, and 0 to 255 treats the offset as unsigned and allows no backward branch.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.pc-relative",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2015) — PC-relative range",
+      "pages": [
+        252
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-pc-relative-target",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "On a byte-addressable machine with 4-byte instructions, a PC-relative branch is stored at address 1000. Its offset field is −12 and counts words, added to the PC after the branch is fetched. What is the target address?",
+      "options": [
+        "952",
+        "956",
+        "988",
+        "992"
+      ],
+      "answer": 1,
+      "explanation": "Updated PC = 1000 + 4 = 1004. Offset in bytes = −12 × 4 = −48. Target = 1004 − 48 = 956. 952 adds the offset to 1000; 992 treats −12 as bytes from 1004; 988 treats it as bytes from 1000.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.pc-relative",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-loop-data-references",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A program runs on a processor with M[3000] = 10: I1: R1 ← M[3000]; I2 (LOOP): R2 ← M[R3]; I3: R2 ← R1 + R2; I4: M[R3] ← R2; I5: INC R3; I6: DEC R1; I7: BNZ LOOP (branch if R1 ≠ 0); I8: HALT. How many data memory references (reads and writes of operands, not instruction fetches) does it make?",
+      "answer": 21,
+      "explanation": "I1 reads M[3000] once, so R1 = 10. Each loop pass makes 2 data references: the read in I2 and the write in I4; I3, I5, I6 and I7 use only registers. R1 counts down 10, 9, …, 1 and the branch falls through after the pass that makes it 0, so the loop runs 10 times. Total = 1 + 10 × 2 = 21.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.memory-references",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-interrupt-return-address",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The program I1 to I8 has instruction sizes 2, 1, 1, 1, 1, 1, 2 and 1 words. It is loaded at byte address 1000 on a byte-addressable machine with 32-bit words. An interrupt arrives while I6 is executing. What return address is pushed on the stack?",
+      "answer": 1028,
+      "explanation": "Each word is 4 bytes, so the instructions start at I1 1000, I2 1008, I3 1012, I4 1016, I5 1020, I6 1024, I7 1028. The interrupt is taken after I6 completes, so the saved address is that of I7: 1028. 1024 is the interrupted instruction itself; 1007 would be the word-addressed answer.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.memory-references",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-stack-machine-result",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A stack machine with A = 5, B = 3, C = 7 and D = 4 executes PUSH A, PUSH B, ADD, PUSH C, PUSH D, SUB, MUL. Each binary operation pops the top two entries and pushes (second from top) op (top). What is left on top of the stack?",
+      "options": [
+        "24",
+        "−24",
+        "32",
+        "11"
+      ],
+      "answer": 0,
+      "explanation": "PUSH A, PUSH B, ADD leaves 8. PUSH C, PUSH D, SUB computes 7 − 4 = 3, leaving 8, 3. MUL gives 24. −24 comes from computing D − C; 32 multiplies 8 by D; 11 adds instead of multiplying.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.address-count",
+      "origin": "curated",
+      "pages": [
+        250,
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-risc-traits",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following are characteristic of a RISC instruction set?",
+      "options": [
+        "Fixed-length instructions",
+        "Only load and store instructions access memory",
+        "Many addressing modes, including memory-to-memory arithmetic",
+        "Instructions whose cycle counts vary widely, typically implemented by microcode"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "RISC uses fixed-length instructions and a load-store architecture in which ALU instructions operate only on registers. Rich addressing modes, memory operands in arithmetic and variable microcoded cycle counts are CISC traits.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.risc-cisc",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — RISC",
+      "pages": [
+        248,
+        251
+      ]
+    },
+    {
+      "id": "coa-instructions-addressing.q-scaled-index-ea",
+      "type": "nat",
+      "marks": 1,
+      "stem": "An x86-style operand uses base + index × scale + displacement addressing. The base register holds 1000, the index register holds 5, the scale is 4 and the displacement is 8. What is the effective address?",
+      "answer": 1028,
+      "explanation": "EA = base + index × scale + displacement = 1000 + 5 × 4 + 8 = 1028. Forgetting the scale gives 1013; dropping the displacement gives 1020.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.displacement-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-indirect-access-count",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An instruction ADD R1, @X occupies two words: the opcode word and a word holding the address X. Its source operand uses memory indirect addressing, and the result goes to R1. How many memory accesses does the instruction make in total, counting instruction fetch?",
+      "options": [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "answer": 2,
+      "explanation": "Two fetches bring in both instruction words. Memory indirect then reads the pointer M[X] and finally the operand M[M[X]]: 2 + 1 + 1 = 4. 3 treats the mode as direct; 2 counts only the fetches; 5 adds a write, but the result goes to a register.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.memory-references",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-endianness",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The 32-bit value 0xA1B2C3D4 is stored at byte address 400 on a little-endian, byte-addressable machine. Which byte is at address 402?",
+      "options": [
+        "0xC3",
+        "0xB2",
+        "0xD4",
+        "0xA1"
+      ],
+      "answer": 1,
+      "explanation": "Little-endian puts the least significant byte first: 400 = 0xD4, 401 = 0xC3, 402 = 0xB2, 403 = 0xA1. 0xC3 is the big-endian answer, 0xD4 is the byte at 400, and 0xA1 is the most significant byte.",
+      "difficulty": "easy",
+      "topic": "coa-instructions-addressing.byte-addressing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-instructions-addressing.q-call-stack",
+      "type": "msq",
+      "marks": 2,
+      "stem": "On a byte-addressable machine the stack grows toward lower addresses, SP points to the last item pushed, and return addresses are 4 bytes. A 4-byte CALL instruction at address 2000 executes with SP = 1000. Which statements are correct?",
+      "options": [
+        "After the CALL, SP = 996",
+        "After the CALL, the word at address 996 holds 2004",
+        "The return address saved by the CALL is 2000",
+        "After the matching RET, SP = 1000 and PC = 2004"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "CALL pre-decrements SP to 1000 − 4 = 996 and stores the address of the next instruction, 2000 + 4 = 2004, at 996. Saving 2000 would make RET re-execute the CALL. RET loads PC ← M[996] = 2004 and restores SP to 996 + 4 = 1000.",
+      "difficulty": "medium",
+      "topic": "coa-instructions-addressing.instruction-types",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Immediate mode holds the value, direct mode holds the address of the value: LOAD #200 loads 200, LOAD 200 loads M[200].",
+      "origin": "source",
+      "pages": [
+        252
+      ]
+    },
+    {
+      "text": "Auto-increment advances the register by the operand size, which is 4 for a 32-bit word on a byte-addressable machine, not always by 1.",
+      "origin": "source",
+      "pages": [
+        250,
+        252
+      ]
+    },
+    {
+      "text": "PC-relative targets are measured from the PC after the branch is fetched, i.e. the address of the next instruction, not from the branch's own address.",
+      "origin": "source",
+      "pages": [
+        252
+      ]
+    },
+    {
+      "text": "Stack code is postfix, and SUB or DIV compute (second from top) op (top); reversing the operands flips the sign of a difference.",
+      "origin": "source",
+      "pages": [
+        252
+      ]
+    },
+    {
+      "text": "⌈log₂ N⌉ rounds up: 45 opcodes need 6 bits and 200 need 8, never log₂ N truncated.",
+      "origin": "source",
+      "pages": [
+        252
+      ]
+    },
+    {
+      "text": "In expanding-opcode questions, compare encodings (n × 2^b), not opcode counts; classes with different operand widths use the opcode space at different rates.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Data-reference counts exclude instruction fetches and register-only instructions such as INC, DEC and register ADD, unless the question asks for all memory accesses.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "CALL saves the address after the CALL (its address plus its length); saving the CALL's own address would loop forever on return. When SP points to the last item pushed, CALL moves SP before storing; when SP points to the next free slot, it stores first. Growth direction only sets the sign of the move.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Formats and encoding",
+      "lines": [
+        "3-addr X ← A op B; 2-addr A ← A op B; 1-addr ACC; 0-addr stack (postfix)",
+        "opcode bits ⌈log₂ N⌉, register bits ⌈log₂ R⌉, immediate = W − rest",
+        "unsigned k bits: 0..2^k − 1; signed: −2^(k−1)..2^(k−1) − 1",
+        "expanding opcode: Σ nᵢ 2^(bᵢ) ≤ 2^W"
+      ],
+      "origin": "source",
+      "pages": [
+        246,
+        249,
+        253
+      ]
+    },
+    {
+      "heading": "Modes",
+      "lines": [
+        "Immediate: operand = A; Register: operand = R",
+        "Direct: M[A]; Indirect: M[M[A]]; Register indirect: M[R]",
+        "Indexed/based: M[R + d]; base + index: M[Rb + Ri × s + d]",
+        "PC-relative: M[PC_next + d]; (R)+ use then add size; −(R) subtract then use"
+      ],
+      "origin": "source",
+      "pages": [
+        247,
+        253
+      ]
+    },
+    {
+      "heading": "Uses and costs",
+      "lines": [
+        "constants immediate, pointers indirect, arrays indexed, relocation based or PC-relative",
+        "operand accesses: imm/reg 0, direct/reg-ind/displacement 1, indirect 2",
+        "interrupt return address = address of the next instruction",
+        "little-endian: least significant byte at lowest address; aligned iff addr mod size = 0",
+        "CALL: SP ← SP − r, M[SP] ← next PC; RET: PC ← M[SP], SP ← SP + r"
+      ],
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "heading": "RISC vs CISC",
+      "lines": [
+        "RISC: fixed length, load-store, few modes, CPI near 1, easy pipelining",
+        "CISC: variable length, memory operands in ALU ops, many modes, microcode"
+      ],
+      "origin": "source",
+      "pages": [
+        248,
+        253
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 250,
+      "claim": "A two-address instruction with 32 opcodes, 16 registers and 16-bit addresses is 5 + 4 + 4 + 16 = 29 bits wide.",
+      "correction": "5 + 4 + 4 + 16 counts three operand fields (two registers and a memory address). A two-address instruction with one register and one memory operand is 5 + 4 + 16 = 25 bits; 29 bits fits a three-operand register–register–memory format."
+    },
+    {
+      "page": 250,
+      "claim": "A branch at PC = 200 with offset −10 targets 190.",
+      "correction": "This contradicts the rule that the target is the updated PC plus the offset. 190 is right only if 200 is already the incremented PC; if the branch itself sits at address 200, the target is 200 + (instruction length) − 10, e.g. 194 for a 4-byte branch."
+    },
+    {
+      "page": 249,
+      "claim": "An n-bit PC-relative offset bounds the branch range to plus or minus 2^(n−1) bytes.",
+      "correction": "A two's-complement n-bit offset reaches −2^(n−1) to 2^(n−1) − 1 units from the updated PC (−128 to +127 for 8 bits), and the units are words rather than bytes when the ISA scales the offset."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "coa-instruction-set",
+      "status": "partial",
+      "topics": [
+        "coa-instructions-addressing.instruction-format",
+        "coa-instructions-addressing.address-count",
+        "coa-instructions-addressing.encoding-bits",
+        "coa-instructions-addressing.expanding-opcode",
+        "coa-instructions-addressing.fixed-vs-variable",
+        "coa-instructions-addressing.basic-modes",
+        "coa-instructions-addressing.displacement-modes",
+        "coa-instructions-addressing.auto-inc-dec",
+        "coa-instructions-addressing.pc-relative",
+        "coa-instructions-addressing.mode-uses",
+        "coa-instructions-addressing.memory-references",
+        "coa-instructions-addressing.instruction-types",
+        "coa-instructions-addressing.risc-cisc",
+        "coa-instructions-addressing.byte-addressing"
+      ]
+    }
+  ]
+}

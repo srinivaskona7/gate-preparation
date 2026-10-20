@@ -1,0 +1,2025 @@
+{
+  "id": "cd-parsing",
+  "summary": "The parser turns the token stream into a parse tree. Top-down parsers (recursive descent, LL(1)) predict productions from the start symbol and need a grammar free of left recursion and common prefixes; bottom-up parsers (shift-reduce, LR(0), SLR(1), LALR(1), LR(1)) reduce the input back to the start symbol and trace a rightmost derivation in reverse. GATE asks for FIRST and FOLLOW sets, LL(1) table entries and conflicts, LR state counts, and which parser class a grammar belongs to.",
+  "highYield": [
+    "FIRST and FOLLOW sets of a small grammar with ε-productions, often as a count or a set-membership question worth 2 marks.",
+    "Whether a grammar is LL(1): find a table cell with two productions, typically from a FIRST/FOLLOW clash on an ε-alternative.",
+    "Classifying a grammar as LR(0), SLR(1), LALR(1) or LR(1), with S → L = R | R as the standard LALR-but-not-SLR case.",
+    "State counts: LR(0), SLR(1) and LALR(1) share one count, canonical LR(1) has at least as many (10 against 7 for S → AA, A → aA | b).",
+    "LALR merging can create reduce-reduce conflicts but never a new shift-reduce conflict."
+  ],
+  "topics": [
+    {
+      "id": "cd-parsing.parser-role-derivations",
+      "title": "Role of the parser, derivations and parse trees",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        39,
+        441,
+        443
+      ],
+      "points": [
+        "The parser reads tokens from the lexer, checks them against a context-free grammar, builds a parse tree (or an equivalent structure) and reports syntax errors.",
+        "A leftmost derivation always expands the leftmost nonterminal; a rightmost derivation always expands the rightmost one. Each parse tree has exactly one leftmost and one rightmost derivation.",
+        "Top-down parsers build the tree from the root and follow a leftmost derivation; bottom-up parsers build it from the leaves and trace a rightmost derivation in reverse.",
+        "A sentential form is any string of terminals and nonterminals derivable from the start symbol; a sentence is a sentential form with terminals only."
+      ],
+      "keyTerms": [
+        "leftmost derivation",
+        "rightmost derivation",
+        "sentential form",
+        "parse tree"
+      ],
+      "lesson": {
+        "why": "Almost every parsing question assumes you can write a leftmost or rightmost derivation and read a parse tree. Top-down parsers trace the first kind and bottom-up parsers trace the second in reverse.",
+        "intro": "The parser takes the tokens the lexer produces, checks them against a context-free grammar and builds a parse tree. It reports only syntax errors, meaning tokens that do not fit the grammar. A misspelt character is a lexical error and an unknown type name is a semantic error; both are found by other phases. A grammar is a set of rewrite rules. Starting from the start symbol, you repeatedly replace one nonterminal with the right side of one of its rules until only tokens remain. That sequence is a derivation. A leftmost derivation always replaces the leftmost nonterminal; a rightmost derivation replaces the rightmost one. The parse tree records which rule was used at each node and ignores the order.",
+        "analogy": {
+          "text": "A derivation is the order in which you fill in a form; the parse tree is the finished form. Two people can fill the same boxes in different orders and hand in identical forms.",
+          "breaksWhen": "A grammar can allow two genuinely different finished forms for the same sentence, which is ambiguity, and then a single tree no longer summarises the sentence."
+        },
+        "definitions": [
+          {
+            "term": "Sentential form",
+            "meaning": "Any string of terminals and nonterminals reachable from the start symbol in zero or more steps."
+          },
+          {
+            "term": "Sentence",
+            "meaning": "A sentential form that contains only terminals."
+          }
+        ],
+        "principle": {
+          "text": "Each parse tree has exactly one leftmost and one rightmost derivation, and both use the same rules the same number of times, so they have the same length. A top-down parser follows the leftmost derivation; a shift-reduce parser reads the rightmost derivation backwards."
+        },
+        "limits": "The match is between trees and derivations of one fixed order. If a sentence has two parse trees, it has two leftmost derivations and two rightmost ones, so one sentence has several leftmost derivations only if it has several parse trees, which means the grammar is ambiguous. Leftmost and rightmost derivations of the same tree differ in order, so an unambiguous sentence can still have more than one derivation overall.",
+        "example": {
+          "problem": "Grammar: E → T + E | T and T → id. Write the leftmost and the rightmost derivation of id + id.",
+          "steps": [
+            "Both start with E ⇒ T + E, because the sentence contains a plus and E → T alone cannot produce it.",
+            "Leftmost: replace the leftmost nonterminal each time. E ⇒ T + E ⇒ id + E ⇒ id + T ⇒ id + id.",
+            "Rightmost: replace the rightmost nonterminal each time. E ⇒ T + E ⇒ T + T ⇒ T + id ⇒ id + id.",
+            "Each derivation has 4 steps and uses E → T + E once, E → T once and T → id twice."
+          ],
+          "result": "Both derivations take 4 steps and describe the same parse tree."
+        },
+        "misconceptions": [
+          "Leftmost and rightmost derivations are not different trees. They are two orders of visiting the same tree, so for an unambiguous sentence they always have the same length.",
+          "A bottom-up parser does not follow a leftmost derivation backwards. It follows a rightmost derivation backwards, which is why its reductions happen at the right end of what it has read.",
+          "A syntax analyser does not catch every error. In Integer x; the word Integer is a legal identifier in a legal declaration shape, so lexing and parsing succeed. Only the semantic phase finds that no such type exists."
+        ],
+        "recall": [
+          {
+            "q": "Which derivation order does an LR parser trace, and in which direction?",
+            "a": "The rightmost derivation, in reverse."
+          },
+          {
+            "q": "What is the difference between a sentential form and a sentence?",
+            "a": "A sentential form may still contain nonterminals; a sentence has only terminals."
+          },
+          {
+            "q": "Does the order of replacement change the parse tree?",
+            "a": "No. The tree records the rule used at each node, so leftmost and rightmost derivations of one tree share it."
+          },
+          {
+            "q": "Which phase reports a use of an undeclared type name: lexical, syntax or semantic?",
+            "a": "The semantic phase. Lexing and parsing see only a well-formed identifier in a well-formed position."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → ( S ) S | ε. How many derivation steps does a leftmost derivation of the sentence ( ) ( ) take, counting each rule application as one step?",
+          "answer": 5,
+          "explanation": "The sentence has a unique parse tree with two nodes using S → ( S ) S and three nodes using S → ε: one empty S inside each pair of brackets and one at the very end. Every derivation of a tree applies each of its rules once, so 2 + 3 = 5. Answering 2 tempts because only two bracket pairs are visible, but each empty S still needs its own step."
+        },
+        "summary": "A derivation replaces nonterminals one at a time; leftmost and rightmost orders give the same tree and the same number of steps. Top-down parsing mirrors the leftmost order and bottom-up parsing mirrors the rightmost order backwards."
+      }
+    },
+    {
+      "id": "cd-parsing.ambiguity",
+      "title": "Ambiguity and the dangling else",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        40,
+        443,
+        448
+      ],
+      "points": [
+        "A grammar is ambiguous when some sentence has two parse trees, equivalently two leftmost (or two rightmost) derivations.",
+        "E → E + E | id gives id + id + id two trees; with k operands the count is the Catalan number C(k−1), so four operands give 5 trees.",
+        "The dangling else, S → if E then S | if E then S else S | other, is ambiguous: an else can attach to either of two open ifs.",
+        "No ambiguous grammar is LL(k) or LR(k) for any k: its parsing table always has a conflict. Parser generators resolve the dangling-else shift-reduce conflict by shifting, which binds else to the nearest if.",
+        "Ambiguity is a property of the grammar; whether some unambiguous grammar exists for the same language is a separate question, and for inherently ambiguous languages none does."
+      ],
+      "keyTerms": [
+        "ambiguous grammar",
+        "dangling else",
+        "Catalan number"
+      ],
+      "lesson": {
+        "why": "GATE asks whether a grammar is ambiguous and how many trees a sentence has. Ambiguity also rules out LL and LR parsing, so it decides which parser can handle a grammar at all.",
+        "intro": "A grammar is ambiguous when one sentence can be built by two different parse trees. The trees matter because a compiler assigns meaning from the tree. If id + id + id can group as (id + id) + id or as id + (id + id), the compiler has no single answer for how to group the operands. Ambiguity belongs to the grammar and not to the language, so a better grammar for the same language may remove it.",
+        "prerequisites": [
+          "cd-parsing.parser-role-derivations"
+        ],
+        "definitions": [
+          {
+            "term": "Ambiguous grammar",
+            "meaning": "A grammar in which some sentence has two or more parse trees, or equivalently two leftmost derivations."
+          }
+        ],
+        "principle": {
+          "text": "To show ambiguity, find one sentence with two distinct parse trees. For E → E + E | id, a sentence with k operands has the Catalan number C(k−1) of trees, and no ambiguous grammar is LL(k) or LR(k) for any k. The dangling else, S → if E then S | if E then S else S | other, is ambiguous because in if E then if E then S else S the else can pair with either if. Parser generators shift, which binds it to the nearest if.",
+          "tex": "C_n=\\frac{1}{n+1}\\binom{2n}{n},\\quad \\text{trees}(k\\text{ operands}) = C_{k-1}"
+        },
+        "limits": "Failing to find two trees quickly does not prove a grammar is unambiguous; you need an argument that covers every sentence. And a grammar that is not ambiguous can still fail to be LL(1) because of left recursion or a common prefix.",
+        "example": {
+          "problem": "Grammar: E → E + E | id. Show that it is ambiguous, using the sentence id + id + id.",
+          "steps": [
+            "Tree 1: the root uses E → E + E, with the left E expanding as E + E and the right E as id. This groups the sentence as (id + id) + id.",
+            "Tree 2: the root uses E → E + E, with the left E as id and the right E expanding as E + E. This groups it as id + (id + id).",
+            "The two trees differ, so the sentence has two leftmost derivations, one for each tree."
+          ],
+          "result": "The sentence has 2 parse trees, so the grammar is ambiguous."
+        },
+        "misconceptions": [
+          "Two different derivations of the same tree do not show ambiguity. Compare leftmost derivations or trees, because a leftmost and a rightmost derivation of one tree look different but agree.",
+          "An unambiguous grammar is not automatically LL(1). Left recursion alone breaks LL(1) even when every sentence has one tree.",
+          "A grammar that looks like the standard dangling-else fix can stay ambiguous. If M → if E then M else S lets the else branch be an unmatched statement, the else can still pair with an outer if. The else branch of M must itself be matched: M → if E then M else M | other."
+        ],
+        "recall": [
+          {
+            "q": "What is the test for an ambiguous grammar?",
+            "a": "Some sentence has two distinct parse trees, or equivalently two distinct leftmost derivations."
+          },
+          {
+            "q": "How many parse trees does E → E + E | id give a sentence with 4 operands?",
+            "a": "C(3) = 5 trees."
+          },
+          {
+            "q": "Can an ambiguous grammar be LL(1) or LR(1)?",
+            "a": "No. Its parsing table always has a multiply defined cell."
+          },
+          {
+            "q": "How is the dangling else removed by rewriting the grammar?",
+            "a": "Split statements into matched M and the start symbol S, which covers every statement: M → if E then M else M | other, S → M | if E then S | if E then M else S. S ends through S → M. An else then always pairs with the nearest unmatched if."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: E → E + E | id. How many distinct parse trees does the sentence id + id + id + id + id have?",
+          "answer": 14,
+          "explanation": "Five operands give the Catalan number C(4) = 14, which a tree-counting program confirms. Answering 5 tempts because it is C(3), the count for four operands. Answering 24 tempts because 4! looks like the number of ways to order four operators, but only groupings differ, not their order."
+        },
+        "summary": "A grammar is ambiguous when a sentence has two parse trees. E → E + E | id gives Catalan-many trees, and an ambiguous grammar can never be LL(k) or LR(k)."
+      }
+    },
+    {
+      "id": "cd-parsing.left-recursion-factoring",
+      "title": "Eliminating left recursion and left factoring",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        39,
+        441
+      ],
+      "points": [
+        "Immediate left recursion A → Aα₁ | … | Aαₘ | β₁ | … | βₙ becomes A → β₁A' | … | βₙA' and A' → α₁A' | … | αₘA' | ε. The language is unchanged; the tree shape changes from left- to right-leaning.",
+        "When some βᵢ is ε, the rewrite still applies: A → Ac | ε becomes A → A' with A' → cA' | ε, so do not drop the bare A' alternative.",
+        "Indirect left recursion (A → Bα, B → Aβ) is removed by ordering the nonterminals, substituting earlier ones into later productions, then removing the immediate recursion that appears.",
+        "Left factoring rewrites A → αβ₁ | αβ₂ as A → αA', A' → β₁ | β₂, so a one-token lookahead can postpone the choice until after the common prefix α.",
+        "Neither transformation makes an ambiguous grammar unambiguous, so a factored, non-left-recursive grammar can still fail to be LL(1)."
+      ],
+      "keyTerms": [
+        "left recursion",
+        "left factoring",
+        "indirect left recursion"
+      ],
+      "lesson": {
+        "why": "A top-down parser loops forever on left recursion, so GATE asks you to rewrite a grammar into an equivalent one without it. You also need to recognise a correct rewrite among look-alike options.",
+        "intro": "A rule is left recursive when a nonterminal can begin its own expansion, as in A → A b. A top-down parser that predicts A from the input would predict A again without consuming a token and never stop. The fix is to rebuild the rule so that the non-recursive part comes first and the repeated part moves to a new nonterminal at the end. The language stays the same and only the shape of the tree changes.",
+        "prerequisites": [
+          "cd-parsing.parser-role-derivations"
+        ],
+        "principle": {
+          "text": "Replace the immediately left recursive rule with a version whose recursion sits on the right. Every alternative that does not start with A is followed by A', and A' collects the repeating tails and ends with ε. Left factoring is the separate step A → αβ₁ | αβ₂ ⟹ A → αA', A' → β₁ | β₂; a βᵢ may be ε. Apply it so one token of lookahead can pick the alternative.",
+          "tex": "A\\to A\\alpha_1\\mid\\cdots\\mid A\\alpha_m\\mid\\beta_1\\mid\\cdots\\mid\\beta_n\\ \\Longrightarrow\\ A\\to\\beta_iA',\\ \\ A'\\to\\alpha_jA'\\mid\\varepsilon"
+        },
+        "limits": "The rewrite handles immediate recursion only. Indirect recursion through several nonterminals needs ordering and substitution first. Neither this rewrite nor left factoring removes ambiguity, so the result may still not be LL(1).",
+        "example": {
+          "problem": "Remove the left recursion from A → A b | A c | d.",
+          "steps": [
+            "Identify the tails that follow a leading A: the α parts are b and c.",
+            "Identify the alternatives that do not start with A: the only β is d.",
+            "Write A → d A' and A' → b A' | c A' | ε.",
+            "Check by listing short sentences. Both grammars generate d, db, dc, dbb, dbc, dcb and so on.",
+            "Left factoring works the same way on a common prefix. For A → a b | a c, pull out a: A → a A' and A' → b | c. A one-token lookahead now picks the rule at A without seeing past a."
+          ],
+          "result": "A → d A' with A' → b A' | c A' | ε. A script comparing both grammars on all sentences up to 5 tokens found the same 31 strings."
+        },
+        "misconceptions": [
+          "Putting the new nonterminal first, as in S' → S' a, is still left recursive, because S' begins with S'. The repeated part must come after the non-recursive part.",
+          "The new nonterminal A' must keep an ε alternative. Without it A' can never finish expanding, so the grammar would generate no sentence at all."
+        ],
+        "recall": [
+          {
+            "q": "Why can a top-down parser not handle A → A a?",
+            "a": "It predicts A again without consuming input, so it recurses forever."
+          },
+          {
+            "q": "What is the left recursion rewrite for A → A α | β?",
+            "a": "A → β A' and A' → α A' | ε."
+          },
+          {
+            "q": "What does left factoring do to A → αβ₁ | αβ₂?",
+            "a": "It writes A → α A' and A' → β₁ | β₂, so the choice is delayed until after the common prefix."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which grammar is equivalent to S → S a | b and is not left recursive?",
+          "options": [
+            "S → b S' and S' → a S' | ε",
+            "S → b S' and S' → S' a | ε",
+            "S → a S' | b and S' → a S' | ε",
+            "S → S' b and S' → a S' | ε"
+          ],
+          "answer": 0,
+          "explanation": "The language is b followed by any number of a. Option 0 puts b first and puts the repeating a on the right. Option 1 generates the same language but S' → S' a is still left recursive, which is why it tempts. Options 2 and 3 generate a different language: option 2 can also produce a, and option 3 puts the a's before the b."
+        },
+        "summary": "Move the non-recursive alternatives first and the repeating tails into a new right-recursive nonterminal that ends in ε. The language is unchanged, and ambiguity is not fixed."
+      }
+    },
+    {
+      "id": "cd-parsing.first-sets",
+      "title": "Computing FIRST sets",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        447
+      ],
+      "points": [
+        "FIRST(α) is the set of terminals that begin strings derived from α, plus ε when α ⇒* ε.",
+        "FIRST(a) = {a} for a terminal and FIRST(ε) = {ε}. For X → Y₁Y₂…Yₖ add FIRST(Y₁) − {ε}; only if Y₁ is nullable continue to Y₂, and so on.",
+        "ε enters FIRST(X) only when every Yᵢ of some production of X is nullable, or X has an ε-production.",
+        "Compute by iteration: start with empty sets and sweep all productions until nothing changes. Mutually recursive nonterminals converge because sets only grow."
+      ],
+      "keyTerms": [
+        "FIRST set",
+        "nullable"
+      ],
+      "lesson": {
+        "why": "FIRST sets feed every table-driven parser, and GATE asks for them directly, usually on a grammar where some nonterminals can vanish into nothing.",
+        "intro": "Look at a nonterminal and ask which terminals can appear as the very first symbol of a string it produces. That collection is its FIRST set. The wrinkle is a nonterminal that can produce the empty string, written ε. Such a nonterminal is called nullable, and because it can disappear, whatever stands after it also gets a chance to be first.",
+        "prerequisites": [
+          "cd-parsing.parser-role-derivations"
+        ],
+        "definitions": [
+          {
+            "term": "Nullable",
+            "meaning": "A symbol that can derive the empty string ε, either directly or through symbols that are all nullable."
+          },
+          {
+            "term": "FIRST(α)",
+            "meaning": "The set of terminals that can begin a string derived from α, with ε included when α itself can derive ε."
+          }
+        ],
+        "principle": {
+          "text": "Scan a right-hand side from the left. Add the FIRST set of each symbol without ε, and move on to the next symbol only while the current one is nullable. Repeat over all productions until no set grows.",
+          "tex": "\\mathrm{FIRST}(X_1X_2\\cdots X_k)=\\bigcup_{i\\le j}\\bigl(\\mathrm{FIRST}(X_i)-\\{\\varepsilon\\}\\bigr),\\quad j=\\text{first non-nullable }X_j"
+        },
+        "limits": "FIRST says nothing about what comes after a nonterminal; that is FOLLOW. A recursive grammar needs several sweeps, because one nonterminal's set may depend on another that has not been filled in yet.",
+        "example": {
+          "problem": "Grammar: S → A B c, A → a | ε, B → b | ε. Find FIRST(S).",
+          "steps": [
+            "A has an ε-production and B has one, so both are nullable. FIRST(A) = {a} and FIRST(B) = {b}.",
+            "For S → A B c, start with FIRST(A) − {ε} = {a}. A is nullable, so move on to B and add {b}.",
+            "B is nullable too, so move on to c, which is a terminal and adds {c}. Scanning stops there."
+          ],
+          "result": "FIRST(S) = {a, b, c}; ε is absent because c is not nullable."
+        },
+        "misconceptions": [
+          "Stopping at the first symbol of the right-hand side even when it is nullable loses the terminals of the symbols behind it.",
+          "FIRST of a nonterminal is not the set of its right-hand-side symbols; only terminals belong, found by expanding nonterminals.",
+          "Putting ε into FIRST(S) just because some symbol on its right-hand side is nullable; ε needs every symbol to be nullable."
+        ],
+        "recall": [
+          {
+            "q": "When does the scan of a right-hand side move past a symbol?",
+            "a": "Only when that symbol is nullable, that is, ε is in its FIRST set."
+          },
+          {
+            "q": "When is ε in FIRST of a whole production body?",
+            "a": "Only when every symbol of the body is nullable."
+          },
+          {
+            "q": "Why can a FIRST computation need more than one sweep?",
+            "a": "A set may depend on another nonterminal's set that is still being filled, so sweeps repeat until nothing changes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → A B, A → x A | ε, B → y | A z. How many terminals are in FIRST(S)?",
+          "answer": 3,
+          "explanation": "A is nullable with FIRST(A) = {x}. B → y gives y, and B → A z gives x, then z because A is nullable, so FIRST(B) = {x, y, z}. S → A B takes {x} from A and, A being nullable, adds FIRST(B), giving {x, y, z}. Counting only x and y tempts, but z reaches the front when A vanishes. S is not nullable, so there is no ε."
+        },
+        "summary": "FIRST(α) collects the terminals that can start strings from α. Scan left to right, add each symbol's FIRST without ε, continue only past nullable symbols, and sweep until stable."
+      }
+    },
+    {
+      "id": "cd-parsing.follow-sets",
+      "title": "Computing FOLLOW sets",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        449
+      ],
+      "points": [
+        "FOLLOW(A) is the set of terminals that can appear immediately to the right of A in some sentential form, plus the end marker \\$ when A can end one.",
+        "Put \\$ in FOLLOW(S) for the start symbol S. For every B → αAβ add FIRST(β) − {ε} to FOLLOW(A).",
+        "If β = ε or β ⇒* ε, also add FOLLOW(B) to FOLLOW(A). This rule propagates through chains of nullable symbols to the right of A.",
+        "FOLLOW never contains ε. For the augmented start S' → S, FOLLOW(S') = {\\$}.",
+        "Two nonterminals that each end a production of the other (C → cS and S → ABC) have equal FOLLOW sets, so iterate to a fixed point rather than computing each set once."
+      ],
+      "keyTerms": [
+        "FOLLOW set",
+        "end marker"
+      ],
+      "lesson": {
+        "why": "FOLLOW sets fill the ε entries of an LL(1) table and the reduce entries of an SLR table, and GATE asks for them directly. A missed end marker or a missed nullable step costs the whole question.",
+        "intro": "FOLLOW(A) is the set of tokens that can appear immediately after A in some valid sentence form. If A sits at the very end of a derivation from the start symbol, the end-of-input marker \\$ counts too. You compute it by looking at every place A appears on the right side of a rule and asking what can come next. When nothing nullable can be skipped, what comes next is a token. When the rest of the rule can vanish, whatever follows the rule's own left side can follow A as well.",
+        "prerequisites": [
+          "cd-parsing.first-sets"
+        ],
+        "definitions": [
+          {
+            "term": "Nullable",
+            "meaning": "A symbol that can derive the empty string ε."
+          },
+          {
+            "term": "FIRST",
+            "meaning": "FIRST(X) is the set of terminals that can begin a string derived from X, plus ε when X can derive the empty string. A rule A → ε puts ε in FIRST(A), and never in FOLLOW(A)."
+          }
+        ],
+        "principle": {
+          "text": "Put \\$ in FOLLOW of the start symbol. For each rule B → αAβ add FIRST(β) without ε to FOLLOW(A). If β is empty or nullable, add FOLLOW(B) to FOLLOW(A). Repeat until nothing changes.",
+          "tex": "B\\to\\alpha A\\beta:\\quad \\mathrm{FOLLOW}(A)\\supseteq \\mathrm{FIRST}(\\beta)\\setminus\\{\\varepsilon\\};\\ \\ \\varepsilon\\in\\mathrm{FIRST}(\\beta)\\Rightarrow \\mathrm{FOLLOW}(A)\\supseteq\\mathrm{FOLLOW}(B)"
+        },
+        "limits": "FOLLOW never contains ε, and it is computed for nonterminals only. When two nonterminals depend on each other, one pass is not enough and you must iterate to a fixed point.",
+        "example": {
+          "problem": "Grammar: S → A B c, A → a | ε, B → b | ε. Find FOLLOW(A) and FOLLOW(B).",
+          "steps": [
+            "In S → A B c, the part after A is B c. FIRST(B c) is {b, c}, because B may vanish and then c shows.",
+            "B c is not nullable, since c cannot disappear, so nothing from FOLLOW(S) is added to FOLLOW(A). FOLLOW(A) = {b, c}.",
+            "After B comes only c, so FOLLOW(B) = {c}.",
+            "A and B appear nowhere else, so no more rules apply."
+          ],
+          "result": "FOLLOW(A) = {b, c} and FOLLOW(B) = {c}; a script confirmed both."
+        },
+        "misconceptions": [
+          "FOLLOW(A) is not FIRST(A). FIRST looks at what A starts with, while FOLLOW looks at what comes after A.",
+          "Seeing A → ε does not put ε or anything else in FOLLOW(A). FOLLOW only collects what appears after A in other rules."
+        ],
+        "recall": [
+          {
+            "q": "What goes into FOLLOW of the start symbol?",
+            "a": "The end marker \\$, in addition to anything the rules add."
+          },
+          {
+            "q": "When does FOLLOW(B) flow into FOLLOW(A) for a rule B → αAβ?",
+            "a": "When β is empty or can derive ε."
+          },
+          {
+            "q": "Can ε be in a FOLLOW set?",
+            "a": "No. Only terminals and \\$ appear."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → A B C, A → a, B → b | ε, C → c | ε. How many elements does FOLLOW(A) have?",
+          "answer": 3,
+          "explanation": "After A comes B C. FIRST(B C) without ε is {b, c}. B C is nullable, since both can vanish, so FOLLOW(S) = {\\$} is added too. FOLLOW(A) = {b, c, \\$}, which has 3 elements. Answering 2 tempts because it forgets the nullable step that brings in \\$."
+        },
+        "summary": "For B → αAβ, FOLLOW(A) gets FIRST(β) minus ε, and also FOLLOW(B) if β can vanish. The start symbol gets \\$, and mutually dependent sets need iteration."
+      }
+    },
+    {
+      "id": "cd-parsing.recursive-descent",
+      "title": "Recursive descent and predictive parsing",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        39,
+        441,
+        442
+      ],
+      "points": [
+        "A recursive-descent parser has one procedure per nonterminal; each procedure picks a production and calls procedures for its nonterminals and matches its terminals.",
+        "With backtracking it tries alternatives in turn and rewinds the input on failure, which can take exponential time.",
+        "When one token of lookahead always decides the production, no backtracking is needed and the parser is predictive; this works exactly when the grammar is LL(1).",
+        "A left-recursive production A → Aα makes procedure A call itself before consuming input, so the parser loops forever."
+      ],
+      "keyTerms": [
+        "recursive descent",
+        "backtracking",
+        "predictive parser"
+      ],
+      "lesson": {
+        "why": "Recursive descent is the code form of top-down parsing, and it explains why left recursion and common prefixes must be removed before a grammar can be parsed predictively.",
+        "intro": "A recursive-descent parser is a program with one procedure for every nonterminal. A procedure for A decides which production of A to use, then walks along its right-hand side: a terminal is matched against the next input token, and a nonterminal is handled by calling its own procedure. The program stack of calls mirrors the parse tree being built from the top down.",
+        "prerequisites": [
+          "cd-parsing.left-recursion-factoring"
+        ],
+        "analogy": {
+          "text": "A recipe whose steps may say 'now make the sauce, following the sauce recipe': each procedure is one recipe, and calling another is looking up the sub-recipe.",
+          "breaksWhen": "A recipe book can be read in any order, while a parser must read the input tokens strictly left to right and cannot look back unless it backtracks."
+        },
+        "definitions": [
+          {
+            "term": "Backtracking",
+            "meaning": "Trying one production, and on failure rewinding the input to try the next one."
+          },
+          {
+            "term": "Predictive parser",
+            "meaning": "A recursive-descent parser that picks the production from the next token alone, with no backtracking."
+          }
+        ],
+        "principle": {
+          "text": "A procedure can choose a production without trial only if one lookahead token always decides it, which is the LL(1) property. Otherwise it must backtrack, which may cost exponential time."
+        },
+        "limits": "A left-recursive production A → Aα makes procedure A call itself before reading any token, so the program never stops. The grammar must be made free of left recursion and common prefixes first.",
+        "example": {
+          "problem": "Grammar: S → a S b | c. Count the calls of procedure S when parsing the input a a c b b.",
+          "steps": [
+            "The first call sees a, picks S → a S b, matches a and calls S again.",
+            "The second call sees a, matches it and calls S a third time.",
+            "The third call sees c, picks S → c, matches it and returns; the two outer calls then match b and b."
+          ],
+          "result": "Procedure S is called 3 times, one for each tree node labelled S."
+        },
+        "misconceptions": [
+          "Predictive parsing is not a different algorithm from recursive descent; it is recursive descent that never needs to backtrack.",
+          "Backtracking is not needed for every grammar; for an LL(1) grammar the next token always selects the right production.",
+          "A left-recursive grammar does not merely run slowly; the procedures recurse without consuming input and never terminate."
+        ],
+        "recall": [
+          {
+            "q": "What does one procedure of a recursive-descent parser correspond to?",
+            "a": "One nonterminal of the grammar."
+          },
+          {
+            "q": "Why does A → Aα make a recursive-descent parser loop?",
+            "a": "Procedure A calls itself first, before any token is consumed."
+          },
+          {
+            "q": "When can recursive descent run without backtracking?",
+            "a": "When one lookahead token always decides the production, that is, when the grammar is LL(1)."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → a S b | c. A recursive-descent parser reads a a a a c b b b b. How many times is procedure S called?",
+          "answer": 5,
+          "explanation": "Each leading a triggers one call that matches a and calls S again, so four a symbols give four calls. The fifth call sees c and returns. Answering 4 tempts because only four a symbols are visible, but the call that handles c is also a call of S."
+        },
+        "summary": "Recursive descent writes one procedure per nonterminal. It needs no backtracking exactly when one lookahead token decides every choice, and it cannot handle left recursion."
+      }
+    },
+    {
+      "id": "cd-parsing.ll1-table",
+      "title": "LL(1) parsing table and the LL(1) condition",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        443,
+        447
+      ],
+      "points": [
+        "LL(1) means a left-to-right scan, a leftmost derivation and one token of lookahead. The parser keeps a stack of grammar symbols and a table M[A, a].",
+        "For each A → α put the production in M[A, a] for every terminal a in FIRST(α); if ε ∈ FIRST(α), also put it in M[A, b] for every b in FOLLOW(A), including \\$.",
+        "The grammar is LL(1) exactly when no cell holds two productions. Without building the table: for any two alternatives A → α | β, FIRST(α) and FIRST(β) are disjoint, at most one is nullable, and if β ⇒* ε then FIRST(α) ∩ FOLLOW(A) = ∅.",
+        "Left recursion, a common prefix, or ambiguity each force a multiply-defined cell. Blank cells are syntax errors.",
+        "Some context-free languages, and even some deterministic ones, have no LL(1) grammar at all."
+      ],
+      "keyTerms": [
+        "LL(1)",
+        "parsing table",
+        "FIRST/FOLLOW conflict"
+      ],
+      "lesson": {
+        "why": "Every LL(1) question is either 'fill in this table cell' or 'is this grammar LL(1)'. Both reduce to FIRST and FOLLOW applied to each rule.",
+        "intro": "An LL(1) parser reads the input left to right with one token of lookahead, using a table. Each row is a nonterminal and each column is a token. The cell tells the parser which rule to use when that nonterminal is on top of the stack and that token is next. If every cell holds at most one rule, the parser never has to guess, and the grammar is called LL(1). A cell with two rules means the grammar is not LL(1).",
+        "prerequisites": [
+          "cd-parsing.first-sets",
+          "cd-parsing.follow-sets"
+        ],
+        "definitions": [
+          {
+            "term": "FIRST",
+            "meaning": "FIRST(X) is the set of terminals that can begin a string derived from X, plus ε when X can derive the empty string."
+          },
+          {
+            "term": "FOLLOW",
+            "meaning": "FOLLOW(A) is the set of terminals that can appear immediately after A in some sentential form, plus \\$ when A can end one."
+          }
+        ],
+        "principle": {
+          "text": "For each rule A → α, put it in M[A, a] for every a in FIRST(α). If α can derive ε, also put it in M[A, b] for every b in FOLLOW(A), including \\$. The grammar is LL(1) exactly when no cell receives two rules.",
+          "tex": "M[A,a]\\ni (A\\to\\alpha)\\iff a\\in\\mathrm{FIRST}(\\alpha)\\ \\text{or}\\ (\\varepsilon\\in\\mathrm{FIRST}(\\alpha)\\wedge a\\in\\mathrm{FOLLOW}(A))"
+        },
+        "limits": "A blank cell is a syntax error, not an unfilled gap. Left recursion, a common prefix and ambiguity each cause a doubly filled cell, but a grammar free of all three can still fail when FIRST and FOLLOW collide on an ε rule.",
+        "example": {
+          "problem": "Build the LL(1) table for S → a S b | ε and decide whether the grammar is LL(1).",
+          "steps": [
+            "FIRST(a S b) = {a}, so S → a S b goes in M[S, a].",
+            "The rule S → ε is nullable. FOLLOW(S) = {b, \\$}, because S is followed by b inside the first rule and the start symbol gets \\$.",
+            "Put S → ε in M[S, b] and M[S, \\$].",
+            "Each cell holds one rule: M[S, a] has S → a S b, and the other two cells have S → ε."
+          ],
+          "result": "No cell has two rules, so the grammar is LL(1)."
+        },
+        "misconceptions": [
+          "The rule A → ε has no FIRST token, so it goes only under the tokens in FOLLOW(A). A longer nullable right side, such as A → B C with B and C both nullable, goes under its FIRST tokens and also under FOLLOW(A).",
+          "Being left factored does not make a grammar LL(1). An ε alternative whose FOLLOW overlaps another alternative's FIRST still collides."
+        ],
+        "recall": [
+          {
+            "q": "Where is A → α placed when α can derive ε?",
+            "a": "In M[A, b] for every b in FIRST(α) without ε and every b in FOLLOW(A)."
+          },
+          {
+            "q": "What does a blank cell mean during parsing?",
+            "a": "A syntax error."
+          },
+          {
+            "q": "Which three defects always make a grammar not LL(1)?",
+            "a": "Left recursion, a common prefix between alternatives, and ambiguity."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which grammar, with start symbol S, is LL(1)?",
+          "options": [
+            "S → a S | a",
+            "S → S a | b",
+            "S → a S b | c",
+            "S → A | B, A → a, B → a"
+          ],
+          "answer": 2,
+          "explanation": "S → a S b | c starts its two alternatives with different tokens, a and c, so no cell holds two rules. S → a S | a shares the prefix a, which tempts because it looks harmless. S → S a | b is left recursive. In the last grammar both alternatives lead to a, so M[S, a] gets two rules."
+        },
+        "summary": "Fill M[A, a] from FIRST of each rule, and add nullable rules under FOLLOW. A grammar is LL(1) exactly when no cell holds two rules, and blank cells are errors."
+      }
+    },
+    {
+      "id": "cd-parsing.shift-reduce-handles",
+      "title": "Shift-reduce parsing and handles",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        40,
+        443
+      ],
+      "points": [
+        "A shift-reduce parser holds a stack and the remaining input. Shift pushes the next token; reduce pops a right-hand side from the top and pushes its left-hand nonterminal; accept happens when the stack holds the start symbol and the input is at \\$.",
+        "A handle is a right-hand side occurrence whose reduction is the previous step of the rightmost derivation. In a shift-reduce parser the handle always appears on top of the stack, never buried.",
+        "The number of reduce moves equals the number of interior nodes of the parse tree: for id + id * id with E → E + T | T, T → T * F | F, F → id there are 8 reductions and 5 shifts.",
+        "A shift-reduce conflict means the parser cannot decide between shifting and reducing; a reduce-reduce conflict means two different reductions are possible on the same lookahead."
+      ],
+      "keyTerms": [
+        "handle",
+        "shift",
+        "reduce",
+        "accept"
+      ],
+      "lesson": {
+        "why": "Bottom-up parsing questions ask you to count moves, name the derivation an LR parser uses, or spot the handle. All three come from how shift-reduce works.",
+        "intro": "A shift-reduce parser reads tokens one at a time onto a stack. When the top of the stack matches the right side of a rule, it may replace that part with the rule's left side, which is called a reduce. When it cannot reduce, it shifts the next token. It accepts when the stack holds just the start symbol and the input is used up. The part it chooses to reduce is called the handle, and the parser can always find it at the top of the stack.",
+        "prerequisites": [
+          "cd-parsing.parser-role-derivations"
+        ],
+        "definitions": [
+          {
+            "term": "Handle",
+            "meaning": "The right side occurrence whose reduction undoes the last step of a rightmost derivation."
+          }
+        ],
+        "principle": {
+          "text": "The reductions of a shift-reduce parse, read from the last to the first, form a rightmost derivation. Every token is shifted exactly once, and the number of reductions equals the number of interior nodes of the parse tree."
+        },
+        "limits": "This counting assumes a conflict-free parse of an unambiguous sentence. A shift-reduce or reduce-reduce conflict means the parser cannot tell which move is right, and then the count is not determined by the grammar alone.",
+        "example": {
+          "problem": "Grammar: E → E + n | n. Count the shifts and reductions when parsing n + n + n.",
+          "steps": [
+            "The input has 5 tokens, and each is shifted once, giving 5 shifts.",
+            "The first n is reduced to E: 1 reduction.",
+            "After shifting + and n, the top E + n reduces to E. After the next + and n, E + n reduces to E again: 2 more reductions.",
+            "Check with the tree: the tree has 3 interior nodes, one E per reduction."
+          ],
+          "result": "5 shifts and 3 reductions, found by simulating the parse and by counting tree nodes."
+        },
+        "misconceptions": [
+          "A handle is not any right side visible on the stack. It is the one whose reduction is the correct reverse step, and a matching right side lower down must be left alone.",
+          "An LR parser does not trace a leftmost derivation. It reverses a rightmost derivation."
+        ],
+        "recall": [
+          {
+            "q": "Where is the handle found in a shift-reduce parser?",
+            "a": "At the top of the stack, never buried."
+          },
+          {
+            "q": "How many shifts does a parse of an input with n tokens perform?",
+            "a": "Exactly n, one per token."
+          },
+          {
+            "q": "What does a shift-reduce conflict mean?",
+            "a": "The parser cannot decide between shifting the next token and reducing the top of the stack."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → ( S ) | x. A bottom-up parser accepts the input ( ( ( x ) ) ). Counting every shift and every reduce, how many moves does it make before accepting? Do not count the accept action.",
+          "answer": 11,
+          "explanation": "The input has 7 tokens, so there are 7 shifts. The tree has 4 interior nodes: one S → x and three S → ( S ), so there are 4 reductions. 7 + 4 = 11. Answering 4 tempts because it counts only reductions, and answering 7 counts only shifts."
+        },
+        "summary": "Reductions reverse a rightmost derivation. Each token is shifted once, each interior tree node is one reduction, and the handle always sits on top of the stack."
+      }
+    },
+    {
+      "id": "cd-parsing.lr0-items-automaton",
+      "title": "LR(0) items, closure, goto and the canonical collection",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        443,
+        444,
+        448
+      ],
+      "points": [
+        "An LR(0) item is a production with a dot marking how much of the right-hand side is on the stack: A → X·YZ. A production with k right-hand symbols yields k + 1 items; A → ε yields only A → ·.",
+        "Augment the grammar with S' → S so acceptance is a single, recognisable reduction.",
+        "closure(I): for every item A → α·Bβ in I, add B → ·γ for every production of B, and repeat. goto(I, X) moves the dot over X in every item of I that has X after the dot, then takes the closure.",
+        "The states are closure({S' → ·S}) and everything reachable by goto. The expression grammar E → E + T | T, T → T * F | F, F → (E) | id has 12 LR(0) states.",
+        "The grammar is LR(0) when no state contains a complete item together with another complete item or with an item that shifts a terminal. In LR(0) a complete item reduces on every lookahead."
+      ],
+      "keyTerms": [
+        "LR(0) item",
+        "closure",
+        "goto",
+        "canonical collection",
+        "augmented grammar"
+      ],
+      "lesson": {
+        "why": "Counting the items in a closure or goto set, the states of the automaton and the conflicts in an LR(0) table are direct GATE questions. Each is mechanical once you apply the dot rules without skipping a step.",
+        "intro": "An LR parser reads the input left to right and keeps a stack of what it has recognised so far. At every moment it must know how far along each rule it is. An item records that: it is a rule with a dot, and A → x·y means x has been seen and y is still expected. Several rules can be in progress at once, so a parser state is a set of items. Closure grows a set: if the dot sits before a nonterminal B, any rule of B may begin at this point, so every B → ·γ joins the set, and the new items may expose further nonterminals. Goto moves on: to take symbol X, shift the dot over X in every item that expects X, then close the result.",
+        "prerequisites": [
+          "cd-parsing.shift-reduce-handles"
+        ],
+        "definitions": [
+          {
+            "term": "Augmented grammar",
+            "meaning": "The grammar plus a new rule S' → S, so the parser has exactly one item that means accept."
+          },
+          {
+            "term": "Kernel items",
+            "meaning": "The items a goto step produces before closure, plus S' → ·S in the first state; closure adds the rest."
+          }
+        ],
+        "principle": {
+          "text": "closure(I) adds B → ·γ for every item A → α·Bβ in I and repeats until nothing new appears. goto(I, X) is the closure of all items A → αX·β obtained from items A → α·Xβ in I. States are closure({S' → ·S}) and everything reachable by goto.",
+          "tex": "\\mathrm{goto}(I,X)=\\mathrm{closure}\\bigl(\\{A\\to\\alpha X\\cdot\\beta \\mid A\\to\\alpha\\cdot X\\beta\\in I\\}\\bigr)"
+        },
+        "limits": "Items say where the parser is, not what token follows. LR(0) reduces a complete item on every terminal, so a state that holds a complete item beside any other item that shifts a terminal, or beside another complete item, is a conflict. A rule with k symbols gives k + 1 items, but A → ε gives only A → ·.",
+        "example": {
+          "problem": "Grammar S' → S, S → ( S ) | x. Let I0 = closure({S' → ·S}). Find goto(I0, ( ) and count its items.",
+          "steps": [
+            "Close S' → ·S: the dot is before S, so add S → ·(S) and S → ·x. I0 has 3 items.",
+            "Only S → ·(S) expects the symbol (. Move the dot: S → (·S). This is the kernel.",
+            "The dot is now before S, so closure adds S → ·(S) and S → ·x.",
+            "Nothing else starts with a nonterminal after the dot, so the set is done: S → (·S), S → ·(S), S → ·x."
+          ],
+          "result": "3 items. Taking ( again from this set gives the same set, so the automaton loops."
+        },
+        "misconceptions": [
+          "Counting only the kernel after a goto. The closure items belong to the set and are counted.",
+          "Forgetting that a nullable rule still yields an item. A → ε gives A → ·, a complete item that reduces at once and clashes with any shift in the same state.",
+          "Believing LR(0) looks at the next token to choose a reduction. It does not; a complete item reduces on every terminal, which is why conflicts appear so easily."
+        ],
+        "recall": [
+          {
+            "q": "When does closure add items to a set?",
+            "a": "Whenever an item has the dot directly before a nonterminal B, it adds B → ·γ for every rule of B, and repeats."
+          },
+          {
+            "q": "How many items does a rule with k right-hand symbols give, and what about A → ε?",
+            "a": "k + 1 items. A → ε gives just A → ·."
+          },
+          {
+            "q": "Why is the grammar augmented with S' → S?",
+            "a": "It gives one unique complete item, S' → S·, so the parser knows exactly when to accept."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Augmented grammar: S' → S, S → T + S | T, T → n | ( S ), with terminals +, n, ( and ). Let I0 = closure({S' → ·S}). How many items does goto(I0, ( ) contain?",
+          "answer": 5,
+          "explanation": "Only T → ·(S) in I0 expects the symbol (. Moving the dot gives T → (·S). The dot is before S, so closure adds S → ·T + S and S → ·T. Both put the dot before T, so closure adds T → ·n and T → ·(S). The set is T → (·S), S → ·T + S, S → ·T, T → ·n, T → ·(S): 5 items. Answering 1 tempts if you stop after the dot move and skip closure."
+        },
+        "summary": "An item is a rule with a dot. Closure adds B → ·γ wherever the dot precedes B, and goto moves the dot over a symbol and closes. Count every item in the finished set, not only the kernel."
+      }
+    },
+    {
+      "id": "cd-parsing.slr1",
+      "title": "SLR(1) parsing",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        444,
+        448
+      ],
+      "points": [
+        "SLR(1) uses the LR(0) automaton but reduces by A → α· only on terminals in FOLLOW(A), so it has exactly as many states as LR(0).",
+        "Shift-reduce conflict: a state has A → α·aβ and B → γ· with a ∈ FOLLOW(B). Reduce-reduce conflict: two complete items whose left sides have overlapping FOLLOW sets.",
+        "The expression grammar has two LR(0) shift-reduce conflicts (E → T· with T → T·*F, and E → E + T· with T → T·*F); SLR removes both because * ∉ FOLLOW(E) = {+, ), \\$}.",
+        "FOLLOW is a global over-approximation of what can follow A anywhere, which is why S → L = R | R, L → *R | id, R → L fails SLR: = ∈ FOLLOW(R) clashes with shifting = after L."
+      ],
+      "keyTerms": [
+        "SLR(1)",
+        "FOLLOW-based reduce"
+      ],
+      "lesson": {
+        "why": "SLR(1) is the simplest bottom-up parser that handles realistic grammars, and GATE asks which grammars it accepts and where conflicts remain.",
+        "intro": "An LR(0) parser has a table with states. A state that holds a finished production A → α· may reduce by it, but plain LR(0) reduces on every possible next token, even those that could never follow A. That causes conflicts with shifts. SLR(1) tightens this: it reduces by A → α only when the next token is in FOLLOW(A), the set of terminals that can come right after A in any sentential form.",
+        "prerequisites": [
+          "cd-parsing.lr0-items-automaton",
+          "cd-parsing.follow-sets"
+        ],
+        "definitions": [
+          {
+            "term": "Shift-reduce conflict",
+            "meaning": "A state where the parser could either shift the next token or reduce, on the same token."
+          },
+          {
+            "term": "Reduce-reduce conflict",
+            "meaning": "A state where two different finished productions could both be reduced on the same token."
+          }
+        ],
+        "principle": {
+          "text": "Use the LR(0) automaton unchanged. For each complete item A → α· in state i, place a reduce action only under the terminals of FOLLOW(A). The grammar is SLR(1) when no table cell then receives two actions.",
+          "tex": "A\\to\\alpha\\cdot\\in I_i\\implies \\mathrm{ACTION}[i,a]=\\text{reduce }A\\to\\alpha\\ \\ \\text{for } a\\in\\mathrm{FOLLOW}(A)"
+        },
+        "limits": "FOLLOW(A) is global, gathered from everywhere A appears, so it can include tokens that cannot follow A in the particular state. A grammar can fail SLR(1) while canonical LR(1), which tracks context, accepts it. SLR(1) has as many states as LR(0).",
+        "example": {
+          "problem": "Grammar: S → a S | a. Show that state {S → a·S, S → a·, S → ·a S, S → ·a} has a conflict in LR(0) but not in SLR(1).",
+          "steps": [
+            "The item S → a· is complete, so LR(0) reduces on every token, while S → a·S wants to shift a. On a that is a shift-reduce conflict.",
+            "Compute FOLLOW(S). S ends the start production, so \\$ is in it, and S is the last symbol of S → a S, which adds only FOLLOW(S) itself. So FOLLOW(S) = {\\$}.",
+            "SLR reduces S → a only on \\$ and shifts on a. The two actions sit in different columns."
+          ],
+          "result": "The grammar is SLR(1): reduce on \\$, shift on a, no conflict."
+        },
+        "misconceptions": [
+          "SLR(1) does not add states or lookahead to items; it uses the LR(0) automaton and consults FOLLOW only when filling reduce entries.",
+          "Having a complete item and a shift in one state is not automatically a conflict in SLR(1); it is one only when the shifted terminal lies in FOLLOW of the reduced nonterminal.",
+          "A conflict in SLR(1) does not prove the grammar is not LR; a stronger parser may still accept it."
+        ],
+        "recall": [
+          {
+            "q": "Where does an SLR(1) parser place the reduce action for A → α·?",
+            "a": "Under every terminal in FOLLOW(A), and nowhere else."
+          },
+          {
+            "q": "How does the state count of SLR(1) compare with LR(0)?",
+            "a": "They are equal, since SLR(1) uses the LR(0) automaton."
+          },
+          {
+            "q": "Why can SLR(1) still report a conflict that a larger parser avoids?",
+            "a": "FOLLOW(A) ignores context, so it may contain tokens that cannot follow A in that state."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Grammar: E → T + E | T, T → id. The LR(0) state {E → T·+E, E → T·} is reached. What does an SLR(1) parser do on the lookahead +?",
+          "options": [
+            "Reduce by E → T",
+            "Shift +",
+            "Report a shift-reduce conflict",
+            "Accept"
+          ],
+          "answer": 1,
+          "explanation": "FOLLOW(E) = {\\$}, because E is only the last symbol of its own production and the end of the start production. So E → T is reduced only on \\$, and + is free to be shifted. LR(0) would reduce on + as well, which is why the conflict option tempts: it is true for LR(0) and false for SLR(1)."
+        },
+        "summary": "SLR(1) keeps the LR(0) automaton and limits each reduce to the terminals in FOLLOW of the reduced nonterminal. This removes many LR(0) conflicts, but FOLLOW is context-free and can still cause some."
+      }
+    },
+    {
+      "id": "cd-parsing.lr1-lalr",
+      "title": "Canonical LR(1) and LALR(1)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        444,
+        446,
+        447
+      ],
+      "points": [
+        "An LR(1) item [A → α·β, a] carries one lookahead terminal; a complete item [A → α·, a] reduces only on a.",
+        "closure adds [B → ·γ, b] for every b ∈ FIRST(βa) when [A → α·Bβ, a] is in the set. The start state is closure({[S' → ·S, \\$]}).",
+        "Canonical LR(1) is the most powerful of the four, but items that differ only in lookahead split states: S → AA, A → aA | b has 10 LR(1) states against 7 LR(0) states.",
+        "LALR(1) merges LR(1) states with the same core (the same LR(0) items) and unions their lookaheads, giving the LR(0) state count. Yacc and Bison generate LALR(1) parsers.",
+        "Merging never creates a shift-reduce conflict (the shift items and their cores were already together in one LR(1) state), but it can create a reduce-reduce conflict, as in S → aAd | bBd | aBe | bAe, A → c, B → c."
+      ],
+      "keyTerms": [
+        "LR(1) item",
+        "lookahead",
+        "core",
+        "LALR(1)",
+        "Yacc/Bison"
+      ],
+      "lesson": {
+        "why": "GATE asks for state counts of LR(1) against LALR(1), and whether a grammar is LALR(1) or only canonical LR(1). Both come from one idea, which is how states are merged.",
+        "intro": "An LR(1) item is an LR(0) item with one extra terminal, the lookahead: [A → α·, a] means that once the rule is complete, reduce it only if the next token is a. That makes reductions precise, but the same LR(0) item can appear with different lookaheads in different places, and canonical LR(1) keeps those as separate states, so it has many states. LALR(1) merges states whose LR(0) items are identical, called having the same core, and takes the union of their lookaheads. This brings the state count back down to the LR(0) count. The price is that two reductions that were kept apart by their lookaheads may now share one.",
+        "prerequisites": [
+          "cd-parsing.lr0-items-automaton"
+        ],
+        "definitions": [
+          {
+            "term": "Core",
+            "meaning": "The set of an LR(1) state's items with the lookaheads removed, so an LR(0) state."
+          },
+          {
+            "term": "Lookahead",
+            "meaning": "The one terminal attached to an LR(1) item that must come next for the reduction to be allowed."
+          }
+        ],
+        "principle": {
+          "text": "In closure, an item [A → α·Bβ, a] adds [B → ·γ, b] for every b in FIRST(βa). Start from [S' → ·S, \\$]. LALR(1) merges LR(1) states with equal cores and unions their lookaheads.",
+          "tex": "[A\\to\\alpha\\cdot B\\beta,\\,a]\\in I\\ \\Rightarrow\\ [B\\to\\cdot\\gamma,\\,b]\\in I\\ \\text{for all } b\\in \\mathrm{FIRST}(\\beta a)"
+        },
+        "limits": "Merging never creates a shift-reduce conflict, because the shifts depend only on the core, which the merged states share. It can create a reduce-reduce conflict. For S → aAd | bBd | aBe | bAe, A → c, B → c, canonical LR(1) has 14 states and no conflict, but LALR(1) has 13 and a reduce-reduce conflict on d and e.",
+        "example": {
+          "problem": "Grammar S → A A, A → a A | b. Compare the numbers of canonical LR(1) states and LALR(1) states.",
+          "steps": [
+            "The LR(0) automaton has 7 states. Canonical LR(1) has 10, because three LR(0) states each appear twice with different lookaheads.",
+            "The first state of A reached after the first A: A → a·A, A → ·aA, A → ·b with lookahead {\\$}. After a from the start the same items have lookahead {a, b}. The cores are equal.",
+            "Likewise A → b· with lookahead {a, b} and A → b· with lookahead {\\$} share a core, and so do A → aA· with {a, b} and with {\\$}.",
+            "LALR merges each pair and unions lookaheads, for example A → b· on {a, b, \\$}. Three merges take 10 states to 7."
+          ],
+          "result": "Canonical LR(1) has 10 states and LALR(1) has 7, equal to the LR(0) count; a script computed both."
+        },
+        "misconceptions": [
+          "Thinking an LR(1) lookahead is the FOLLOW set. It is the exact terminal that can follow in this one context, usually a subset of FOLLOW.",
+          "Expecting LALR merging to be able to add a shift-reduce conflict. Only a reduce-reduce conflict can appear.",
+          "Believing LALR(1) has more states than LR(0). It has exactly as many, since states merge by core."
+        ],
+        "recall": [
+          {
+            "q": "What does an LALR(1) parser merge?",
+            "a": "LR(1) states with the same core, taking the union of their lookaheads."
+          },
+          {
+            "q": "Which kind of conflict can merging create?",
+            "a": "A reduce-reduce conflict, never a shift-reduce one."
+          },
+          {
+            "q": "How does the number of LALR(1) states compare with LR(0) and with canonical LR(1)?",
+            "a": "It equals the LR(0) count and is at most the canonical LR(1) count."
+          },
+          {
+            "q": "Which generator tools build LALR(1) parsers?",
+            "a": "Yacc and Bison."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For the grammar S → a S b | c, canonical LR(1) construction gives 10 states. How many fewer states does the LALR(1) automaton have?",
+          "answer": 4,
+          "explanation": "LALR(1) has as many states as the LR(0) automaton, which is 6 for this grammar. The count is 10 − 6 = 4. Answering 6 tempts when you report the LALR count instead of the difference, and answering 0 comes from assuming merging changes nothing."
+        },
+        "summary": "LR(1) items carry an exact lookahead and split states that differ only in lookahead. LALR(1) merges same-core states, giving the LR(0) count, and can introduce reduce-reduce conflicts but never shift-reduce ones."
+      }
+    },
+    {
+      "id": "cd-parsing.parser-hierarchy",
+      "title": "Power and relationships of parser classes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        40,
+        444,
+        446,
+        447,
+        449
+      ],
+      "points": [
+        "As grammar classes, LR(0) ⊊ SLR(1) ⊊ LALR(1) ⊊ LR(1) ⊊ unambiguous CFGs, and every LL(1) grammar is LR(1).",
+        "LL(1) is not contained in SLR(1) or LALR(1): some LL(1) grammars have LALR conflicts. So LL(1) and LALR(1) are incomparable as grammar classes.",
+        "As language classes the picture collapses: SLR(1), LALR(1) and LR(1) grammars all generate exactly the deterministic CFLs, and LR(0) grammars generate the deterministic CFLs with the prefix property.",
+        "State counts: LR(0) = SLR(1) = LALR(1) ≤ LR(1). Bottom-up LR parsers handle left recursion; LL parsers cannot."
+      ],
+      "keyTerms": [
+        "grammar class",
+        "DCFL",
+        "prefix property"
+      ],
+      "lesson": {
+        "why": "GATE asks which parsers are bottom-up, which class is more powerful, and where a given grammar falls among LR(0), SLR(1), LALR(1) and LR(1). All of it follows from one ordering.",
+        "intro": "Parsers split into two families. A top-down parser starts at the start symbol and predicts which rule to expand, building a leftmost derivation; recursive descent, predictive and LL(1) parsers are of this kind. A bottom-up parser starts from the tokens and repeatedly replaces a right-hand side by its left-hand side, building a rightmost derivation backwards; shift-reduce and the LR parsers are of this kind. The LR family shares one table-driven machine. They differ in when a complete item may be reduced. LR(0) reduces on any token. SLR(1) reduces only if the token is in FOLLOW of the rule's left side. Canonical LR(1) uses exact lookaheads; LALR(1) uses the union of the lookaheads over states with the same core. A tighter test leaves fewer conflicts, so the parser accepts more grammars.",
+        "prerequisites": [
+          "cd-parsing.lr0-items-automaton",
+          "cd-parsing.lr1-lalr"
+        ],
+        "principle": {
+          "text": "As classes of grammars, LR(0) is strictly inside SLR(1), which is inside LALR(1), which is inside LR(1), which is inside the unambiguous grammars. Every LL(1) grammar is LR(1). The state counts satisfy LR(0) = SLR(1) = LALR(1) ≤ LR(1).",
+          "tex": "\\mathrm{LR}(0)\\subsetneq \\mathrm{SLR}(1)\\subsetneq \\mathrm{LALR}(1)\\subsetneq \\mathrm{LR}(1)\\subsetneq \\text{unambiguous CFG}"
+        },
+        "limits": "LL(1) and LALR(1) are not comparable as grammar classes, since some LL(1) grammars have LALR(1) conflicts. As classes of languages the picture collapses: SLR(1), LALR(1) and LR(1) all describe exactly the deterministic context-free languages. An ambiguous grammar belongs to none of these classes.",
+        "example": {
+          "problem": "Classify the grammar S → A a | b A c | B c | b B a, A → d, B → d among LR(0), SLR(1), LALR(1) and LR(1).",
+          "steps": [
+            "FOLLOW(A) = {a, c} and FOLLOW(B) = {a, c}. The state reached by d from the start holds A → d· and B → d·, and SLR reduces both on a and on c: a reduce-reduce conflict, so the grammar is not SLR(1).",
+            "In canonical LR(1) that state has A → d· with lookahead a and B → d· with lookahead c, so there is no conflict. The state reached by b then d has A → d· on c and B → d· on a, also no conflict. The grammar is LR(1).",
+            "The two states have the same core {A → d·, B → d·}. LALR merges them, and both reductions get lookaheads {a, c}: a reduce-reduce conflict returns, so the grammar is not LALR(1)."
+          ],
+          "result": "LR(1) but not LALR(1), hence not SLR(1) or LR(0); a script gave 0 conflicts for LR(1) and 2 for LALR and SLR."
+        },
+        "misconceptions": [
+          "Thinking SLR(1) is more powerful than LALR(1) because its name came first. The order of power is SLR(1), then LALR(1), then LR(1).",
+          "Calling a predictive or LL(1) parser bottom-up. They predict from the start symbol and are top-down.",
+          "Treating LR(1) as unable to handle some deterministic context-free language. Every deterministic context-free language has an LR(1) grammar."
+        ],
+        "recall": [
+          {
+            "q": "Which parsers are bottom-up and which are top-down?",
+            "a": "Shift-reduce and all LR parsers are bottom-up. Recursive descent, predictive and LL(1) parsers are top-down."
+          },
+          {
+            "q": "State the strict inclusion order of the LR classes.",
+            "a": "LR(0) is inside SLR(1), inside LALR(1), inside LR(1), inside the unambiguous grammars."
+          },
+          {
+            "q": "Which three LR classes describe the same set of languages?",
+            "a": "SLR(1), LALR(1) and LR(1) each describe exactly the deterministic context-free languages."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Grammar: S → a A | b A c | b d, A → d. Which statement is correct?",
+          "options": [
+            "It is LALR(1) but not SLR(1).",
+            "It is SLR(1).",
+            "It is LR(1) but not LALR(1).",
+            "It is not LR(1)."
+          ],
+          "answer": 0,
+          "explanation": "The state reached by b then d holds A → d· and S → b d·. FOLLOW(A) = {c, \\$}, so SLR reduces A → d on \\$ and S → b d· also reduces on \\$: a reduce-reduce conflict, so not SLR(1). With exact lookaheads A → d· there is only on c, so LR(1) has no conflict, and no two states share a core with clashing reductions, so LALR(1) has none either. Option (B) tempts if you check only the shift-reduce case, and option (C) if you assume merging always hurts."
+        },
+        "summary": "The LR(0), SLR(1), LALR(1), LR(1) chain grows stricter in what it accepts as the reduce test sharpens. Bottom-up means shift-reduce and LR; LL(1) is top-down and incomparable with LALR(1)."
+      }
+    },
+    {
+      "id": "cd-parsing.viable-prefixes",
+      "title": "Viable prefixes and the LR automaton",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A viable prefix is a prefix of a right-sentential form that does not extend past the right end of its handle; these are exactly the strings that can appear on an LR parser's stack.",
+        "The set of viable prefixes of any CFG is a regular language, and the LR(0) automaton is a DFA that recognises it: each state stands for the viable prefixes that reach it.",
+        "Item A → β₁·β₂ is valid for viable prefix αβ₁ when S' ⇒* αAw ⇒ αβ₁β₂w by rightmost steps; a complete valid item signals that the handle is on top of the stack."
+      ],
+      "keyTerms": [
+        "viable prefix",
+        "valid item"
+      ],
+      "lesson": {
+        "why": "Viable prefixes explain what an LR parser's stack can hold, and they are the idea behind why the LR(0) automaton is a finite automaton.",
+        "intro": "A bottom-up parser keeps a stack of symbols already read and reduced. Not every string of symbols can appear there. The stack must always be the beginning of some rightmost-derivation form, cut off no later than the right end of the next group of symbols to be reduced. Such a stack content is called a viable prefix. If the stack ever stops being a viable prefix, an error has occurred.",
+        "prerequisites": [
+          "cd-parsing.shift-reduce-handles",
+          "cd-parsing.lr0-items-automaton"
+        ],
+        "definitions": [
+          {
+            "term": "Handle",
+            "meaning": "The right-hand side in a right-sentential form that the parser reduces next, together with its position."
+          },
+          {
+            "term": "Viable prefix",
+            "meaning": "A prefix of a right-sentential form that does not extend beyond the right end of its handle."
+          }
+        ],
+        "principle": {
+          "text": "The viable prefixes of a grammar form a regular language, and the LR(0) automaton is the DFA that recognises it. A complete item valid for the stack means the handle sits on top and may be reduced."
+        },
+        "limits": "The viable prefix property tells that no error has occurred so far on the stack; it does not say the rest of the input is acceptable. The prefixes are defined per grammar through its rightmost derivations, not for arbitrary strings.",
+        "example": {
+          "problem": "Grammar: S → a S b | c. List the viable prefixes of the right-sentential form a a S b b, whose handle is the group a S b at positions 2 to 4.",
+          "steps": [
+            "Number the symbols a(1) a(2) S(3) b(4) b(5). The handle a S b ends at position 4.",
+            "A viable prefix may stop anywhere up to the right end of the handle, so the prefixes of lengths 0 to 4 qualify.",
+            "The fifth symbol lies beyond the handle, so the whole form is not a viable prefix."
+          ],
+          "result": "The viable prefixes are ε, a, aa, aaS and aaSb: five in all."
+        },
+        "misconceptions": [
+          "A viable prefix is not any prefix of any sentence; the cut must not pass the right end of the handle.",
+          "The stack of an LR parser is not always a handle; it is a viable prefix whose tail may be a handle.",
+          "Viable prefixes are not an infinite non-regular set for context-free grammars; they always form a regular language."
+        ],
+        "recall": [
+          {
+            "q": "What is a viable prefix?",
+            "a": "A prefix of a right-sentential form that stops at or before the right end of its handle."
+          },
+          {
+            "q": "Which automaton recognises the viable prefixes?",
+            "a": "The LR(0) automaton of the grammar."
+          },
+          {
+            "q": "What does a complete valid item for the stack signal?",
+            "a": "The handle is on top of the stack and a reduction is possible."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Grammar: S → a S b | c. The right-sentential form a a a S b b b has the handle a S b at positions 3 to 5. How many viable prefixes does it have, counting the empty string?",
+          "answer": 6,
+          "explanation": "The handle ends at position 5, so prefixes of lengths 0, 1, 2, 3, 4 and 5 are viable, which is six. Answering 8 tempts because the form has 7 symbols and 8 prefixes in total, but the last two b symbols lie beyond the handle."
+        },
+        "summary": "A viable prefix is what an LR stack may contain: a prefix of a right-sentential form ending no later than its handle. These prefixes form a regular language that the LR(0) automaton recognises."
+      }
+    },
+    {
+      "id": "cd-parsing.operator-precedence",
+      "title": "Operator-precedence parsing",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        444,
+        445,
+        447
+      ],
+      "points": [
+        "An operator grammar has no ε-productions and no right-hand side with two adjacent nonterminals, so E → E + E | E * E | id qualifies but E → EAE, A → + does not.",
+        "The parser keeps precedence relations ⋖, ≐ and ⋗ between pairs of terminals and reduces when the top terminal ⋗ the next input token.",
+        "It is a bottom-up method that can parse some ambiguous operator grammars, because the relations supply the missing precedence and associativity.",
+        "It is simple and fast but covers a small grammar class, and an operator such as minus that is both unary and binary needs special handling in the lexer or grammar."
+      ],
+      "keyTerms": [
+        "operator grammar",
+        "precedence relations"
+      ],
+      "lesson": {
+        "why": "GATE hands you a table of precedence and associativity, often deliberately unusual, and asks for the value of an expression or the shape of a parse tree. A wrong grouping changes the answer completely.",
+        "intro": "A grammar such as E → E + E | E * E | id says nothing about how 1 + 2 * 3 groups, so a string has several parse trees. Two rules remove the doubt. Precedence settles which operator applies first when two different operators meet: the higher one binds tighter, as if it had brackets around it. Associativity settles a run of equal-precedence operators: left associative means a ∘ b ∘ c is (a ∘ b) ∘ c, right associative means a ∘ (b ∘ c). An operator-precedence parser builds this into a bottom-up parse. For every pair of terminals it stores a relation, and it reduces when the terminal on the stack top has higher precedence than the next input token.",
+        "prerequisites": [
+          "cd-parsing.ambiguity"
+        ],
+        "definitions": [
+          {
+            "term": "Operator grammar",
+            "meaning": "A grammar with no ε-rule and no right-hand side holding two nonterminals side by side."
+          },
+          {
+            "term": "Precedence relations",
+            "meaning": "The three relations ⋖ (shift), ≐ (same handle) and ⋗ (reduce) between the top terminal and the next input token."
+          }
+        ],
+        "principle": {
+          "text": "For two adjacent operators, the one with the higher precedence groups first. For equal precedence, a left associative operator groups the left one first and a right associative operator the right one first. The parser reduces when the top terminal ⋗ the next token and shifts when it ⋖ it.",
+          "tex": "a\\circ b\\circ c=\\begin{cases}(a\\circ b)\\circ c & \\text{left associative}\\\\ a\\circ(b\\circ c) & \\text{right associative}\\end{cases}"
+        },
+        "limits": "The method applies only to operator grammars and covers a small class of grammars. An operator that is both unary and binary, such as minus, needs separate handling. Always read the table in the question, because it may reverse the usual habits, for instance a right associative minus.",
+        "example": {
+          "problem": "Precedence from tightest to loosest is ^, then *, then +. The operators + and * are left associative and ^ is right associative. Evaluate 4 + 3 * 2 ^ 2 ^ 3.",
+          "steps": [
+            "^ binds tightest, so the run 2 ^ 2 ^ 3 groups first. It is right associative: 2 ^ (2 ^ 3) = 2 ^ 8 = 256.",
+            "The expression is now 4 + 3 * 256. The operator * outranks +, so 3 * 256 = 768.",
+            "Finally 4 + 768 = 772."
+          ],
+          "result": "772. A left associative ^ would give (2 ^ 2) ^ 3 = 64 and a total of 196; a script confirmed both."
+        },
+        "misconceptions": [
+          "Evaluating strictly left to right and ignoring precedence. Higher precedence operators group first wherever they sit.",
+          "Applying left associativity to every operator. A right associative operator groups the right end of a run first, which changes the value of subtraction and exponent runs.",
+          "Thinking precedence decides how equal operators group. That is associativity's job; precedence only ranks different operators."
+        ],
+        "recall": [
+          {
+            "q": "What does associativity decide that precedence does not?",
+            "a": "How a run of operators of the same precedence groups, left to right or right to left."
+          },
+          {
+            "q": "When does an operator-precedence parser reduce?",
+            "a": "When the terminal nearest the stack top has higher precedence than the next input token (relation ⋗)."
+          },
+          {
+            "q": "What two shape rules define an operator grammar?",
+            "a": "It has no ε-productions and no right-hand side with two adjacent nonterminals."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a language, * has higher precedence than -, and - is right associative. What is the value of 20 - 3 * 2 - 4 - 1?",
+          "answer": 17,
+          "explanation": "* binds tighter, so 3 * 2 = 6 and the expression is 20 - 6 - 4 - 1. The minus run is right associative: 4 - 1 = 3, then 6 - 3 = 3, then 20 - 3 = 17. Answering 9 tempts because ordinary left to right subtraction gives (20 - 6 - 4 - 1) = 9."
+        },
+        "summary": "Precedence ranks different operators and associativity groups equal ones. Evaluate the tightest operator first, then resolve each run by its associativity; the parser reduces when the top terminal outranks the next token."
+      }
+    },
+    {
+      "id": "cd-parsing.error-recovery",
+      "title": "Syntax error recovery",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        445,
+        446
+      ],
+      "points": [
+        "Panic mode discards input tokens until a synchronizing token appears; for an LL parser the synchronizing set of A is seeded with FOLLOW(A), often plus FIRST(A) and statement keywords.",
+        "Phrase-level recovery makes a local repair, such as inserting a missing semicolon or deleting a stray token, and then continues.",
+        "LR parsers detect an error as soon as no valid action exists for the stack and lookahead (the valid-prefix property) and recover by popping states until one has a goto on an error nonterminal, then skipping input."
+      ],
+      "keyTerms": [
+        "panic mode",
+        "synchronizing token",
+        "phrase-level recovery"
+      ],
+      "lesson": {
+        "why": "A parser that stops at the first error is of little use, so recovery is a standard exam topic and links directly to FOLLOW sets.",
+        "intro": "When a parser meets a token it cannot use, it has found a syntax error. It should report it and then carry on so later errors are found as well. The simplest strategy, panic mode, throws away input tokens until it reaches one from a chosen set of safe tokens that show where parsing can restart. Another strategy, phrase-level recovery, makes a small local repair such as inserting a missing semicolon.",
+        "prerequisites": [
+          "cd-parsing.ll1-table",
+          "cd-parsing.follow-sets"
+        ],
+        "definitions": [
+          {
+            "term": "Synchronizing token",
+            "meaning": "A token at which the parser can safely resume after an error, such as a member of FOLLOW of the current nonterminal."
+          },
+          {
+            "term": "Panic mode",
+            "meaning": "Recovery by discarding tokens until a synchronizing token is seen."
+          }
+        ],
+        "principle": {
+          "text": "In an LL(1) parser, on an empty table cell M[A, a] either pop A if a is in FOLLOW(A), since the rest of the input can continue after A, or discard a and try again. A terminal on top of the stack that does not match is popped."
+        },
+        "limits": "Panic mode may skip a large stretch of input and miss errors inside it. An LR parser detects the error as soon as no action exists for the stack and lookahead, then pops states until one has a goto on an error nonterminal and skips input. Recovery cannot guarantee a sensible repair; it only guarantees the parser keeps going without looping.",
+        "example": {
+          "problem": "Grammar: E → T E', E' → + T E' | ε, T → id | ( E ). An LL(1) parser with panic mode reads id + + id. What happens at the second +?",
+          "steps": [
+            "After id and the first +, the parser expects T, but the next token is +, and the cell M[T, +] is empty.",
+            "FOLLOW(T) = {+, ), \\$}, which contains +, so + is synchronizing and T is popped without discarding input.",
+            "E' then sees + and continues with + T E', so the rest id parses normally."
+          ],
+          "result": "One error is reported, zero tokens are discarded, and the parse completes."
+        },
+        "misconceptions": [
+          "Panic mode does not always discard tokens; if the lookahead is already in the synchronizing set, the nonterminal is popped and no input is skipped.",
+          "FOLLOW is not the only possible synchronizing set; FIRST of the nonterminal and statement keywords are often added.",
+          "Phrase-level recovery is not the same as panic mode; it edits the input locally instead of skipping to a safe token."
+        ],
+        "recall": [
+          {
+            "q": "What does panic mode do on an error?",
+            "a": "It discards input tokens until it finds a synchronizing token."
+          },
+          {
+            "q": "Which set usually seeds the synchronizing tokens for nonterminal A?",
+            "a": "FOLLOW(A)."
+          },
+          {
+            "q": "How does phrase-level recovery differ from panic mode?",
+            "a": "It makes a local repair, such as inserting or deleting one token, rather than skipping a stretch of input."
+          },
+          {
+            "q": "How does an LR parser recover from a syntax error?",
+            "a": "It pops states until one has a goto on an error nonterminal, then skips input tokens until parsing can resume."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Same grammar as in the example. Panic mode treats an empty cell M[A, a] as follows: if a is in FOLLOW(A), pop A; otherwise discard a. How many tokens are discarded while parsing id * id + id?",
+          "answer": 2,
+          "explanation": "After id, E' sees *. FOLLOW(E') = {), \\$}, which lacks *, so * is discarded. E' then sees id, which is also outside FOLLOW(E'), so id is discarded. E' then sees + and expands normally. Answering 1 tempts because only * is not valid in the grammar, but the id after it also finds no entry once * is gone."
+        },
+        "summary": "After an error, panic mode skips tokens until a synchronizing token, often from FOLLOW of the current nonterminal, appears. Phrase-level recovery instead repairs the input locally."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cd-parsing.left-recursion-rule",
+      "name": "Removing immediate left recursion",
+      "tex": "A \\to A\\alpha \\mid \\beta \\;\\Longrightarrow\\; A \\to \\beta A',\\quad A' \\to \\alpha A' \\mid \\varepsilon",
+      "text": "A → Aα | β becomes A → βA', A' → αA' | ε",
+      "where": [
+        [
+          "α",
+          "what follows A in the left-recursive alternative"
+        ],
+        [
+          "β",
+          "an alternative that does not start with A"
+        ]
+      ],
+      "note": "With several αᵢ and βⱼ every βⱼ gets A' appended and every αᵢ becomes an A' alternative. If some β is ε, keep the alternative A → A'.",
+      "topic": "cd-parsing.left-recursion-factoring",
+      "origin": "source",
+      "pages": [
+        39,
+        441
+      ]
+    },
+    {
+      "id": "cd-parsing.left-factoring-rule",
+      "name": "Left factoring",
+      "tex": "A \\to \\alpha\\beta_1 \\mid \\alpha\\beta_2 \\;\\Longrightarrow\\; A \\to \\alpha A',\\quad A' \\to \\beta_1 \\mid \\beta_2",
+      "text": "A → αβ₁ | αβ₂ becomes A → αA', A' → β₁ | β₂",
+      "where": [
+        [
+          "α",
+          "the longest common prefix of the alternatives"
+        ]
+      ],
+      "topic": "cd-parsing.left-recursion-factoring",
+      "origin": "source",
+      "pages": [
+        39,
+        441
+      ]
+    },
+    {
+      "id": "cd-parsing.first-of-sequence",
+      "name": "FIRST of a sequence",
+      "tex": "\\mathrm{FIRST}(X\\alpha) = \\begin{cases} \\mathrm{FIRST}(X) & \\varepsilon \\notin \\mathrm{FIRST}(X) \\\\ (\\mathrm{FIRST}(X) - \\{\\varepsilon\\}) \\cup \\mathrm{FIRST}(\\alpha) & \\varepsilon \\in \\mathrm{FIRST}(X) \\end{cases}",
+      "text": "FIRST(Xα) = FIRST(X) if ε ∉ FIRST(X), else (FIRST(X) − {ε}) ∪ FIRST(α)",
+      "where": [
+        [
+          "X",
+          "a single grammar symbol"
+        ],
+        [
+          "α",
+          "the rest of the string, possibly ε"
+        ]
+      ],
+      "note": "ε stays in the result only if every symbol of the sequence is nullable.",
+      "topic": "cd-parsing.first-sets",
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        447
+      ]
+    },
+    {
+      "id": "cd-parsing.follow-rules",
+      "name": "FOLLOW rules",
+      "tex": "B \\to \\alpha A \\beta:\\quad \\mathrm{FIRST}(\\beta) - \\{\\varepsilon\\} \\subseteq \\mathrm{FOLLOW}(A);\\quad \\beta \\Rightarrow^* \\varepsilon \\implies \\mathrm{FOLLOW}(B) \\subseteq \\mathrm{FOLLOW}(A)",
+      "text": "For B → αAβ: FIRST(β) − {ε} ⊆ FOLLOW(A); if β ⇒* ε then FOLLOW(B) ⊆ FOLLOW(A); the end marker is in FOLLOW(start)",
+      "where": [
+        [
+          "A",
+          "the nonterminal whose FOLLOW is being built"
+        ],
+        [
+          "β",
+          "everything to the right of A in the production"
+        ]
+      ],
+      "note": "FOLLOW never contains ε. Apply the rule to every occurrence of A on every right-hand side, then iterate until no set grows.",
+      "topic": "cd-parsing.follow-sets",
+      "origin": "source",
+      "pages": [
+        39,
+        442
+      ]
+    },
+    {
+      "id": "cd-parsing.ll1-table-rule",
+      "name": "LL(1) table entries",
+      "tex": "A \\to \\alpha \\in M[A,a] \\iff a \\in \\mathrm{FIRST}(\\alpha) \\;\\lor\\; (\\varepsilon \\in \\mathrm{FIRST}(\\alpha) \\land a \\in \\mathrm{FOLLOW}(A))",
+      "text": "A → α goes in M[A, a] iff a ∈ FIRST(α), or ε ∈ FIRST(α) and a ∈ FOLLOW(A)",
+      "where": [
+        [
+          "M[A, a]",
+          "table cell for nonterminal A and lookahead a, the end marker included"
+        ]
+      ],
+      "note": "A cell with two productions means the grammar is not LL(1). The ε-alternative is where most conflicts come from.",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "source",
+      "pages": [
+        39,
+        442
+      ]
+    },
+    {
+      "id": "cd-parsing.ll1-condition",
+      "name": "LL(1) condition for A → α | β",
+      "tex": "\\mathrm{FIRST}(\\alpha) \\cap \\mathrm{FIRST}(\\beta) = \\varnothing,\\quad \\beta \\Rightarrow^* \\varepsilon \\implies \\mathrm{FIRST}(\\alpha) \\cap \\mathrm{FOLLOW}(A) = \\varnothing",
+      "text": "FIRST(α) ∩ FIRST(β) = ∅, and if β ⇒* ε then FIRST(α) ∩ FOLLOW(A) = ∅",
+      "where": [
+        [
+          "α, β",
+          "any two alternatives of the same nonterminal"
+        ]
+      ],
+      "note": "The first condition also forbids both alternatives being nullable, since both FIRST sets would then contain ε.",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "source",
+      "pages": [
+        443,
+        447
+      ]
+    },
+    {
+      "id": "cd-parsing.lr0-item-count",
+      "name": "Number of LR(0) items",
+      "tex": "\\#\\text{items} = \\sum_{A \\to \\alpha} \\left(|\\alpha| + 1\\right)",
+      "text": "number of items = Σ over productions A → α of (|α| + 1)",
+      "where": [
+        [
+          "|α|",
+          "number of symbols on the right-hand side; A → ε contributes one item A → ·"
+        ]
+      ],
+      "note": "Include S' → S when the question says augmented grammar. This counts items, not states.",
+      "topic": "cd-parsing.lr0-items-automaton",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.lr1-closure-lookahead",
+      "name": "LR(1) closure lookaheads",
+      "tex": "[A \\to \\alpha\\cdot B\\beta,\\ a] \\in I \\implies [B \\to \\cdot\\gamma,\\ b] \\in I \\ \\text{for all } b \\in \\mathrm{FIRST}(\\beta a)",
+      "text": "[A → α·Bβ, a] in I adds [B → ·γ, b] for every b ∈ FIRST(βa)",
+      "where": [
+        [
+          "a",
+          "lookahead of the item being closed"
+        ],
+        [
+          "β",
+          "symbols after B; if β is nullable, a itself is a lookahead"
+        ]
+      ],
+      "topic": "cd-parsing.lr1-lalr",
+      "origin": "source",
+      "pages": [
+        40,
+        444
+      ]
+    },
+    {
+      "id": "cd-parsing.slr-reduce-rule",
+      "name": "SLR(1) reduce action",
+      "tex": "A \\to \\alpha\\cdot \\in I_i \\implies \\mathrm{ACTION}[i,a] = \\text{reduce } A \\to \\alpha \\ \\ \\forall a \\in \\mathrm{FOLLOW}(A)",
+      "text": "A → α· in state i gives ACTION[i, a] = reduce A → α for every a ∈ FOLLOW(A)",
+      "note": "LR(0) reduces on every terminal; LR(1) and LALR(1) reduce only on the item's own lookaheads, which are a subset of FOLLOW(A).",
+      "topic": "cd-parsing.slr1",
+      "origin": "source",
+      "pages": [
+        40,
+        444
+      ]
+    },
+    {
+      "id": "cd-parsing.state-counts",
+      "name": "State counts across LR parsers",
+      "tex": "n_{\\mathrm{LR}(0)} = n_{\\mathrm{SLR}(1)} = n_{\\mathrm{LALR}(1)} \\le n_{\\mathrm{LR}(1)}",
+      "text": "n(LR(0)) = n(SLR(1)) = n(LALR(1)) ≤ n(LR(1))",
+      "note": "LR(1) can be much larger: S → AA, A → aA | b gives 7 against 10, and the expression grammar 12 against 22.",
+      "topic": "cd-parsing.parser-hierarchy",
+      "origin": "source",
+      "pages": [
+        40,
+        444,
+        447
+      ]
+    },
+    {
+      "id": "cd-parsing.catalan-parse-trees",
+      "name": "Parse trees of E → E op E | id",
+      "tex": "T(k) = C_{k-1} = \\frac{1}{k}\\binom{2k-2}{k-1}",
+      "text": "T(k) = C(k−1) = (1/k) × C(2k−2, k−1)",
+      "where": [
+        [
+          "k",
+          "number of id operands in the string"
+        ],
+        [
+          "C_n",
+          "the n-th Catalan number: 1, 1, 2, 5, 14, 42"
+        ]
+      ],
+      "note": "Applies when all operators share one ambiguous production with no precedence; four operands give 5 trees.",
+      "topic": "cd-parsing.ambiguity",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "cd-parsing.ll1-parse-cost",
+      "name": "LL(1) table-driven parse of n tokens",
+      "worst": "O(n)",
+      "space": "O(n) stack",
+      "notes": "Each token is matched once and the number of expansions between matches is bounded by the grammar, so time is linear.",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.lr-parse-cost",
+      "name": "LR (SLR/LALR/LR(1)) parse of n tokens",
+      "worst": "O(n)",
+      "space": "O(n) stack",
+      "notes": "n shifts and at most a linear number of reductions, each a table lookup. Table size grows with the state count, largest for canonical LR(1).",
+      "topic": "cd-parsing.lr1-lalr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.backtracking-rd-cost",
+      "name": "Recursive descent with backtracking",
+      "worst": "exponential in n",
+      "notes": "Trying each alternative and rewinding can repeat work exponentially; a predictive (LL(1)) parser avoids it.",
+      "topic": "cd-parsing.recursive-descent",
+      "origin": "source",
+      "pages": [
+        441,
+        447
+      ]
+    },
+    {
+      "id": "cd-parsing.general-cfg-parse-cost",
+      "name": "General CFG parsing (CYK, Earley)",
+      "worst": "O(n³)",
+      "notes": "Handles any grammar, ambiguous ones included, at cubic cost; this is why compilers restrict themselves to LL or LR grammars.",
+      "topic": "cd-parsing.parser-hierarchy",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "cd-parsing.pt-first-follow",
+      "title": "Compute FIRST and FOLLOW sets of a grammar with ε-productions",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Mark every nullable nonterminal first: those with an ε-production, then those whose some right-hand side is all nullable.",
+        "Build FIRST of each nonterminal by scanning right-hand sides left to right, stopping at the first non-nullable symbol.",
+        "Put the end marker in FOLLOW(start). For each occurrence of A in a right-hand side, add FIRST of what follows minus ε.",
+        "Where the rest of the production is nullable, add FOLLOW of the left side; sweep again until no set changes."
+      ],
+      "trap": "Stopping FOLLOW at the next symbol when that symbol is nullable, or putting ε into a FOLLOW set.",
+      "topic": "cd-parsing.follow-sets",
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        448
+      ]
+    },
+    {
+      "id": "cd-parsing.pt-ll1-check",
+      "title": "Decide whether a grammar is LL(1), or which cell of M holds two productions",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Reject at once if the grammar is left recursive or ambiguous.",
+        "For each nonterminal compare FIRST sets of its alternatives pairwise.",
+        "For each nullable alternative, intersect FIRST of the other alternatives with FOLLOW of the left side.",
+        "Any non-empty intersection names the conflicting cell M[A, a]."
+      ],
+      "trap": "Forgetting the end marker in FOLLOW, or checking only FIRST/FIRST clashes and missing the FIRST/FOLLOW clash on the ε-alternative.",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "source",
+      "pages": [
+        39,
+        443,
+        448
+      ]
+    },
+    {
+      "id": "cd-parsing.pt-classify-lr",
+      "title": "Classify a grammar as LR(0), SLR(1), LALR(1) or LR(1)",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Build the LR(0) automaton and find states with a complete item; if none also has a shift on a terminal or a second complete item, the grammar is LR(0).",
+        "For each such state, compare FOLLOW of the reduced nonterminal with the shifted terminals and other reductions: no overlap means SLR(1).",
+        "If SLR fails, recompute the conflicting state with LR(1) lookaheads; if the lookaheads separate the actions, it is LR(1).",
+        "Check whether merging same-core LR(1) states unions lookaheads of two reductions; if not, it is also LALR(1)."
+      ],
+      "trap": "Assuming a conflict-free LR(1) grammar is LALR(1): merging can create a reduce-reduce conflict.",
+      "topic": "cd-parsing.parser-hierarchy",
+      "origin": "source",
+      "pages": [
+        40,
+        444
+      ]
+    },
+    {
+      "id": "cd-parsing.pt-state-count",
+      "title": "Count states of the LR(0) or LR(1) automaton",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Augment with S' → S and write the start state as a closure.",
+        "Apply goto on every symbol after a dot, compare each new set with existing ones, and number only genuinely new sets.",
+        "For LR(1), sets with the same items but different lookaheads are different states.",
+        "For SLR or LALR, the answer equals the LR(0) count."
+      ],
+      "trap": "Counting the accept state twice or forgetting it, and treating LR(1) states with equal cores as one.",
+      "topic": "cd-parsing.lr1-lalr",
+      "origin": "source",
+      "pages": [
+        40,
+        444
+      ]
+    },
+    {
+      "id": "cd-parsing.pt-shift-reduce-trace",
+      "title": "Trace a shift-reduce parse and count moves or reductions",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Draw the parse tree of the input under the grammar.",
+        "Each interior node is one reduction and each token is one shift; reductions occur in reverse rightmost-derivation order.",
+        "Add the final accept only if the question counts it."
+      ],
+      "trap": "Skipping unit reductions such as T → F and E → T, which each cost a move.",
+      "topic": "cd-parsing.shift-reduce-handles",
+      "origin": "source",
+      "pages": [
+        443
+      ]
+    },
+    {
+      "id": "cd-parsing.pt-left-recursion",
+      "title": "Remove left recursion or left-factor a production",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Split the alternatives of A into those starting with A (A → Aαᵢ) and the rest (βⱼ).",
+        "Write A → βⱼA' for every βⱼ and A' → αᵢA' | ε for every αᵢ.",
+        "For left factoring, pull out the longest common prefix and move the differing tails to A'."
+      ],
+      "trap": "Dropping the alternative that comes from an ε β, or leaving A' left recursive.",
+      "topic": "cd-parsing.left-recursion-factoring",
+      "origin": "source",
+      "pages": [
+        39,
+        441
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "cd-parsing.q-first-of-start",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "For the grammar S → AB | C, A → a, B → b, C → c, what is FIRST(S)?",
+      "options": [
+        "{a, c}",
+        "{a, b, c}",
+        "{a}",
+        "{a, b}"
+      ],
+      "answer": 0,
+      "explanation": "FIRST(AB) = FIRST(A) = {a}, because A is not nullable, so B never contributes. FIRST(C) = {c}. FIRST(S) is the union, {a, c}. Including b would be right only if A could derive ε.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.first-sets",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — FIRST/FOLLOW",
+      "pages": [
+        448
+      ]
+    },
+    {
+      "id": "cd-parsing.q-follow-sizes",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Consider the grammar S → A B C, A → a A | ε, B → b | ε, C → c S | d, with start symbol S. Counting the end marker \\$ as a terminal, what is |FOLLOW(A)| + |FOLLOW(B)| + |FOLLOW(C)|?",
+      "answer": 6,
+      "explanation": "FOLLOW(A): from S → A B C add FIRST(BC) − {ε}. B is nullable, so FIRST(BC) = {b} ∪ FIRST(C) = {b, c, d}; A → aA only adds FOLLOW(A) to itself. So FOLLOW(A) = {b, c, d}, size 3. FOLLOW(B) = FIRST(C) = {c, d}, size 2 (C is not nullable). FOLLOW(C) ⊇ FOLLOW(S) from S → ABC, and FOLLOW(S) ⊇ FOLLOW(C) from C → cS, so both equal {\\$}, size 1. Total 3 + 2 + 1 = 6.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.follow-sets",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-ll1-cell",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In the LL(1) table for E → T E', E' → + T E' | ε, T → F T', T' → * F T' | ε, F → ( E ) | id, what does the cell M[T', )] contain?",
+      "options": [
+        "T' → * F T'",
+        "T' → ε",
+        "Nothing: it is an error entry",
+        "Both T' → * F T' and T' → ε"
+      ],
+      "answer": 1,
+      "explanation": "T' → *FT' goes only under *. T' → ε goes under every terminal of FOLLOW(T'). FOLLOW(T') = FOLLOW(T) = (FIRST(E') − {ε}) ∪ FOLLOW(E) = {+} ∪ {), \\$} = {+, ), \\$}. Since ) is in it, M[T', )] = T' → ε, and the cell has a single entry.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-which-ll1",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following grammars are LL(1)? (Lowercase letters are terminals, S is the start symbol.)",
+      "options": [
+        "S → a S a | b S b | ε",
+        "S → a B | ε; B → b S | c",
+        "S → A a | b; A → c | ε",
+        "S → S a | b"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "Option 1: FOLLOW(S) = {a, b, \\$}, so M[S, a] gets both S → aSa and S → ε: not LL(1). Option 2: FIRST(aB) = {a} and S → ε sits under FOLLOW(S) = {\\$}; B's alternatives start with b and c. No clash, so LL(1). Option 3: FIRST(Aa) = {c, a} and FIRST(b) = {b} are disjoint; for A, c is not in FOLLOW(A) = {a}. LL(1). Option 4 is left recursive, so M[S, b] holds both productions.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.ll1-table",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-dangling-else-ll1",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The left-factored if-statement grammar is S → i E t S S' | a, S' → e S | ε, E → b. In its LL(1) parsing table, which entry is multiply defined?",
+      "options": [
+        "M[S, i]",
+        "M[S', e]",
+        "M[S', \\$]",
+        "M[E, b]"
+      ],
+      "answer": 1,
+      "explanation": "FIRST(eS) = {e}, so S' → eS goes into M[S', e]. S' → ε goes under FOLLOW(S'). S' ends the production S → iEtSS', so FOLLOW(S') ⊇ FOLLOW(S), and FOLLOW(S) ⊇ FIRST(S') − {ε} = {e} because S is followed by S'. So FOLLOW(S') = {e, \\$}, and M[S', e] also gets S' → ε. Two entries there: this is the dangling-else ambiguity, which left factoring cannot remove. M[S', \\$] holds only S' → ε.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.ambiguity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-left-recursion",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which grammar results from removing left recursion from A → A c | A a d | b d | ε?",
+      "options": [
+        "A → b d A' | A';  A' → c A' | a d A' | ε",
+        "A → b d A';  A' → c A' | a d A' | ε",
+        "A → b d A' | A';  A' → A' c | A' a d | ε",
+        "A → A' b d | A';  A' → c A' | a d A' | ε"
+      ],
+      "answer": 0,
+      "explanation": "Here α₁ = c, α₂ = ad, β₁ = bd and β₂ = ε. The rule gives A → β₁A' | β₂A' = bdA' | A' and A' → cA' | adA' | ε. Option 2 loses the strings that start with c or ad (from β₂ = ε). Option 3 is still left recursive, and option 4 puts bd at the wrong end.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.left-recursion-factoring",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-lr1-state-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "For the augmented grammar S' → S, S → A A, A → a A | b, how many states does the canonical collection of LR(1) items have?",
+      "answer": 10,
+      "explanation": "I0 = closure([S' → ·S, \\$]) with A-items on lookahead a/b. From I0: on S the accept state I1, on A I2 = {S → A·A, \\$} with A-items on \\$, on a I3 = {A → a·A, a/b}, on b I4 = {A → b·, a/b}. From I2: on A I5 = {S → AA·, \\$}, on a I6 = {A → a·A, \\$}, on b I7 = {A → b·, \\$}. From I3 on A: I8 = {A → aA·, a/b}; from I6 on A: I9 = {A → aA·, \\$}. I3 and I6 loop to themselves on a and go to I4 and I7 on b. Total 10. Merging the same-core pairs (3, 6), (4, 7), (8, 9) gives the 7 LALR(1) states.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.lr1-lalr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-reductions-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A shift-reduce (SLR) parser for E → E + T | T, T → T * F | F, F → id parses the input id + id * id. How many reduce moves does it make (not counting accept)?",
+      "answer": 8,
+      "explanation": "Reductions in order: F → id, T → F, E → T (first id); F → id, T → F (second id, kept as T because * follows); F → id (third id); T → T * F; E → E + T. That is 8 reductions, alongside 5 shifts. Each reduction is one interior node of the parse tree, which has 8 interior nodes.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.shift-reduce-handles",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-l-equals-r",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Consider S → L = R | R, L → * R | id, R → L. Which statement is correct?",
+      "options": [
+        "The grammar is SLR(1), hence also LALR(1)",
+        "The grammar is LALR(1) but not SLR(1)",
+        "The grammar is LR(1) but not LALR(1)",
+        "The grammar is LL(1)"
+      ],
+      "answer": 1,
+      "explanation": "In the LR(0) state reached on L from the start, the items are S → L· = R and R → L·. FOLLOW(R) contains = (from S → L = R through R → L and L → *R), so SLR has a shift-reduce conflict on =. With LR(1) lookaheads, R → L· in that state carries only \\$, so there is no conflict; the canonical LR(1) automaton has 14 states and merging the same-core pairs into 10 LALR states leaves it conflict-free. It is not LL(1): FIRST(L = R) and FIRST(R) both contain * and id.",
+      "difficulty": "hard",
+      "topic": "cd-parsing.slr1",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-lr1-not-lalr",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Consider S → a A d | b B d | a B e | b A e, A → c, B → c. Which statement is correct?",
+      "options": [
+        "It is LALR(1) but not SLR(1)",
+        "It is LR(1) but not LALR(1)",
+        "It is SLR(1)",
+        "It is not LR(1)"
+      ],
+      "answer": 1,
+      "explanation": "After a c the LR(1) state is {[A → c·, d], [B → c·, e]}; after b c it is {[A → c·, e], [B → c·, d]}. Each separates the two reductions, so LR(1) has no conflict. The two states have the same core, and LALR merging gives A → c· and B → c· both on {d, e}: a reduce-reduce conflict. SLR fails too, since FOLLOW(A) = FOLLOW(B) = {d, e}.",
+      "difficulty": "hard",
+      "topic": "cd-parsing.lr1-lalr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-parser-class-facts",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following statements are true?",
+      "options": [
+        "Every LL(1) grammar is LR(1).",
+        "Merging LR(1) states into LALR(1) states can introduce a new shift-reduce conflict.",
+        "Some ambiguous grammars are LALR(1).",
+        "Every SLR(1) grammar is LALR(1)."
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "Option 1 is true: LL(1) grammars form a proper subclass of LR(1) grammars. Option 2 is false: a shift item and the reduce item that clashes with it would already have been in one LR(1) state with the same lookahead, so merging only creates reduce-reduce conflicts. Option 3 is false: an ambiguous grammar is never LR(k) for any k, so every LR-family table has a conflict. Option 4 is true: LALR lookaheads are subsets of FOLLOW sets, so a conflict-free SLR table stays conflict-free.",
+      "difficulty": "medium",
+      "topic": "cd-parsing.parser-hierarchy",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — LR",
+      "pages": [
+        40,
+        444,
+        448
+      ]
+    },
+    {
+      "id": "cd-parsing.q-bottom-up-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following are true of a shift-reduce (bottom-up) parser?",
+      "options": [
+        "It traces a rightmost derivation in reverse.",
+        "The handle always appears at the top of the stack.",
+        "It can parse left-recursive grammars directly.",
+        "It builds the parse tree from the root downwards."
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Reductions undo the steps of a rightmost derivation from last to first, and the handle to be reduced is always on top of the stack, never buried. Left recursion is harmless bottom-up (E → E + T is the normal LR expression grammar). The tree is built from the leaves up, so option 4 describes top-down parsing.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.shift-reduce-handles",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Bottom-up",
+      "pages": [
+        443,
+        449
+      ]
+    },
+    {
+      "id": "cd-parsing.q-lr0-inadequate",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Build the LR(0) automaton for the augmented grammar E' → E, E → E + T | T, T → T * F | F, F → ( E ) | id, treating E' → E· as accept on the end marker only. How many of its states contain a shift-reduce conflict under LR(0) rules?",
+      "answer": 2,
+      "explanation": "The automaton has 12 states. Apart from the accept state {E' → E·, E → E· + T}, two states mix a complete item with a shift on a terminal: {E → T·, T → T· * F} and {E → E + T·, T → T· * F}. LR(0) reduces on every lookahead, so both conflict on *. SLR resolves both because * ∉ FOLLOW(E) = {+, ), \\$}.",
+      "difficulty": "hard",
+      "topic": "cd-parsing.lr0-items-automaton",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-parse-tree-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many distinct parse trees does the grammar E → E + E | id give for the string id + id + id + id?",
+      "answer": 5,
+      "explanation": "Pick the root operator: it splits the four operands into 1 + 3, 2 + 2 or 3 + 1. With T(1) = 1, T(2) = 1 and T(3) = 2, the count is T(1)T(3) + T(2)T(2) + T(3)T(1) = 2 + 1 + 2 = 5, the Catalan number C₃.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.ambiguity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cd-parsing.q-operator-grammar",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which of these grammars is an operator grammar, suitable for operator-precedence parsing?",
+      "options": [
+        "E → E A E | id;  A → + | *",
+        "E → E + E | E * E | ( E ) | id",
+        "S → S S | a",
+        "E → E + T | T;  T → id | ε"
+      ],
+      "answer": 1,
+      "explanation": "An operator grammar has no ε-productions and no right-hand side with two adjacent nonterminals. Option 1 has E A E, option 3 has S S, and option 4 has T → ε. Option 2 meets both conditions; it is ambiguous, but operator-precedence relations supply the precedence and associativity.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.operator-precedence",
+      "origin": "source",
+      "pages": [
+        444,
+        447
+      ]
+    },
+    {
+      "id": "cd-parsing.q-panic-mode",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In panic-mode error recovery for a predictive (LL(1)) parser, the synchronizing set for a nonterminal A is usually built from",
+      "options": [
+        "FIRST(A) only",
+        "FOLLOW(A)",
+        "every terminal of the grammar",
+        "the terminals appearing in the productions of A"
+      ],
+      "answer": 1,
+      "explanation": "On an error while expanding A, the parser skips tokens until one in FOLLOW(A) appears, pops A and continues as if A had been parsed. FIRST(A) is sometimes added so parsing of A can restart, but FOLLOW(A) is the base set.",
+      "difficulty": "easy",
+      "topic": "cd-parsing.error-recovery",
+      "origin": "source",
+      "pages": [
+        445,
+        446
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Removing left recursion when some alternative β is ε: A → Ac | ε becomes A → A', A' → cA' | ε. Dropping A → A' loses strings.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "FOLLOW of A uses FIRST of what comes next; if that is nullable, keep going right and finally add FOLLOW of the left side. Never put ε in a FOLLOW set.",
+      "origin": "source",
+      "pages": [
+        449
+      ]
+    },
+    {
+      "text": "Left factoring and removing left recursion do not make a grammar LL(1): an ambiguous grammar such as the dangling else still has a multiply-defined cell.",
+      "origin": "source",
+      "pages": [
+        443,
+        448,
+        449
+      ]
+    },
+    {
+      "text": "LR(0) ⊊ SLR(1) ⊊ LALR(1) ⊊ LR(1) holds for grammars, not languages: SLR(1), LALR(1) and LR(1) grammars all generate exactly the deterministic CFLs.",
+      "origin": "source",
+      "pages": [
+        444,
+        449
+      ]
+    },
+    {
+      "text": "LALR(1) has the same number of states as SLR(1) and LR(0), not as LR(1). Two LR(1) states with equal cores but different lookaheads are separate states.",
+      "origin": "source",
+      "pages": [
+        40,
+        444
+      ]
+    },
+    {
+      "text": "LALR merging introduces reduce-reduce conflicts only; an exam option claiming a new shift-reduce conflict after merging is false.",
+      "origin": "source",
+      "pages": [
+        40
+      ]
+    },
+    {
+      "text": "Every LL(1) grammar is LR(1), but not necessarily SLR(1) or LALR(1).",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Grammar surgery and FIRST/FOLLOW",
+      "lines": [
+        "A → Aα | β  ⇒  A → βA', A' → αA' | ε",
+        "A → αβ₁ | αβ₂  ⇒  A → αA', A' → β₁ | β₂",
+        "FIRST: scan right-hand side until a non-nullable symbol",
+        "FOLLOW: end marker in FOLLOW(S); FIRST(next) − ε; nullable tail adds FOLLOW(LHS)"
+      ],
+      "origin": "source",
+      "pages": [
+        39,
+        442
+      ]
+    },
+    {
+      "heading": "LL(1)",
+      "lines": [
+        "M[A, a] gets A → α for a ∈ FIRST(α); ε-alternatives go under FOLLOW(A)",
+        "LL(1) iff no cell has two entries",
+        "Left recursion, common prefix or ambiguity: not LL(1)"
+      ],
+      "origin": "source",
+      "pages": [
+        39,
+        442,
+        443,
+        449
+      ]
+    },
+    {
+      "heading": "LR family",
+      "lines": [
+        "LR(0) reduces on all tokens; SLR on FOLLOW(A); LR(1)/LALR on item lookaheads",
+        "Grammars: LR(0) ⊊ SLR ⊊ LALR ⊊ LR(1); LL(1) ⊊ LR(1)",
+        "States: LR(0) = SLR = LALR ≤ LR(1); Yacc/Bison use LALR(1)",
+        "LALR merge: reduce-reduce conflicts only, never new shift-reduce"
+      ],
+      "origin": "source",
+      "pages": [
+        40,
+        444,
+        449
+      ]
+    },
+    {
+      "heading": "Benchmarks",
+      "lines": [
+        "S → AA, A → aA | b: 7 LR(0) states, 10 LR(1) states",
+        "E/T/F grammar: 12 LR(0) states, 2 LR(0) conflicts, SLR(1) clean",
+        "S → L = R | R: LALR(1), not SLR(1)",
+        "Bottom-up = rightmost derivation in reverse"
+      ],
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "errata": [
+    {
+      "page": 449,
+      "claim": "LR(1) > LALR(1) > SLR(1) > LR(0) strictly in language coverage.",
+      "correction": "The strict chain holds for classes of grammars. For languages, SLR(1), LALR(1) and LR(1) grammars generate exactly the same class, the deterministic CFLs; only LR(0) is smaller, generating the deterministic CFLs with the prefix property."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cd-parsing",
+      "status": "covered",
+      "topics": [
+        "cd-parsing.parser-role-derivations",
+        "cd-parsing.ambiguity",
+        "cd-parsing.left-recursion-factoring",
+        "cd-parsing.first-sets",
+        "cd-parsing.follow-sets",
+        "cd-parsing.recursive-descent",
+        "cd-parsing.ll1-table",
+        "cd-parsing.shift-reduce-handles",
+        "cd-parsing.lr0-items-automaton",
+        "cd-parsing.slr1",
+        "cd-parsing.lr1-lalr",
+        "cd-parsing.parser-hierarchy",
+        "cd-parsing.viable-prefixes",
+        "cd-parsing.operator-precedence",
+        "cd-parsing.error-recovery"
+      ]
+    }
+  ]
+}

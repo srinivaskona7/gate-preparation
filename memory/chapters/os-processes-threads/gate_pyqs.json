@@ -1,0 +1,1508 @@
+{
+  "chapter": "os-processes-threads",
+  "papers": [
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s1-q63",
+      "type": "nat",
+      "marks": 2,
+      "key": "4",
+      "topic": "os-processes-threads.fork-conditional",
+      "difficulty": "medium",
+      "stem": "Consider the following program snippet. Assume that the program compiles and runs successfully. Further, assume that the fork() system call is always successful in creating a process. The total number of times that the printf statement gets executed is ________. (answer in integer)",
+      "code": {
+        "lang": "c",
+        "text": "int main () {\n   int i;\n   for (i = 0; i < 3; i++){\n      if (fork() == 0){\n        continue;\n      }\n      break;\n   }\n   printf(\"Hello!\");\n   return 0;\n}"
+      },
+      "answer": 4,
+      "solutionDiagram": {
+        "alt": "Four processes in a chain: the original and each child break out of the loop after one fork, except the last child, which finishes the loop; each prints Hello once, so 4 prints."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What fork() does and the one rule",
+            "body": "A process is a running copy of a program. fork() makes a second copy, the child, and both copies continue from the instruction after the call, each with its own variables (so its own $i$). The call returns $0$ in the child and a positive number, the child's id, in the parent. The rule that decides this question: the code after the loop runs once in every process that leaves the loop, so the answer is the number of processes that exist at the end, as long as each one reaches the printf exactly once."
+          },
+          {
+            "title": "Follow the original process",
+            "body": "The original process starts with $i = 0$. fork() creates a child. In the parent fork() returns a positive number, so the test fork() == 0 is false, the break runs and the parent leaves the loop. It executes printf once. In the child fork() returned $0$, so continue runs: the loop does $i$++, giving $i = 1$, and tests $1 < 3$, which is true."
+          },
+          {
+            "title": "Follow the child, one move at a time",
+            "body": "The child (call it C1) repeats exactly what the original did, now with $i = 1$. It forks C2; C1 is the parent in that fork, so it breaks and prints once. C2 continues with $i = 2$, forks C3, breaks and prints once. C3 continues with $i = 3$; the test $3 < 3$ fails, the loop ends without a break and C3 prints once."
+          },
+          {
+            "title": "Count",
+            "body": "The processes are the original, C1, C2 and C3. Each prints exactly once, so printf executes 4 times. This matches the official key 4.",
+            "tex": "1 + 1 + 1 + 1 = 4"
+          }
+        ],
+        "shortcut": {
+          "body": "The break makes every parent leave the loop right after its fork, so the loop is a chain: each fork adds one process and only the newest child keeps looping. Three iterations give 3 children plus the original, 4 processes, 4 prints. Without the break every process would keep forking and the count would be $2^3 = 8$."
+        },
+        "traps": [
+          {
+            "text": "Ignoring the break and treating the loop as three unconditional forks gives $2^3 = 8$ prints. The break stops every parent after its first fork."
+          },
+          {
+            "text": "Counting only the children gives 3, forgetting that the original process also reaches printf once."
+          },
+          {
+            "text": "Counting the children of an unbroken loop, $2^3 - 1 = 7$, mixes up the number of children with the number of prints and also ignores the break."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.fork-conditional",
+          "clues": "The fork() sits inside an if that tests its return value against 0, and the branch contains continue while the fall-through contains break. That makes the loop depend on which copy is the child.",
+          "contrast": "An unconditional fork() in a loop, as in fork-counting, doubles the processes every pass. Here the break stops every parent, so the count grows by one per pass instead of doubling."
+        },
+        "check": {
+          "body": "Count by recursion. Let $f(k)$ be the number of prints made by a process that still has $k$ passes to go. Its parent side prints once and stops, and its child has $k-1$ passes left, so $f(k) = 1 + f(k-1)$ with $f(0) = 1$, because a process with no passes left just prints. This is a different route from tracing processes one by one.",
+          "tex": "f(k) = 1 + f(k-1), \\quad f(0) = 1"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, question 63",
+          "url": "https://gateoverflow.in/523027/gate-cse-2026-set-1-question-53"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Ask what each process does right after its own fork() call, and which of the two copies gets to run the next iteration of the loop."
+        },
+        {
+          "kind": "concept",
+          "text": "fork() returns 0 in the child and a non-zero process id in the parent. Both copies carry on from the next statement, each with its own copy of $i$."
+        },
+        {
+          "kind": "principle",
+          "text": "The if with continue and break decides who stays in the loop. Work out which copy leaves the loop after a fork and which copy goes round again."
+        },
+        {
+          "kind": "setup",
+          "text": "The printf runs once in every process that leaves the loop, either by break or because the loop test fails. List the processes that get created and note where each one exits."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the first pass only: the original process calls fork() once. Say what value fork() returns in each of the two copies, and which test in the if each copy meets."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following program. Assume fork() always succeeds and the program runs to completion.\n\nint main() {\n   int i;\n   for (i = 0; i < 4; i++) {\n      if (fork() != 0) {\n         break;\n      }\n   }\n   printf(\"Hi\");\n   return 0;\n}\n\nThe total number of times the printf statement is executed is ________.",
+        "answer": 5,
+        "explanation": "Here the parent takes the break and the child keeps looping, the mirror image of the original test. Each pass adds one child and only the newest child continues, so 4 passes create 4 children. With the original process that makes 5 processes, and each prints once, so the total is 5. A script simulating the processes gave the same count."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q29",
+      "type": "nat",
+      "marks": 1,
+      "key": "21",
+      "topic": "os-processes-threads.process-states",
+      "difficulty": "medium",
+      "stem": "Suppose in a multiprogramming environment, the following C program segment is executed. A process goes into I/O queue whenever an I/O related operation is performed. Assume that there will always be a context switch whenever a process requests for an I/O, and also whenever the process returns from an I/O. The number of times the process will enter the ready queue during its lifetime (not counting the time the process enters the ready queue when it is run initially) is _______. (Answer in integer)",
+      "code": {
+        "lang": "c",
+        "text": "int main()\n{\n    int x=0,i=0;\n    scanf(\"%d\",&x);\n    for(i=0; i<20; i++)\n    {\n        x = x+20;\n        printf(\"%d\\n\",x);\n    }\n    return 0;\n}"
+      },
+      "answer": 21,
+      "solutionDiagram": {
+        "alt": "Ready queue, Running and I/O queue in a cycle; each of the 21 I/O calls (one scanf, twenty printf) ends with an entry into the ready queue, numbered 1 to 21."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Queues and the one rule",
+            "body": "The ready queue holds processes that can run and are waiting for the CPU. The I/O queue holds processes waiting for a device to finish. A running process that asks for I/O leaves the CPU and joins the I/O queue; when the device finishes, the process moves to the ready queue and waits for a dispatch. A process enters the ready queue when it is admitted (the initial entry, which the question excludes), when it is preempted (the question allows context switches only for I/O, so none), and when an I/O it waited for completes. So the answer is the number of I/O operations the process performs."
+          },
+          {
+            "title": "Find the I/O operations in the program",
+            "body": "scanf reads from the keyboard: 1 I/O operation. printf writes to the screen: the loop runs for $i = 0, 1, \\dots, 19$, which is 20 iterations, so 20 more. The statement x = x+20 and the loop counter only use the CPU and memory, so they are not I/O.",
+            "tex": "1 + 20 = 21"
+          },
+          {
+            "title": "One ready-queue entry per I/O",
+            "body": "Each I/O call sends the process Running to the I/O queue; its completion sends it to the ready queue. That is one entry per call, including the last printf, after which the process returns to the ready queue, runs return 0 and ends. The count is 21, matching the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Count the I/O calls in the code, 1 scanf plus 20 printf, and give each one ready-queue entry on its return. 21. This shortcut assumes no preemption; with a time-slice expiry each expiry would add one more entry, but the question rules that out."
+        },
+        "traps": [
+          {
+            "text": "Forgetting scanf, which is an I/O call too, gives 20."
+          },
+          {
+            "text": "Adding the initial entry (the first time the process is run) gives 22. The question tells you not to count it."
+          },
+          {
+            "text": "Counting both the move into the I/O queue and the move back, or counting every context switch, gives 42. Only the move into the ready queue is asked for."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.process-states",
+          "clues": "The wording talks about the I/O queue, the ready queue and a context switch on every I/O request and return. The count asked for is a number of queue entries, so it follows from the state transitions.",
+          "contrast": "This is not a CPU-scheduling count of time slices or preemptions. Preemption would add ready-queue entries, but the stem rules it out, so only I/O completions count."
+        },
+        "check": {
+          "body": "Test the boundary. If the loop ran zero times, only scanf would be left, giving 1 ready-queue entry after its completion. Each extra iteration adds one printf and so one entry, so a loop of $n$ passes gives $n + 1$ entries. Setting $n = 20$ reproduces the count.",
+          "tex": "E(n) = n + 1"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1, question 29",
+          "url": "https://gateoverflow.in/460061/gate-cse-2025-set-1-question-19"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-1 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "List the events that move the process from the CPU into a waiting queue, and ask what happens to the process when each of them finishes."
+        },
+        {
+          "kind": "concept",
+          "text": "The ready queue holds processes that wait for the CPU. When an I/O request completes, the process goes back to the ready queue and does not jump straight onto the CPU."
+        },
+        {
+          "kind": "principle",
+          "text": "The question allows context switches only because of I/O, so no time-slice expiry adds extra entries. Every I/O request therefore causes one return to the ready queue."
+        },
+        {
+          "kind": "setup",
+          "text": "Walk through the program line by line and mark each statement that talks to the keyboard or the screen. A statement inside a loop counts once per iteration."
+        },
+        {
+          "kind": "partial",
+          "text": "The loop starts at $i = 0$ and stops before $i = 20$, so the body runs a fixed number of times. Count the I/O statements in one pass, multiply by the passes, then add the I/O that sits outside the loop."
+        }
+      ],
+      "variation": {
+        "stem": "A process runs the following program in a multiprogramming system. A process enters the I/O queue whenever it performs an I/O operation, and a context switch happens whenever it requests I/O and whenever it returns from I/O. There is no other cause of context switches. Not counting the first time the process is run, how many times does it enter the ready queue during its lifetime?\n\nint main() {\n   int a, b, i;\n   scanf(\"%d\", &a);\n   scanf(\"%d\", &b);\n   for (i = 0; i < 12; i++) {\n      a = a + b;\n      printf(\"%d\", a);\n   }\n   printf(\"done\");\n   return 0;\n}",
+        "answer": 15,
+        "explanation": "Each I/O request ends with a return to the ready queue, and nothing else adds an entry. The program has 2 scanf calls, 12 printf calls in the loop and 1 printf after it, which is 15 I/O operations. The assignment a = a + b uses only the CPU. So the process enters the ready queue 15 times."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q25",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;B",
+      "topic": "os-processes-threads.context-switch",
+      "difficulty": "medium",
+      "stem": "Consider a process P running on a CPU. Which one or more of the following events will always trigger a context switch by the OS that results in process P moving to a non-running state (e.g., ready, blocked)?",
+      "options": [
+        "P makes a blocking system call to read a block of data from the disk",
+        "P tries to access a page that is in the swap space, triggering a page fault",
+        "An interrupt is raised by the disk to deliver data requested by some other process",
+        "A timer interrupt is raised by the hardware"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Definitions and the rule",
+            "body": "A context switch is the kernel saving the state of the process on the CPU and loading the state of another. A process is Running when it holds the CPU, Ready when it could run but waits for the CPU, and Blocked (Waiting) when it cannot run until an event such as a disk transfer completes. An interrupt is a signal from hardware that makes the CPU run a kernel handler and then, usually, resume the interrupted process. The rule: P is guaranteed to leave the CPU only when it cannot continue (it must wait for something). An event that merely interrupts P gives the kernel a choice, and the word \"always\" removes every case where the choice goes the other way."
+          },
+          {
+            "title": "Option A: blocking read",
+            "body": "A blocking read cannot return until the disk delivers the data, which takes millions of CPU cycles. The kernel puts P in the Blocked state and runs someone else. This always happens, so A is correct."
+          },
+          {
+            "title": "Option B: page fault on a swapped-out page",
+            "body": "The page P needs is on disk. The kernel starts the read and P cannot execute its next instruction until the page arrives, so P is blocked and the CPU is given away. This always happens, so B is correct."
+          },
+          {
+            "title": "Options C and D: interrupts that leave a choice",
+            "body": "In C the disk interrupt is for another process. The handler marks that process Ready and then P resumes; P is displaced only if the scheduler decides the newly ready process is more important, which it need not. In D the timer interrupt runs the scheduler, which may find P's time slice unused, or find no other ready process, or belong to a non-preemptive policy, and then P continues. Neither is guaranteed, so C and D are wrong. The answer is A and B, as in the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask one question per option: \"must P wait?\" A and B: yes, P needs the disk. C and D are decisions the scheduler makes; \"always\" rules them out. Answer A, B. The shortcut is safe because a forced wait is the only way an event moves P out of Running with certainty."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "An interrupt for another process feels like a reason to switch, but the handler returns to P unless the scheduler preempts it; nothing makes that always happen."
+          },
+          {
+            "option": 3,
+            "text": "A timer interrupt is how preemptive scheduling works, which makes D tempting. It only calls the scheduler, and if P is the only ready process or its quantum is not used up, P keeps the CPU."
+          },
+          {
+            "text": "Leaving out B because a page fault \"is handled by the OS\" and not a blocking call. The page must be read from disk, so P blocks exactly as in A."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.context-switch",
+          "clues": "The stem asks which events will always move P to a non-running state. That is a question about when the kernel must switch away from P, as opposed to when it may.",
+          "contrast": "A voluntary switch (P blocks) is guaranteed, while a preemptive switch (timer or another process becoming ready) is a scheduler choice. The word \"always\" separates them."
+        },
+        "check": {
+          "body": "Take the extreme case where P is the only process on the machine. A blocking read or a page fault on a swapped-out page still takes P off the CPU, and the CPU idles until the disk finishes. A timer interrupt or a disk interrupt for someone else has no other process to switch to, so P simply keeps running. This confirms which events depend on the scheduler."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, question 25",
+          "url": "https://gateoverflow.in/422882/gate-cse-2024-set-2-question-15"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS2 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The word \"always\" matters. For each event ask whether P is forced off the CPU, or only might lose it depending on a choice the scheduler makes."
+        },
+        {
+          "kind": "concept",
+          "text": "A process is Blocked when it cannot go on until some event happens. At that moment the kernel hands the CPU to another process because P has nothing it can execute."
+        },
+        {
+          "kind": "principle",
+          "text": "An event forces P off the CPU only when P itself cannot continue. An event that merely interrupts P lets the handler return to P, unless the scheduler decides to pick someone else."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option note whose event it is, P's or another process's, and whether P could execute its next instruction right after it. Keep the options where P could not."
+        }
+      ],
+      "variation": {
+        "stem": "A process P is running on a CPU. Which one or more of the following events will always cause a context switch that moves P to a non-running state?",
+        "options": [
+          "P waits on a semaphore whose value is 0",
+          "P performs a blocking read on an empty pipe",
+          "P calls getpid(), a system call that returns at once",
+          "The keyboard raises an interrupt for a key pressed in another process's window"
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "A semaphore wait on value 0 and a read on an empty pipe both leave P unable to continue, so the kernel must block it and run another process. A system call that returns at once lets P carry on, and a keyboard interrupt for another process only makes that process ready; P is displaced only if the scheduler chooses to. The answer is A and B."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q24",
+      "type": "msq",
+      "marks": 1,
+      "key": "D",
+      "topic": "os-processes-threads.threads",
+      "difficulty": "easy",
+      "stem": "Which of the following statements about threads is/are TRUE?",
+      "options": [
+        "Threads can only be implemented in kernel space",
+        "Each thread has its own file descriptor table for open files",
+        "All the threads belonging to a process share a common stack",
+        "Threads belonging to a process are by default not protected from each other"
+      ],
+      "answer": [
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Two threads inside one process: the code, globals, heap and file descriptor table are in one shared box, and each thread has its own private program counter, registers and stack."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a thread is and the rule",
+            "body": "A process is a program in execution with its own address space (code, global data, heap) and its own open files. A thread is one path of execution inside a process. Threads of the same process share the address space and the open files, and keep only what a path of execution needs to be separate: a program counter, a set of registers and a stack. The rule: private is program counter, registers and stack; everything else in the process is shared, and the hardware does not separate threads from each other."
+          },
+          {
+            "title": "Option A",
+            "body": "A user-level thread is created and scheduled by a library inside the process, and the kernel sees only one process. Such threads exist (the many-to-one model), so \"only in kernel space\" is false."
+          },
+          {
+            "title": "Options B and C",
+            "body": "The file descriptor table is part of the process, shared by all its threads: a file opened by one thread can be read by another. So B is false. The stack is private: if threads shared a stack, each call by one thread would overwrite the frames of another. So C is false."
+          },
+          {
+            "title": "Option D",
+            "body": "All threads run in the same address space, so any thread can read or write any other thread's data, including its stack, by using a pointer. Memory protection works between processes, not between threads of one process. D is true, so the answer is D, matching the key."
+          }
+        ],
+        "shortcut": {
+          "body": "Remember the private list: program counter, registers, stack. B and C contradict it. A is false because user-level thread libraries exist. D is what remains and is the standard disadvantage of threads. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing threads need kernel support. User-level threads run on a library and the kernel sees one schedulable entity."
+          },
+          {
+            "option": 1,
+            "text": "Open files belong to the process, so the table is shared; only the stack, registers and program counter are per thread."
+          },
+          {
+            "option": 2,
+            "text": "Mixing up the shared heap with the stack. Each thread needs its own stack to keep its own call chain and local variables."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.threads",
+          "clues": "Every option is a claim about what threads of a process own or share (kernel space, file table, stack, protection). That is the thread-versus-process resource split.",
+          "contrast": "Process isolation is enforced by separate address spaces. Do not carry that protection over to threads, which sit inside one address space."
+        },
+        "check": {
+          "body": "Test it with a pointer. If thread 1 passes the address of one of its local variables to thread 2, thread 2 can read and write it, because both run in one address space and nothing separates them. The same pointer would be useless in another process. To see why each thread still needs its own stack, imagine two threads calling the same function with a shared stack: each would overwrite the other's local variables."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, question 24",
+          "url": "https://gateoverflow.in/422828/gate-cse-2024-set-1-question-14"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Take each statement and ask which part of the process it concerns: its memory, its open files, or the state of its own execution."
+        },
+        {
+          "kind": "concept",
+          "text": "A thread is one path of execution inside a process. All threads of one process live in the same address space."
+        },
+        {
+          "kind": "principle",
+          "text": "To run independently a thread needs only a small amount of private state. Everything else that belongs to the process is common to all its threads."
+        },
+        {
+          "kind": "setup",
+          "text": "Make two lists, private to a thread and shared by all threads, and place the subject of each option in one of them. For the first option, recall whether a thread library can exist without the kernel knowing about the threads."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following statements about the threads of a single process is/are TRUE?",
+        "options": [
+          "Each thread has its own program counter",
+          "Each thread has its own private copy of the global variables",
+          "A blocking system call by one user-level thread in a many-to-one model can block every thread of the process",
+          "All threads of a process share the same heap"
+        ],
+        "answer": [
+          0,
+          2,
+          3
+        ],
+        "explanation": "A thread needs its own program counter, registers and stack, so A is true. Global variables sit in the shared data segment, so B is false. In the many-to-one model the kernel sees one schedulable entity, so a blocking call stops all threads, which makes C true. The heap belongs to the process and is shared, so D is true. The answer is A, C and D."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q25",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;C",
+      "topic": "os-processes-threads.process-states",
+      "difficulty": "easy",
+      "stem": "Which of the following process state transitions is/are NOT possible?",
+      "options": [
+        "Running to Ready",
+        "Waiting to Running",
+        "Ready to Waiting",
+        "Running to Terminated"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solutionDiagram": {
+        "alt": "Five-state diagram: New to Ready, Ready to Running, Running to Ready, Running to Waiting, Waiting to Ready and Running to Terminated are drawn solid; Waiting to Running and Ready to Waiting are dashed and crossed out."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The states and the rule that decides",
+            "body": "A process is Ready when it can run and waits for the CPU, Running when it holds the CPU, Waiting (blocked) when it waits for an event such as I/O, and Terminated when it has finished. Two facts decide every transition. First, only the dispatcher gives the CPU away, and it picks only from the ready queue, so Running is entered only from Ready. Second, a process can only ask for something to wait for while it is executing, so Waiting is entered only from Running. When the awaited event happens the process goes to Ready, not straight to Running."
+          },
+          {
+            "title": "Check each option",
+            "body": "A, Running to Ready: possible when the time slice ends or a higher-priority process arrives (preemption). B, Waiting to Running: impossible; a finished I/O makes the process Ready and it must be dispatched. C, Ready to Waiting: impossible; a ready process is not executing, so it cannot request anything to wait for. D, Running to Terminated: possible when the process exits."
+          },
+          {
+            "title": "Answer",
+            "body": "The transitions that are not possible are B and C, which is the official key. Read the question twice: it asks for the impossible ones."
+          }
+        ],
+        "shortcut": {
+          "body": "Draw the five-state diagram from memory: admit, dispatch, preempt, block, wake-up, exit. A and D are arrows on it; B and C are not. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Selecting A because preemption \"looks like a problem\": a running process can be preempted back to Ready."
+          },
+          {
+            "text": "Selecting D because Terminated feels final: exit is an ordinary transition out of Running."
+          },
+          {
+            "text": "Answering with the possible transitions (A and D) instead of the impossible ones: the question has NOT in it."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.process-states",
+          "clues": "The options are pairs of process states joined by \"to\", and the stem asks which moves cannot occur. That is the five-state diagram and its arrows.",
+          "contrast": "The Waiting-to-Ready arrow (wake-up) and Ready-to-Running arrow (dispatch) are easy to merge into one. The wake-up goes to the ready queue and only the dispatcher moves a process on to Running."
+        },
+        "check": {
+          "body": "Count arrows. Among Ready, Running, Waiting and Terminated there are 12 ordered pairs, and only 5 are arrows of the diagram: Ready to Running, Running to Ready, Running to Waiting, Waiting to Ready and Running to Terminated. Check each option against this list of 5 rather than against your memory of the picture."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, question 25",
+          "url": "https://gateoverflow.in/422827/gate-cse-2024-set-1-question-15"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks for the transitions that are NOT possible. Decide which way you are filtering before you read the options."
+        },
+        {
+          "kind": "concept",
+          "text": "A process leaves the Waiting state when the event it was waiting for happens. Ask where it goes at that moment."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask which states the CPU can be handed to directly."
+        },
+        {
+          "kind": "setup",
+          "text": "Draw the state diagram with arrows for dispatch, preemption, blocking, wake-up and exit. Test each option against the arrows you drew."
+        }
+      ],
+      "variation": {
+        "stem": "In the standard five-state process model, with states New, Ready, Running, Waiting and Terminated and only the arrows admit, dispatch, preempt, block, wake-up and exit, which of the following transitions is/are possible?",
+        "options": [
+          "New to Running",
+          "Running to Waiting",
+          "Waiting to Ready",
+          "Ready to Terminated"
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "Admit takes New to Ready only, so New to Running is not an arrow. Block takes Running to Waiting and wake-up takes Waiting to Ready, so both exist. Exit leaves only from Running, so Ready to Terminated is not possible. The answer is B and C."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q57",
+      "type": "nat",
+      "marks": 2,
+      "key": "14",
+      "topic": "os-processes-threads.fork-counting",
+      "difficulty": "medium",
+      "stem": "Consider the following code snippet using the fork() and wait() system calls. Assume that the code compiles and runs correctly, and that the system calls run successfully without any errors. The total number of times the printf statement is executed is _______",
+      "code": {
+        "lang": "c",
+        "text": "int x = 3;\nwhile(x > 0) {\n  fork();\n  printf(\"hello\");\n  wait(NULL);\n  x--;\n}"
+      },
+      "answer": 14,
+      "solutionDiagram": {
+        "alt": "Tree of processes over three iterations: 1 process forks at x = 3, 2 at x = 2, 4 at x = 1, and after each fork both parent and child print, giving 2, 4 and 8 prints, 14 in total."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "fork() copies the calling process; both copies carry on from the next statement, each with its own copy of x. wait(NULL) makes a process pause until one of its children ends; it changes the order of events but not how many times anything runs. The question counts executions of the printf statement, not characters on the screen, so output buffering does not matter. The rule: every process alive at the start of an iteration forks, so the number of processes doubles, and each of the two processes that results then executes the printf once."
+          },
+          {
+            "title": "Iteration 1, x = 3",
+            "body": "One process exists. It forks, so there are 2 processes, and each executes printf: 2 prints. After wait and x--, both continue with x = 2."
+          },
+          {
+            "title": "Iteration 2, x = 2",
+            "body": "Two processes exist at the start. Each forks, so there are 4 processes, and each prints: 4 prints. All four continue with x = 1."
+          },
+          {
+            "title": "Iteration 3, x = 1, and the total",
+            "body": "Four processes fork into 8, and each prints: 8 prints. All then reach x = 0 and leave the loop. The total is the sum over the iterations, matching the official key 14.",
+            "tex": "2 + 4 + 8 = 14 = 2^4 - 2"
+          }
+        ],
+        "shortcut": {
+          "body": "Iteration $k$ has $2^{k-1}$ processes that fork into $2^k$ processes, each printing once, so it prints $2^k$ times. For three iterations the sum is $2 + 4 + 8 = 2^4 - 2 = 14$. The shortcut relies on every process (children included) running the loop to the end; wait would not change that."
+        },
+        "traps": [
+          {
+            "text": "Counting only the last iteration, $2^3 = 8$, forgets the prints of the earlier iterations."
+          },
+          {
+            "text": "Counting 6, three iterations times 2 prints, assumes only the original process forks. Children also run the loop and fork in the later iterations."
+          },
+          {
+            "text": "Counting 7, the number of fork() calls that execute ($1 + 2 + 4$), counts forks, not prints; each fork produces two prints."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.fork-counting",
+          "clues": "An unconditional fork() sits inside a while loop that runs x = 3 times, and the question asks for the total of printf executions. Children inherit the loop, so each pass multiplies the processes.",
+          "contrast": "wait(NULL) looks like it might limit the children, but it only orders events. A conditional fork (if on the return value) is different: there the count depends on who is the parent."
+        },
+        "check": {
+          "body": "Count per process instead of per pass. The original process prints in all 3 passes. A child created in pass 1 prints in passes 1, 2 and 3, a child created in pass 2 prints in passes 2 and 3, and a child created in pass 3 prints once. Pass 1 creates 1 child, pass 2 creates 2 and pass 3 creates 4, so the total is $3 + 1\\cdot3 + 2\\cdot2 + 4\\cdot1$.",
+          "tex": "3 + 1\\cdot 3 + 2\\cdot 2 + 4\\cdot 1"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, question 57",
+          "url": "https://gateoverflow.in/422795/gate-cse-2024-set-1-question-47"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Count how many processes execute the printf in each pass of the loop, then add the passes. Does wait() change how many there are?"
+        },
+        {
+          "kind": "concept",
+          "text": "fork() makes a copy that carries on from the next statement with its own x. wait(NULL) only pauses a parent until a child ends."
+        },
+        {
+          "kind": "principle",
+          "text": "Every process alive at the start of a pass runs the fork in that pass, so the number of processes follows a regular pattern from one pass to the next."
+        },
+        {
+          "kind": "setup",
+          "text": "Make a table with the pass, the value of x, the number of processes at the start of the pass and the number after the fork. Each process that exists after the fork prints once."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the first pass only: one process calls fork(), so two processes exist from that point. Carry both of them on, with a smaller x, and ask what each one does next."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following code using fork() and wait(). Assume every system call succeeds. The total number of times the printf statement is executed is ________.\n\nint x = 4;\nwhile (x > 0) {\n   fork();\n   printf(\"go\");\n   wait(NULL);\n   x--;\n}",
+        "answer": 30,
+        "explanation": "Each pass doubles the number of processes and every process prints once after its fork, so pass $k$ prints $2^k$ times. For 4 passes the total is $2 + 4 + 8 + 16 = 30$. A script simulating the processes gave the same count."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q22",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;C;D",
+      "topic": "os-processes-threads.context-switch",
+      "difficulty": "easy",
+      "stem": "Which one or more of the following need to be saved on a context switch from one thread (T1) of a process to another thread (T2) of the same process?",
+      "options": [
+        "Page table base register",
+        "Stack pointer",
+        "Program counter",
+        "General purpose registers"
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "One process with two threads: the shared box (code, globals, heap, files, page table) is unchanged by a thread switch, and the private boxes of T1 and T2 (program counter, registers, stack pointer) are swapped."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a context is and the rule",
+            "body": "The context of a running thread is everything the CPU holds that is needed to resume it later: the program counter (address of the next instruction), the general purpose registers, the stack pointer, and the page table base register (PTBR), which tells the memory unit which page table translates addresses. A context switch saves the outgoing thread's context and loads the incoming thread's. The rule: save a register only if the incoming thread would need a different value. Threads of one process share the address space and so the page table, and differ in the other three items."
+          },
+          {
+            "title": "Check each register",
+            "body": "A, PTBR: T1 and T2 use the same page table, so the value is the same for both; nothing needs saving (a switch to a thread of another process would). B, stack pointer: each thread has its own stack, so the value differs: save. C, program counter: the two threads are at different instructions: save. D, general purpose registers: they hold each thread's intermediate values: save."
+          },
+          {
+            "title": "Answer",
+            "body": "B, C and D are saved, A is not, matching the official key. This is why a thread switch is cheaper than a process switch: the page table, and with it the TLB contents, stay valid."
+          }
+        ],
+        "shortcut": {
+          "body": "Same process means same address space, so cross out the page table base register. Every other register is private to the thread: B, C, D. About 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Saving the page table base register is needed when switching between processes, but threads of one process share it."
+          },
+          {
+            "text": "Leaving out the stack pointer because \"threads share memory\": the stacks are in the shared address space but each thread has its own, so the pointer differs."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.context-switch",
+          "clues": "The switch is between two threads of the same process, and the options are CPU registers. The same-process wording matters, because it decides which registers differ between the two threads.",
+          "contrast": "A switch between two different processes would also change the page table base register. A thread switch within one process leaves it alone, which is why it is cheaper."
+        },
+        "check": {
+          "body": "Imagine resuming T1 later with T2's value in each register. With T2's stack pointer, T1 would return into the wrong frames. With T2's program counter it would run the wrong instruction, and with T2's general purpose registers it would compute with the wrong data. With T2's page table base register it would see the same memory it always saw, because both threads use one page table, so nothing breaks."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, question 22",
+          "url": "https://gateoverflow.in/399300/gate-cse-2023-question-12"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each item ask whether T1 and T2 would hold different values in it. If the two values are equal, there is nothing to save for the switch."
+        },
+        {
+          "kind": "concept",
+          "text": "The context of a thread is whatever the CPU holds that is needed to resume the thread later."
+        },
+        {
+          "kind": "principle",
+          "text": "Think about what would go wrong if T1 were resumed later holding a value that belongs to T2."
+        },
+        {
+          "kind": "setup",
+          "text": "Go through the four registers one by one and ask: would T1 and T2 hold the same value in it at the moment of the switch?"
+        }
+      ],
+      "variation": {
+        "stem": "Two threads T1 and T2 belong to the same process. Which one or more of the following hold the same value or contents for both threads, so that they need not be swapped on a switch from T1 to T2?",
+        "options": [
+          "Page table base register",
+          "Open file table",
+          "Stack pointer",
+          "Program counter"
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Both threads run in one address space and use one page table, so the page table base register is the same. The open file table belongs to the process, so it is common. Each thread has its own stack and its own place in the code, so the stack pointer and program counter differ. The answer is A and B."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q23",
+      "type": "msq",
+      "marks": 1,
+      "key": "C;D",
+      "topic": "os-processes-threads.dual-mode",
+      "difficulty": "easy",
+      "stem": "Which one or more of the following options guarantee that a computer system will transition from user mode to kernel mode?",
+      "options": [
+        "Function Call",
+        "malloc Call",
+        "Page Fault",
+        "System Call"
+      ],
+      "answer": [
+        2,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "User mode box above and kernel mode box below: a page fault and a syscall instruction always cross into the kernel handlers, a function call stays in user mode, and malloc crosses only when the heap must grow."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Modes and the rule",
+            "body": "The CPU runs in two modes. In user mode, ordinary programs run and cannot execute privileged instructions or touch hardware directly. In kernel mode, the operating system runs with full access. The only ways into kernel mode are an interrupt from hardware, an exception raised by the running instruction (such as a page fault or a division by zero), and a trap, which is the deliberate instruction a program uses to ask the kernel for a service (a system call). The rule: an action guarantees a switch to kernel mode only if it always raises an exception or a trap."
+          },
+          {
+            "title": "A and B",
+            "body": "A function call is a jump to another address in the same program. It stays in user mode. malloc is a library function that carves memory out of free lists it manages in user space. It asks the kernel for more memory (brk or mmap) only when no free block is big enough, so some calls never enter the kernel. Neither guarantees a switch."
+          },
+          {
+            "title": "C and D",
+            "body": "A page fault is an exception raised by the MMU when an access has no valid mapping; the CPU always enters the kernel handler. A system call is a trap instruction; it always enters kernel mode. Both guarantee the switch. The answer is C and D, matching the key."
+          }
+        ],
+        "shortcut": {
+          "body": "Look for the word \"guarantee\" and ask whether the action always raises a trap or exception. System call: yes, by design. Page fault: yes, it is an exception. Function call and malloc: only sometimes or never. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "A function call can be a call into the library or the kernel in everyday talk, but a plain call instruction never changes the mode."
+          },
+          {
+            "option": 1,
+            "text": "malloc is about memory, which sounds like kernel work. In practice the library serves most calls from memory it already owns, so a switch is not guaranteed."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.dual-mode",
+          "clues": "The stem asks what guarantees a transition from user mode to kernel mode. The method is to check whether each action necessarily raises a trap or an exception.",
+          "contrast": "Library calls such as malloc look like system calls but often run entirely in user space. A real system call is a trap and always enters the kernel."
+        },
+        "check": {
+          "body": "Try to build a run of each option that never enters the kernel. A function call is only a jump, so that run is easy. A malloc served from memory the library already holds is also easy. For a page fault and a system call no such run exists: the fault is raised by the memory unit the moment the mapping is missing, and the trap instruction hands control to the kernel by definition."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, question 23",
+          "url": "https://gateoverflow.in/399299/gate-cse-2023-question-13"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The word \"guarantee\" matters. Look for actions that cannot finish without the kernel taking control, and discard those that only sometimes need it."
+        },
+        {
+          "kind": "concept",
+          "text": "User mode cannot execute privileged instructions. The CPU enters kernel mode through an interrupt, an exception or a trap instruction."
+        },
+        {
+          "kind": "principle",
+          "text": "An action guarantees the switch only if it always raises an exception or a trap. Ask of each option whether it can ever complete with the kernel never running."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option, decide whether it can complete without the kernel ever running."
+        }
+      ],
+      "variation": {
+        "stem": "Which one or more of the following actions in a user program guarantee a transition from user mode to kernel mode?",
+        "options": [
+          "Calling a function through a function pointer",
+          "Executing an integer division by zero",
+          "Calling printf when the library buffer has room",
+          "Executing an undefined opcode"
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "A call through a pointer is a jump inside the program and stays in user mode. Division by zero and an undefined opcode are exceptions raised by the CPU, and the kernel handler always runs. A printf that only fills the library buffer does not need the kernel until the buffer is flushed. The answer is B and D."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q42",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;D",
+      "topic": "os-processes-threads.threads",
+      "difficulty": "medium",
+      "stem": "Consider the following multi-threaded code segment (in a mix of C and pseudo-code), invoked by two processes P1 and P2, and each of the processes spawns two threads T1 and T2. Which of the following statement(s) is/are correct?",
+      "code": {
+        "lang": "c",
+        "text": "int x = 0; // global\nLock L1;   // global\nmain() {\n  create a thread to execute foo(); // Thread T1\n  create a thread to execute foo(); // Thread T2\n  wait for the two threads to finish execution;\n  print (x);}\n\nfoo() {\n  int y = 0;\n  Acquire L1;\n  x = x + 1;\n  y = y + 1;\n  Release L1;\n  print (y);}"
+      },
+      "options": [
+        "Both P1 and P2 will print the value of x as 2.",
+        "At least one of P1 and P2 will print the value of x as 4.",
+        "At least one of the threads will print the value of y as 2.",
+        "Both T1 and T2, in both the processes, will print the value of y as 1."
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Two processes P1 and P2 drawn as separate dashed boxes, each with its own global x going 0, 1, 2 under the lock and two threads whose own local y is 1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What is shared, and the rule",
+            "body": "Two processes have separate address spaces: a global variable in P1 and the \"same\" global in P2 are two different memory locations, each starting at 0. Threads of one process share its globals, so T1 and T2 of P1 see one x. A local variable such as y is created on the stack of the thread that runs foo(), so every thread has its own y. A lock (here L1) lets only one thread at a time run the code between Acquire and Release, so the update of x is never lost. The rule: share only what lies inside one process, and keep locals per thread."
+          },
+          {
+            "title": "Run one process",
+            "body": "In P1, T1 and T2 both run foo(). Each creates its own y = 0. Under L1 they take turns: x goes $0 \\to 1 \\to 2$ and each thread's y goes $0 \\to 1$. Each prints its own y = 1. main waits for both and prints x = 2.",
+            "tex": "x: 0 \\to 1 \\to 2, \\qquad y_{T1} = y_{T2} = 1"
+          },
+          {
+            "title": "The other process is independent",
+            "body": "P2 runs the same code on its own copy of x, so it also prints x = 2 and both of its threads print y = 1."
+          },
+          {
+            "title": "Check the options",
+            "body": "A: both processes print x = 2, true. B: x = 4 would need P1 and P2 to share x, but they do not, false. C: y is local, so no thread can see 2, false. D: all four threads print y = 1, true. The answer is A and D, as in the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Draw two boxes for the two processes, and put x in each box: two threads add 1 each, giving 2 per box, so A is true and B is false. y is declared inside foo, so every thread has its own y equal to 1: D is true and C is false. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Assuming the globals of P1 and P2 are one variable, so four increments give 4. Different processes never share memory unless they set up shared memory explicitly, and this code does not."
+          },
+          {
+            "option": 2,
+            "text": "Thinking y is shared like x, so the second thread sees 1 and makes it 2. y is declared inside foo, so it lives on each thread's own stack and starts at 0."
+          },
+          {
+            "text": "Doubting that the lock matters: with the lock the two increments to x cannot interleave, which is why x is exactly 2 and not 1."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.threads",
+          "clues": "Two processes each spawn two threads running the same foo(), with a global x, a local y declared inside foo and a lock around the update. The options ask what each print shows.",
+          "contrast": "Looks like a race-condition question, but the lock removes the race. The real test is which memory is shared: threads of one process share globals, separate processes do not, and locals are never shared."
+        },
+        "check": {
+          "body": "Total count of increments: each process runs exactly two calls of foo, so a process-wide x ends at 2 whatever the order of the threads. If P1 and P2 shared x the final value could be 4, so the options about 2 and about 4 cannot both hold. Now swap the order of T1 and T2: nothing changes, since each y starts at 0 on its own stack."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 42",
+          "url": "https://gateoverflow.in/357498/gate-cse-2021-set-2-question-42"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each option, ask which variable it talks about and whether two different threads, or two different processes, could ever touch the same copy of it."
+        },
+        {
+          "kind": "concept",
+          "text": "Recall what a process owns that its threads share, and what each thread keeps for itself. Separate processes get separate address spaces."
+        },
+        {
+          "kind": "principle",
+          "text": "A global variable has one copy per process. A variable declared inside a function has one copy per call, on the stack of the thread running it. A lock only orders access to the shared copy."
+        },
+        {
+          "kind": "setup",
+          "text": "Draw a box for each process. Put one x inside each box, and give every thread its own y. Then follow the two threads of one box through the locked region."
+        },
+        {
+          "kind": "partial",
+          "text": "Inside one box, the first thread to get the lock adds 1 to x and the second adds 1 as well. Work out what x holds when main prints it, and what each y holds when its thread prints."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following multi-threaded code segment, invoked by two processes P1 and P2. Each process spawns three threads, and each thread executes bar(). Which of the following statement(s) is/are correct?\n\nint c = 0;  // global\nLock M;     // global\nmain() {\n  create three threads to execute bar();\n  wait for the three threads to finish;\n  print (c);\n}\n\nbar() {\n  int t = 10;\n  Acquire M;\n  c = c + 2;\n  t = t + 1;\n  Release M;\n  print (t);\n}",
+        "options": [
+          "Both P1 and P2 will print the value of c as 6.",
+          "At least one of P1 and P2 will print the value of c as 12.",
+          "Every thread, in both the processes, will print the value of t as 11.",
+          "At least one of the threads will print the value of t as 13."
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Each process has its own c, and its three locked updates add 2 each, so each process prints 6 and the value 12 would need the two processes to share c. The local t is created per thread at 10 and raised once to 11, so every thread prints 11 and none can print 13. A short script that ran the three updates per process gave c = 6 and t = 11 in both."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q14",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;C",
+      "topic": "os-processes-threads.system-calls",
+      "difficulty": "medium",
+      "stem": "Which of the following standard C library functions will always invoke a system call when executed from a single-threaded process in a UNIX/Linux operating system?",
+      "options": [
+        "exit",
+        "malloc",
+        "sleep",
+        "strlen"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Library function versus system call, and the rule",
+            "body": "A library function is ordinary code linked into the program; it runs in user mode like the rest of the program. A system call is a request to the kernel, entered by a trap instruction, and it is the only way for a program to do something that only the kernel can do: end the process, wait on the timer, read or write a device, change the size of its address space. The rule: a library function always makes a system call if and only if its job cannot be done without the kernel."
+          },
+          {
+            "title": "exit and sleep",
+            "body": "exit runs the registered cleanup handlers and flushes buffers in user space, but the process can only really be ended by the kernel, so it always ends with the exit_group system call. sleep must stop the process for some time and wake it later; only the kernel owns the timer and the scheduler, so sleep always makes a call such as nanosleep. A and C are correct."
+          },
+          {
+            "title": "malloc and strlen",
+            "body": "malloc keeps free lists of memory it already got from the kernel and serves most requests from them, with no kernel entry. It makes a system call (brk or mmap) only when the heap has no block large enough. \"Always\" fails, so B is wrong. strlen only reads bytes in the program's own memory until it finds a zero byte; no kernel service is needed. D is wrong. The answer is A and C, as in the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask whether the function needs a service only the kernel can give. Exit the process: yes. Wait for time to pass: yes. Compute on memory you already own: no. Allocate memory: only sometimes, and \"always\" kills it. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "malloc is about memory, and the kernel owns memory, so it looks like a system call. In practice most calls are served from the process's own free lists and only some grow the heap with brk or mmap."
+          },
+          {
+            "option": 3,
+            "text": "strlen is a plain loop over bytes of the caller's own memory; it never needs the kernel."
+          },
+          {
+            "text": "Leaving out sleep because it is \"just a delay\": a delay needs the timer and the scheduler, both in the kernel, so the call is always made."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.system-calls",
+          "clues": "The stem asks which C library functions will always invoke a system call. The four names are exit, malloc, sleep and strlen, and the key word is \"always\" in a single-threaded process.",
+          "contrast": "The user-mode versus kernel-mode boundary in dual-mode operation explains why a call is needed, but this question asks which library functions cross it every time. A function that crosses only when its own pool runs dry does not count."
+        },
+        "check": {
+          "body": "Boundary case for each function. Call malloc twice in a row with tiny sizes: the second call is served from the free list, with no kernel entry, so malloc fails the \"always\" test. Call strlen on a string that is empty: it still needs no kernel service. Calling exit or sleep with any argument cannot avoid the kernel, since neither the end of a process nor a timed wait can happen in user mode alone."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, question 14",
+          "url": "https://gateoverflow.in/357438/gate-cse-2021-set-1-question-14"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each function, ask whether it could do its whole job using only the program's own memory and the CPU, or whether it has to ask the kernel for something."
+        },
+        {
+          "kind": "concept",
+          "text": "A library function is ordinary user-mode code. A system call is a trap into the kernel, needed for things only the kernel controls: processes, time, devices, and the size of the address space."
+        },
+        {
+          "kind": "principle",
+          "text": "The word \"always\" matters. A function that calls the kernel only on some inputs or in some states does not qualify, even if it sometimes does."
+        },
+        {
+          "kind": "setup",
+          "text": "Go through the four functions and ask of each: could some call to it finish without the kernel being involved at all? Keep only those where no such call exists."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the allocator. Ask what it does when a request is smaller than the free block it is already holding, and whether the kernel is involved in that case."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following standard C library functions must enter the kernel on every call, when run from a single-threaded process on Linux?",
+        "options": [
+          "toupper",
+          "fork",
+          "memcpy",
+          "usleep"
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "Ask whether the work needs the kernel. fork creates a process and usleep waits on the timer, so both always enter the kernel. toupper maps one character and memcpy copies bytes between buffers the program already owns, so neither needs the kernel. This was reasoned from the function definitions, not run, since the result is a property of the kernel interface and not a number."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q12",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "os-processes-threads.process-states",
+      "difficulty": "easy",
+      "stem": "Consider the following statements about process state transitions for a system using preemptive scheduling.\nI. A running process can move to ready state.\nII. A ready process can move to running state.\nIII. A blocked process can move to running state.\nIV. A blocked process can move to ready state.\nWhich of the above statements are TRUE?",
+      "options": [
+        "I, II, and III only",
+        "II and III only",
+        "I, II, and IV only",
+        "I, II, III, and IV"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Five-state diagram with the statements marked on their arrows: I is Running to Ready, II is Ready to Running and IV is Waiting to Ready, all solid; III, Waiting to Running, is dashed and crossed out."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The states and the rule",
+            "body": "A process is Running when it holds the CPU, Ready when it can run and waits for the CPU, and Blocked (also called Waiting) when it waits for an event such as the end of an I/O. Preemptive means the kernel may take the CPU away from a running process. The rule: only the dispatcher gives the CPU out, and it takes the next process from the ready queue. So Running is entered only from Ready. A blocked process whose event happens becomes Ready and then waits for the dispatcher."
+          },
+          {
+            "title": "Check each statement",
+            "body": "I: with preemptive scheduling a running process can be moved to Ready (time slice ended, or a more important process arrived): true. II: the dispatcher moves a ready process to Running: true. III: a blocked process cannot go straight to Running, because it would skip the ready queue and the dispatcher: false. IV: when the awaited event happens, a blocked process becomes Ready: true."
+          },
+          {
+            "title": "Answer",
+            "body": "I, II and IV are true: option C, matching the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Recall the five-state diagram. Arrows into Running come only from Ready, so III is false. The other three are arrows: option C, in under a minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Accepting III together with I and II and dropping IV: a blocked process cannot be dispatched, only readied by its event."
+          },
+          {
+            "option": 1,
+            "text": "Taking III as true while dropping both I (preemption makes Running to Ready possible here) and IV (a finished I/O makes the process Ready)."
+          },
+          {
+            "option": 3,
+            "text": "Marking everything true because each statement sounds like a reasonable event. III skips the ready queue, which the model never allows."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.process-states",
+          "clues": "The stem lists four state-change statements and mentions preemptive scheduling. Each statement names two states of the five-state or three-state model, so the question is whether a direct arrow exists.",
+          "contrast": "Looks like a scheduling-policy question, but no algorithm is needed. Context switching is about saving state; here only the legal arrows between states are tested."
+        },
+        "check": {
+          "body": "Second route: count arrows into Running. Whatever the model, the CPU is allocated by the dispatcher from the ready queue, so there is exactly one such arrow, from Ready. Now check that the statements marked true use only arrows leaving Running, entering Running from Ready, and leaving Blocked into Ready. That is three arrows for three statements, and the remaining statement needs a fourth arrow that does not exist."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020, question 12",
+          "url": "https://gateoverflow.in/333219/gate-cse-2020-question-12"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "GATE 2020 CS question paper with its answer key, IIT Delhi page print, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Draw the process states with their arrows. Which state does the CPU hand a process from, and which states does an event wake a process into?"
+        },
+        {
+          "kind": "concept",
+          "text": "The usual states are Ready, Running and Blocked. Preemption lets the kernel take the CPU from a running process before it is done."
+        },
+        {
+          "kind": "principle",
+          "text": "Only the dispatcher gives out the CPU, and it chooses from one particular queue. Ask what a process must be doing before it can be chosen."
+        },
+        {
+          "kind": "setup",
+          "text": "Test each statement against the diagram by asking whether there is a direct arrow between the two named states, with preemption allowed."
+        },
+        {
+          "kind": "partial",
+          "text": "Take statement III and trace the path a blocked process would need to reach the CPU. Ask which waiting line it passes through on the way, if any."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following statements about process state transitions in the standard model with the states Ready, Running and Blocked.\nI. A running process can move to blocked state when it requests I/O.\nII. A ready process can move to blocked state.\nIII. A blocked process can move to ready state when its I/O completes.\nIV. A ready process can move to running state.\nWhich of the above statements are TRUE?",
+        "options": [
+          "I and II only",
+          "I, III, and IV only",
+          "II, III, and IV only",
+          "I, II, III, and IV"
+        ],
+        "answer": 1,
+        "explanation": "A process asks for I/O only while it holds the CPU, so Running to Blocked exists, but a ready process is not executing and cannot block itself, so II is false. The event moves a blocked process to Ready, and the dispatcher moves a ready one to Running, so III and IV hold. That gives I, III and IV."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q17",
+      "type": "nat",
+      "marks": 1,
+      "key": "31",
+      "topic": "os-processes-threads.fork-counting",
+      "difficulty": "medium",
+      "stem": "The following C program is executed on a Unix/Linux system. The total number of child processes created is ________.",
+      "code": {
+        "lang": "c",
+        "text": "#include <unistd.h>\nint main()\n{\n      int i;\n      for (i=0; i<10; i++)\n            if (i%2 == 0) fork();\n      return 0;\n}"
+      },
+      "answer": 31,
+      "solutionDiagram": {
+        "alt": "Row of ten loop iterations; the process count doubles only at i = 0, 2, 4, 6 and 8, going 1, 2, 4, 8, 16, 32, so there are 32 processes and 31 children."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What fork() does and the rule",
+            "body": "fork() creates a copy of the calling process, the child. Both processes continue from the next statement, each with its own $i$ and each still inside the loop. So when $m$ processes all reach one fork() call, $2m$ processes leave it: every existing process makes one child. The rule: each executed round of forks doubles the number of processes; the number of children is the final count minus the original process."
+          },
+          {
+            "title": "Which iterations fork",
+            "body": "The call fork() runs only when i%2 == 0, that is for $i = 0, 2, 4, 6, 8$. That is 5 iterations. For $i = 1, 3, 5, 7, 9$ nothing is created, and the count stays as it is."
+          },
+          {
+            "title": "Double five times",
+            "body": "Start with 1 process. After $i = 0$: 2. After $i = 2$: 4. After $i = 4$: 8. After $i = 6$: 16. After $i = 8$: 32. These 32 processes include the original, so 31 are children, matching the official key.",
+            "tex": "2^5 - 1 = 31"
+          }
+        ],
+        "shortcut": {
+          "body": "Count the iterations in which the fork executes, $k = 5$, then the answer is $2^k - 1 = 31$. Every process, children included, runs the same loop, so the doubling holds; it fails only if a process leaves the loop early."
+        },
+        "traps": [
+          {
+            "text": "Forking at every iteration, as if the condition were absent, gives $2^{10} - 1 = 1023$."
+          },
+          {
+            "text": "Giving 32 counts the total number of processes, including the original, but the question asks for child processes."
+          },
+          {
+            "text": "Giving 5 counts only the children of the original process. The children themselves keep running the loop and fork again."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.fork-counting",
+          "clues": "A fork() inside a counted for loop, guarded only by an if on the loop index, with no test of the return value. The question asks for the number of child processes, not the number of prints.",
+          "contrast": "Different from fork-conditional: there the return value of fork() decides who continues. Here nobody exits early, so every process, parent and child, goes through every remaining iteration and the count doubles."
+        },
+        "check": {
+          "body": "Second route by labelling. Give every process a label: for each of the 5 fork points, record whether the process or one of its ancestors took the child side there. Distinct labels mean distinct processes, because each fork point splits a process into one that keeps its bit at 0 and a new one with bit 1. Each of the 5 bits is free, giving $2^5$ labels. The all-zero label is the original, so the children are one fewer.",
+          "tex": "2^5 - 1 = 31"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 17",
+          "url": "https://gateoverflow.in/302831/gate-cse-2019-question-17"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which iterations of the loop actually reach a fork, and what happens to the number of processes each time one does?"
+        },
+        {
+          "kind": "concept",
+          "text": "fork() makes a copy of the calling process. Both the parent and the child continue after the call, and the child copy keeps its own value of $i$ and stays in the loop."
+        },
+        {
+          "kind": "principle",
+          "text": "Every process alive at a fork call makes one child, so each executed round of forking doubles the process count. Children created earlier take part in later rounds."
+        },
+        {
+          "kind": "setup",
+          "text": "List the values of $i$ for which the condition holds, count them, and apply the doubling once per such value starting from a single process."
+        },
+        {
+          "kind": "partial",
+          "text": "Run the first two forking iterations by hand: one process before the first fork, how many after it, and how many after the second fork. Then recall what the question asks to count."
+        }
+      ],
+      "variation": {
+        "stem": "The following C program is executed on a Unix/Linux system. The total number of child processes created is ________.\n\n#include <unistd.h>\nint main()\n{\n      int i;\n      for (i=0; i<8; i++)\n            if (i%3 == 0) fork();\n      return 0;\n}",
+        "answer": 7,
+        "explanation": "The fork runs for $i = 0, 3, 6$, which is 3 iterations. Each one doubles the number of processes, so there are $2^3 = 8$ processes in the end, and 7 of them are children. A script that simulated every process and its loop index counted 7 children."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q7",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "os-processes-threads.threads",
+      "difficulty": "easy",
+      "stem": "Which of the following is/are shared by all the threads in a process?\nI. Program counter\nII. Stack\nIII. Address space\nIV. Registers",
+      "options": [
+        "I and II only",
+        "III only",
+        "IV only",
+        "III and IV only"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "One process with two threads: the address space (code, globals, heap, open files) sits in a shared box, and each thread owns a private program counter, registers and stack."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Process, thread and the rule",
+            "body": "A process owns an address space (its code, global data and heap) and its open files. A thread is one path of execution inside the process. Several threads run in the same process, so they share the address space. To run independently each thread needs its own place in the code (program counter), its own working values (registers) and its own call chain with local variables (stack). The rule: a thread owns exactly the program counter, the registers and the stack; the rest of the process is shared."
+          },
+          {
+            "title": "Check I to IV",
+            "body": "I, program counter: different threads execute different instructions at once, so each has its own. Not shared. II, stack: each thread has its own call chain and locals, so its own stack. Not shared. III, address space: all threads see the same memory. Shared. IV, registers: the registers hold each thread's current values, so they are saved and restored per thread. Not shared."
+          },
+          {
+            "title": "Answer",
+            "body": "Only III is shared: option B, matching the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Memorise: private to a thread are PC, registers and stack; shared is the address space (and open files). Only III qualifies, so option B in 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Treating the program counter and the stack as shared. Each thread has its own PC and stack, or two threads could not run different code."
+          },
+          {
+            "option": 2,
+            "text": "Picking registers because they are \"the same hardware\". The values are saved per thread at each switch, so they are not shared."
+          },
+          {
+            "option": 3,
+            "text": "Treating registers as shared along with the address space. The registers are private, so the option is half right, which makes it wrong."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.threads",
+          "clues": "The stem asks what is shared by all threads of a process and lists the program counter, stack, address space and registers, the standard parts of a thread context.",
+          "contrast": "A process context switch changes the address space as well, while a thread switch does not. That difference is what makes the address space the shared item."
+        },
+        "check": {
+          "body": "Substitution test. Suppose a listed item were shared by two threads running in parallel, for example the stack. Then the local variables and return addresses of one thread would be overwritten by calls made in the other, and programs would break. The same argument fails for the address space: threads that communicate through globals and the heap rely on it being common."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 7",
+          "url": "https://gateoverflow.in/118240/gate-cse-2017-set-2-question-07"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Picture two threads of one process running at the same moment. What must each of them have for itself so they can run different code, and what can they safely look at together?"
+        },
+        {
+          "kind": "concept",
+          "text": "A thread is a single path of execution inside a process. Ask what the process supplies to every path running within it."
+        },
+        {
+          "kind": "principle",
+          "text": "Anything that records where a thread is in its execution or what it is working on right now has to be private to it. Anything that describes the process as a whole is shared."
+        },
+        {
+          "kind": "setup",
+          "text": "Go through the four items one at a time and put each in one of two columns: private to the thread, or common to the process."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the program counter. If two threads shared one, ask what would happen when one thread executes a branch while the other is in the middle of a different function."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following is/are private to each thread of a process, that is, not shared with the other threads of the same process?\nI. Open file table\nII. Stack\nIII. Registers\nIV. Heap",
+        "options": [
+          "I and IV only",
+          "II and III only",
+          "II, III and IV only",
+          "III only"
+        ],
+        "answer": 1,
+        "explanation": "The stack holds one thread's local variables and return addresses, and the registers hold its current values, so both belong to one thread. The open file table and the heap belong to the process and are seen by all its threads. So II and III are private."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q18",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "os-processes-threads.threads",
+      "difficulty": "easy",
+      "stem": "Threads of a process share",
+      "options": [
+        "global variables but not heap.",
+        "heap but not global variables.",
+        "neither global variables nor heap.",
+        "both heap and global variables."
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "One process with two threads: global variables and the heap are both in the shared address space box; only the stack, registers and program counter are private to each thread."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Parts of a process and the rule",
+            "body": "A process's memory has four regions: the code, the global (static) data, the heap, where malloc takes memory from, and the stacks, which hold local variables and return addresses. All the threads of one process live in the same address space, so they see the same code, the same global data and the same heap. Only the stack is separate, one per thread, with a private program counter and registers. The rule: threads share every region except their stacks."
+          },
+          {
+            "title": "Apply it to the options",
+            "body": "Global variables are in the global data region: shared. The heap is a region of the same address space: shared. So the statement that is true is \"both heap and global variables\". A pointer returned by malloc in one thread can be used in another thread, and a global written by one thread is seen by the others."
+          },
+          {
+            "title": "Answer",
+            "body": "Option D, matching the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Everything except the stack, program counter and registers is shared, and the heap and the globals are both in that \"everything\". Option D in 15 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Excluding the heap because each thread allocates its own memory. The heap is one pool in the shared address space; every thread can reach what any other allocated."
+          },
+          {
+            "option": 1,
+            "text": "Excluding global variables. They sit in the data segment of the one address space, so all threads read and write the same copies."
+          },
+          {
+            "option": 2,
+            "text": "This is the description of separate processes, which do not share memory; threads of one process do."
+          }
+        ],
+        "recognize": {
+          "concept": "os-processes-threads.threads",
+          "clues": "The stem is short: threads of a process share which of global variables and the heap. The options combine those two regions in all four ways.",
+          "contrast": "Separate processes created by fork() get copies of both regions. Threads of one process use the very same copies, which is how to tell the two cases apart."
+        },
+        "check": {
+          "body": "Test with a shared counter. Two threads each add 1 to a global and later print it: both see the other's update, so globals are common. Then let one thread allocate a block and pass its pointer to the other through that global: the second thread can read the block, so the heap is common too. A counter kept in a local variable would not be seen, which marks the stack as the exception."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 18",
+          "url": "https://gateoverflow.in/118298/gate-cse-2017-set-1-question-18"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Think of where a variable lives in memory when it is global, and where memory from malloc comes from. Are those places inside one process?"
+        },
+        {
+          "kind": "concept",
+          "text": "A process's memory has code, global data, a heap and stacks. Every thread of the process runs in the same address space."
+        },
+        {
+          "kind": "principle",
+          "text": "Whatever is in the single address space and is not a stack is visible to all threads. Only the stacks, program counters and registers are split per thread."
+        },
+        {
+          "kind": "setup",
+          "text": "Mark each of the two regions named in the options as either part of the common address space or part of a per-thread area, then read the four options for the one that matches your markings."
+        },
+        {
+          "kind": "partial",
+          "text": "Suppose one thread calls malloc and stores the pointer in a global variable. Ask whether another thread could use that pointer, and what that says about both regions."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following is NOT shared by the threads of one process?",
+        "options": [
+          "The code segment",
+          "Global variables",
+          "The stack",
+          "Open file descriptors"
+        ],
+        "answer": 2,
+        "explanation": "All threads of a process run in one address space, so they see the same code, the same global data and the same open files. Each thread needs its own stack for its local variables and return addresses, so the stack is the one item that is not shared."
+      }
+    }
+  ],
+  "skipped": []
+}

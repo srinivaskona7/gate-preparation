@@ -1,0 +1,2979 @@
+{
+  "chapter": "cd-sdt-ir-optimization",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q45",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "difficulty": "medium",
+      "stem": "Consider the control flow graph given below. Which one of the following options is the set of live variables at the exit point of each basic block?",
+      "figure": "Control flow graph with ENTRY, EXIT and four blocks. ENTRY goes to B1 (a = b + c). B1 has two successors: B2 (d = a + e) and B3 (e = a + f). B2 goes to B4 (g = d + e). B4 goes to EXIT. B3 has a back edge to B1.",
+      "diagram": {
+        "alt": "Flow graph: ENTRY, B1 with a = b + c, B1 to B2 (d = a + e) and to B3 (e = a + f), B2 to B4 (g = d + e), B4 to EXIT, B3 back to B1."
+      },
+      "solutionDiagram": {
+        "alt": "The same flow graph with the live-out set written beside each block: B1 {a,b,c,e,f}, B2 {d,e}, B3 {b,c,e,f}, B4 empty."
+      },
+      "options": [
+        "B1:{a, b, c, e, f}, B2:{d, e}, B3:{b, c, e, f}, B4:∅",
+        "B1:∅, B2:{d, e}, B3:{a, c, f}, B4:∅",
+        "B1:{a, b, c, e, f}, B2:{d, e}, B3:{c, e, f}, B4:∅",
+        "B1:∅, B2:{d, e, f}, B3:{a, b, c, e, f}, B4:∅"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What live means, and the backward rule",
+            "body": "A variable is live at a point if some path from that point reads it before writing it. The live-out set of a block is everything live just after its last instruction. Two sets per block drive the calculation: use (variables read before any write inside the block) and def (variables written in the block). The rule is backward: in(B) = use(B) union (out(B) minus def(B)), and out(B) is the union of in(S) over every successor S of B. Nothing is live after the last block, because the program ends. Start from B4 and walk against the edges."
+          },
+          {
+            "title": "Write use and def for each block",
+            "body": "B1 (a = b + c): use {b, c}, def {a}. B2 (d = a + e): use {a, e}, def {d}. B3 (e = a + f): use {a, f}, def {e}. B4 (g = d + e): use {d, e}, def {g}. A name on the left is written, names on the right are read, and each block has one instruction, so there is no read-before-write ordering to worry about."
+          },
+          {
+            "title": "Blocks without the loop",
+            "body": "B4 leaves the program, so out(B4) = ∅ and in(B4) = {d, e}. B2 has only B4 after it, so out(B2) = in(B4) = {d, e}. Then in(B2) = {a, e} ∪ ({d, e} − {d}) = {a, e}."
+          },
+          {
+            "title": "The loop B1, B3 forces an iteration",
+            "body": "out(B1) = in(B2) ∪ in(B3) and out(B3) = in(B1). Start with out(B3) = ∅. Then in(B3) = {a, f}, so out(B1) = {a, e} ∪ {a, f} = {a, e, f}, and in(B1) = {b, c} ∪ ({a, e, f} − {a}) = {b, c, e, f}. Now out(B3) = {b, c, e, f}, so in(B3) = {a, f} ∪ ({b, c, e, f} − {e}) = {a, b, c, f}. Redo out(B1) = {a, e} ∪ {a, b, c, f} = {a, b, c, e, f}, and in(B1) is still {b, c, e, f} (a is defined in B1). Nothing changes on the next round, so this is the fixed point.",
+            "tex": "\\mathrm{out}(B1)=\\{a,b,c,e,f\\},\\ \\mathrm{out}(B2)=\\{d,e\\},\\ \\mathrm{out}(B3)=\\{b,c,e,f\\},\\ \\mathrm{out}(B4)=\\varnothing"
+          },
+          {
+            "title": "Match the option",
+            "body": "The set for B1, B2, B3 and B4 is {a,b,c,e,f}, {d,e}, {b,c,e,f}, ∅, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "B4 must be empty and B2 must be {d, e}: that is already true in A, B and C. B1 has successors that read a, e and f, so out(B1) cannot be empty: that removes B and D. A and C differ at B3, where out(B3) = in(B1), and B1 reads b and c, which nothing in B1 or B3 writes, so b must be live out of B3. Only A has b there. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Taking out(B1) as empty or out(B3) as {a, c, f} reads the use sets as live-out. use(B3) is what B3 needs before it runs, not what is live after it."
+          },
+          {
+            "option": 2,
+            "text": "out(B3) = {c, e, f} drops b. b is read by B1 on the next trip around the loop, and B3 does not write b, so b is live out of B3."
+          },
+          {
+            "option": 3,
+            "text": "Putting f into out(B2) takes it from B3's use set, but B3 is not a successor of B2: B2's only successor is B4, which reads d and e only. An empty out(B1) is also wrong, because B2 and B3 read a, e and f. Adding a to out(B3) ignores that B1 redefines a before reading it."
+          },
+          {
+            "text": "Stopping after one pass over the loop gives out(B3) = ∅ or {a, e, f}. The back edge B3 to B1 needs a second pass until no set changes."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.liveness",
+          "clues": "The question asks for the set of live variables at the exit of every basic block of a flow graph with single-assignment blocks and a back edge from B3 to B1.",
+          "contrast": "Available expressions also solve equations over a flow graph, but they run forward and meet by intersection. Live variables run backward and meet by union, and the question here asks what is read later, not what was computed earlier."
+        },
+        "check": {
+          "body": "Track one variable end to end. f is read in B3 and written nowhere, so it is live on every edge from which B3 can still be reached. B3 is reachable from the exits of B1 and of B3 itself through the loop, but not from the exits of B2 or B4, so f belongs in exactly the first two sets."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2 Q35",
+          "url": "https://gateoverflow.in/523111/gate-cse-2026-set-2-question-35"
+        },
+        {
+          "label": "Official answer key, gate-cse-2026-s2",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does it mean for a variable to be live just after a block, and in which direction through the graph does that information travel?"
+        },
+        {
+          "kind": "concept",
+          "text": "A variable is live at a point if some path from there reads it before overwriting it. A value nobody will read again does not need to be kept."
+        },
+        {
+          "kind": "principle",
+          "text": "Work backward. What is live after a block is the union of what is live at the start of each successor, and what is live at the start of a block is what it reads plus what is live after it minus what it writes."
+        },
+        {
+          "kind": "setup",
+          "text": "For each block list the variables it reads and the one it writes. Begin at the block that leaves the graph, where nothing is live, and move against the edges. A back edge feeds a later block into an earlier one, so some sets may need a second look."
+        },
+        {
+          "kind": "partial",
+          "text": "B4 has no successor, so nothing is live after it. It reads d and e, so both are live at its entry."
+        }
+      ],
+      "variation": {
+        "stem": "A flow graph has blocks B1 to B4, each with one instruction. B1: a = b + c. B2: d = a * e. B3: e = d + f. B4: g = e + a. The edges are B1 to B2, B2 to B3, B2 to B4, B3 to B2, and B4 leaves the graph. Which option gives the live variables at the exit of B1, B2, B3 and B4, in that order?",
+        "options": [
+          "B1:{a, e, f}, B2:{a, d, e, f}, B3:{a, e, f}, B4:∅",
+          "B1:{b, c}, B2:{a, e}, B3:{d, f}, B4:{a, e}",
+          "B1:{a, e, f}, B2:{d, e, f}, B3:{a, e, f}, B4:∅",
+          "B1:{a, e, f}, B2:{a, d, e, f}, B3:∅, B4:∅"
+        ],
+        "answer": 0,
+        "explanation": "Use in(B) = use(B) union (out(B) minus def(B)) and out(B) = union of in over successors, working backward. The loop B2, B3 needs a second pass: the first pass leaves out(B3) empty, and the second gives out(B3) = in(B2) = {a, e, f}. Then out(B2) = in(B3) union in(B4) = {d, f, a, e}. Option B lists read sets, option C forgets that B4 reads a, and option D stops after one pass."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q42",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.dataflow-framework",
+      "difficulty": "medium",
+      "stem": "Consider the control flow graph shown in the figure. Which one of the following options correctly lists the set of redundant expressions (common subexpressions) in the basic blocks B4 and B5? Note: All the variables are integers.",
+      "figure": "Control flow graph. ENTRY goes to B1 (a = b + i). B1 goes to B2 and to B3. B2 contains, in order, a = g * k; f = d - f; a = c * 4. B3 contains, in order, t = g * k; b = c + m. B2 and B3 both go to B4 (x = g * k; y = b + i). B4 goes to B5 (z = c + m). B5 goes to EXIT.",
+      "diagram": {
+        "alt": "Flow graph: B1 a = b + i branches to B2 (a = g*k, f = d - f, a = c*4) and B3 (t = g*k, b = c + m); both join at B4 (x = g*k, y = b + i), then B5 (z = c + m)."
+      },
+      "solutionDiagram": {
+        "alt": "The same graph annotated: g*k is available out of both B2 and B3, b+i is killed on the B3 path, c+m is missing on the B2 path, so only g*k in B4 is redundant."
+      },
+      "options": [
+        "B4: { b + i }, B5: { c + m }",
+        "B4: { g * k }, B5: { c + m }",
+        "B4: { g * k, b + i }, B5: { }",
+        "B4: { g * k }, B5: { }"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "What a redundant expression is",
+            "body": "An expression such as g * k is redundant at a point if, on every path from ENTRY to that point, it has already been computed and neither g nor k has been assigned since. Such an expression is called available. A computation of an available expression can be replaced by the earlier result. Two events matter: gen (the expression is computed) and kill (an operand is assigned). The meeting rule at a join is intersection, since the expression must be available on all incoming paths."
+          },
+          {
+            "title": "Available at the end of B2 and B3",
+            "body": "B1: computes b + i, kills nothing that matters. End of B1: {b + i}. B2: a = g * k adds g * k; f = d - f changes only f; a = c * 4 changes only a, and a is not an operand of any expression here. End of B2: {b + i, g * k}. B3: t = g * k adds g * k; b = c + m adds c + m and then kills b + i because b is assigned. End of B3: {g * k, c + m}."
+          },
+          {
+            "title": "Join into B4 and check B4",
+            "body": "The intersection of {b + i, g * k} and {g * k, c + m} is {g * k}. So g * k is available at the start of B4 and the instruction x = g * k recomputes it: redundant. b + i is not available (B3 killed it), so y = b + i is not redundant. Redundant in B4: {g * k}.",
+            "tex": "\\{b+i,\\,g*k\\}\\ \\cap\\ \\{g*k,\\,c+m\\} = \\{g*k\\}"
+          },
+          {
+            "title": "Check B5",
+            "body": "B4 adds nothing new that matters for c + m (x = g * k and y = b + i do not compute it and assign only x and y). c + m was computed only on the B3 path, so it is not in the intersection and z = c + m is not redundant. Redundant in B5: { }. The answer is option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask of each repeated expression: is it computed on both branches before the join, with its operands untouched? g * k is computed in both B2 and B3, so B4 has it. b + i is computed only before the split and b is rewritten in B3. c + m appears only in B3. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Marking b + i redundant because B1 computed it ignores that b = c + m in B3 changes b on one path. A single path that kills an expression stops it being available at the join."
+          },
+          {
+            "option": 1,
+            "text": "Marking c + m redundant in B5 uses the B3 path alone. It was computed only there; the path through B2 reaches B5 without it."
+          },
+          {
+            "option": 2,
+            "text": "Listing g * k and b + i together is the same b + i mistake, with the right g * k added."
+          },
+          {
+            "text": "Believing a = c * 4 in B2 kills g * k because a was assigned from g * k first. Only an assignment to g or k kills g * k."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.dataflow-framework",
+          "clues": "The question asks for redundant expressions (common subexpressions) in blocks that follow a branch and a join, with operands reassigned on one of the branches.",
+          "contrast": "Live variables also run on this kind of graph, but they go backward and union at joins. Redundancy needs the forward analysis with intersection at the join."
+        },
+        "check": {
+          "body": "Test the weakest path for each candidate. For b + i, take B1, B3, B4: b is assigned in B3 after b + i was computed, so B4 must compute it afresh. For c + m, take B1, B2, B4, B5: nothing on that path computes c + m, so B5 must compute it. g * k has no such failing path, because both B2 and B3 compute it and neither changes g or k afterwards."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1 Q32",
+          "url": "https://gateoverflow.in/523048/gate-cse-2026-set-1-question-32"
+        },
+        {
+          "label": "Official answer key, gate-cse-2026-s1",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each of the two blocks, which right-hand sides were already computed on every route that reaches it, with no operand changed since?"
+        },
+        {
+          "kind": "concept",
+          "text": "An expression is available at a point if every path to that point has computed it and none of its operands has been reassigned afterwards. Computing an available expression again is redundant."
+        },
+        {
+          "kind": "principle",
+          "text": "At a join the available sets coming in are intersected, not united, because the old value must exist whichever way control arrived. An assignment to an operand removes every expression that uses it."
+        },
+        {
+          "kind": "setup",
+          "text": "Walk each branch from its start to its end, adding what is computed and dropping what an assignment spoils. Combine the two branch ends at the join, then walk the join block and the block after it with the same rules."
+        },
+        {
+          "kind": "partial",
+          "text": "After B1 the expression b + i is available. B3 then assigns b. Ask what that assignment does to b + i at the end of B3."
+        }
+      ],
+      "variation": {
+        "stem": "Consider this flow graph. B1: t = a + b. B1 goes to B2 and to B3. B2: p = a * b; c = c + 1. B3: q = a * b; d = e + f. Both B2 and B3 go to B4: r = a * b; s = c + 1. B4 goes to B5: u = e + f; v = c + 1. All variables are integers. Which option lists the redundant expressions in B4 and then in B5?",
+        "options": [
+          "B4: { a * b }, B5: { }",
+          "B4: { a * b }, B5: { c + 1 }",
+          "B4: { a * b }, B5: { e + f, c + 1 }",
+          "B4: { a * b, c + 1 }, B5: { c + 1 }"
+        ],
+        "answer": 1,
+        "explanation": "B2 ends with a * b available (c = c + 1 computes c + 1 and then spoils it by assigning c). B3 ends with a * b and e + f available. The intersection at B4 is { a * b }, so only r = a * b is redundant, and s = c + 1 then makes c + 1 available. At B5, e + f was computed on only one branch, so u is not redundant, but v = c + 1 is."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q53",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;D",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "difficulty": "medium",
+      "stem": "Consider the following two syntax-directed definitions SDD1 and SDD2 for type declarations. D is the start symbol, and int, float and id are the three terminals. The non-terminal V1 is the same as V and the non-terminal D1 is the same as D. Here, the subscript is used to differentiate the grammar symbols on the two sides of a production. The function put updates the symbol table with the type information for an identifier. Let P and Q be the languages specified by grammars G1 and G2, respectively. Which of the following statements is/are true?",
+      "table": {
+        "headers": [
+          "SDD1, grammar G1",
+          "SDD1, semantic rules",
+          "SDD2, grammar G2",
+          "SDD2, semantic rules"
+        ],
+        "rows": [
+          [
+            "D → T V",
+            "D.type = T.type; V.type = T.type",
+            "D → D1 id",
+            "D.type = D1.type; put(id.entry, D1.type)"
+          ],
+          [
+            "T → int",
+            "T.type = int",
+            "D → T id",
+            "D.type = T.type; put(id.entry, T.type)"
+          ],
+          [
+            "T → float",
+            "T.type = float",
+            "T → int",
+            "T.type = int"
+          ],
+          [
+            "V → V1 id",
+            "V1.type = V.type; put(id.entry, V.type)",
+            "T → float",
+            "T.type = float"
+          ],
+          [
+            "V → id",
+            "put(id.entry, V.type)",
+            "",
+            ""
+          ]
+        ]
+      },
+      "options": [
+        "The languages P and Q are the same",
+        "SDD2 is S-attributed and contains only synthesized attributes",
+        "SDD1 is L-attributed and contains only inherited attributes",
+        "The specifications of SDD1 and SDD2 are such that the same entries get added to the symbol table"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The terms",
+            "body": "A syntax-directed definition (SDD) attaches a rule to each production that computes attributes. An attribute of a node is synthesized if its rule sits in a production whose head is that node and reads the node's children. It is inherited if the rule is in the parent's production and sets a child's attribute from the parent or siblings. An SDD is S-attributed if it has only synthesized attributes, and L-attributed if every inherited attribute depends only on the parent's inherited attributes and symbols to the left. Every S-attributed SDD is L-attributed. Check each statement against these definitions, and against the grammars for the language question."
+          },
+          {
+            "title": "Statement A: the languages",
+            "body": "G1: D → T V, V → V id | id gives a type word followed by one or more ids: (int | float) id+. G2: D → D id | T id unrolls to T id id*, which is the same set of strings. So P = Q and statement A is true."
+          },
+          {
+            "title": "Statement B: SDD2",
+            "body": "In D → D1 id the rule sets D.type from D1.type, a child. In D → T id, D.type comes from T.type. T.type is set from a constant. The put calls only update the table and set no attribute. Every attribute is synthesized, so SDD2 is S-attributed. B is true."
+          },
+          {
+            "title": "Statement C: SDD1",
+            "body": "V.type and V1.type are inherited (set from the parent T or V). But T.type is set by T → int and T → float from the production's own head, which is synthesized, and D.type is synthesized too. SDD1 has both kinds, so 'only inherited' is false. C is false."
+          },
+          {
+            "title": "Statement D: the table entries",
+            "body": "In SDD1 the type travels from T down to V and then to each id, so each id gets the type of T through put(id.entry, V.type). In SDD2 the type travels up through D and each id gets put(id.entry, D1.type) or put(id.entry, T.type), which is the same T type. For a declaration such as int a b c both put the pair (a, int), (b, int), (c, int). D is true. The correct set is A, B, D."
+          }
+        ],
+        "shortcut": {
+          "body": "Statement C is the easy one to kill: T → int sets T.type from a constant, which cannot be inherited, so SDD1 has a synthesized attribute. Then confirm A by writing the two languages as (int|float) id+ and B by noting that SDD2 has no rule that assigns to a right-hand-side symbol. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Reading 'V.type = T.type' as the only kind of rule in SDD1 and calling the whole SDD inherited. T.type = int is synthesized, so the SDD has both kinds."
+          },
+          {
+            "text": "Dropping A because G1 and G2 look different. They differ in the derivation tree (right recursion through V versus left recursion through D) but generate the same strings."
+          },
+          {
+            "text": "Dropping D because put appears in a different production in each SDD. What matters is what is stored: the same (id, type) pair per identifier."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.s-l-attributed",
+          "clues": "Two syntax-directed definitions are given as tables of rules, and the statements ask whether each is S-attributed, L-attributed or has only inherited attributes, and what it does to the symbol table.",
+          "contrast": "The language question (statement about P and Q) is decided by the grammars alone, with no regard to the rules. The attribute questions are decided by the rules alone, so keep the two kinds apart."
+        },
+        "check": {
+          "body": "Run one concrete string through both definitions. For float x y, both grammars derive it, and under each the put calls record x with float and y with float, so the two symbol tables agree. Then list every attribute assigned in SDD2 and note whether its rule names a head or a body symbol; a lone body-symbol assignment would change the classification."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1 Q43",
+          "url": "https://gateoverflow.in/523037/gate-cse-2026-set-1-question-43"
+        },
+        {
+          "label": "Official answer key, gate-cse-2026-s1",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each statement, which definition does it lean on: the strings a grammar derives, where each rule writes its result, or which neighbours a rule reads?"
+        },
+        {
+          "kind": "concept",
+          "text": "An attribute is synthesized when its rule sits in the production of its own node and reads the children. It is inherited when the rule sets a child attribute from the parent or from siblings."
+        },
+        {
+          "kind": "principle",
+          "text": "S-attributed means every attribute is synthesized. L-attributed allows inherited attributes only if each reads the parent inherited attributes or symbols to its left. Every S-attributed definition passes the L-attributed test."
+        },
+        {
+          "kind": "setup",
+          "text": "For the language statement, unroll each grammar into a pattern over int, float and id. For the attribute statements, list what each rule assigns and mark it head or body symbol. For the table statement, trace the put calls for one sample declaration under each definition."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the declaration int a b. List the put calls SDD1 makes, with the type value each call receives."
+        }
+      ],
+      "variation": {
+        "stem": "An SDD for an expression grammar has these productions and rules. E → T R { R.i = T.val; E.val = R.s }. R → + T R1 { R1.i = R.i + T.val; R.s = R1.s }. R → ε { R.s = R.i }. T → num { T.val = num.lexval }. Which of the following statements is/are true?",
+        "options": [
+          "The SDD is S-attributed",
+          "The SDD is L-attributed",
+          "R.i is an inherited attribute",
+          "R.s is an inherited attribute"
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "R.i is inherited because the rules assign it to the body symbols R and R1, and R.s, E.val and T.val are written on the head, so they are synthesized. Having an inherited attribute rules out S-attributed. Each inherited rule reads only T.val (to the left of R) or R.i (the head inherited attribute), so the SDD is L-attributed."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q21",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-sdt-ir-optimization.three-address-code",
+      "difficulty": "easy",
+      "stem": "Consider the following statements about the use of backpatching in a compiler for intermediate code generation: (I) Backpatching can be used to generate code for Boolean expression in one pass. (II) Backpatching can be used to generate code for flow-of-control statements in one pass. Which ONE of the following options is CORRECT?",
+      "options": [
+        "Only (I) is correct.",
+        "Only (II) is correct.",
+        "Both (I) and (II) are correct.",
+        "Neither (I) nor (II) is correct."
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "The problem backpatching solves",
+            "body": "Three-address code uses jumps such as 'if x < y goto L'. When the compiler emits a jump out of a Boolean test, the target label may be a statement not yet generated, for example the code after an else branch. Two-pass schemes leave the label blank and fill it in on a second walk. Backpatching does the same in one pass: it keeps a list of the jump instructions whose targets are unknown (a truelist and a falselist) and fills in the label for the whole list the moment the target address is known."
+          },
+          {
+            "title": "Boolean expressions",
+            "body": "For B → B1 || B2, the false-exits of B1 are patched to the start of B2, and the true-exits of both join the truelist of B. For B → B1 && B2 the true-exits of B1 are patched to the start of B2. The compiler records the start of B2 with a marker nonterminal while parsing, in a single bottom-up pass. So statement (I) is correct."
+          },
+          {
+            "title": "Flow-of-control statements",
+            "body": "For S → if (B) S1 else S2 and S → while (B) S1, the true-exits of B are patched to the start of S1 and the false-exits to the code after the statement or to the else part. The list of unfilled exits of a statement is passed upward as its nextlist and patched when the next statement is reached. This is the same mechanism, so (II) is also correct. The answer is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Backpatching exists precisely to generate jump code for Booleans and control flow without a second pass (Aho et al. section 6.7). If the options say it fails on either one, the option is wrong. About 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Thinking backpatching is only for Booleans because truelist and falselist are introduced there. The same lists, with nextlist, drive if, if-else, while and sequences of statements."
+          },
+          {
+            "option": 1,
+            "text": "Thinking Boolean expressions need a separate pass because they are 'values'. In jumping code a Boolean is compiled into jumps, and those jumps are exactly what get backpatched."
+          },
+          {
+            "option": 3,
+            "text": "Remembering only that backpatching 'leaves holes'. Leaving a hole and filling it in the same pass is what keeps the translation one pass."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.three-address-code",
+          "clues": "The words backpatching, one pass, Boolean expression and flow-of-control point to jump code whose targets are filled in from truelist and falselist style lists.",
+          "contrast": "Resolving labels in a second pass also fills in jump targets, but it walks the code twice. Backpatching fills them in the same pass, as soon as each target address becomes known."
+        },
+        "check": {
+          "body": "Try while (x < y) z = 1 as a sample. The test creates a true exit and a false exit, and the body ends with a jump back. The true exit is patched once the body start is known and the false exit once the code after the loop begins, all during one pass. A Boolean expression such as a < b || c < d alone needs the same lists, so both constructs fit."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2 Q11",
+          "url": "https://gateoverflow.in/460824/gate-cse-2025-set-2-question-11"
+        },
+        {
+          "label": "Official answer key, gate-cse-2025-s2",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "When code for a Boolean test or a loop is produced in one left-to-right pass, what is not yet known about some jump instructions at the moment they are written?"
+        },
+        {
+          "kind": "concept",
+          "text": "A jump may need a target that is generated later. Backpatching records such incomplete jumps in lists and fills in their targets once the address is known."
+        },
+        {
+          "kind": "principle",
+          "text": "The lists of unfinished jumps (true exits, false exits, next exits) are merged as the parse moves up the tree, and a marker captures an instruction address when needed. That is how a second pass is avoided."
+        },
+        {
+          "kind": "setup",
+          "text": "Judge the two statements one at a time. For each, name the jumps its construct creates, ask whether their targets are known when they are emitted, and ask whether the list mechanism can supply them later. Then combine the two verdicts."
+        }
+      ],
+      "variation": {
+        "stem": "A one-pass compiler uses backpatching on if (a < b && c < d) x = 1; Each relational test produces two instructions, a conditional jump then an unconditional jump, so the four jumps sit at addresses 100 to 103. The assignment x = 1 is at 104, and the next statement starts at 105. Which option gives the final targets of the jumps at 100, 101, 102 and 103, in that order?",
+        "options": [
+          "104, 105, 104, 105",
+          "102, 102, 104, 105",
+          "102, 105, 104, 105",
+          "102, 104, 104, 105"
+        ],
+        "answer": 2,
+        "explanation": "The true exit of the first test (100) is patched to the start of the second test, 102. The true exit of the second test (102) is patched to the start of the body, 104. Both false exits (101 and 103) stay on the false list and are patched to 105 when the next statement begins. Option A skips the second test, option B sends the false exit of the first test (101) into the second test, which is what || does for a false exit of its first operand, and option D sends a false exit into the body."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q22",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "difficulty": "medium",
+      "stem": "Given the following syntax directed translation rules: Rule 1: R → A B {B.i = R.i − 1; A.i = B.i; R.i = A.i + 1;}. Rule 2: P → C D {P.i = C.i + D.i; D.i = C.i + 2;}. Rule 3: Q → E F {Q.i = E.i + F.i;}. Which ONE is the CORRECT option among the following?",
+      "options": [
+        "Rule 1 is S-attributed and L-attributed; Rule 2 is S-attributed and not L-attributed; Rule 3 is neither S-attributed nor L-attributed",
+        "Rule 1 is neither S-attributed nor L-attributed; Rule 2 is S-attributed and L-attributed; Rule 3 is S-attributed and L-attributed",
+        "Rule 1 is neither S-attributed nor L-attributed; Rule 2 is not S-attributed and is L-attributed; Rule 3 is S-attributed and L-attributed",
+        "Rule 1 is S-attributed and not L-attributed; Rule 2 is not S-attributed and is L-attributed; Rule 3 is S-attributed and L-attributed"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Definitions",
+            "body": "In a production X → Y1 Y2, a rule that assigns to the head X computes a synthesized attribute. A rule that assigns to a body symbol Yk computes an inherited attribute of Yk. An SDD is S-attributed if every rule is synthesized. It is L-attributed if every inherited rule for Yk reads only the head's inherited attributes and attributes of symbols to the left of Yk (and its own). All attributes here are named i, and which kind each is depends on where the rule writes."
+          },
+          {
+            "title": "Rule 3",
+            "body": "Q.i = E.i + F.i assigns to the head, so it is synthesized, and no rule writes to E or F. Rule 3 is S-attributed, and therefore L-attributed too."
+          },
+          {
+            "title": "Rule 2",
+            "body": "P.i = C.i + D.i is synthesized. D.i = C.i + 2 writes to the body symbol D, so D.i is inherited, and it reads C, which is to the left of D. That keeps the rule L-attributed. An inherited rule means it is not S-attributed. Rule 2: not S-attributed, L-attributed."
+          },
+          {
+            "title": "Rule 1",
+            "body": "A.i = B.i writes to A and reads B, which is to the right of A. An inherited attribute may not depend on a symbol to its right, so Rule 1 is not L-attributed, and since it has inherited rules it is not S-attributed. (B.i = R.i − 1 is fine, it reads the head. A.i = B.i is the failing rule. R.i = A.i + 1 is synthesized.) Rule 1: neither. The answer is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Find the rules that write to a body symbol (inherited). If there is none: S-attributed, hence L-attributed. If there is one, look at its right side for a symbol to the right of the target or a synthesized attribute of the head. A.i = B.i points right, so Rule 1 fails both tests. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Calling Rule 1 S- and L-attributed and Rule 3 neither gets both verdicts backwards: Rule 3 only writes to its head Q, so it is S-attributed, while Rule 1 writes to the body symbols B and A. S-attributed is decided by where the rule writes, not by the shared attribute name i."
+          },
+          {
+            "option": 1,
+            "text": "Calling Rule 2 S-attributed because P.i is synthesized. D.i = C.i + 2 is a second rule in the same production and writes to a body symbol."
+          },
+          {
+            "option": 3,
+            "text": "Calling Rule 1 S-attributed because it ends with R.i = A.i + 1. The first two rules write to B and A, so they are inherited, and A.i = B.i also reads a right sibling."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.s-l-attributed",
+          "clues": "Each rule assigns attributes named i to both heads and body symbols, and the options ask for S-attributed and L-attributed per rule.",
+          "contrast": "S-attributed is stricter than L-attributed. Every S-attributed rule is also L-attributed, while an L-attributed rule is S-attributed only when it has no inherited assignment."
+        },
+        "check": {
+          "body": "Check Rule 1 by dependency order. A.i needs B.i, and B.i needs R.i, so B.i must be computed before A.i, yet a left-to-right pass reaches A first. That ordering conflict confirms the position rule by an independent route. In Rule 2, D.i needs only C.i, which is visited first, so no conflict arises."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2 Q12",
+          "url": "https://gateoverflow.in/460823/gate-cse-2025-set-2-question-12"
+        },
+        {
+          "label": "Official answer key, gate-cse-2025-s2",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each rule, does every assignment write to the head of the production or to a symbol in its body?"
+        },
+        {
+          "kind": "concept",
+          "text": "A rule that writes to the head defines a synthesized attribute. A rule that writes to a body symbol defines an inherited attribute of that symbol."
+        },
+        {
+          "kind": "principle",
+          "text": "S-attributed needs every rule to be synthesized. L-attributed lets an inherited attribute read only the head attributes and the symbols to its left in the body."
+        },
+        {
+          "kind": "setup",
+          "text": "Go rule by rule. List each assignment and mark it synthesized or inherited. For each inherited one, mark where every symbol it reads sits relative to the symbol being written."
+        },
+        {
+          "kind": "partial",
+          "text": "Rule 3 has a single assignment, and it writes to a head, so it is synthesized. Ask whether a rule with head assignments only leaves anything for a left-to-right test to check."
+        }
+      ],
+      "variation": {
+        "stem": "Given the rules. Rule 1: M → X Y { X.v = M.v + 1; Y.v = X.v }. Rule 2: N → U W { N.v = U.v * W.v }. Rule 3: K → G H { G.v = H.v; K.v = G.v }. Which ONE option is correct?",
+        "options": [
+          "Rule 1 is S-attributed and L-attributed; Rule 2 is L-attributed but not S-attributed; Rule 3 is neither S-attributed nor L-attributed",
+          "Rule 1 is L-attributed but not S-attributed; Rule 2 is S-attributed and L-attributed; Rule 3 is neither S-attributed nor L-attributed",
+          "Rule 1 is neither S-attributed nor L-attributed; Rule 2 is S-attributed and L-attributed; Rule 3 is L-attributed but not S-attributed",
+          "Rule 1 is L-attributed but not S-attributed; Rule 2 is L-attributed but not S-attributed; Rule 3 is S-attributed and L-attributed"
+        ],
+        "answer": 1,
+        "explanation": "In Rule 1 both assignments write body symbols, so it is not S-attributed, but X.v reads the head and Y.v reads X to its left, so it is L-attributed. Rule 2 writes only the head, so it is S-attributed and therefore L-attributed. In Rule 3, G.v = H.v writes G from H on its right, so it is not L-attributed and not S-attributed."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q13",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "difficulty": "easy",
+      "stem": "Which ONE of the following techniques used in compiler code optimization uses live variable analysis?",
+      "options": [
+        "Run-time function call management",
+        "Register assignment to variables",
+        "Strength reduction",
+        "Constant folding"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "What live variable analysis tells you",
+            "body": "A variable is live at a point if its current value may still be read later on some path. Live variable analysis computes, for each point, the set of live variables. A variable that is not live has a value no one will read, so the machine can reuse whatever holds it."
+          },
+          {
+            "title": "Which technique needs that answer",
+            "body": "Register assignment (allocation) has to decide which variables share a limited number of registers. Two variables can share a register exactly when they are never live at the same time. So the interference graph used for register allocation is built from live ranges, which come from live variable analysis."
+          },
+          {
+            "title": "Why the others do not",
+            "body": "Strength reduction replaces an expensive operation by a cheaper one (x * 2 by x + x), and only needs to look at the expression and loop structure. Constant folding evaluates constant expressions at compile time. Run-time function call management concerns activation records and linkage. None of these asks whether a value is read later. The answer is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Live variables is the register-allocation analysis; the other usual users are dead code elimination and spill decisions. If an option says registers, take it. About 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Run-time call management sounds related to storage but it handles stack frames, not whether a value will be used again."
+          },
+          {
+            "option": 2,
+            "text": "Strength reduction is a loop optimization built on induction variables, a different analysis from liveness."
+          },
+          {
+            "option": 3,
+            "text": "Constant folding needs constant propagation (which values are known), not which values are still needed."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.liveness",
+          "clues": "The stem names live variable analysis and the options list compiler techniques, so the question is which technique consumes liveness information.",
+          "contrast": "Available expressions, used to remove repeated computations, is a different forward analysis. Dead code elimination also uses liveness, but it is not among the choices."
+        },
+        "check": {
+          "body": "Take straight-line code with two temporaries whose lifetimes do not overlap. Liveness shows they can share one register. Constant folding on the same code needs no lifetime facts, only the operand values, and strength reduction needs only the form of each instruction."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1 Q3",
+          "url": "https://gateoverflow.in/460077/gate-cse-2025-set-1-question-3"
+        },
+        {
+          "label": "Official answer key, gate-cse-2025-s1",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which of these jobs needs to know whether a variable current value will still be read later?"
+        },
+        {
+          "kind": "concept",
+          "text": "A variable is live at a point if its value may be read later on some path. Live variable analysis finds the live set at each point of the program."
+        },
+        {
+          "kind": "principle",
+          "text": "Liveness tells which values are still needed later and which are not. Each technique either depends on that or on some other fact."
+        },
+        {
+          "kind": "setup",
+          "text": "For each technique write down what fact about the program it needs before it can work. Then ask which of those facts is a statement about later reads of a variable."
+        }
+      ],
+      "variation": {
+        "stem": "Straight-line code has x, y and z live on entry and only w live on exit: t1 = x + y; t2 = t1 * z; t3 = t2 - x; w = t3 + y. What is the largest number of variables live together at any point between two instructions, counting the entry and the exit? A register allocator needs at least that many registers.",
+        "options": [
+          "3",
+          "4",
+          "7",
+          "2"
+        ],
+        "answer": 1,
+        "explanation": "Work backward from {w}. Before the last instruction the live set is {t3, y}, before that {t2, x, y}, before that {t1, z, x, y}, and on entry {x, y, z}. The sizes from entry to exit are 3, 4, 3, 2, 1, so the largest is 4. Option C counts every variable in the code, which ignores that lifetimes end."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q52",
+      "type": "nat",
+      "marks": 2,
+      "key": "6",
+      "topic": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "difficulty": "easy",
+      "stem": "Refer to the given 3-address code sequence. This code sequence is split into basic blocks. The number of basic blocks is ________. (Answer in integer)",
+      "code": {
+        "lang": "text",
+        "text": "1001: i = 1\n1002: j = 1\n1003: t1 = 10*i\n1004: t2 = t1+j\n1005: t3 = 8*t2\n1006: t4 = t3-88\n1007: a[t4] = 0.0\n1008: j = j+1\n1009: if j <= 10 goto 1003\n1010: i = i+1\n1011: if i <= 10 goto 1002\n1012: i = 1\n1013: t5 = i-1\n1014: t6 = 88*t5\n1015: a[t6] = 1.0\n1016: i = i+1\n1017: if i <= 10 goto 1013"
+      },
+      "solutionDiagram": {
+        "alt": "The listing cut into six boxes: 1001; 1002; 1003 to 1009; 1010 to 1011; 1012; 1013 to 1017."
+      },
+      "answer": 6,
+      "solution": {
+        "steps": [
+          {
+            "title": "Basic block and leader",
+            "body": "A basic block is a maximal run of instructions that runs from its first instruction to its last with no jump into the middle and no jump out except at the end. The first instruction of each block is a leader. The rules: (1) the first instruction of the program is a leader; (2) the target of any jump is a leader; (3) the instruction right after a jump is a leader. Each leader starts one block, which runs until the next leader."
+          },
+          {
+            "title": "Apply the three rules",
+            "body": "Rule 1: 1001. Rule 2: the targets are 1003 (from 1009), 1002 (from 1011) and 1013 (from 1017). Rule 3: the instructions after the jumps at 1009, 1011 and 1017 are 1010, 1012 and 1018. There is no 1018, so it adds nothing. The leaders are 1001, 1002, 1003, 1010, 1012, 1013.",
+            "tex": "\\{1001,\\,1002,\\,1003,\\,1010,\\,1012,\\,1013\\}"
+          },
+          {
+            "title": "Cut and count",
+            "body": "Blocks: 1001 alone; 1002 alone; 1003 to 1009; 1010 to 1011; 1012 alone; 1013 to 1017. That is 6 blocks. The answer is 6."
+          }
+        ],
+        "shortcut": {
+          "body": "Count the distinct leaders: one for the start, one per distinct jump target, one per instruction after a jump, merging coincidences. Here 1 + 3 targets + 2 after-jump (1010, 1012) = 6, since 1002 and 1003 are different targets. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "5: forgetting that 1002 is a target of the jump at 1011, so it starts its own block apart from 1001."
+          },
+          {
+            "text": "7: counting the position after the last jump 1017 as a leader. There is no instruction there."
+          },
+          {
+            "text": "4 or 3: cutting only at the jumps (3 jump instructions), instead of using targets and the instruction after each jump as well."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.basic-blocks-cfg",
+          "clues": "The question asks for the number of basic blocks in a numbered three-address listing that contains conditional jumps of the form if ... goto.",
+          "contrast": "Counting jumps plus one is not the rule. A jump target and the instruction after a jump each start a block, and one instruction can be both, so the leaders must be merged before counting."
+        },
+        "check": {
+          "body": "Write the six address ranges and test them. They must tile 1001 to 1017 with no gap or overlap, every jump must be the last instruction of its range, and every jump target must be the first instruction of its range. If any test failed, a leader would be missing."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1 Q42",
+          "url": "https://gateoverflow.in/460038/gate-cse-2025-set-1-question-42"
+        },
+        {
+          "label": "Official answer key, gate-cse-2025-s1",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Where can control enter a run of instructions other than at its first instruction, and where must a run stop?"
+        },
+        {
+          "kind": "concept",
+          "text": "A basic block is a maximal straight-line run that is entered only at its first instruction and left only at its last. The first instruction of each block is called a leader."
+        },
+        {
+          "kind": "principle",
+          "text": "Leaders are the first instruction, every jump target, and every instruction that comes right after a jump. The number of blocks equals the number of distinct leaders."
+        },
+        {
+          "kind": "setup",
+          "text": "Scan the listing for each jump, write down its target and the instruction right after it, add the first instruction, then merge repeats and count what is left."
+        },
+        {
+          "kind": "partial",
+          "text": "The jumps are at 1009, 1011 and 1017, and their three targets are distinct leaders besides the first instruction, which already gives four. The instructions after the jumps are still to be added."
+        }
+      ],
+      "variation": {
+        "stem": "A three-address listing: 2001: s = 0; 2002: i = 0; 2003: t1 = i*4; 2004: if t1 > 40 goto 2011; 2005: s = s+t1; 2006: if s > 99 goto 2009; 2007: i = i+1; 2008: goto 2003; 2009: s = s-99; 2010: goto 2007; 2011: x = s; 2012: if x < 0 goto 2014; 2013: x = 0; 2014: return x. How many basic blocks does it split into?",
+        "answer": 8,
+        "explanation": "The leaders are the first instruction 2001, the targets 2003, 2011, 2009, 2007 and 2014, and the instructions after jumps: 2005, 2007, 2009, 2011 and 2013. Merging the repeats gives 2001, 2003, 2005, 2007, 2009, 2011, 2013 and 2014, which is 8 leaders and so 8 blocks."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q29",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;D",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "difficulty": "medium",
+      "stem": "Which of the following statements is/are FALSE?",
+      "options": [
+        "An attribute grammar is a syntax-directed definition (SDD) in which the functions in the semantic rules have no side effects",
+        "The attributes in a L-attributed definition cannot always be evaluated in a depth-first order",
+        "Synthesized attributes can be evaluated by a bottom-up parser as the input is parsed",
+        "All L-attributed definitions based on LR(1) grammar can be evaluated using a bottom-up parsing strategy"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The facts to hold",
+            "body": "An SDD attaches semantic rules to productions. In an attribute grammar the rules are functions with no side effects (as opposed to an SDT, which may run actions). A synthesized attribute reads children only. An L-attributed SDD lets an inherited attribute read the parent's inherited attributes and left siblings. Judge each statement for truth, and pick the false ones."
+          },
+          {
+            "title": "A and C are true",
+            "body": "A is the textbook definition of an attribute grammar: no side effects. C is true: when a bottom-up parser reduces by A → X1 … Xn, the children's attribute values are on the stack, so the head's synthesized attribute is computed at the reduction."
+          },
+          {
+            "title": "B is false",
+            "body": "L-attributed means exactly that a single left-to-right depth-first traversal can evaluate all attributes: visit the children in order, computing each child's inherited attributes just before entering it and the head's synthesized attributes at the end. So they can always be evaluated in depth-first order. The statement says they cannot always be, which is false."
+          },
+          {
+            "title": "D is false",
+            "body": "The guarantee for bottom-up evaluation of L-attributed SDDs (Aho et al. 5.5) holds when the grammar is LL(1): then the SDD can be converted into an SDT and evaluated with a bottom-up parser by adding markers and copying inherited values on the stack. For a general LR(1) grammar the markers can introduce conflicts, so the claim 'all' is false. The false statements are B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Know two stock facts: L-attributed always means a left-to-right depth-first pass exists (so B is false); and the 'any L-attributed SDD can go bottom-up' theorem needs an LL grammar, not LR(1) (so D is false). About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Marking A false because an SDT has side effects. The question is about the attribute grammar, whose rules are side-effect free."
+          },
+          {
+            "option": 2,
+            "text": "Marking C false because bottom-up parsers are thought to handle only inherited attributes badly. Synthesized attributes are exactly what the bottom-up parser handles well."
+          },
+          {
+            "text": "Letting D pass because LR(1) is more powerful than LL(1). The transformation needs marker nonterminals, which can break the LR property."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.s-l-attributed",
+          "clues": "Four statements about attribute grammars, L-attributed definitions, synthesized attributes and parsing strategy, with the stem asking for the FALSE ones.",
+          "contrast": "An attribute grammar has rules without side effects, while a syntax-directed translation scheme embeds actions that may have side effects. The first statement is about the former."
+        },
+        "check": {
+          "body": "Test statement B on a small rule. For A → X Y with Y.i = X.s, a left-to-right depth-first walk visits X, learns X.s, then sets Y.i before entering Y, so it works. A rule X.i = Y.s reads from the right and is not L-attributed, so it is outside what the statement is about. Every L-attributed rule behaves like the first case."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2 Q19",
+          "url": "https://gateoverflow.in/422878/gate-cse-2024-set-2-question-19"
+        },
+        {
+          "label": "Official answer key, gate-cse-2024-s2",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each statement, is it a stock fact about attribute grammars, L-attributed definitions or bottom-up evaluation, and does the wording claim more than that fact allows?"
+        },
+        {
+          "kind": "concept",
+          "text": "An attribute grammar is an SDD whose rules are functions without side effects. L-attributed means every inherited attribute depends only on the head inherited attributes and on symbols to the left."
+        },
+        {
+          "kind": "principle",
+          "text": "Each statement is a textbook result that holds under a stated condition. A statement is false when it denies a result that holds, or when it claims the result without the condition it needs."
+        },
+        {
+          "kind": "setup",
+          "text": "For each statement recall the exact condition under which the textbook result holds, then compare it with the wording. Call a statement false only when the wording goes past that condition."
+        },
+        {
+          "kind": "partial",
+          "text": "Take statement B and trace the walk: visit the children left to right, giving each child its inherited values just before entering it. Does any L-attributed rule need a value this walk has not yet produced?"
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following statements is/are TRUE?",
+        "options": [
+          "Every S-attributed definition is also L-attributed",
+          "In an L-attributed definition, an inherited attribute of a body symbol may read a synthesized attribute of a symbol to its right",
+          "A bottom-up parser can compute a synthesized attribute of the head at the moment it reduces by the production",
+          "A definition whose rules may have side effects is called an attribute grammar"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "S-attributed has no inherited attributes, so the L-attributed condition holds with nothing to check, which makes A true. At a reduction the children attribute values are on the stack, so the head synthesized attribute can be computed there, which makes C true. B is false because L-attributed forbids reading symbols to the right, and D is false because an attribute grammar has side-effect-free rules."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q43",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.ir-representations",
+      "difficulty": "medium",
+      "stem": "Consider the following expression: x[i] = (p + r) * -s[i] + u/w. The following sequence shows the list of triples representing the given expression, with entries missing for triples (1), (3), and (6). Which one of the following options fills in the missing entries CORRECTLY?",
+      "table": {
+        "headers": [
+          "Triple",
+          "Operator",
+          "Operand 1",
+          "Operand 2"
+        ],
+        "rows": [
+          [
+            "(0)",
+            "+",
+            "p",
+            "r"
+          ],
+          [
+            "(1)",
+            "",
+            "",
+            ""
+          ],
+          [
+            "(2)",
+            "uminus",
+            "(1)",
+            ""
+          ],
+          [
+            "(3)",
+            "",
+            "",
+            ""
+          ],
+          [
+            "(4)",
+            "/",
+            "u",
+            "w"
+          ],
+          [
+            "(5)",
+            "+",
+            "(3)",
+            "(4)"
+          ],
+          [
+            "(6)",
+            "",
+            "",
+            ""
+          ],
+          [
+            "(7)",
+            "=",
+            "(6)",
+            "(5)"
+          ]
+        ]
+      },
+      "solutionDiagram": {
+        "alt": "Expression tree with each operator labelled by its triple number: (0) p + r, (1) s[i] read, (2) uminus, (3) multiply, (4) u / w, (5) add, (6) x[i] address, (7) assignment."
+      },
+      "options": [
+        "(1) =[] s i, (3) * (0) (2), (6) []= x i",
+        "(1) []= s i, (3) – (0) (2), (6) =[] x (5)",
+        "(1) =[] s i, (3) * (0) (2), (6) []= x (5)",
+        "(1) []= s i, (3) – (0) (2), (6) =[] x i"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "Triples and the two array operators",
+            "body": "A triple has one operator and two operands, and it has no result name: a later triple refers to it by its number, such as (2). Arrays use two operators. =[] with operands (a, i) reads a[i] and its value can be used by later triples. []= with operands (a, i) names the element a[i] as a target, and a following = triple stores the value into it."
+          },
+          {
+            "title": "Evaluate in operator order",
+            "body": "Triples appear in the order operations happen. (0) + p r is p + r. The operand -s[i] needs s[i] first: (1) =[] s i. Then (2) uminus (1) negates it. The product of (p + r) with -s[i] is (3) * (0) (2). (4) / u w and (5) + (3) (4) complete the right side."
+          },
+          {
+            "title": "The left side",
+            "body": "x[i] on the left of = is a target. (6) []= x i names that element. (7) = (6) (5) then stores triple (5) into the element named by (6). So (1) =[] s i, (3) * (0) (2), (6) []= x i, option A."
+          },
+          {
+            "title": "Rule out the others",
+            "body": "B and D use a minus sign in (3), but the expression multiplies by a negated value; the minus is already done by uminus in (2). B and D also use []= to read s[i], which reads and writes the wrong way round. C has the correct (1) and (3) but gives (6) the operand (5): that would put the value into the operand slot of the target, and (7) already refers to (5) itself."
+          }
+        ],
+        "shortcut": {
+          "body": "Three eliminations. Operator (3) must be *, because the expression is (p + r) * (-s[i]); that kills B and D. Then (6) is the target x[i], whose operands are x and i, not a value: that kills C. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Reading the uminus as a binary minus and using - for (3), and swapping the two array operators."
+          },
+          {
+            "option": 2,
+            "text": "Putting (5) into the operand of x[i]. The address operand of []= is the index i; the value (5) is supplied by the = in (7)."
+          },
+          {
+            "option": 3,
+            "text": "Reading the array on the right with []= instead of =[]. The read operator is =[]."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.ir-representations",
+          "clues": "The table gives triples with operands written as row numbers such as (1) and (4), and two array operators whose roles the question hides.",
+          "contrast": "Quadruples name a result in each row, so rows can be reordered; triples refer to results by row number, which is why the order of the rows here is forced."
+        },
+        "check": {
+          "body": "Read the finished table back as an expression. Row (3) multiplies the sum p + r by the negated s[i]; row (5) adds u/w; row (7) stores that value into the element that row (6) names. Every row number mentioned as an operand must point to an earlier row, and in the correct choice each one does."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2 Q33",
+          "url": "https://gateoverflow.in/422864/gate-cse-2024-set-2-question-33"
+        },
+        {
+          "label": "Official answer key, gate-cse-2024-s2",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which operations happen first when the expression is evaluated, and which of the three missing rows is about the left side of the assignment rather than a value being computed?"
+        },
+        {
+          "kind": "concept",
+          "text": "A triple has an operator and two operands and no name of its own. A later row refers to an earlier row by its number, so the order of rows is the order in which the work is done."
+        },
+        {
+          "kind": "principle",
+          "text": "Arrays need two different operators: one reads an element so its value can feed later rows, the other only names an element as a place to store into. The assignment row then takes that place and a value."
+        },
+        {
+          "kind": "setup",
+          "text": "Fill the rows by walking the expression: first the sub-expressions that feed the multiplication, then the multiplication, then the left side. Check each candidate row against the operands already visible in the rows that use it."
+        },
+        {
+          "kind": "partial",
+          "text": "Row (2) negates row (1), so row (1) must produce the value of the array element being negated. Decide which array operator produces a value."
+        }
+      ],
+      "variation": {
+        "stem": "Consider z[k] = -(m * n) + v[k] / q. The list of triples below has entries missing for (2), (3) and (5): (0) * m n; (1) uminus (0); (2) ?; (3) ?; (4) + (1) (3); (5) ?; (6) = (5) (4). Which option fills in the missing entries correctly?",
+        "options": [
+          "(2) =[] v k, (3) / (2) q, (5) []= z k",
+          "(2) []= v k, (3) / (2) q, (5) =[] z k",
+          "(2) =[] v k, (3) / q (2), (5) []= z k",
+          "(2) =[] v k, (3) / (2) q, (5) []= z (4)"
+        ],
+        "answer": 0,
+        "explanation": "The right side reads v[k] with the read operator in row (2), divides it by q in row (3) with the dividend first, and row (4) adds the result to the negated product. The left side z[k] is a place, so row (5) uses the write-target operator with operands z and k, and row (6) stores row (4) into it. Option B swaps the two array operators, option C swaps the division operands, and option D puts a value where the index belongs."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q37",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "difficulty": "easy",
+      "stem": "Consider the following syntax-directed definition (SDD). Given \"MMLK\" as the input, which one of the following options is the CORRECT value computed by the SDD (in the attribute S.val)?",
+      "table": {
+        "headers": [
+          "Production",
+          "Semantic rule"
+        ],
+        "rows": [
+          [
+            "S → D H T U",
+            "S.val = D.val + H.val + T.val + U.val"
+          ],
+          [
+            "D → \"M\" D1",
+            "D.val = 5 + D1.val"
+          ],
+          [
+            "D → ε",
+            "D.val = −5"
+          ],
+          [
+            "H → \"L\" H1",
+            "H.val = 5 * 10 + H1.val"
+          ],
+          [
+            "H → ε",
+            "H.val = −10"
+          ],
+          [
+            "T → \"C\" T1",
+            "T.val = 5 * 100 + T1.val"
+          ],
+          [
+            "T → ε",
+            "T.val = −5"
+          ],
+          [
+            "U → \"K\"",
+            "U.val = 5"
+          ]
+        ]
+      },
+      "options": [
+        "45",
+        "50",
+        "55",
+        "65"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What to compute",
+            "body": "The input is split by the grammar into D H T U in order. Every rule here computes val from the children's val, so it is a synthesized definition: value flows from the leaves up to S. The strings: D takes the leading Ms, H takes the Ls, T the Cs, and U the K. Process each letter-group on its own and add."
+          },
+          {
+            "title": "Split MMLK",
+            "body": "M M go to D, L goes to H, T has no C so it derives ε, and K goes to U."
+          },
+          {
+            "title": "Compute each part",
+            "body": "D: two Ms then ε: D.val = 5 + (5 + (−5)) = 5. H: one L then ε: H.val = 50 + (−10) = 40. T: ε only, so T.val = −5. U: U.val = 5.",
+            "tex": "S.val = 5 + 40 + (-5) + 5 = 45"
+          },
+          {
+            "title": "Match",
+            "body": "S.val = 45, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "Each letter adds its weight on top of the base value of ε: D = −5 + 5 + 5 = 5, H = −10 + 50 = 40, T = −5, U = 5. About 40 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "50 comes from forgetting D → ε, which contributes −5: taking D = 5 + 5 = 10 gives 10 + 40 + (−5) + 5 = 50. Apply the empty-production value at the end of every chain."
+          },
+          {
+            "option": 2,
+            "text": "55 results from dropping the ε value of H: H.val = 50 instead of 50 + (−10) gives 5 + 50 − 5 + 5 = 55."
+          },
+          {
+            "option": 3,
+            "text": "65 results from ignoring all three negative ε values, those of D, H and T (D = 10, H = 50, T = 0, U = 5, so 10 + 50 + 0 + 5)."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.sdt-traces",
+          "clues": "A table of productions with semantic rules that add numbers, and a short concrete input string whose value is asked for.",
+          "contrast": "An inherited-attribute definition would pass values down from parents or left siblings; here each rule uses only the children's values, so one bottom-up pass is enough."
+        },
+        "check": {
+          "body": "Recompute without the grammar: each M adds 5, each L adds 50 and the K adds 5, which is 5 + 5 + 50 + 5 = 65 if nothing else counted. The three empty productions then subtract 5, 10 and 5, a total of 20, giving the same value as the tree evaluation."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1 Q27",
+          "url": "https://gateoverflow.in/422815/gate-cse-2024-set-1-question-27"
+        },
+        {
+          "label": "Official answer key, gate-cse-2024-s1",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The input is cut into four parts, one for each symbol on the right of the start production. Which letters belong to which part?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a syntax-directed definition each rule says how a node's value is built from its children's values. Here every value flows upward, from the leaves to S."
+        },
+        {
+          "kind": "principle",
+          "text": "A recursive rule adds a fixed amount for each letter it consumes, and the empty production supplies the base value at the end of the chain. The base value is added once per chain, even when the chain is empty."
+        },
+        {
+          "kind": "setup",
+          "text": "Count how many letters each of D, H, T and U receives. For each chain, write its value as the number of letters times the weight per letter plus the base value of the empty rule, then add the four values."
+        },
+        {
+          "kind": "partial",
+          "text": "Work out T first: it receives no letters, so it is just its empty-production value. Then do D, whose chain has two letters."
+        }
+      ],
+      "variation": {
+        "stem": "Use the same SDD. For the input \"MMLCK\", which option is S.val?",
+        "options": [
+          "545",
+          "550",
+          "560",
+          "565"
+        ],
+        "answer": 0,
+        "explanation": "Split MMLCK into D = MM, H = L, T = C, U = K. D = 5 + 5 - 5 = 5, H = 50 - 10 = 40, T = 500 - 5 = 495, U = 5, so S.val = 545. Option B leaves out the -5 of T, option C leaves out the -5 of D and of H, and option D ignores all three empty-production values."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.basic-blocks-cfg",
+      "difficulty": "medium",
+      "stem": "Consider the following pseudo-code. Which one of the following options CORRECTLY specifies the number of basic blocks and the number of instructions in the largest basic block, respectively ?",
+      "code": {
+        "lang": "text",
+        "text": "L1:  t1 = -1\nL2:  t2 = 0\nL3:  t3 = 0\nL4:  t4 = 4 * t3\nL5:  t5 = 4 * t2\nL6:  t6 = t5 * M\nL7:  t7 = t4 + t6\nL8:  t8 = a[t7]\nL9:  if t8 <= max goto L11\nL10: t1 = t8\nL11: t3 = t3 + 1\nL12: if t3 < M goto L4\nL13: t2 = t2 + 1\nL14: if t2 < N goto L3\nL15: max = t1"
+      },
+      "solutionDiagram": {
+        "alt": "The 15 instructions cut into seven boxes of sizes 2, 1, 6, 1, 2, 2 and 1; the largest is L4 to L9."
+      },
+      "options": [
+        "6 and 6",
+        "6 and 7",
+        "7 and 7",
+        "7 and 6"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "Basic block and leader",
+            "body": "A basic block is a maximal run of instructions entered only at its first instruction and left only at its last. Its first instruction is a leader. Leaders are: the first instruction; any instruction that is the target of a jump; any instruction right after a jump."
+          },
+          {
+            "title": "Find the leaders",
+            "body": "First instruction: L1. Targets: L11 (from L9), L4 (from L12), L3 (from L14). After a jump: L10 (after L9), L13 (after L12), L15 (after L14). Leaders: L1, L3, L4, L10, L11, L13, L15. Seven leaders, so 7 blocks.",
+            "tex": "\\{L1,\\,L3,\\,L4,\\,L10,\\,L11,\\,L13,\\,L15\\}"
+          },
+          {
+            "title": "Sizes and match",
+            "body": "Blocks: L1 to L2 (2), L3 (1), L4 to L9 (6), L10 (1), L11 to L12 (2), L13 to L14 (2), L15 (1). The largest is L4 to L9 with 6 instructions. So 7 blocks and 6 instructions, option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Mark every jump and its target on the margin. Leaders are the first line, each target, each line after a jump; counting them gives the blocks, and the longest gap between leaders gives the largest block (L4 to L10 gap = 6). About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Missing that L3 is a leader (target of the jump at L14) and L10 follows a jump; counting 6 blocks."
+          },
+          {
+            "option": 1,
+            "text": "6 blocks and size 7 counts L10 into the block L4 to L9, forgetting that L10 starts a new block because L9 is a conditional jump."
+          },
+          {
+            "option": 2,
+            "text": "7 and 7 has the right count of blocks but sizes the largest one as 7: it counts L10, the leader that starts the next block, as the end of L4 to L9 (an off-by-one at the block boundary)."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.basic-blocks-cfg",
+          "clues": "A numbered list of three-address instructions with conditional and unconditional jumps, and a question about how many blocks it forms and how large the biggest is.",
+          "contrast": "A DAG of a block merges repeated expressions inside one block; here the work comes before that, deciding where the blocks start and end."
+        },
+        "check": {
+          "body": "The sizes of all blocks must add up to the number of instructions in the listing, 15. Each leader must also be either line 1, a goto target or the line after a jump, and no jump may appear anywhere except the last line of a block."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1 Q29",
+          "url": "https://gateoverflow.in/422813/gate-cse-2024-set-1-question-29"
+        },
+        {
+          "label": "Official answer key, gate-cse-2024-s1",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What makes an instruction the first one of a basic block, and which instructions in the listing are jumps or are reached by a jump?"
+        },
+        {
+          "kind": "concept",
+          "text": "A basic block is a straight run of instructions that is entered only at the top and left only at the bottom. Its first instruction is called a leader."
+        },
+        {
+          "kind": "principle",
+          "text": "Three kinds of instruction are leaders: the very first one, the target of any jump, and the instruction that follows any jump. The block runs from one leader up to the line before the next."
+        },
+        {
+          "kind": "setup",
+          "text": "Scan the listing once and mark every jump, its target line, and the line after it. List the marked lines in order, count them for the number of blocks, and subtract neighbouring leader numbers for the sizes."
+        },
+        {
+          "kind": "partial",
+          "text": "The conditional jump at L9 targets L11 and also makes L10 a leader. Do the same for the jumps at L12 and L14, noting each target and the line after it."
+        }
+      ],
+      "variation": {
+        "stem": "Consider this pseudo-code: L1: s = 0; L2: i = 0; L3: p = 4 * i; L4: q = a + p; L5: t = *q; L6: if t < 0 goto L9; L7: s = s + t; L8: goto L10; L9: s = s - t; L10: i = i + 1; L11: if i < n goto L3; L12: r = s. Which option gives the number of basic blocks and the number of instructions in the largest block?",
+        "options": [
+          "6 and 4",
+          "5 and 4",
+          "6 and 5",
+          "7 and 4"
+        ],
+        "answer": 0,
+        "explanation": "Leaders are L1, L3 (target of L11), L7 (after L6), L9 (target of L6 and after L8), L10 (target of L8) and L12 (after L11). That is 6 blocks of sizes 2, 4, 2, 1, 2 and 1, so the largest is L3 to L6 with 4 instructions. Option B forgets that L9 starts a block, option C counts L7 into the L3 to L6 block, which makes the largest block 5 while keeping 6 blocks, and option D counts L8 as a leader."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q36",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.activation-records",
+      "difficulty": "medium",
+      "stem": "Consider the following program. Which one of the following options represents the activation tree corresponding to the main function?",
+      "code": {
+        "lang": "c",
+        "text": "int main()\n{\n   f1();\n   f2(2);\n   f3();\n   return(0);\n}\n\nint f1()\n{\n   return(1);\n}\n\nint f2(int X)\n{\n   f3();\n   if (X==1)\n      return f1();\n   else\n      return (X*f2(X-1));\n}\n\nint f3()\n{\n   return(5);\n}"
+      },
+      "figure": "Four activation trees. (A) main has children f1, f2, f3 in that order; f2 has children f3 and f2; the inner f2 has children f3 and f1. (B) main has children f1, f2, f3; f2 has children f3 and f1. (C) main has one child f1; f1 has one child f2; f2 has children f3 and f1. (D) main has children f1, f2, f3; f2 has three children f3, f2, f1.",
+      "diagram": {
+        "alt": "Four small trees labelled A to D with main at the root and calls f1, f2, f3 below it; only A nests a second f2 under the first f2."
+      },
+      "solutionDiagram": {
+        "alt": "The correct activation tree with each call numbered in order: f1 (1), f2(2) (2), f3 (3), f2(1) (4), f3 (5), f1 (6), f3 (7)."
+      },
+      "options": [
+        "main calls f1, f2, f3 in order. f2 calls f3 and f2. The inner f2 calls f3 and f1.",
+        "main calls f1, f2, f3 in order. f2 calls f3 and f1.",
+        "main calls f1. f1 calls f2. f2 calls f3 and f1.",
+        "main calls f1, f2, f3 in order. f2 calls f3, f2 and f1."
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What an activation tree is",
+            "body": "Each call to a procedure is an activation. The activation tree has one node per activation. The root is the main call. An activation's children are the calls it makes directly, in the order they start from left to right. A call that is made twice appears twice, and a recursive call appears as a child of the call that makes it."
+          },
+          {
+            "title": "Trace main",
+            "body": "main makes three calls in order: f1(), f2(2), f3(). f1 calls nothing. f3 calls nothing. Only f2(2) has children."
+          },
+          {
+            "title": "Trace f2(2)",
+            "body": "f2(2) first calls f3(). X is 2, not 1, so it goes to the else branch and calls f2(1). So f2(2) has two children in order: f3, then f2(1)."
+          },
+          {
+            "title": "Trace f2(1)",
+            "body": "f2(1) calls f3() first. X is 1, so it then calls f1(). It makes no further recursive call. So f2(1) has children f3, then f1. The tree matches option A: the outer f2 has children f3 and f2, and the inner f2 has children f3 and f1."
+          }
+        ],
+        "shortcut": {
+          "body": "f2 is called with X = 2, so it recurses exactly once more: a second f2 must appear under the first. Only A (and D, which puts f2, f3 and f1 flat) has an inner f2; D wrongly gives the outer f2 a call to f1. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Option B treats f2(2) as if it stopped at X == 1, skipping the recursive call f2(1)."
+          },
+          {
+            "option": 2,
+            "text": "Option C makes the calls nest (main to f1 to f2) as if each call came from the previous one. They are siblings: f1 has returned before f2 starts."
+          },
+          {
+            "option": 3,
+            "text": "Option D gives the outer f2 three children, which would mean f2(2) itself calls f1. That call belongs to the inner f2(1)."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.activation-records",
+          "clues": "Four trees to choose from, a main function that calls others in sequence, and a function that calls itself with a smaller argument.",
+          "contrast": "A call stack at one moment shows only the active calls on a path; the activation tree records every call ever made during the whole run."
+        },
+        "check": {
+          "body": "Count calls by running the program in your head. main makes 3 calls, f2(2) makes 2 (f3 and f2(1)) and f2(1) makes 2 (f3 and f1), so the tree has 1 + 3 + 2 + 2 = 8 nodes. The correct tree must have exactly 8 nodes, with f2 appearing twice."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 Q26",
+          "url": "https://gateoverflow.in/399285/gate-cse-2023-question-26"
+        },
+        {
+          "label": "Official answer key, gate-cse-2023",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How many times is each function called while main runs, and which call happens inside which other call?"
+        },
+        {
+          "kind": "concept",
+          "text": "An activation tree has one node for every call made. The children of a node are the calls made directly by that activation, in the order they start."
+        },
+        {
+          "kind": "principle",
+          "text": "A call that returns before the next call begins gives a sibling, not a descendant. A function that calls itself adds a new node below the node that made the call, once per level of recursion."
+        },
+        {
+          "kind": "setup",
+          "text": "Follow the program text for f2 with the argument it receives, then with the smaller argument it passes on. For each activation list the calls it makes before it returns."
+        },
+        {
+          "kind": "partial",
+          "text": "Find how many levels of f2 occur: check what happens at X equal to 2 and then at X equal to 1, and which branch each takes."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the program: main() { h(); g(2); return 0; } h() { return 1; } g(n) { if (n == 1) return h(); h(); return g(n - 1); }. Which option is the activation tree of main?",
+        "options": [
+          "main calls h then g(2). g(2) calls h then g(1). g(1) calls h.",
+          "main calls h then g(2). g(2) calls h and h.",
+          "main calls h then g(2). g(2) calls g(1) then h. g(1) calls h.",
+          "main calls h. h calls g(2). g(2) calls h then g(1). g(1) calls h."
+        ],
+        "answer": 0,
+        "explanation": "main makes two calls, h and g(2), which are siblings because h returns first. g(2) calls h and then g(1), since n is not 1. g(1) takes the first branch and calls only h. Option B stops the recursion, option C reverses the order of calls inside g(2), and option D nests g under h."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q37",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "difficulty": "hard",
+      "stem": "Consider the control flow graph shown. Which one of the following choices correctly lists the set of live variables at the exit point of each basic block?",
+      "figure": "Control flow graph with ENTRY and EXIT. ENTRY goes to B1. B1 contains: i = m - 1; j = n; a = 10. B1 goes to B2. B2 contains: i = i + 1; j = j - 1. B2 goes to B3 and to B4. B3 contains: a = 20, and goes to B4. B4 contains: i = a + 1. B4 goes to EXIT and also back to B2.",
+      "diagram": {
+        "alt": "Flow graph: B1 (i = m - 1, j = n, a = 10) to B2 (i = i + 1, j = j - 1); B2 to B3 (a = 20) and to B4 (i = a + 1); B3 to B4; B4 to EXIT and back to B2."
+      },
+      "solutionDiagram": {
+        "alt": "The same graph with live-out sets: B1 {a,i,j}, B2 {a,j}, B3 {a,j}, B4 {a,i,j}."
+      },
+      "options": [
+        "B1: {}, B2: {a}, B3: {a}, B4: {a}",
+        "B1: {i, j}, B2: {a}, B3: {a}, B4: {i}",
+        "B1: {a, i, j}, B2: {a, i, j}, B3: {a, i}, B4: {a}",
+        "B1: {a, i, j}, B2: {a, j}, B3: {a, j}, B4: {a, i, j}"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "The rule",
+            "body": "A variable is live at a point if some path from there reads it before writing it. For each block, use(B) is what B reads before writing, and def(B) is what B writes. Then in(B) = use(B) ∪ (out(B) − def(B)), and out(B) is the union of in(S) over the successors S. Nothing is live at EXIT. Because of the back edge B4 to B2, the sets must be iterated until they stop changing."
+          },
+          {
+            "title": "use and def",
+            "body": "B1: use {m, n}, def {i, j, a}. B2: use {i, j}, def {i, j}. B3: use { }, def {a}. B4: use {a}, def {i}. The successors: B1 to B2; B2 to B3 and B4; B3 to B4; B4 to B2 (and EXIT)."
+          },
+          {
+            "title": "Iterate to the fixed point",
+            "body": "Start with all sets empty. in(B4) = {a}. in(B3) = out(B3) − {a} ∪ ∅ with out(B3) = in(B4) = {a}, so in(B3) = ∅. out(B2) = in(B3) ∪ in(B4) = {a}, so in(B2) = {i, j} ∪ ({a} − {i, j}) = {a, i, j}. out(B4) = in(B2) = {a, i, j}, so in(B4) = {a} ∪ ({a, i, j} − {i}) = {a, j}. Recompute: out(B3) = in(B4) = {a, j}, in(B3) = {j}; out(B2) = {j} ∪ {a, j} = {a, j}; in(B2) = {i, j} ∪ ({a, j} − {i, j}) = {a, i, j}. Now out(B4) = {a, i, j}, in(B4) = {a, j}; unchanged. out(B1) = in(B2) = {a, i, j}."
+          },
+          {
+            "title": "Result",
+            "body": "Live-out: B1 = {a, i, j}, B2 = {a, j}, B3 = {a, j}, B4 = {a, i, j}. That is option D. Notice i is live out of B4 because the back edge reaches B2, which reads i, and a is live out of B2 because the path B2 to B4 skips the assignment in B3.",
+            "tex": "\\mathrm{out}(B1)=\\{a,i,j\\},\\ \\mathrm{out}(B2)=\\{a,j\\},\\ \\mathrm{out}(B3)=\\{a,j\\},\\ \\mathrm{out}(B4)=\\{a,i,j\\}"
+          }
+        ],
+        "shortcut": {
+          "body": "Test the loop. B4 leaves to EXIT or back to B2, and B2 reads i and j, so out(B4) must contain i and j; that kills A, B and C's B4 entry. Only D has {a, i, j} for B4. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Ignoring the back edge and the reads in B2: out(B4) must contain i and j, since B2 reads them, so these sets are far too small."
+          },
+          {
+            "option": 1,
+            "text": "Computing in-sets of the successor from the use sets only, without the back edge, gives sets like B4: {i}. That is a one-pass answer."
+          },
+          {
+            "option": 2,
+            "text": "Putting i in out(B2) and out(B3): every path from there reaches B4, which writes i before any read. i is not live out of B2 or B3 (it is live out of B4 only because of the back edge to B2)."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.liveness",
+          "clues": "The question asks which variables are live at the exit of each block of a flow graph that has a loop back edge.",
+          "contrast": "Available expressions run forward and merge by intersection; liveness runs backward and merges by union, because one path that reads the variable is enough."
+        },
+        "check": {
+          "body": "Spot-check one variable by path search. For each block exit, ask whether some path from there reaches a read of the variable with no write on the way. The variable a, for example, is read in B4, and the paths B2 to B4 and B4 to B2 to B4 avoid the write in B3, which can be compared with the sets found."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 Q27",
+          "url": "https://gateoverflow.in/399284/gate-cse-2023-question-27"
+        },
+        {
+          "label": "Official answer key, gate-cse-2023",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each block, which variables does it read before it writes them, and which does it write? Which direction does the information travel through the graph?"
+        },
+        {
+          "kind": "concept",
+          "text": "A variable is live at a point if some path from there reads it before writing it. Liveness is about the future, so it is computed backward."
+        },
+        {
+          "kind": "principle",
+          "text": "What is live after a block is the union of what is live at the start of each of its successors. What is live at the start of a block is what it reads, plus what is live after it minus what it writes."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the read set and write set of every block. Start from the exit with nothing live and repeat the backward equations in reverse block order until no set changes; the loop edge forces a second round."
+        },
+        {
+          "kind": "partial",
+          "text": "Take B4 and B2 first. B4 can go to the exit or back to B2, so ask what B2 reads before writing, and let that flow into the live set after B4."
+        }
+      ],
+      "variation": {
+        "stem": "A flow graph has blocks B1 to B4. B1: x = 1; y = n. B2: y = y + 1; z = x * 2. B3: x = z. B4: t = x. The edges are B1 to B2, B2 to B3, B2 to B4, B3 to B4, B4 to B2, and B4 also leaves the graph. Which option lists the live variables at the exit of B1, B2, B3 and B4?",
+        "options": [
+          "B1: {x, y}, B2: {x, y, z}, B3: {x, y}, B4: {x, y}",
+          "B1: {x, y}, B2: {x, z}, B3: {x}, B4: {}",
+          "B1: {x, y}, B2: {x, y, z}, B3: {x, y}, B4: {}",
+          "B1: {n}, B2: {x, y}, B3: {y, z}, B4: {x, y}"
+        ],
+        "answer": 0,
+        "explanation": "Use out(B) as the union of in over the successors and in(B) = use(B) plus out(B) minus def(B), iterating backward. The back edge from B4 to B2 makes y live out of B4, since B2 reads y, and from there y is live out of B3 and B2. Option B is the single-pass answer, option C forgets the back edge at B4 only, and option D lists live-in sets instead of live-out sets."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q60",
+      "type": "nat",
+      "marks": 2,
+      "key": "2.374:2.376",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "difficulty": "medium",
+      "stem": "Consider the syntax directed translation given by the following grammar and semantic rules. Here N, I, F and B are non-terminals. N is the starting non-terminal, and #, 0 and 1 are lexical tokens corresponding to input letters \"#\", \"0\" and \"1\", respectively. X.val denotes the synthesized attribute (a numeric value) associated with a non-terminal X. I1 and F1 denote occurrences of I and F on the right hand side of a production, respectively. For the tokens 0 and 1, 0.val = 0 and 1.val = 1. The value computed by the translation scheme for the input string 10#011 is ________. (Rounded off to three decimal places)",
+      "table": {
+        "headers": [
+          "Production",
+          "Semantic rule"
+        ],
+        "rows": [
+          [
+            "N → I # F",
+            "N.val = I.val + F.val"
+          ],
+          [
+            "I → I1 B",
+            "I.val = (2 I1.val) + B.val"
+          ],
+          [
+            "I → B",
+            "I.val = B.val"
+          ],
+          [
+            "F → B F1",
+            "F.val = (1/2)(B.val + F1.val)"
+          ],
+          [
+            "F → B",
+            "F.val = (1/2) B.val"
+          ],
+          [
+            "B → 0",
+            "B.val = 0.val"
+          ],
+          [
+            "B → 1",
+            "B.val = 1.val"
+          ]
+        ]
+      },
+      "solutionDiagram": {
+        "alt": "Parse tree of 10#011 with val on each node: I is 2 for 10, F is 0.375 for 011 (inner F values 0.75 and 0.5), N is 2.375."
+      },
+      "answer": 2.375,
+      "solution": {
+        "steps": [
+          {
+            "title": "Parse the string, then evaluate bottom-up",
+            "body": "All attributes are synthesized, so a node's val is a function of its children's. Parse 10#011 as N → I # F with I deriving 10 and F deriving 011, then compute vals from the leaves upward. A token gives its own digit."
+          },
+          {
+            "title": "The integer part I",
+            "body": "I → I1 B is left recursive, so 10 parses as I(I(B(1)) B(0)). The inner I = B = 1. Then I.val = 2 × 1 + 0 = 2. This is binary reading of 10, which is 2.",
+            "tex": "I.val = 2\\cdot 1 + 0 = 2"
+          },
+          {
+            "title": "The fraction part F",
+            "body": "F → B F1 is right recursive: 011 is F(B(0), F(B(1), F(B(1)))). Innermost: F = ½ × 1 = 0.5. Middle: F = ½(1 + 0.5) = 0.75. Outer: F = ½(0 + 0.75) = 0.375. This reads 0.011 in binary, which is 0.25 + 0.125 = 0.375.",
+            "tex": "F.val = \\tfrac12\\left(0 + \\tfrac12\\left(1 + \\tfrac12\\right)\\right) = 0.375"
+          },
+          {
+            "title": "Add",
+            "body": "N.val = I.val + F.val = 2 + 0.375 = 2.375."
+          }
+        ],
+        "shortcut": {
+          "body": "Recognise the scheme as binary-to-decimal with a point: 10.011 in binary = 2 + 0.25 + 0.125 = 2.375. About 40 seconds."
+        },
+        "traps": [
+          {
+            "text": "5: reading 011 with the rule for I (doubling), which makes it the integer 3 instead of 0.375, and 2 + 3 = 5."
+          },
+          {
+            "text": "3.5: dropping the halving in both F rules (F → B as B.val, F → B F1 as ½B.val + F1.val) gives 1, 1.5, 1.5, so F = 1.5 and 2 + 1.5 = 3.5. The ½ multiplies the whole sum B.val + F1.val, and F → B halves its leaf."
+          },
+          {
+            "text": "4: dropping both halves, so F = 0 + 1 + 1 = 2 and 2 + 2 = 4."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.sdt-traces",
+          "clues": "Numeric semantic rules attached to productions, a concrete input string with a separator token, and a rounded numeric answer.",
+          "contrast": "The left-recursive I rule and the right-recursive F rule look alike, but the first builds a whole number from left to right and the second builds a fraction from the right."
+        },
+        "check": {
+          "body": "Treat the input as a binary number with a point. Convert the digits before the point and the digits after it independently, by place value, and add. This route does not use the grammar rules, so it independently confirms the tree evaluation."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 Q50",
+          "url": "https://gateoverflow.in/399261/gate-cse-2023-question-50"
+        },
+        {
+          "label": "Official answer key, gate-cse-2023",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which part of the input string goes to I and which part goes to F, and what do the two kinds of rule do to the digits?"
+        },
+        {
+          "kind": "concept",
+          "text": "The values are synthesized: each node's value is computed from its children, so evaluate from the leaves up to the root."
+        },
+        {
+          "kind": "principle",
+          "text": "The I rules double the value so far and add the new digit, which reads digits as a whole number. The F rules halve a combination of the digit and the rest, which reads digits as a fraction."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the input at the # token. Evaluate the left part with the I rules from its first digit onward, and the right part with the F rules starting from its last digit, then add the two."
+        },
+        {
+          "kind": "partial",
+          "text": "For the right-hand part, start with its last digit alone using the single-digit rule, then work leftward one digit at a time."
+        }
+      ],
+      "variation": {
+        "stem": "Use the same grammar and semantic rules. What is the value computed for the input string 110#101? Give the value rounded off to three decimal places.",
+        "answer": 6.625,
+        "explanation": "I derives 110, giving 2 * (2 * 1 + 1) + 0 = 6. F derives 101 from the right: the last digit gives 0.5, then (1/2)(0 + 0.5) = 0.25, then (1/2)(1 + 0.25) = 0.625. The sum is 6.625, the binary number 110.101."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q65",
+      "type": "nat",
+      "marks": 2,
+      "key": "80",
+      "topic": "cd-sdt-ir-optimization.sdt-traces",
+      "difficulty": "medium",
+      "stem": "Consider the following grammar along with translation rules.\n\nHere # and % are operators and id is a token that represents an integer and $id.val$ represents the corresponding integer value. The set of non-terminals is $\\{S, T, R, P\\}$ and a subscripted non-terminal indicates an instance of the non-terminal.\n\nUsing this translation scheme, the computed value of $S.val$ for root of the parse tree for the expression 20#10%5#8%2%2 is ____________.",
+      "table": {
+        "headers": [
+          "Production",
+          "Translation rule"
+        ],
+        "rows": [
+          [
+            "S → S1 # T",
+            "S.val = S1.val * T.val"
+          ],
+          [
+            "S → T",
+            "S.val = T.val"
+          ],
+          [
+            "T → T1 % R",
+            "T.val = T1.val ÷ R.val"
+          ],
+          [
+            "T → R",
+            "T.val = R.val"
+          ],
+          [
+            "R → id",
+            "R.val = id.val"
+          ]
+        ]
+      },
+      "answer": 80,
+      "solutionDiagram": {
+        "alt": "Parse tree of 20#10%5#8%2%2: the root S has val 80 from S 40 times T 2; S 40 is S 20 times T 2; the right T is T 4 divided by R 2, and T 4 is T 8 divided by R 2."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the rules mean and what decides the grouping",
+            "body": "A translation scheme attaches a small formula to each production. A parse tree is the tree of productions that derives the input string, and every node gets an attribute val computed by the formula of the production used at that node. Here val is built only from the children, so it is computed bottom-up: leaves first, root last. Two facts decide everything. First, both recursive rules are left-recursive: S → S1 # T and T → T1 % R put the recursive symbol on the left. A left-recursive rule makes the left operand the larger, already-built subtree, so a chain of the same operator groups from the left. Second, T sits below S in the grammar, so every % chain is finished into one T before any # can use it: % binds tighter than #. In the formulas, # multiplies and % divides."
+          },
+          {
+            "title": "Cut the string at the # symbols",
+            "body": "The expression 20#10%5#8%2%2 has two # symbols, so the top of the tree applies S → S1 # T twice. Reading left to right, the string splits into three chunks: 20, then 10%5, then 8%2%2. The first chunk is reached by S → T and T → R → id. The other two chunks are the T operands of the two # nodes. The tree in the picture shows exactly this shape."
+          },
+          {
+            "title": "Evaluate each % chunk",
+            "body": "The chunk 20 is a single id, so its val is 20. The chunk 10%5 uses T → T1 % R once: T.val = 10 ÷ 5 = 2. The chunk 8%2%2 has two % symbols and groups to the left, because T1 is the left recursive instance: the inner T is 8%2 with val 8 ÷ 2 = 4, and the outer T is that T % 2 with val 4 ÷ 2 = 2.",
+            "tex": "20,\\qquad 10 \\div 5 = 2,\\qquad (8 \\div 2) \\div 2 = 2"
+          },
+          {
+            "title": "Combine with the # rule",
+            "body": "The leftmost S has S → T, so its val is 20. The next S has S1.val = 20 and T.val = 2, so val = 20 * 2 = 40. The root has S1.val = 40 and T.val = 2, so S.val = 40 * 2 = 80. The answer is 80.",
+            "tex": "S.val = (20 \\times 2) \\times 2 = 80"
+          }
+        ],
+        "shortcut": {
+          "body": "Split at # first, then do each % chain strictly left to right: 20, 10÷5 = 2, 8÷2÷2 = 2, and multiply: 20 × 2 × 2 = 80. Do not rearrange the % chain; the grammar fixes left grouping, and 8÷(2÷2) would give a different number. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "text": "320: grouping the % chain to the right, 8 ÷ (2 ÷ 2) = 8, gives 20 * 2 * 8. The rule T → T1 % R is left-recursive, so the chain groups to the left."
+          },
+          {
+            "text": "0: reading % as the remainder operator, 10 mod 5 = 0 and 8 mod 2 mod 2 = 0, so the product collapses. The translation rule says ÷, not remainder."
+          },
+          {
+            "text": "160: stopping the second chain at 8%2 = 4 and forgetting the last % 2, which gives 20 * 2 * 4."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.sdt-traces",
+          "clues": "A grammar with two operator levels and left-recursive rules, translation rules that compute from the children, and a concrete expression to evaluate.",
+          "contrast": "This is not ordinary arithmetic precedence read from symbols; the grammar fixes the grouping, and the translation rules, not the symbols, give the meaning."
+        },
+        "check": {
+          "body": "Evaluate the pieces a second way, as a fraction: the divided chains are 10/5 and 8/2/2, so the whole product is 20 times 10/5 times 8/(2*2). Both routes must produce the same value, and the second does not depend on the order of the steps."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022 Q55",
+          "url": "https://gateoverflow.in/371881/gate-cse-2022-question-55"
+        },
+        {
+          "label": "Official answer key, GATE 2022 CS (IIT Kharagpur)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which operator is finished first in the expression, and when the same operator repeats, which end of the chain is evaluated first?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each rule gives a node's value from its children's values, so the value of the root is built bottom-up from the leaves."
+        },
+        {
+          "kind": "principle",
+          "text": "In a left-recursive rule the recursive symbol is on the left, so a chain of the same operator groups from the left. A symbol lower in the grammar binds tighter than one above it."
+        },
+        {
+          "kind": "setup",
+          "text": "Cut the expression at the top-level operator into pieces. Evaluate each piece with the lower-level operator, strictly left to right, and combine the piece values with the top-level operator."
+        },
+        {
+          "kind": "partial",
+          "text": "Check which of the two operators comes lower in the grammar, then evaluate the piece 8 then 2 then 2 as two operations applied from the left."
+        }
+      ],
+      "variation": {
+        "stem": "Use the same grammar and translation rules, where # multiplies and % divides. What is the computed value of S.val for the expression 48#18%3%2#4%2?",
+        "answer": 288,
+        "explanation": "Split at # into 48, 18%3%2 and 4%2. The % chains group to the left: (18 / 3) / 2 = 3 and 4 / 2 = 2. Then S.val = (48 * 3) * 2 = 288."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q13",
+      "type": "msq",
+      "marks": 1,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.ir-representations",
+      "difficulty": "easy",
+      "stem": "In the context of compilers, which of the following is/are NOT an intermediate representation of the source program?",
+      "options": [
+        "Three address code",
+        "Abstract Syntax Tree (AST)",
+        "Control Flow Graph (CFG)",
+        "Symbol table"
+      ],
+      "answer": [
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "What an intermediate representation is",
+            "body": "A compiler does not go from source text straight to machine code. In between it builds one or more intermediate representations (IR): forms of the program itself, with its operations and their order, that the later phases can analyse and rewrite. The test for any candidate is whether you could read the program back out of it. A symbol table is different in kind. It is a lookup table that maps each name to facts such as its type, scope and storage address. Every phase reads and writes it, but it holds no statements."
+          },
+          {
+            "title": "Test the four candidates",
+            "body": "Three address code is a linear IR: a list of instructions with at most three addresses each, such as t1 = b + c. An abstract syntax tree is a tree IR built by the parser: each operator is a node and its operands are the children. A control flow graph is a graph IR whose nodes are basic blocks of three address code and whose edges are possible jumps; optimizers work on it. All three describe the program, so they are IRs. The symbol table describes names only, so it is not."
+          },
+          {
+            "title": "Answer",
+            "body": "Only the symbol table is NOT an intermediate representation, which is option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask of each option: does it contain the program's operations? Code lists, trees and flow graphs do; a table of names does not. Pick the one that is a dictionary. About 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Choosing the AST because it comes straight from the parser and feels like part of parsing rather than an IR. A syntax tree is the usual high-level IR, so it is an IR."
+          },
+          {
+            "option": 2,
+            "text": "Choosing the CFG because a graph is not code. The CFG is the structure that data-flow analyses such as liveness run on, and it is a standard IR."
+          },
+          {
+            "text": "Adding the symbol table to the set of IRs because it is built early and used by all phases is the reverse mistake, and the question is an MSQ: all of A, B and C must be left unmarked."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.ir-representations",
+          "clues": "The wording asks which items are NOT an intermediate representation, and the options mix program forms with a data structure.",
+          "contrast": "A symbol table is used by every phase like an IR is, but it records names and their attributes, not the program's operations."
+        },
+        "check": {
+          "body": "For each option, try to describe how one assignment such as a = b + c is stored in it. If a clear entry for that operation exists, it is an IR; if the only thing stored is a name with its type or address, it is not."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2 Q13",
+          "url": "https://gateoverflow.in/357527/gate-cse-2021-set-2-question-13"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does a compiler need from a form of the program before later phases can analyse and rewrite it?"
+        },
+        {
+          "kind": "concept",
+          "text": "An intermediate representation is a form of the program itself, holding its operations and their order, between the source text and the final machine code."
+        },
+        {
+          "kind": "principle",
+          "text": "A test for any candidate: can the program's statements be read back out of it, in order? An intermediate representation must hold the program's operations."
+        },
+        {
+          "kind": "setup",
+          "text": "Take each option in turn and say whether the program's operations could be read back out of it. Mark the ones that fail."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following is/are an intermediate representation of the source program in a compiler?",
+        "options": [
+          "Quadruples",
+          "Static single assignment form",
+          "Activation record",
+          "Parse tree"
+        ],
+        "answer": [
+          0,
+          1,
+          3
+        ],
+        "explanation": "Quadruples and static single assignment form both list the program's operations in order. A parse tree records how the source text derives from the grammar, so the program can be read back out of it. An activation record is a runtime block of memory for one call and holds no operations, so it is not an intermediate representation."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q30",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.local-optimizations",
+      "difficulty": "medium",
+      "stem": "Consider the following ANSI C code segment, given below the question.\n\nAssume that the variable y points to a struct (allocated on the heap) containing two fields f1 and f2, and the local variables x, y, z, p, q, and i are allotted registers. Common sub-expression elimination (CSE) optimization is applied on the code. The number of addition and dereference operations (of the form y->f1 or y->f2) in the optimized code, respectively, are:",
+      "code": {
+        "lang": "c",
+        "text": "z = x + 3 + y->f1 + y->f2;\nfor (i = 0; i < 200; i = i + 2) {\n    if (z > i) {\n        p = p + x + 3;\n        q = q + y->f1;\n    } else {\n        p = p + y->f2;\n        q = q + x + 3;\n    }\n}"
+      },
+      "options": [
+        "403 and 102",
+        "203 and 2",
+        "303 and 102",
+        "303 and 2"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "What CSE does and what we count",
+            "body": "Common sub-expression elimination finds an expression that is computed more than once with the same operand values, computes it a single time into a temporary, and reuses the temporary. It is legal only while no operand changes between the uses. We count run-time operations of the optimized code: each executed + is one addition, and each executed y->f1 or y->f2 is one dereference (a load from the heap). Register accesses are free."
+          },
+          {
+            "title": "Find the repeated expressions",
+            "body": "x + 3 appears in the first line, in the if branch (p = p + x + 3) and in the else branch (q = q + x + 3). y->f1 appears in the first line and in the if branch. y->f2 appears in the first line and in the else branch. Nothing in the fragment assigns to x, to y, or to a field of y, so all three values stay the same for the whole run and can be computed once, before the loop: t1 = x + 3, t2 = y->f1, t3 = y->f2."
+          },
+          {
+            "title": "Cost before the loop",
+            "body": "z = t1 + t2 + t3 needs the addition that builds t1 plus two more, so 3 additions. The two dereferences are y->f1 and y->f2, so 2 dereferences."
+          },
+          {
+            "title": "Cost of one loop iteration",
+            "body": "The values of i are 0, 2, 4, ..., 198, which is 100 iterations. Each iteration executes i = i + 2, one addition. The if branch executes p = p + t1 and q = q + t2, two additions; the else branch executes p = p + t3 and q = q + t1, also two additions. Neither branch dereferences anything now. So every iteration costs 1 + 2 = 3 additions and 0 dereferences, whichever branch runs.",
+            "tex": "100 \\times (1 + 2) = 300"
+          },
+          {
+            "title": "Total and option",
+            "body": "Additions: 3 + 300 = 303. Dereferences: 2. That is option D.",
+            "tex": "3 + 300 = 303 \\text{ additions},\\quad 2 \\text{ dereferences}"
+          }
+        ],
+        "shortcut": {
+          "body": "Dereferences first: y->f1 and y->f2 are never written, so CSE keeps them in registers and only 2 remain. That removes A and C. For additions, count per iteration: the loop step plus the two accumulations is 3, so 3 * 100 = 300, plus 3 before the loop: 303. Option B (203) forgets the loop increment. About 2 minutes. The load reuse is safe only because nothing in the fragment may write through a pointer into the struct."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "403 and 102 is the code with no CSE at all: 3 + 100 * 4 additions (x + 3 recomputed inside each branch) and 2 + 100 dereferences. The question asks for the optimized code."
+          },
+          {
+            "option": 1,
+            "text": "203 and 2 gets the dereferences right but forgets that i = i + 2 is an addition executed 100 times, so it counts only 3 + 100 * 2."
+          },
+          {
+            "option": 2,
+            "text": "303 and 102 removes the repeated x + 3 but keeps reloading y->f1 and y->f2 in the loop. These loads are also common sub-expressions: nothing changes the fields, so they can live in registers."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.local-optimizations",
+          "clues": "The question names common sub-expression elimination and asks for operation counts in the optimized code, with x + 3, y->f1 and y->f2 each written more than once.",
+          "contrast": "Plain dead-code or constant folding removes work that is useless or known at compile time; here the work is useful but repeated, so the fix is to compute it once and reuse it."
+        },
+        "check": {
+          "body": "Count the code without CSE and subtract what CSE saves. Unoptimized, the first line costs 3 additions and 2 dereferences, and each pass costs 1 for the loop step plus 3 and 1 dereference in either branch, so 3 + 100 * 4 = 403 additions and 2 + 100 = 102 dereferences. CSE removes the repeated x + 3 and one load per pass, 100 additions and 100 dereferences, which leaves the value found in the steps."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2 Q30",
+          "url": "https://gateoverflow.in/357510/gate-cse-2021-set-2-question-30"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which of the expressions in this code produce the same value every time they are evaluated, and which line is the first to compute each of them?"
+        },
+        {
+          "kind": "concept",
+          "text": "Common sub-expression elimination computes a repeated expression once and reuses the saved result, as long as none of its operands changes in between."
+        },
+        {
+          "kind": "principle",
+          "text": "A load through a pointer can be reused like any other expression when nothing in the fragment writes to that field. Count executed operations, not lines of text."
+        },
+        {
+          "kind": "setup",
+          "text": "Write down the temporaries you would compute before the loop. Then count what one pass through the loop still executes in each branch, and multiply by the number of passes."
+        },
+        {
+          "kind": "partial",
+          "text": "The loop variable takes the values 0, 2, 4 and so on up to the last value below 200. Count how many passes that is before you multiply."
+        }
+      ],
+      "variation": {
+        "stem": "Take the code from the question with only the loop header changed to for (i = 0; i < 120; i = i + 3). The first line is still z = x + 3 + y->f1 + y->f2, and the body is still: if (z > i) then p = p + x + 3 and q = q + y->f1, else p = p + y->f2 and q = q + x + 3. Common sub-expression elimination is applied. How many addition and dereference operations, respectively, remain in the optimized code?",
+        "options": [
+          "163 and 42",
+          "83 and 2",
+          "123 and 42",
+          "123 and 2"
+        ],
+        "answer": 3,
+        "explanation": "The loop runs 40 times. Before it, x + 3, y->f1 and y->f2 are computed once, costing 3 additions and 2 dereferences. Each pass adds the loop step and two accumulations, 3 additions and no loads, giving 3 + 40 * 3 = 123 additions and 2 dereferences."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q38",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.liveness",
+      "difficulty": "easy",
+      "stem": "For a statement $S$ in a program, in the context of liveness analysis, the following sets are defined:\n\n$USE(S)$: the set of variables used in $S$\n$IN(S)$: the set of variables that are live at the entry of $S$\n$OUT(S)$: the set of variables that are live at the exit of $S$\n\nConsider a basic block that consists of two statements, $S_1$ followed by $S_2$. Which one of the following statements is correct?",
+      "options": [
+        "$OUT(S_1) = IN(S_2)$",
+        "$OUT(S_1) = IN(S_1) \\cup USE(S_1)$",
+        "$OUT(S_1) = IN(S_2) \\cup OUT(S_2)$",
+        "$OUT(S_1) = USE(S_1) \\cup IN(S_2)$"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "S1 and S2 as two boxes in a row with arrows through them; the arrow between them is labelled OUT of S1 equals IN of S2."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Live variables and the two flow equations",
+            "body": "A variable is live at a point if some path from that point reads it before writing it. IN(S) is the live set just before statement S runs and OUT(S) is the live set just after. Liveness runs backward. Two equations define it. First, what is live after S is whatever any successor needs: OUT(S) is the union of IN(T) over every successor T of S. Second, what is live before S is what S reads, plus what is live after S and not overwritten by S: IN(S) = USE(S) ∪ (OUT(S) − DEF(S)), where DEF(S) is the set of variables S writes.",
+            "tex": "OUT(S) = \\bigcup_{T \\in succ(S)} IN(T), \\qquad IN(S) = USE(S) \\cup \\big(OUT(S) - DEF(S)\\big)"
+          },
+          {
+            "title": "Apply the first equation to S1",
+            "body": "Inside a basic block control flows straight from S1 to S2, so S2 is the only successor of S1. The union has a single term, and OUT(S1) = IN(S2) with nothing added and nothing removed. This is option A."
+          },
+          {
+            "title": "Why the other options fail",
+            "body": "Take S1: a = b and S2: c = a, with c live after the block. Then IN(S2) = {a}, so OUT(S1) = {a}, and IN(S1) = {b}. Option B gives IN(S1) ∪ USE(S1) = {b}. Option C gives IN(S2) ∪ OUT(S2) = {a, c}. Option D gives USE(S1) ∪ IN(S2) = {a, b}. Only option A gives {a}."
+          }
+        ],
+        "shortcut": {
+          "body": "Liveness at the exit of a statement is liveness at the entry of whatever runs next. For one straight-line successor that is a plain equality, so only A can be right. About 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "This runs the IN equation backward. IN(S1) is computed from OUT(S1), not the other way round, and the right side {b} in the example is not what S2 needs."
+          },
+          {
+            "option": 2,
+            "text": "Adding OUT(S2) puts back variables that S2 itself writes. In the example c is live after S2 but S2 overwrites it, so c is not live between S1 and S2. IN(S2) already contains the part of OUT(S2) that survives S2."
+          },
+          {
+            "option": 3,
+            "text": "Adding USE(S1) mixes up the statement's own reads with its live-out set. What S1 reads is needed before S1, so it belongs in IN(S1), not in OUT(S1)."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.liveness",
+          "clues": "The wording defines USE, IN and OUT for statements in a basic block and asks which relation between consecutive statements is correct, which is the backward liveness equation.",
+          "contrast": "Reaching definitions run forward and join over predecessors; liveness runs backward and joins over successors, so the dependency goes from the later statement to the earlier one."
+        },
+        "check": {
+          "body": "Use three statements: S1: t = u + v, S2: u = t, S3: w = u + v, with only w live at the exit. Going backward, IN(S3) = {u, v}, so OUT(S2) = {u, v}, then IN(S2) = {t} union ({u, v} minus {u}) = {t, v}. The set between S1 and S2 must therefore be {t, v}. Option B gives {u, v}, option C gives {t, u, v}, option D gives {t, u, v}, and only option A gives {t, v}."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2 Q38",
+          "url": "https://gateoverflow.in/357502/gate-cse-2021-set-2-question-38"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "In which direction does information about future reads travel through a block, and what does the statement after S1 need from the state before it?"
+        },
+        {
+          "kind": "concept",
+          "text": "A variable is live at a point if some path from that point reads it before writing it. IN is the live set before a statement and OUT is the live set after it."
+        },
+        {
+          "kind": "principle",
+          "text": "The live set after a statement is built only from the statements that can run next. A statement does not feed its own reads into the set that follows it."
+        },
+        {
+          "kind": "setup",
+          "text": "Pick a tiny example with two assignments and a known set live at the end of the block. Compute IN of the second statement, then ask which options reproduce that set for the point between the two."
+        }
+      ],
+      "variation": {
+        "stem": "A basic block has S1: x = y + z followed by S2: w = x + y. The variables live at the exit of the block are w and z. Which set is OUT(S1), the set live between the two statements?",
+        "options": [
+          "$\\{w, x, y, z\\}$",
+          "$\\{x, y, z\\}$",
+          "$\\{y, z\\}$",
+          "$\\{x, y\\}$"
+        ],
+        "answer": 1,
+        "explanation": "OUT(S1) equals IN(S2), since S2 is the only successor of S1. IN(S2) = USE(S2) union (OUT(S2) minus DEF(S2)) = {x, y} union ({w, z} minus {w}) = $\\{x, y, z\\}$. The set $\\{y, z\\}$ is IN(S1), which is the point before S1, not between the statements."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q4",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cd-sdt-ir-optimization.activation-records",
+      "difficulty": "easy",
+      "stem": "Consider the following statements.\n\n$S_1$: The sequence of procedure calls corresponds to a preorder traversal of the activation tree.\n$S_2$: The sequence of procedure returns corresponds to a postorder traversal of the activation tree.\n\nWhich one of the following options is correct?",
+      "options": [
+        "$S_1$ is true and $S_2$ is false",
+        "$S_1$ is false and $S_2$ is true",
+        "$S_1$ is true and $S_2$ is true",
+        "$S_1$ is false and $S_2$ is false"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Activation tree with main calling f then g, and f calling h then k. Each node is labelled with the order of its call and the order of its return: calls main, f, h, k, g; returns h, k, f, g, main."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Activations and the activation tree",
+            "body": "One execution of a procedure body is an activation. The activation tree has a node for every activation. The root is the activation of main, and the children of a node are the activations that node starts directly, ordered left to right by the time they were called. Two traversals matter. Preorder visits a node first and then its children from left to right. Postorder visits the children from left to right and then the node. The fact that decides the question is that procedure calls nest: a callee always finishes before its caller continues."
+          },
+          {
+            "title": "Calls give preorder",
+            "body": "A node is created at the moment its procedure is called. After that, the procedure starts its children one by one, left to right, and each child's whole subtree is called before the next child. So the call order is node, then first child's subtree, then the second child's subtree: preorder. Statement S1 is true."
+          },
+          {
+            "title": "Returns give postorder",
+            "body": "A procedure returns only after every activation it started has returned, and those return in the order they were called. So the return order is the first child's subtree, the second child's subtree, and then the node itself: postorder. Statement S2 is true. In the picture, main calls f and g, and f calls h and k. Calls happen as main, f, h, k, g, and returns as h, k, f, g, main. Both statements hold, which is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Calls are entering a node and returns are leaving it, exactly like a depth-first walk. Enter order is preorder and leave order is postorder, so both are true. About 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Thinking returns are the exact reverse of calls because the call stack is last in, first out. Reverse call order is g, k, h, f, main in the example, but the real return order is h, k, f, g, main. The stack discipline applies to the activations alive at one moment, not to the whole sequence."
+          },
+          {
+            "option": 1,
+            "text": "Reading calls as level order because main starts f and g 'first'. g is not called until f and all of f's descendants have finished, so the order is depth first."
+          },
+          {
+            "option": 3,
+            "text": "Rejecting both because the activation tree is 'not an ordinary tree'. It is an ordinary ordered tree, and calls and returns are its depth-first entry and exit."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.activation-records",
+          "clues": "The statements talk about the sequence of procedure calls and returns and the shape of the activation tree, which is the run-time view of nested calls.",
+          "contrast": "The control stack holds only the activations alive at one moment and pops in reverse order of pushing; the activation tree records every activation ever made, so the full sequence of returns is not the reverse of the calls."
+        },
+        "check": {
+          "body": "Use a deeper tree: main calls a and then d, and a calls b, which calls c. Calls occur as main, a, b, c, d and returns as c, b, a, d, main. Walk the tree depth first: listing a node on entry gives the call list, listing it on exit gives the return list, so both statements hold even when a callee has its own callee."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1 Q4",
+          "url": "https://gateoverflow.in/357448/gate-cse-2021-set-1-question-4"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "At the moment a procedure is called, which activations already exist, and in what order can its callees start and finish?"
+        },
+        {
+          "kind": "concept",
+          "text": "An activation tree has a node for every execution of a procedure body. The children of a node are the calls it makes directly, ordered left to right by time."
+        },
+        {
+          "kind": "principle",
+          "text": "Calls nest: a callee must finish before its caller continues. Compare that with the two depth-first orders, one that lists a node on entry and one that lists it on exit."
+        },
+        {
+          "kind": "setup",
+          "text": "Draw a small tree with a root that calls two procedures, one of which calls another. Write the order of calls and the order of returns beside it, then test each statement against both lists."
+        }
+      ],
+      "variation": {
+        "stem": "In a run, main calls p and then q. The procedure p calls r, and the procedure q calls s and then t. Which option lists the order in which these procedures return?",
+        "options": [
+          "t, s, q, r, p, main",
+          "r, p, s, t, q, main",
+          "r, s, t, p, q, main",
+          "main, p, r, q, s, t"
+        ],
+        "answer": 1,
+        "explanation": "Returns follow the postorder of the activation tree. The leaf r returns before p, then the subtree of q returns as s, t and then q, and main returns last, giving r, p, s, t, q, main. Reversing the call order main, p, r, q, s, t would treat the whole run as one stack, which is wrong."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q26",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "cd-sdt-ir-optimization.sdd-attributes",
+      "difficulty": "medium",
+      "stem": "Consider the following grammar (that admits a series of declarations, followed by expressions) and the associated syntax directed translation (SDT) actions, given as pseudo-code (see the table below).\n\nWith respect to the above grammar, which one of the following choices is correct?",
+      "table": {
+        "headers": [
+          "Production",
+          "SDT action"
+        ],
+        "rows": [
+          [
+            "P → D* E*",
+            ""
+          ],
+          [
+            "D → int ID",
+            "{record that ID.lexeme is of type int}"
+          ],
+          [
+            "D → bool ID",
+            "{record that ID.lexeme is of type bool}"
+          ],
+          [
+            "E → E1 + E2",
+            "{check that E1.type = E2.type = int; set E.type := int}"
+          ],
+          [
+            "E → !E1",
+            "{check that E1.type = bool; set E.type := bool}"
+          ],
+          [
+            "E → ID",
+            "{set E.type := int}"
+          ]
+        ]
+      },
+      "options": [
+        "The actions can be used to correctly type-check any syntactically correct program.",
+        "The actions can be used to type-check syntactically correct integer variable declarations and integer expressions.",
+        "The actions can be used to type-check syntactically correct boolean variable declarations and boolean expressions.",
+        "The actions will lead to an infinite loop."
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "What these actions do",
+            "body": "A syntax directed translation attaches an action to each production, and the action runs when the parser reduces by that production. Type checking means an action compares the types of the operands and either accepts or reports an error, and sets the type of the new node for the actions above it. The decisive question for any such scheme is where the types come from at the bottom of the expression: a check can only be as good as the type that the leaf rule hands up. Here the leaf rule is E → ID."
+          },
+          {
+            "title": "The leaf rule hands up int every time",
+            "body": "The action for E → ID sets E.type := int. It never looks up what the declarations recorded for that identifier. So every identifier in an expression is treated as an int, whether it was declared int or bool. The declaration actions record types but nothing reads them."
+          },
+          {
+            "title": "Integer part works",
+            "body": "For int declarations and integer expressions the leaf type int is correct, and the E1 + E2 check (both operands int) and its result type int are correct. So the actions can type-check integer declarations and integer expressions: statement B is true."
+          },
+          {
+            "title": "Boolean part and the rest fail",
+            "body": "For a boolean expression the rule E → !E1 needs E1.type = bool. The only way to get a bool is another !E, and the innermost operand of any ! chain is an ID or a sum, both of type int, so the check always fails. A bool variable used in an expression is wrongly seen as int. So C is false, and A is false for the same reason. The actions have no recursion that could loop: each one runs once per node of a finite parse tree, so D is false. The answer is B."
+          }
+        ],
+        "shortcut": {
+          "body": "Look at the base case of the expressions: E → ID always gives int. Anything that needs bool as its operand can never be satisfied, which removes A and C. An action does not loop, which removes D. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "'Any syntactically correct program' over-claims. A program with a bool declaration and a ! applied to that variable is syntactically correct but is rejected by these actions, because the variable is typed int."
+          },
+          {
+            "option": 2,
+            "text": "Pairing the bool declaration action with the ! action looks like a full boolean checker. The missing piece is that E → ID does not read the recorded declaration, so no expression can ever have type bool."
+          },
+          {
+            "option": 3,
+            "text": "The star in D* E* only describes repetition in the grammar. The actions run once per parse tree node and never call themselves, so nothing can loop."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.sdd-attributes",
+          "clues": "A grammar with declarations followed by expressions, actions that set E.type and check operand types, and a question about what the actions can type-check.",
+          "contrast": "This is attribute evaluation on a finished parse tree, not a parsing question: the grammar itself accepts every program, and the actions decide which of them are well typed."
+        },
+        "check": {
+          "body": "Test the claim with two tiny programs: one that declares an integer and adds it to itself, and one that declares a boolean and negates it. Run the leaf rule and the operator rules for each, and see which program the actions accept and which they wrongly reject."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1 Q26",
+          "url": "https://gateoverflow.in/357425/gate-cse-2021-set-1-question-26"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Where does the type of an identifier inside an expression come from in these actions, and what do the declaration actions do with the types they record?"
+        },
+        {
+          "kind": "concept",
+          "text": "A syntax directed translation attaches an action to each production and runs it when the parser reduces by that production. The action computes the type of the new node from its children."
+        },
+        {
+          "kind": "principle",
+          "text": "Look at the production for an identifier inside an expression. Ask whether its action consults anything the declarations stored, or fixes the type by itself."
+        },
+        {
+          "kind": "setup",
+          "text": "Take a short program that declares one variable of each type and uses each in an expression. Evaluate the leaf rule and the operator rules for it, and see which option still holds."
+        }
+      ],
+      "variation": {
+        "stem": "Variables a (int) and b (bool) are declared. The actions are: E -> ID takes the type recorded for the identifier; E -> E1 + E2 requires both operands int and gives int; E -> !E1 requires bool and gives bool. How many of the expressions a + a, !b, a + !b and !!b pass the type check?",
+        "options": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "answer": 2,
+        "explanation": "With the leaf type read from the declaration, a + a passes, !b passes, !!b passes, and a + !b fails because the right operand of + is bool. That is 3 expressions. Giving every identifier type int would accept only a + a, which is 1."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q50",
+      "type": "nat",
+      "marks": 2,
+      "key": "6",
+      "topic": "cd-sdt-ir-optimization.dag",
+      "difficulty": "medium",
+      "stem": "Consider the following C code segment (given below the question).\n\nIn a compiler, this code segment is represented internally as a directed acyclic graph (DAG). The number of nodes in the DAG is ____________.",
+      "code": {
+        "lang": "c",
+        "text": "a = b + c;\ne = a + 1;\nd = b + c;\nf = d + 1;\ng = e + f;"
+      },
+      "answer": 6,
+      "solutionDiagram": {
+        "alt": "DAG with leaves b, c and 1. One plus node over b and c is labelled a, d. One plus node over that node and 1 is labelled e, f. The top plus node is labelled g and has two edges to the e, f node. Six nodes in all."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The DAG of a basic block",
+            "body": "A DAG for straight-line code has one node for each distinct value. A leaf stands for a value that exists when the block starts: a variable or a constant. An interior node stands for an operator applied to two earlier nodes. Each variable name is attached as a label to the node holding its current value. The rule that makes it a DAG and not a tree is reuse: when a statement applies the same operator to the same two nodes as an existing node, it does not make a new node; it attaches the new name to the old one. This is common sub-expression elimination drawn as a graph."
+          },
+          {
+            "title": "Build it statement by statement",
+            "body": "a = b + c: make leaves b and c and an interior node n1 = (b + c). Label n1 with a. e = a + 1: a is n1; make a leaf for the constant 1 and a node n2 = (n1 + 1). Label n2 with e. d = b + c: the same operator on the same nodes as n1, so reuse n1 and add the label d. f = d + 1: d is n1, so this is n1 + 1, which is n2; add the label f. g = e + f: both e and f are n2, so make one new node n3 = (n2 + n2), with two edges to n2. Label n3 with g."
+          },
+          {
+            "title": "Count",
+            "body": "Leaves: b, c and 1, which is 3. Interior nodes: n1, n2, n3, which is 3. The total is 6.",
+            "tex": "3 + 3 = 6"
+          }
+        ],
+        "shortcut": {
+          "body": "Count leaves (b, c, 1) and then count distinct operator applications: b+c, (b+c)+1 and the sum of the last two. d and f repeat earlier ones, so they add nothing. 3 + 3 = 6. About 1 minute. This works because b and c are not reassigned inside the block."
+        },
+        "traps": [
+          {
+            "text": "8: giving every statement its own node (5 interior nodes) and adding the 3 leaves. That ignores that d = b + c and f = d + 1 repeat earlier computations."
+          },
+          {
+            "text": "5: counting the five assigned variables, or five interior nodes with no sharing, and leaving out the leaves b, c and the constant 1, which are nodes of the DAG too."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.dag",
+          "clues": "Straight-line assignments with repeated sub-expressions and a request for the number of nodes of the DAG representation of the block.",
+          "contrast": "A syntax tree would give every occurrence its own node; a DAG merges equal sub-expressions, so the node count is the number of distinct values, which is smaller."
+        },
+        "check": {
+          "body": "Count a second way. List the distinct operator applications over distinct operand nodes, then add the distinct leaves that the statements read before writing. The total from this list must match the node count from the step-by-step build, and every assigned name should appear as a label on exactly one node."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1 Q50",
+          "url": "https://gateoverflow.in/357401/gate-cse-2021-set-1-question-50"
+        },
+        {
+          "label": "Official answer key, GATE 2021 CS Set 1 and Set 2 (IIT Bombay)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which of the five statements compute a value that an earlier statement already produced, and what are the starting values that no statement computes?"
+        },
+        {
+          "kind": "concept",
+          "text": "A DAG for a basic block has one node per distinct value: a leaf for each variable or constant that exists at entry and an interior node for each operator applied to two nodes."
+        },
+        {
+          "kind": "principle",
+          "text": "When a statement applies the same operator to the same two nodes as an existing node, no new node is made; the new name is only attached as a label of the old one."
+        },
+        {
+          "kind": "setup",
+          "text": "Go statement by statement, keeping a table from each name to its current node. Look up the operands in the table, then check whether the same operator over the same nodes already exists."
+        },
+        {
+          "kind": "partial",
+          "text": "The first statement makes two leaves and one operator node. Check whether the third statement needs a new node or reuses that one, before moving on."
+        }
+      ],
+      "variation": {
+        "stem": "A basic block is represented as a DAG: p = m + n; q = p * 2; r = m + n; s = r * 2; t = q - s; u = t + p. The variables m and n are not assigned in the block. How many nodes does the DAG have?",
+        "answer": 7,
+        "explanation": "The leaves are m, n and the constant 2. The interior nodes are m + n (labelled p and r), the product with 2 (labelled q and s), q - s over those two shared nodes (labelled t), and t + p (labelled u). That is 3 leaves plus 4 interior nodes, 7 in all."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q9",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "cd-sdt-ir-optimization.activation-records",
+      "difficulty": "medium",
+      "stem": "Consider the following statements.\n\nI. Symbol table is accessed only during lexical analysis and syntax analysis.\nII. Compilers for programming languages that support recursion necessarily need heap storage for memory allocation in the run-time environment.\nIII. Errors violating the condition 'any variable must be declared before its use' are detected during syntax analysis.\n\nWhich of the above statements is/are TRUE?",
+      "options": [
+        "I only",
+        "I and III only",
+        "II only",
+        "None of I, II, and III"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "The terms and the test",
+            "body": "A compiler works in phases. Lexical analysis cuts the text into tokens. Syntax analysis checks that the tokens fit the grammar and builds the parse tree. Semantic analysis checks meaning, such as types and declarations. Later phases make intermediate code, optimize and generate machine code. The symbol table is the shared dictionary of names with their type, scope and address. At run time the program has three kinds of storage: static data, the stack of activation records (one per active procedure call), and the heap for memory requested explicitly with malloc or new. The test for each statement is: which phase or which storage does the claim really involve?"
+          },
+          {
+            "title": "Statement I",
+            "body": "The symbol table is not limited to the first two phases. Semantic analysis looks names up to check types and declarations, and code generation reads the addresses stored there. 'Only during lexical and syntax analysis' is false."
+          },
+          {
+            "title": "Statement II",
+            "body": "Recursion needs many live copies of a procedure's locals at the same time. The stack of activation records supplies exactly that, one record per call, freed when the call returns. The heap is for data that outlives a call, and a recursive function that allocates nothing never touches it. 'Necessarily need heap storage' is false."
+          },
+          {
+            "title": "Statement III and the answer",
+            "body": "Syntax is described by a context-free grammar, which cannot remember which names were declared earlier. 'Declared before use' is a context-sensitive condition. It is checked in semantic analysis by looking the name up in the symbol table. So III is false, and no statement is true: option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Each statement carries an absolute word: 'only', 'necessarily', and a phase claim. Test each against one fact: the symbol table is used by every later phase, recursion uses the stack, and declaration checks are semantic. All three fail. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing the symbol table is finished once parsing ends. Type checking and code generation both consult it, so I is false."
+          },
+          {
+            "option": 1,
+            "text": "Calling an undeclared variable a syntax error because the compiler reports it near the parser's line number. The grammar cannot express the rule, so the check belongs to semantic analysis."
+          },
+          {
+            "option": 2,
+            "text": "Linking recursion with the heap, since recursion 'grows memory'. The growth is the stack of activation records, not heap allocation."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.activation-records",
+          "clues": "Three statements that each tie a compiler phase or storage area to a task, with absolute words such as only and necessarily.",
+          "contrast": "Syntax analysis checks the shape of the token sequence with a context-free grammar; checks that depend on earlier declarations belong to semantic analysis, which is a separate phase."
+        },
+        "check": {
+          "body": "Look for a counterexample to each statement. For the symbol table, name a later phase that reads it. For recursion, picture a recursive function that allocates nothing on the heap. For declaration checks, ask whether a context-free grammar can remember earlier names."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020 Q9",
+          "url": "https://gateoverflow.in/333222/gate-cse-2020-question-9"
+        },
+        {
+          "label": "Official answer key, GATE 2020 CS (IIT Delhi)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each statement, which phase of the compiler or which kind of run-time storage does the claim really involve?"
+        },
+        {
+          "kind": "concept",
+          "text": "The symbol table is a shared dictionary of names. Run-time storage has static data, a stack of activation records and a heap for explicit requests."
+        },
+        {
+          "kind": "principle",
+          "text": "Words like only and necessarily make a claim false the moment one counterexample exists. Find a phase, or a program, that breaks each statement."
+        },
+        {
+          "kind": "setup",
+          "text": "List the phases in order and mark which of them read the symbol table. For recursion, ask what must exist per call, and whether any explicit allocation request is needed for that."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the statements.\nI. The parse tree is built during lexical analysis.\nII. Checking that a call passes as many arguments as the procedure declares is done in semantic analysis.\nIII. A language that supports recursion needs one activation record for each active call.\nWhich of the above are TRUE?",
+        "options": [
+          "II only",
+          "III only",
+          "II and III only",
+          "I and III only"
+        ],
+        "answer": 2,
+        "explanation": "Lexical analysis produces tokens, and the parse tree is built in syntax analysis, so I is false. Argument counts depend on declarations, which a context-free grammar cannot track, so the check is semantic and II is true. Recursion keeps several calls of one procedure alive at once, so each needs its own record, and III is true."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q33",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "difficulty": "medium",
+      "stem": "Consider the productions A → PQ and A → XY. Each of the five non-terminals A, P, Q, X, and Y has two attributes: $s$ is a synthesized attribute, and $i$ is an inherited attribute. Consider the following rules (Rule 1 belongs to A → PQ and Rule 2 to A → XY).\n\nRule 1: $P.i = A.i + 2$, $Q.i = P.i + A.i$, and $A.s = P.s + Q.s$\n\nRule 2: $X.i = A.i + Y.s$ and $Y.i = X.s + A.i$\n\nWhich one of the following is TRUE?",
+      "options": [
+        "Both Rule 1 and Rule 2 are L-attributed.",
+        "Only Rule 1 is L-attributed.",
+        "Only Rule 2 is L-attributed.",
+        "Neither Rule 1 nor Rule 2 is L-attributed."
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Two dependency diagrams. For Rule 1 every arrow comes from the parent A or from the left sibling P. For Rule 2 a red arrow goes from Y.s to X.i, from the right sibling to the left one."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The vocabulary and the L-attributed test",
+            "body": "A synthesized attribute of a node is computed from the attributes of its children, so information flows up. An inherited attribute of a node is computed from its parent and its siblings, so information flows down or sideways. A definition is L-attributed when every inherited attribute of a symbol on the right side of a production uses only: the inherited attributes of the left-side symbol (the parent), and any attributes of symbols to its left in the same production. The letter L stands for left: then one left-to-right depth-first walk of the tree can compute everything. A synthesized attribute of the left-side symbol may use anything on the right, with no restriction."
+          },
+          {
+            "title": "Check Rule 1, production A → PQ",
+            "body": "P.i = A.i + 2 uses the parent's inherited attribute, which is allowed. Q.i = P.i + A.i uses P, which is to the left of Q, and the parent's A.i, so it is allowed. A.s = P.s + Q.s is a synthesized attribute of the parent, so it is unrestricted. Every inherited attribute passes, so Rule 1 is L-attributed."
+          },
+          {
+            "title": "Check Rule 2, production A → XY",
+            "body": "X.i = A.i + Y.s depends on Y.s, and Y is to the right of X. Even though s is synthesized, the position decides: X would need a value from a symbol that a left-to-right walk has not reached yet. Rule 2 breaks the test. (Y.i = X.s + A.i is fine on its own.) Only Rule 1 is L-attributed: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Underline every inherited attribute (the .i on the left of each equation) and look at its right side for a symbol that stands to its right in the production. X.i = A.i + Y.s has Y to the right, so Rule 2 fails; nothing similar occurs in Rule 1. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Treating Y.s as harmless because s is synthesized. Whether an attribute is synthesized does not matter for the test; what matters is that Y sits to the right of X, so the value is not available in a left-to-right pass."
+          },
+          {
+            "option": 2,
+            "text": "Reversing the two rules. The sideways dependency in Rule 1, Q.i from P.i, goes from left to right and is legal; the one in Rule 2 goes from right to left."
+          },
+          {
+            "option": 3,
+            "text": "Rejecting Rule 1 because Q.i uses both a sibling's attribute and the parent's. The test allows both, as long as the sibling is on the left."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.s-l-attributed",
+          "clues": "Two sets of attribute equations over two productions, mixing inherited and synthesized attributes, with the question of whether they are L-attributed.",
+          "contrast": "S-attributed definitions use only synthesized attributes and suit bottom-up evaluation; L-attributed ones may also use inherited attributes, but only from the parent and from left siblings."
+        },
+        "check": {
+          "body": "Try to evaluate each rule in one left-to-right walk of the children. At each child, list the values it needs and mark whether they already exist when the walk arrives. A rule that needs a value from a symbol visited later cannot be evaluated this way."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020 Q33",
+          "url": "https://gateoverflow.in/333198/gate-cse-2020-question-33"
+        },
+        {
+          "label": "Official answer key, GATE 2020 CS (IIT Delhi)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each inherited attribute in a rule, which symbols does its right side read, and where do those symbols stand in the production?"
+        },
+        {
+          "kind": "concept",
+          "text": "An inherited attribute takes its value from the parent or from siblings. A synthesized attribute takes its value from the children."
+        },
+        {
+          "kind": "principle",
+          "text": "A definition is L-attributed when each inherited attribute of a right-side symbol reads only the parent inherited attributes and attributes of symbols to its left. The parent synthesized attribute is not restricted."
+        },
+        {
+          "kind": "setup",
+          "text": "For each rule, underline the inherited attributes on the left of the equals sign. Write the position of each symbol on the right side and compare it with the position of the symbol being defined."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the productions A -> PQ and A -> XY. Rule 1 (for A -> PQ): P.i = Q.s + 1, Q.i = A.i, A.s = P.s + Q.s. Rule 2 (for A -> XY): X.i = 2 * A.i, Y.i = X.s + A.i, A.s = Y.s. Which one of the following is TRUE?",
+        "options": [
+          "Both Rule 1 and Rule 2 are L-attributed.",
+          "Only Rule 1 is L-attributed.",
+          "Only Rule 2 is L-attributed.",
+          "Neither Rule 1 nor Rule 2 is L-attributed."
+        ],
+        "answer": 2,
+        "explanation": "In Rule 1, P.i reads Q.s, and Q stands to the right of P, so it cannot be known when the left-to-right walk reaches P. Rule 1 is not L-attributed. In Rule 2, X.i reads only the parent, Y.i reads the left sibling X and the parent, and A.s is a parent synthesized attribute, so Rule 2 is L-attributed."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q36",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "cd-sdt-ir-optimization.s-l-attributed",
+      "difficulty": "medium",
+      "stem": "Consider the following grammar and the semantic actions to support the inherited type declaration attributes. Let $X_1$, $X_2$, $X_3$, $X_4$, $X_5$, and $X_6$ be the placeholders for the non-terminals D, T, L or $L_1$ in the following table:\n\nWhich one of the following are the appropriate choices for $X_1$, $X_2$, $X_3$ and $X_4$?",
+      "table": {
+        "headers": [
+          "Production rule",
+          "Semantic action"
+        ],
+        "rows": [
+          [
+            "D → T L",
+            "X1.type = X2.type"
+          ],
+          [
+            "T → int",
+            "T.type = int"
+          ],
+          [
+            "T → float",
+            "T.type = float"
+          ],
+          [
+            "L → L1 , id",
+            "X3.type = X4.type; addType(id.entry, X5.type)"
+          ],
+          [
+            "L → id",
+            "addType(id.entry, X6.type)"
+          ]
+        ]
+      },
+      "options": [
+        "$X_1 = L,\\ X_2 = T,\\ X_3 = L_1,\\ X_4 = L$",
+        "$X_1 = T,\\ X_2 = L,\\ X_3 = L_1,\\ X_4 = T$",
+        "$X_1 = L,\\ X_2 = L,\\ X_3 = L_1,\\ X_4 = T$",
+        "$X_1 = T,\\ X_2 = L,\\ X_3 = T,\\ X_4 = L_1$"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Parse tree of the declaration int a, b with D over T and L. A red arrow carries the type from T to L, and a second red arrow carries it from L down to L1, which owns id a."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What is being passed and which way",
+            "body": "In a declaration such as int a, b, the type is written once, at the front, but every name in the list needs it. In the grammar, T builds the type: T → int sets T.type = int, which is a synthesized attribute computed from the child. The names are created by L, deeper in the tree and to the right of T. So the type must travel to L, and from L down to each smaller list L1, until addType(id.entry, ...) stores it for an id. An attribute that receives its value from the parent or from a left sibling is an inherited attribute, so the type in L is inherited. In a rule X.type = Y.type, the left side X receives and the right side Y gives."
+          },
+          {
+            "title": "Fill the rule for D → T L",
+            "body": "The type is known at T and needed at L, which is T's right sibling. So L receives it from T: L.type = T.type. Hence X1 = L and X2 = T."
+          },
+          {
+            "title": "Fill the rule for L → L1 , id",
+            "body": "The list L has the type, and its inner list L1 needs it for the identifiers before the comma. So L1 receives it from its parent: L1.type = L.type. Hence X3 = L1 and X4 = L. The addType call then stores the type for id using L's value, so X5 = L, and X6 = L in the rule L → id."
+          },
+          {
+            "title": "Match the option",
+            "body": "X1 = L, X2 = T, X3 = L1, X4 = L is option A.",
+            "tex": "L.type = T.type, \\qquad L_1.type = L.type"
+          }
+        ],
+        "shortcut": {
+          "body": "Think of a copy that moves from the declared type towards the names. The receiver is on the left of '=': it must be L in the first rule (T is the source) and L1 in the second (L is the source). Only option A has this shape. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Writing T.type = L.type reverses the flow. T.type is already fixed by T → int or T → float, and L has nothing to give yet. The second rule X3 = L1, X4 = T also names T, which is not part of the production L → L1 , id."
+          },
+          {
+            "option": 2,
+            "text": "X1 = L and X2 = L makes the first rule L.type = L.type, which copies a value to itself and never brings the type in. X4 = T has the same problem: T is not a symbol of L → L1 , id."
+          },
+          {
+            "option": 3,
+            "text": "Both rules run the wrong way: T.type = L.type has T receiving, and T.type = L1.type uses a T that does not appear in the production for L."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.s-l-attributed",
+          "clues": "A declaration grammar where the type is given once by T and every identifier in the list L needs it, with the placeholders standing for the receiving and giving symbols of each copy rule.",
+          "contrast": "A synthesized copy would carry the type up from the identifiers to T; here the type is carried down and sideways, which is the inherited direction."
+        },
+        "check": {
+          "body": "Run the chosen assignments on the declaration int a, b. Start at T with int, pass it to L by the first rule, then to L1 by the second rule, and store it at each identifier. If every identifier receives int and no rule uses a symbol outside its production, the choice is consistent."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019 Q36",
+          "url": "https://gateoverflow.in/302812/gate-cse-2019-question-36"
+        },
+        {
+          "label": "Official answer key, GATE 2019 CS (IIT Madras)",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The type is written once at the front of a declaration, but several names need it. Which symbol knows the type, and which symbols need to receive it?"
+        },
+        {
+          "kind": "concept",
+          "text": "An inherited attribute receives its value from the parent or a left sibling. In a rule X.type = Y.type, the left side receives and the right side gives."
+        },
+        {
+          "kind": "principle",
+          "text": "The value must travel from where it is computed to where it is used. Check that each symbol named in a rule is actually part of that rule's production."
+        },
+        {
+          "kind": "setup",
+          "text": "For D -> T L, decide which of T and L already has a type and which needs one. Repeat for L -> L1 , id with the symbols L and L1, then look for the option that matches both."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the productions Decl -> Kind Names, Kind -> int, Kind -> real, Names -> Names1 , id and Names -> id. Kind.kind is set by its own rules, and the declared kind must reach every identifier. The copy rules are X1.kind = X2.kind for Decl -> Kind Names, and X3.kind = X4.kind for Names -> Names1 , id. Which option gives appropriate X1, X2, X3 and X4?",
+        "options": [
+          "$X_1 = Kind,\\ X_2 = Names,\\ X_3 = Names_1,\\ X_4 = Kind$",
+          "$X_1 = Names,\\ X_2 = Kind,\\ X_3 = Names_1,\\ X_4 = Names$",
+          "$X_1 = Names,\\ X_2 = Names,\\ X_3 = Names_1,\\ X_4 = Kind$",
+          "$X_1 = Kind,\\ X_2 = Names,\\ X_3 = Kind,\\ X_4 = Names_1$"
+        ],
+        "answer": 1,
+        "explanation": "In Decl -> Kind Names, Kind already has its kind and Names, its right sibling, needs it, so Names.kind = Kind.kind. In Names -> Names1 , id, the inner list Names1 receives from its parent, so Names1.kind = Names.kind. The other options copy into Kind, or name a symbol that is not in the production."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q12",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cd-sdt-ir-optimization.ssa",
+      "difficulty": "easy",
+      "stem": "Consider the following intermediate program in three address code (shown below the question).\n\nWhich one of the following corresponds to a static single assignment form of the above code?",
+      "code": {
+        "lang": "text",
+        "text": "p = a - b\nq = p * c\np = u * v\nq = p + q"
+      },
+      "options": [
+        "$p_1 = a - b$; $q_1 = p_1 * c$; $p_1 = u * v$; $q_1 = p_1 + q_1$",
+        "$p_3 = a - b$; $q_4 = p_3 * c$; $p_4 = u * v$; $q_5 = p_4 + q_4$",
+        "$p_1 = a - b$; $q_1 = p_2 * c$; $p_3 = u * v$; $q_2 = p_4 + q_3$",
+        "$p_1 = a - b$; $q_1 = p * c$; $p_2 = u * v$; $q_2 = p + q$"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Static single assignment form",
+            "body": "A program is in static single assignment (SSA) form when every variable name is assigned in exactly one place in the program text. To get there, each assignment to p or q is given a new numbered name (p1, p2, ...), and every use is rewritten to the name of the definition that reaches it. In straight-line code the reaching definition of a use is the last assignment before it. Two conditions decide whether a rewrite is SSA of the given code: no name appears on the left of two statements, and every right-hand name is the one the original program would have read. The numbers themselves are only labels; they need not start at 1 or be consecutive."
+          },
+          {
+            "title": "Which definitions the original uses read",
+            "body": "Line 2 reads p from line 1. Line 4 reads p from line 3 (the second assignment to p) and q from line 2 (not from line 4 itself, which only defines q after it reads). So in the answer, line 2 must read the name defined on line 1, and line 4 must read the names defined on lines 3 and 2."
+          },
+          {
+            "title": "Test the options",
+            "body": "Option A defines p1 twice and q1 twice, so it is not single assignment. Option C is single assignment on the left, but line 2 reads p2, and line 4 reads p4 and q3, names that no statement defines. Option D leaves p and q unnumbered on the right, so the reader cannot tell which of the several definitions of p is meant. Option B defines p3, q4, p4, q5, all different; line 2 reads p3 (line 1), line 4 reads p4 (line 3) and q4 (line 2). It satisfies both conditions."
+          }
+        ],
+        "shortcut": {
+          "body": "First scan the left-hand sides for a repeated name: A fails. Then check that every right-hand name appears on some left-hand side above it: C and D fail. Only B survives. About 45 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Giving every p the same subscript looks like numbering, but p1 is then assigned twice. It is only a renaming of p to p1, so the single assignment property is lost."
+          },
+          {
+            "option": 2,
+            "text": "The left-hand sides are distinct, which looks like SSA, but the right-hand side names p2, p4 and q3 are never defined. SSA also requires every use to name its reaching definition."
+          },
+          {
+            "option": 3,
+            "text": "Unnumbered uses of p and q on the right cannot be matched to one definition once p and q have several."
+          }
+        ],
+        "recognize": {
+          "concept": "cd-sdt-ir-optimization.ssa",
+          "clues": "The question asks for the static single assignment form of straight-line three address code in which p and q are each assigned twice, and the options differ only in subscripts.",
+          "contrast": "Plain variable renaming only attaches a subscript; SSA also needs a distinct name per definition and, at a join point, a phi function. Here there are no branches, so only uniqueness and correct reaching names matter."
+        },
+        "check": {
+          "body": "Run both programs on sample values a = 5, b = 2, c = 3, u = 2, v = 4. The original gives p = 3, q = 9, then p = 8, then q = 8 + 9 = 17. Option B gives p3 = 3, q4 = 9, p4 = 8, q5 = p4 + q4 = 8 + 9 = 17, the same final q. Option C cannot be run at all: q3 and p4 are read but never written."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1 Q12",
+          "url": "https://gateoverflow.in/118292/gate-cse-2017-set-1-question-12"
+        },
+        {
+          "label": "Official answer key, GATE 2017 CS session 1 (IIT Roorkee)",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "Aho, Lam, Sethi, Ullman, Compilers: Principles, Techniques, and Tools, 2nd ed.",
+          "url": "https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003272"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Look at what a variable name may do in single assignment form. How many statements can define one name, and what must each use read?"
+        },
+        {
+          "kind": "concept",
+          "text": "Static single assignment gives each assignment its own fresh name, so every name has exactly one definition in the program text."
+        },
+        {
+          "kind": "principle",
+          "text": "After renaming, each use must carry the name of the definition that reaches it, which in straight-line code is the nearest assignment above it."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the original four statements beside each option and compare them one statement at a time, noting which names are new and which are reused."
+        },
+        {
+          "kind": "partial",
+          "text": "Line 1 defines p and line 2 defines q, so those two names are taken; line 3 defines p again and must get a fresh name of its own."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following three address code.\n\nx = m + n\ny = x * k\nx = y - m\ny = x + y\n\nWhich one of the following is a static single assignment form of this code?",
+        "options": [
+          "$x_1 = m + n$; $y_1 = x_1 * k$; $x_1 = y_1 - m$; $y_1 = x_1 + y_1$",
+          "$x_1 = m + n$; $y_1 = x_1 * k$; $x_2 = y_1 - m$; $y_2 = x_1 + y_1$",
+          "$x_1 = m + n$; $y_1 = x_1 * k$; $x_2 = y_1 - m$; $y_2 = x_2 + y_1$",
+          "$x_1 = m + n$; $y_1 = x * k$; $x_2 = y - m$; $y_2 = x + y$"
+        ],
+        "answer": 2,
+        "explanation": "Give each of the four assignments a fresh name: x1, y1, x2, y2. Line 3 reads y from line 2, so y1. Line 4 reads x from line 3, which is x2, and y from line 2, which is y1. Option B reads the stale x1 in the last line, A reuses names, and D leaves the uses unnumbered."
+      }
+    }
+  ],
+  "skipped": [
+    {
+      "id": "gate-cse-2017-s1-q52",
+      "reason": "belongs to no 2027 chapter: Sethi-Ullman register labelling is target code generation, which the 2027 syllabus omits; ledger chapter should be null"
+    }
+  ]
+}

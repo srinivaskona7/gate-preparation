@@ -1,0 +1,1658 @@
+{
+  "chapter": "db-transactions",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q20",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "db-transactions.conflicting-operations",
+      "difficulty": "easy",
+      "stem": "Consider concurrent execution of two transactions $T_1$ and $T_2$ in a DBMS, both of which access a data object $A$. For these two transactions to not conflict on $A$, which one of the following statements must be true?",
+      "options": [
+        "Both $T_1$ and $T_2$ only read $A$",
+        "$T_1$ reads $A$ and $T_2$ writes $A$",
+        "$T_1$ writes $A$ and $T_2$ reads $A$",
+        "Both $T_1$ and $T_2$ write $A$"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What it means for operations to conflict",
+            "body": "A transaction is a sequence of reads and writes on data items. Two operations **conflict** when all three hold: they belong to different transactions, they touch the same item, and at least one of them is a write. Conflict matters because the order of two conflicting operations changes what a transaction reads or what value is finally stored, while two reads in either order change nothing.",
+            "tex": "\\text{conflict} \\iff \\text{different transactions} \\wedge \\text{same item} \\wedge (\\text{at least one write})"
+          },
+          {
+            "title": "Apply the rule to the four combinations on $A$",
+            "body": "Both read: no write, so no conflict. $T_1$ reads and $T_2$ writes: read-write conflict. $T_1$ writes and $T_2$ reads: write-read conflict. Both write: write-write conflict. Only the first pair avoids a conflict."
+          },
+          {
+            "title": "Answer",
+            "body": "The two transactions do not conflict on $A$ only when both merely read it, which is option A."
+          }
+        ],
+        "shortcut": {
+          "body": "The only conflict-free pair on one item is read-read. Pick the option with no write in it, about 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Thinking a reader is harmless to a writer. If $T_2$ writes before $T_1$ reads, $T_1$ sees the new value; if after, the old one, so the order matters and the pair conflicts."
+          },
+          {
+            "option": 2,
+            "text": "The mirror image of option B: $T_2$ may read the value before or after $T_1$ writes it, which is exactly a write-read conflict."
+          },
+          {
+            "option": 3,
+            "text": "Assuming that two writes of the same item commute. The last writer decides the final value, so swapping them changes the database."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflicting-operations",
+          "clues": "The words \"do not conflict\" and a single shared item $A$ with each transaction either reading or writing it point to the read and write test on one item.",
+          "contrast": "Conflict serializability asks whether a whole schedule can be reordered to a serial one. Here only the pairwise test is needed, with no precedence graph."
+        },
+        "check": {
+          "body": "Test the opposite case by swapping. If both only read $A$, either order gives each transaction the same value, so the swap is harmless. If either writes $A$, a swap changes a value some transaction sees or the final value, so the pair does conflict."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026-s2 question 20 of the paper",
+          "url": "https://gateoverflow.in/523136/gate-cse-2026-set-2-question-10"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks for the exact condition under which two operations can be swapped freely. What would make a swap harmless?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall what a conflict between operations means: it is a property of a pair of operations, not of one transaction alone."
+        },
+        {
+          "kind": "principle",
+          "text": "A conflict needs three things together: different transactions, the same data item, and at least one write. Remove any one of the three and the pair is safe."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option, check the three conditions in turn and stop at the first one that fails. Only a pair that fails none of them is a conflict."
+        }
+      ],
+      "variation": {
+        "stem": "Operations of transactions $T_1$ and $T_2$ on data items $X$ and $Y$ are listed as pairs. Which one of the following pairs of operations is in conflict?",
+        "options": [
+          "$R_1(X)$ and $R_2(X)$",
+          "$W_1(X)$ and $R_1(X)$",
+          "$W_1(X)$ and $R_2(Y)$",
+          "$R_1(Y)$ and $W_2(Y)$"
+        ],
+        "answer": 3,
+        "explanation": "A conflict needs different transactions, the same item and at least one write. Option A has no write, option B is within one transaction, and option C touches different items. Option D has $T_1$ reading $Y$ and $T_2$ writing it, so it conflicts."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q27",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;C",
+      "topic": "db-transactions.isolation-anomalies",
+      "difficulty": "medium",
+      "stem": "An audit of a banking transactions system has found that on an earlier occasion, two joint holders of account $A$ attempted simultaneous transfers of Rs. 10000 each from account $A$ to account $B$. Both transactions read the same value, Rs. 11000, as the initial balance in $A$ and were allowed to go through. $B$ was credited Rs. 10000 twice. $A$ was debited only once and ended up with a balance of Rs. 1000.\n\nWhich of the following properties is/are certain to have been violated by the system?",
+      "options": [
+        "Atomicity",
+        "Consistency",
+        "Isolation",
+        "Durability"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "The four ACID properties in plain words",
+            "body": "**Atomicity**: a transaction happens completely or not at all. **Consistency**: a transaction takes the database from one valid state to another valid state, where valid means it obeys the rules (here, money is neither created nor destroyed). **Isolation**: concurrent transactions behave as if they ran one after the other. **Durability**: once a transaction commits, its effects survive a crash."
+          },
+          {
+            "title": "What happened in the story",
+            "body": "Both transfers read the balance 11000 before either wrote. Each then wrote $11000-10000=1000$ to $A$ (a lost update) and added 10000 to $B$. Total money rose by 10000, since $B$ gained 20000 and $A$ lost only 10000."
+          },
+          {
+            "title": "Check each property",
+            "body": "Isolation is violated: the result matches neither serial order (serially the second transfer would see 1000 and be refused or overdraw). Consistency is violated: the total is no longer conserved, so the final state is invalid. Atomicity is not shown to be violated: each transfer did all its steps, nothing was half done. Durability is not involved: no committed work was lost in a crash.",
+            "tex": "\\text{total before}=11000+B,\\quad \\text{total after}=1000+(B+20000)=B+21000"
+          }
+        ],
+        "shortcut": {
+          "body": "A lost update from two interleaved readers is always an isolation failure, and since money appeared from nowhere the invariant broke, so consistency fails with it. No crash or half-done transaction is mentioned, so rule out atomicity and durability. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Calling it atomicity because only half the money moved. Each transaction did every step it intended; the damage came from interleaving, not from an unfinished transaction."
+          },
+          {
+            "option": 3,
+            "text": "Durability concerns committed data being lost after a crash. No crash is part of the story."
+          },
+          {
+            "text": "Choosing isolation alone. The question asks for properties certain to be violated, and a state that creates money also breaks consistency."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.isolation-anomalies",
+          "clues": "Two transfers that both read the same balance, 11000, before either wrote point to a lost update. The money total changing (B gains 20000 while A loses 10000) shows a broken rule, which points to consistency.",
+          "contrast": "Atomicity looks similar because the final state is wrong, but it needs a transaction left half done, usually by a crash. Here each transfer ran every step; the damage came from two transactions running at once."
+        },
+        "check": {
+          "body": "Moving money from $A$ to $B$ should leave $A+B$ unchanged. Before, the total is $11000+B$. After, it is $1000+(B+20000)=B+21000$, which is 10000 too much, so consistency broke. In a serial order the second transfer would see $A=1000$ and be refused or overdraw, so $B$ could gain 10000 at most; the interleaved result matches neither serial order, so isolation broke."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025-s2 question 27 of the paper",
+          "url": "https://gateoverflow.in/460818/gate-cse-2025-set-2-question-17"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Look at the money in the system before and after the two transfers. Is the total the same, and did the transfers run at the same time?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the four ACID properties and the one-line promise each makes: all or nothing, valid state to valid state, as if run alone, survives a crash after commit."
+        },
+        {
+          "kind": "principle",
+          "text": "Atomicity is judged by whether a transaction was left half done. Consistency is judged by whether the rules of the data still hold after the transaction. Isolation needs two transactions running together. Durability is about committed work lost later."
+        },
+        {
+          "kind": "setup",
+          "text": "Add up the balances of both accounts before the transfers and after them. Then ask whether a rule about the total survived, and whether the result could come from running the two transfers one after the other."
+        }
+      ],
+      "variation": {
+        "stem": "A transaction moves Rs. 1500 from account $A$ (balance Rs. 5000) to account $B$ (balance Rs. 2000). The system crashes after the debit of $A$ was written to disk but before $B$ was credited. After restart the database shows $A=3500$ and $B=2000$, and no other transaction was running. Which of the following properties is/are certain to have been violated?",
+        "options": [
+          "Atomicity",
+          "Consistency",
+          "Isolation",
+          "Durability"
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Only part of the transfer took effect, so atomicity is violated. The total fell from 7000 to 5500, so the rule that the total is conserved is broken and consistency fails. No second transaction ran, so isolation is not in question, and no committed work was lost, so durability holds."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q53",
+      "type": "msq",
+      "marks": 2,
+      "key": "B",
+      "topic": "db-transactions.conflict-serializability",
+      "difficulty": "medium",
+      "stem": "Consider the database transactions T1 and T2, and data items X and Y. Which of the schedule(s) is/are conflict serializable?",
+      "table": {
+        "headers": [
+          "Transaction T1",
+          "Transaction T2"
+        ],
+        "rows": [
+          [
+            "R1(X)",
+            ""
+          ],
+          [
+            "",
+            "W2(X)"
+          ],
+          [
+            "W1(Y)",
+            ""
+          ],
+          [
+            "",
+            "W2(Y)"
+          ],
+          [
+            "R1(X)",
+            ""
+          ],
+          [
+            "",
+            "COMMIT(T2)"
+          ],
+          [
+            "W1(X)",
+            ""
+          ],
+          [
+            "COMMIT(T1)",
+            ""
+          ]
+        ]
+      },
+      "options": [
+        "R1(X), W2(X), W1(Y), W2(Y), R1(X), W1(X), COMMIT(T2), COMMIT(T1)",
+        "W2(X), R1(X), W2(Y), W1(Y), R1(X), COMMIT(T2), W1(X), COMMIT(T1)",
+        "R1(X), W1(Y), W2(X), W2(Y), R1(X), W1(X), COMMIT(T1), COMMIT(T2)",
+        "W2(X), R1(X), W1(Y), W2(Y), R1(X), COMMIT(T2), W1(X), COMMIT(T1)"
+      ],
+      "answer": [
+        1
+      ],
+      "solutionDiagram": {
+        "alt": "Four small precedence graphs for options A to D; only option B is acyclic, with the single direction T2 to T1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Conflict serializability in plain words",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule."
+          },
+          {
+            "title": "List the conflicting pairs",
+            "body": "Both items are written by T2, and T1 reads or writes them, so both X and Y can create edges. T1 reads X twice, writes X once and writes Y once; T2 writes X and writes Y. Commits never conflict. A cycle needs one pair that points $T_1 \\to T_2$ and another that points $T_2 \\to T_1$."
+          },
+          {
+            "title": "Build the graph of each option",
+            "body": "A: R1(X) before W2(X) gives $T_1\\to T_2$; W2(X) before the second R1(X) gives $T_2\\to T_1$. Cycle. B: W2(X) before R1(X), W2(Y) before W1(Y), and W2(X) before W1(X): every edge is $T_2\\to T_1$. No cycle. C: R1(X) before W2(X) gives $T_1\\to T_2$ on X, and W1(Y) before W2(Y) gives $T_1\\to T_2$ on Y, while W2(X) before the second R1(X) gives $T_2\\to T_1$ on X. Cycle. D: W2(X) before R1(X) gives $T_2\\to T_1$, while W1(Y) before W2(Y) gives $T_1\\to T_2$. Cycle."
+          },
+          {
+            "title": "Answer",
+            "body": "Only option B has an acyclic graph; it is equivalent to the serial schedule $T_2$ then $T_1$."
+          }
+        ],
+        "shortcut": {
+          "body": "Look at the first operation on X in each option. Whenever R1(X) comes before W2(X) and a later R1(X) comes after it, T1 straddles T2 and a cycle exists. Options A and C do exactly that. D splits X and Y in opposite directions. B keeps all T2 operations before T1 on both items. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Reading only the order of the commits (T2 commits first) and assuming that gives T2 then T1. Conflicts are decided by the data operations, and R1(X) precedes W2(X) here."
+          },
+          {
+            "option": 2,
+            "text": "Option C commits T1 first and looks tidy, but R1(X) sits on both sides of W2(X), so the graph has the cycle $T_1\\leftrightarrow T_2$."
+          },
+          {
+            "option": 3,
+            "text": "It resembles B on X but swaps the order on Y: W1(Y) comes before W2(Y), giving $T_1\\to T_2$ against $T_2\\to T_1$ on X."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflict-serializability",
+          "clues": "The phrase \"conflict serializable\" with operations listed in order for two transactions on two items points to building a precedence graph and testing it for a cycle.",
+          "contrast": "View serializability also compares reads-from relations and final writes. The question names conflicts, so only the order of conflicting pairs matters."
+        },
+        "check": {
+          "body": "For B, the pairs are $W_2(X)$ before $R_1(X)$, $W_2(X)$ before $W_1(X)$ and $W_2(Y)$ before $W_1(Y)$. All put $T_2$ first, so the serial order $T_2$ then $T_1$ keeps every pair. For A and C, $R_1(X)$ before $W_2(X)$ needs $T_1$ first while $W_2(X)$ before the second $R_1(X)$ needs $T_2$ first. For D, $W_2(X)$ before $R_1(X)$ needs $T_2$ first while $W_1(Y)$ before $W_2(Y)$ needs $T_1$ first. No serial order satisfies opposing pairs."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025-s2 question 53 of the paper",
+          "url": "https://gateoverflow.in/460850/gate-cse-2025-set-2-question-43"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks whether each schedule can be rearranged into one transaction running fully before the other. What would stop that?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall conflict serializability and the precedence graph: one node per transaction and a directed edge for each ordered conflicting pair."
+        },
+        {
+          "kind": "principle",
+          "text": "A schedule is conflict serializable exactly when its precedence graph has no cycle. Two transactions give a cycle only if one conflict points one way and another points the opposite way."
+        },
+        {
+          "kind": "setup",
+          "text": "For each option list the operations on $X$ and on $Y$ separately, in schedule order. Write down every pair from different transactions with at least one write and note which transaction comes first."
+        },
+        {
+          "kind": "partial",
+          "text": "List the operations on $X$ in the first option in schedule order, with their transaction numbers. Name the pairs from different transactions with at least one write."
+        }
+      ],
+      "variation": {
+        "stem": "Transactions $T_1$ and $T_2$ operate on items $X$ and $Y$. Which of the following schedules is/are conflict serializable?",
+        "options": [
+          "$R_1(X)$, $R_2(X)$, $W_1(X)$, $W_2(Y)$, $W_1(Y)$",
+          "$R_2(X)$, $R_1(X)$, $W_2(Y)$, $W_1(Y)$, $W_1(X)$",
+          "$R_1(X)$, $W_2(X)$, $W_1(Y)$, $W_2(Y)$, $W_1(X)$",
+          "$W_2(X)$, $R_1(X)$, $W_1(Y)$, $W_2(Y)$, $R_1(Y)$"
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "List the conflicting pairs on each item and the edge each gives. Options A and B only give edges from $T_2$ to $T_1$, so there is no cycle. Option C has $R_1(X)$ before $W_2(X)$ but $W_2(X)$ before $W_1(X)$, and option D has $W_2(X)$ before $R_1(X)$ but $W_1(Y)$ before $W_2(Y)$. Both contain a cycle."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q15",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "db-transactions.cascadeless-strict",
+      "difficulty": "easy",
+      "stem": "A schedule of three database transactions $T_1$, $T_2$, and $T_3$ is shown. $R_i(A)$ and $W_i(A)$ denote read and write of data item $A$ by transaction $T_i$, $i = 1,2,3$. The transaction $T_1$ aborts at the end. Which other transaction(s) will be required to be rolled back?\n\n$R_1(X)\\ W_1(Y)\\ R_2(X)\\ R_2(Y)\\ R_3(Y)\\ ABORT(T_1)$",
+      "options": [
+        "Only $T_2$",
+        "Only $T_3$",
+        "Both $T_2$ and $T_3$",
+        "Neither $T_2$ nor $T_3$"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Three columns of operations. Arrows from W1(Y) to R2(Y) and to R3(Y) mark dirty reads; T1 aborts at the bottom."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Abort, dirty read and cascading rollback",
+            "body": "When a transaction aborts, all its writes are undone. A **dirty read** is a read of a value written by a transaction that has not yet committed. If $T_j$ read a value written by $T_i$ and $T_i$ aborts, the value $T_j$ used never officially existed, so $T_j$ must also roll back, and then so must anyone who read from $T_j$. This chain is a **cascading rollback**."
+          },
+          {
+            "title": "Find who read what $T_1$ wrote",
+            "body": "$T_1$ writes only $Y$, with $W_1(Y)$, and has not committed when it aborts. $R_2(X)$ reads $X$, which $T_1$ only read, so it is harmless. $R_2(Y)$ reads $Y$ after $W_1(Y)$: a dirty read, so $T_2$ rolls back. $R_3(Y)$ also reads $Y$ after $W_1(Y)$: another dirty read, so $T_3$ rolls back."
+          },
+          {
+            "title": "Answer",
+            "body": "Both $T_2$ and $T_3$ must be rolled back, option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Scan after the write of the aborting transaction and list every transaction that reads that item: here Y is read by T2 and T3. Reads of items the aborting transaction never wrote (X) do not count. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Stopping at T2 because it appears first and also reads X. T3 reads Y too, and being later in the schedule does not protect it."
+          },
+          {
+            "option": 1,
+            "text": "Counting only the last reader. Both $R_2(Y)$ and $R_3(Y)$ follow $W_1(Y)$, so T2 is included."
+          },
+          {
+            "option": 3,
+            "text": "Assuming only committed transactions are affected by an abort. T2 and T3 had not committed and they used uncommitted data, which is precisely what forces the rollback."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.cascadeless-strict",
+          "clues": "An abort at the end of the schedule and the question about which other transactions must roll back point to dirty reads and the cascade they cause.",
+          "contrast": "Recoverability only constrains the order of commits. Here nothing has committed, so the question is who must be undone, which is the cascading rollback."
+        },
+        "check": {
+          "body": "Delete $W_1(Y)$ from the schedule and see what changes. $R_2(Y)$ and $R_3(Y)$ would read the earlier value of $Y$, so their results depend on $T_1$. $R_2(X)$ would read the same $X$ as before, so it does not. Only the readers of $Y$ relied on the aborted write."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025-s1 question 15 of the paper",
+          "url": "https://gateoverflow.in/460075/gate-cse-2025-set-1-question-5"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "When one transaction aborts, whose work can no longer stand? Think about who used values the aborting transaction produced."
+        },
+        {
+          "kind": "concept",
+          "text": "Recall dirty reads and cascading rollback: a transaction that reads an uncommitted value depends on the writer."
+        },
+        {
+          "kind": "principle",
+          "text": "If $T_j$ read a value written by $T_i$ before $T_i$ committed and $T_i$ aborts, then $T_j$ must roll back too. The same test is then applied to $T_j$ and everyone who read from it."
+        },
+        {
+          "kind": "setup",
+          "text": "Go through the schedule from the left. For each read, check whether the item was last written by the aborting transaction, and note which transactions that marks as affected."
+        },
+        {
+          "kind": "partial",
+          "text": "Find the item or items that the aborting transaction writes. Only reads of those items can depend on it."
+        }
+      ],
+      "variation": {
+        "stem": "A schedule of four transactions is shown. $R_i(A)$ and $W_i(A)$ denote read and write of item $A$ by transaction $T_i$. Transaction $T_2$ aborts at the end of the schedule, and none of the others has committed. Which transactions must also be rolled back?\n\n$W_1(A)\\ R_2(A)\\ W_2(B)\\ R_3(B)\\ W_3(C)\\ R_4(C)\\ R_1(B)\\ ABORT(T_2)$",
+        "options": [
+          "Only $T_3$",
+          "$T_3$ and $T_4$",
+          "$T_1$, $T_3$ and $T_4$",
+          "$T_1$ and $T_3$"
+        ],
+        "answer": 2,
+        "explanation": "$T_2$ wrote $B$. Both $T_3$ and $T_1$ read $B$ afterwards, so both roll back. $T_3$ wrote $C$ and $T_4$ read it, so $T_4$ rolls back as well. The read $R_2(A)$ came from $T_1$, but that makes $T_2$ depend on $T_1$, not the other way round."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q19",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "db-transactions.acid",
+      "difficulty": "easy",
+      "stem": "Once the DBMS informs the user that a transaction has been successfully completed, its effect should persist even if the system crashes before all its changes are reflected on disk. This property is called",
+      "options": [
+        "durability",
+        "atomicity",
+        "consistency",
+        "isolation"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "The four ACID properties",
+            "body": "**Atomicity**: all of a transaction or none of it. **Consistency**: a transaction moves the database from one valid state to another. **Isolation**: concurrent transactions do not see each other's partial work. **Durability**: after the DBMS reports commit, the effects remain even if the system crashes."
+          },
+          {
+            "title": "Match the sentence",
+            "body": "The sentence speaks of the user having been told the transaction completed and of a crash afterwards, with changes not yet on disk. The DBMS keeps this promise by writing the log to stable storage before reporting commit and redoing from it on restart. A promise about surviving a crash after commit is durability."
+          }
+        ],
+        "shortcut": {
+          "body": "The words \"persist even if the system crashes\" name durability directly. Ten seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Atomicity also involves crashes, but it is about a transaction that had not finished: it is undone entirely. Here the transaction already completed."
+          },
+          {
+            "option": 2,
+            "text": "Consistency is about rules such as keys and balances holding, not about surviving crashes."
+          },
+          {
+            "option": 3,
+            "text": "Isolation concerns concurrent transactions seeing each other, and no concurrency is mentioned."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.acid",
+          "clues": "The words \"persist\" and \"crashes\" in the sentence, with the user already told of success, name the promise about surviving a crash after commit.",
+          "contrast": "Atomicity also speaks of crashes, but about a transaction that had not finished. Durability applies after the DBMS has reported completion."
+        },
+        "check": {
+          "body": "Test each property against the sentence by changing the story. If the crash came before the commit message, the requirement would be undoing the work, which is atomicity. Because the sentence puts the crash after the success message, the work must be kept, which separates the two."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024-s2 question 19 of the paper",
+          "url": "https://gateoverflow.in/422888/gate-cse-2024-set-2-question-9"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The sentence describes a promise the DBMS makes about a transaction. Does it concern finishing, rules, other users, or surviving?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the four ACID properties and the one-sentence promise each one makes."
+        },
+        {
+          "kind": "principle",
+          "text": "Each ACID property answers a different question: was it all done, is the state valid, did others interfere, and does it last after a crash. Match the sentence to the question it answers."
+        }
+      ],
+      "variation": {
+        "stem": "A transaction transfers money between two accounts and a failure occurs in the middle of the transfer. After recovery the DBMS removes the partial effect, so the database looks as if the transfer never started. Which property of transactions does this behaviour guarantee?",
+        "options": [
+          "durability",
+          "atomicity",
+          "isolation",
+          "consistency"
+        ],
+        "answer": 1,
+        "explanation": "The transaction did not finish, and the DBMS undoes whatever it had done, using the log. All of a transaction or none of it is atomicity. Durability would apply only to a transaction already reported complete."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q27",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;C;D",
+      "topic": "db-transactions.two-phase-locking",
+      "difficulty": "medium",
+      "stem": "Which of the following statements about the Two Phase Locking (2PL) protocol is/are TRUE?",
+      "options": [
+        "2PL permits only serializable schedules",
+        "With 2PL, a transaction always locks the data item being read or written just before every operation and always releases the lock just after the operation",
+        "With 2PL, once a lock is released on any data item inside a transaction, no more locks on any data item can be obtained inside that transaction",
+        "A deadlock is possible with 2PL"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "What 2PL says",
+            "body": "A **lock** lets one transaction use a data item while others wait. In **two-phase locking** every transaction has a growing phase, where it only acquires locks, followed by a shrinking phase, where it only releases them. The rule: once a transaction releases any lock it may never acquire another. The point where it holds all its locks is the **lock point**."
+          },
+          {
+            "title": "Judge each statement",
+            "body": "A is true: ordering transactions by their lock points gives an equivalent serial order, so every 2PL schedule is conflict serializable. B is false: locking just before and releasing just after each operation would release a lock before later locks are taken, which breaks the two-phase rule. C is the definition of 2PL, true. D is true: 2PL does not order the lock requests, so $T_1$ holding $X$ and wanting $Y$ while $T_2$ holds $Y$ and wants $X$ is a deadlock."
+          },
+          {
+            "title": "Answer",
+            "body": "A, C and D are true."
+          }
+        ],
+        "shortcut": {
+          "body": "Recall the three facts about plain 2PL: ensures serializability, no lock after the first unlock, can deadlock. B describes the opposite of two-phase behaviour. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Marking B as true because it sounds like careful locking. Releasing right after each operation is the shrinking phase starting immediately, so no further lock may be taken, and the protocol would not be 2PL."
+          },
+          {
+            "text": "Dropping D because 2PL \"guarantees serializability\". Serializability and deadlock freedom are separate: only conservative 2PL avoids deadlock."
+          },
+          {
+            "text": "Doubting A because 2PL schedules may be non-recoverable. The statement concerns serializability, which always holds."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.two-phase-locking",
+          "clues": "The name \"Two Phase Locking\" and statements about when locks are taken and released, about serializability and about deadlock all point to the basic properties of the protocol.",
+          "contrast": "Strict and conservative 2PL add extra rules, such as holding exclusive locks to commit or taking all locks at the start. Basic 2PL has neither, so it can still deadlock."
+        },
+        "check": {
+          "body": "Test the deadlock claim by a concrete schedule. Let $T_1$ lock $X$ and $T_2$ lock $Y$, then let each request the other item. Both follow the two-phase rule and each waits for the other forever, so deadlock is possible. Test the lock-after-unlock claim by noting that a transaction that locked after unlocking would have a second growing phase."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024-s2 question 27 of the paper",
+          "url": "https://gateoverflow.in/422880/gate-cse-2024-set-2-question-17"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each statement makes a claim about what 2PL guarantees or allows. Which of those claims follow from the rule itself?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the two phases of two-phase locking and what happens at the moment the first lock is released."
+        },
+        {
+          "kind": "principle",
+          "text": "The 2PL rule constrains the order of a transaction's own lock and unlock actions. Ask what that rule does and does not say about the resulting serial order and about requests made by different transactions."
+        },
+        {
+          "kind": "setup",
+          "text": "For each statement, ask whether it restates the rule, follows from it, or contradicts it. For a claim about deadlock, build a small schedule and test whether the rule forbids it."
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following statements about conservative two-phase locking (2PL) is/are TRUE?",
+        "options": [
+          "A transaction acquires all the locks it needs before it executes any operation",
+          "Deadlock cannot occur",
+          "Every schedule it allows is conflict serializable",
+          "A transaction may acquire a new lock after it has released one"
+        ],
+        "answer": [
+          0,
+          1,
+          2
+        ],
+        "explanation": "Conservative 2PL takes every lock at the start, or waits holding none, so a transaction never waits while holding a lock and deadlock cannot arise. It is still two-phase, so schedules are serializable. Taking a lock after a release breaks the two-phase rule, so the last statement is false."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q46",
+      "type": "msq",
+      "marks": 2,
+      "key": "B;C;D",
+      "topic": "db-transactions.conflict-serializability",
+      "difficulty": "medium",
+      "stem": "Consider the following read-write schedule $S$ over three transactions $T_1$, $T_2$, and $T_3$, where the subscripts in the schedule indicate transaction IDs:\n\n$S$: $r_1(z); w_1(z); r_2(x); r_3(y); w_3(y); r_2(y); w_2(x); w_2(y);$\n\nWhich of the following transaction schedules is/are conflict equivalent to $S$?",
+      "options": [
+        "$T_1 T_2 T_3$",
+        "$T_1 T_3 T_2$",
+        "$T_3 T_2 T_1$",
+        "$T_3 T_1 T_2$"
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Precedence graph with T1 isolated and one edge from T3 to T2 on item y."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Conflict equivalence in plain words",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule."
+          },
+          {
+            "title": "Group the operations by data item",
+            "body": "Item $z$: $r_1, w_1$, both from $T_1$, so no conflict. Item $x$: $r_2(x), w_2(x)$, both from $T_2$, no conflict. Item $y$ in order: $r_3, w_3, r_2, w_2$. Pairs from different transactions with a write: $w_3(y)$ before $r_2(y)$ and $w_3(y)$ before $w_2(y)$, plus $r_3(y)$ before $w_2(y)$. All give $T_3 \\to T_2$."
+          },
+          {
+            "title": "Read off the serial orders",
+            "body": "The only edge is $T_3\\to T_2$; $T_1$ is free. A serial schedule is conflict equivalent when it puts $T_3$ before $T_2$. Option A has $T_2$ before $T_3$: no. B ($T_1T_3T_2$), C ($T_3T_2T_1$) and D ($T_3T_1T_2$) all have $T_3$ before $T_2$: yes.",
+            "tex": "T_3 \\to T_2 \\quad\\Rightarrow\\quad \\text{B, C, D}"
+          }
+        ],
+        "shortcut": {
+          "body": "Find the items two different transactions share: only y, between T3 and T2. Then reject any option with T2 before T3. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "text": "Keeping the order $T_1T_2T_3$ by transaction number. The conflict on y forces T3 first; numbering has no meaning."
+          },
+          {
+            "text": "Believing $T_1$ must stay first because its operations come first in S. It shares no item with the others, so it can be moved anywhere without changing any conflicting pair."
+          },
+          {
+            "text": "Marking only one correct option. MSQ asks for all equivalent serial orders, and there are three."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflict-serializability",
+          "clues": "The phrase \"conflict equivalent\" with a list of serial orders and a schedule over three transactions points to reading the allowed orders from the precedence graph.",
+          "contrast": "View equivalence compares reads-from and final writes and may allow more orders. The question asks about conflict equivalence, so only the order of conflicting pairs counts."
+        },
+        "check": {
+          "body": "Take one listed order and swap the operations of $S$ into serial form, moving only non-conflicting adjacent operations past each other. If you can reach the serial schedule that way the order is equivalent. If a conflicting pair would have to cross, the order is not equivalent."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024-s1 question 46 of the paper",
+          "url": "https://gateoverflow.in/422806/gate-cse-2024-set-1-question-36"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "A serial schedule is conflict equivalent only if it keeps every conflicting pair in the same order as $S$. Which pairs of operations are those?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the precedence graph and how a serial order is read off it."
+        },
+        {
+          "kind": "principle",
+          "text": "Any order of the transactions that respects every edge of the precedence graph is conflict equivalent to the schedule. Transactions with no edge between them can go in any relative order."
+        },
+        {
+          "kind": "setup",
+          "text": "Group the operations by data item. Within each item, list pairs from different transactions where at least one is a write, and note which transaction comes first."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the operations on $y$ in schedule order, with their transaction numbers, and mark which of them come from different transactions."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following read-write schedule $S$ over three transactions $T_1$, $T_2$ and $T_3$: $r_1(a); r_2(y); w_2(x); r_3(x); w_1(a); w_3(y);$. Which of the following serial schedules is/are conflict equivalent to $S$?",
+        "options": [
+          "$T_1 T_2 T_3$",
+          "$T_2 T_1 T_3$",
+          "$T_3 T_2 T_1$",
+          "$T_2 T_3 T_1$"
+        ],
+        "answer": [
+          0,
+          1,
+          3
+        ],
+        "explanation": "Item $a$ belongs only to $T_1$, so $T_1$ has no edges. On $x$, $w_2(x)$ comes before $r_3(x)$, and on $y$, $r_2(y)$ comes before $w_3(y)$. Both give $T_2 \\to T_3$. Any order with $T_2$ before $T_3$ works, which are options A, B and D."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "db-transactions.conflict-serializability",
+      "difficulty": "medium",
+      "stem": "Let $R_i(z)$ and $W_i(z)$ denote read and write operations on a data element $z$ by a transaction $T_i$, respectively. Consider the schedule $S$ with four transactions.\n\n$S$: $R_4(x)\\,R_2(x)\\,R_3(x)\\,R_1(y)\\,W_1(y)\\,W_2(x)\\,W_3(y)\\,R_4(y)$\n\nWhich one of the following serial schedules is conflict equivalent to $S$?",
+      "options": [
+        "$T_1 \\to T_3 \\to T_4 \\to T_2$",
+        "$T_1 \\to T_4 \\to T_3 \\to T_2$",
+        "$T_4 \\to T_1 \\to T_3 \\to T_2$",
+        "$T_3 \\to T_1 \\to T_4 \\to T_2$"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Precedence graph on T1, T3, T4, T2 with edges T1 to T3, T1 to T4, T3 to T4 on y and T3 to T2, T4 to T2 on x."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Conflict equivalence in plain words",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule."
+          },
+          {
+            "title": "Edges from item $x$",
+            "body": "On $x$ the order is $R_4, R_2, R_3, W_2$. The reads do not conflict with each other. Each read by another transaction before $W_2(x)$ gives an edge into $T_2$: $T_4\\to T_2$ and $T_3\\to T_2$."
+          },
+          {
+            "title": "Edges from item $y$",
+            "body": "On $y$ the order is $R_1, W_1, W_3, R_4$. $T_1$ comes before $T_3$ (read-write and write-write): $T_1\\to T_3$. $W_1(y)$ before $R_4(y)$: $T_1\\to T_4$. $W_3(y)$ before $R_4(y)$: $T_3\\to T_4$."
+          },
+          {
+            "title": "Order and answer",
+            "body": "The edges are $T_1\\to T_3$, $T_1\\to T_4$, $T_3\\to T_4$, $T_3\\to T_2$, $T_4\\to T_2$. There is no cycle. $T_1$ has no incoming edge so it is first; then only $T_3$ is free; then $T_4$; then $T_2$. The only order is $T_1,T_3,T_4,T_2$, option A.",
+            "tex": "T_1 \\to T_3 \\to T_4 \\to T_2"
+          }
+        ],
+        "shortcut": {
+          "body": "Check each option against two edges only: T3 before T4 (W3(y) then R4(y)) kills B and C, and T1 before T3 (W1(y) then W3(y)) kills D. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Putting $T_4$ before $T_3$ because $R_4(x)$ appears first. The conflict on y is $W_3(y)$ before $R_4(y)$, so $T_3$ must precede $T_4$."
+          },
+          {
+            "option": 2,
+            "text": "Starting with $T_4$ because its first operation heads the schedule. $T_4$ also reads $y$ after $T_1$ and $T_3$ wrote it, so it cannot be first."
+          },
+          {
+            "option": 3,
+            "text": "Putting $T_3$ ahead of $T_1$. On y, $R_1(y)W_1(y)$ come before $W_3(y)$, which forces $T_1\\to T_3$."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflict-serializability",
+          "clues": "A schedule over four transactions with a question about which serial schedule is conflict equivalent points to a precedence graph and a topological order.",
+          "contrast": "Checking only the first operations or the commit order is not enough. Equivalence is decided by conflicting pairs on each item."
+        },
+        "check": {
+          "body": "Take the serial order $T_1T_3T_4T_2$ and rebuild it from $S$ by moving only non-conflicting operations. On $y$ the order $R_1,W_1,W_3,R_4$ is the same in both. On $x$ the serial order has $R_3,R_4,R_2,W_2$; only reads moved, and $W_2(x)$ is still after every read, as in $S$. So every conflicting pair keeps its order and the schedules are conflict equivalent."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022 question 39 of the paper",
+          "url": "https://gateoverflow.in/371907/gate-cse-2022-question-29"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Only some serial orders keep every conflicting pair of $S$ in its original order. Which pairs of operations must you track?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the precedence graph of a schedule and how a topological order of it gives the equivalent serial schedules."
+        },
+        {
+          "kind": "principle",
+          "text": "Draw an edge $T_i\\to T_j$ whenever an operation of $T_i$ that conflicts with one of $T_j$ comes first. A serial order is equivalent exactly when it respects every edge."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the operations of each item in schedule order. On $x$ and on $y$ separately, find the pairs from different transactions with at least one write."
+        },
+        {
+          "kind": "partial",
+          "text": "Write the four operations on $y$ in schedule order, with their transaction numbers, and mark which pairs include a write."
+        }
+      ],
+      "variation": {
+        "stem": "Let $R_i(z)$ and $W_i(z)$ denote read and write operations on a data element $z$ by a transaction $T_i$. Consider the schedule $S$ with four transactions.\n\n$S$: $R_3(x)\\,R_1(x)\\,W_1(y)\\,R_4(y)\\,W_3(x)\\,R_4(x)\\,W_4(z)\\,R_2(z)\\,W_2(y)$\n\nWhich one of the following serial schedules is conflict equivalent to $S$?",
+        "options": [
+          "$T_1 \\to T_4 \\to T_3 \\to T_2$",
+          "$T_3 \\to T_1 \\to T_4 \\to T_2$",
+          "$T_1 \\to T_3 \\to T_4 \\to T_2$",
+          "$T_4 \\to T_1 \\to T_3 \\to T_2$"
+        ],
+        "answer": 2,
+        "explanation": "On $x$: $R_1$ before $W_3$ gives $T_1\\to T_3$, and $W_3$ before $R_4$ gives $T_3\\to T_4$. On $y$: $W_1$ before $R_4$ gives $T_1\\to T_4$, and $R_4$ before $W_2$ gives $T_4\\to T_2$. On $z$: $W_4$ before $R_2$ repeats $T_4\\to T_2$. Together these edges force the order $T_1,T_3,T_4,T_2$."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q32",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "db-transactions.recoverable-schedules",
+      "difficulty": "medium",
+      "stem": "Let $S$ be the following schedule of operations of three transactions $T_1$, $T_2$ and $T_3$ in a relational database system:\n\n$R_2(Y), R_1(X), R_3(Z), R_1(Y), W_1(X), R_2(Z), W_2(Y), R_3(X), W_3(Z)$\n\nConsider the statements P and Q below:\n\nP: $S$ is conflict-serializable.\nQ: If $T_3$ commits before $T_1$ finishes, then $S$ is recoverable.\n\nWhich one of the following choices is correct?",
+      "options": [
+        "Both P and Q are true.",
+        "P is true and Q is false.",
+        "P is false and Q is true.",
+        "Both P and Q are false."
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Precedence graph: T1 to T2 on Y, T2 to T3 on Z, T1 to T3 on X. No cycle."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The two ideas: conflict serializable and recoverable",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule. A schedule is **recoverable** when every transaction commits only after every transaction whose written value it has read has committed. Otherwise, if the writer aborted, the reader would have used a value that never became real and could not be undone."
+          },
+          {
+            "title": "Statement P",
+            "body": "Conflicts in order: on Y, $R_1(Y)$ before $W_2(Y)$ gives $T_1\\to T_2$ ($R_2(Y)$ first is read-read). On Z, $R_2(Z)$ before $W_3(Z)$ gives $T_2\\to T_3$, and $R_3(Z)$ before $W_3(Z)$ is the same transaction. On X, $W_1(X)$ before $R_3(X)$ gives $T_1\\to T_3$ ($R_1(X)$ before is its own). Edges: $T_1\\to T_2$, $T_2\\to T_3$, $T_1\\to T_3$. No cycle, so P is true (equivalent to $T_1T_2T_3$)."
+          },
+          {
+            "title": "Statement Q",
+            "body": "$T_3$ executes $R_3(X)$ after $W_1(X)$, so $T_3$ read a value written by $T_1$. For recoverability $T_1$ must commit before $T_3$. Q says $T_3$ commits before $T_1$ finishes, which is the forbidden order, so $S$ would not be recoverable. Q is false."
+          },
+          {
+            "title": "Answer",
+            "body": "P true, Q false: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Draw three edges from the first conflicting pair on each item, find no cycle, then spot T3 reading T1's X write: a reader committing before the writer is the textbook non-recoverable case. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Marking Q true by reading it as \"all transactions commit eventually\". The statement fixes T3 committing before T1 finishes, with T3 having read T1's write."
+          },
+          {
+            "option": 2,
+            "text": "Thinking a cycle exists because Y and Z are shared by T2 with two different transactions. All three edges go forward in the order T1, T2, T3."
+          },
+          {
+            "option": 3,
+            "text": "Adding a false edge such as $T_3\\to T_1$ from $R_3(Z)$ before something. $T_1$ never touches Z, so no edge arises there."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.recoverable-schedules",
+          "clues": "Statement Q fixes a commit order (\"$T_3$ commits before $T_1$ finishes\") and asks whether the schedule is recoverable, so the reads-from pairs matter. Statement P about a cycle is the precedence-graph test on the same schedule.",
+          "contrast": "Conflict serializability looks only at the order of operations and ignores commits. Recoverability looks only at who read whose write and who committed first. A schedule can pass one test and fail the other."
+        },
+        "check": {
+          "body": "Test P by building the serial schedule $T_1T_2T_3$ and comparing each conflicting pair: $R_1(Y)$ before $W_2(Y)$, $R_2(Z)$ before $W_3(Z)$ and $W_1(X)$ before $R_3(X)$ all keep their order. Test Q by imagining $T_1$ aborting after $W_1(X)$: $T_3$ has already read that value, and if $T_3$ has committed it cannot be undone."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021-s2 question 32 of the paper",
+          "url": "https://gateoverflow.in/357508/gate-cse-2021-set-2-question-32"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Statement P and statement Q ask about two different properties of the same schedule. Which property does each one name?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall what it means for a schedule to be recoverable, and how that differs from being conflict serializable."
+        },
+        {
+          "kind": "principle",
+          "text": "Conflict serializable means the precedence graph has no cycle. Recoverable means a transaction that read another one's write commits after that writer."
+        },
+        {
+          "kind": "setup",
+          "text": "For P, list the conflicting pairs item by item (X, Y, Z) and draw one edge per pair. For Q, find every read that follows another transaction's write."
+        },
+        {
+          "kind": "partial",
+          "text": "Item Z has two reads and one write, by $T_2$ and $T_3$ only. Work out which edges it contributes before moving to X and Y."
+        }
+      ],
+      "variation": {
+        "stem": "A schedule of three transactions is $S$: $R_1(A)\\,R_2(B)\\,W_2(A)\\,W_1(B)\\,R_3(A)$.\n\nConsider the statements P and Q below:\n\nP: $S$ is conflict-serializable.\nQ: If $T_2$ commits before $T_3$ commits, then $S$ is recoverable.\n\nWhich one of the following choices is correct?",
+        "options": [
+          "Both P and Q are true.",
+          "P is true and Q is false.",
+          "P is false and Q is true.",
+          "Both P and Q are false."
+        ],
+        "answer": 2,
+        "explanation": "On $A$, $R_1(A)$ before $W_2(A)$ gives $T_1\\to T_2$. On $B$, $R_2(B)$ before $W_1(B)$ gives $T_2\\to T_1$. These two edges form a cycle, so P is false. The only read that follows another transaction's write is $R_3(A)$, which reads from $T_2$, so recoverability needs $T_2$ to commit before $T_3$, exactly what Q assumes. Q is true."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q32",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "db-transactions.conflict-serializability",
+      "difficulty": "medium",
+      "stem": "Let $r_i(z)$ and $w_i(z)$ denote read and write operations respectively on a data item $z$ by a transaction $T_i$. Consider the following two schedules.\n\n$S_1$: $r_1(x)\\,r_1(y)\\,r_2(x)\\,r_2(y)\\,w_2(y)\\,w_1(x)$\n$S_2$: $r_1(x)\\,r_2(x)\\,r_2(y)\\,w_2(y)\\,r_1(y)\\,w_1(x)$\n\nWhich one of the following options is correct?",
+      "options": [
+        "$S_1$ is conflict serializable, and $S_2$ is not conflict serializable.",
+        "$S_1$ is not conflict serializable, and $S_2$ is conflict serializable.",
+        "Both $S_1$ and $S_2$ are conflict serializable.",
+        "Neither $S_1$ nor $S_2$ is conflict serializable."
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Left: precedence graph of S1 with edges T1 to T2 on y and T2 to T1 on x, a cycle. Right: S2 with only T2 to T1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The test for conflict serializability",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule."
+          },
+          {
+            "title": "Schedule $S_1$",
+            "body": "Items: $x$ has $r_1, r_2, w_1$; $y$ has $r_1, r_2, w_2$. On $y$, $r_1(y)$ comes before $w_2(y)$: $T_1\\to T_2$. On $x$, $r_2(x)$ comes before $w_1(x)$: $T_2\\to T_1$. The two edges form a cycle, so $S_1$ is not conflict serializable."
+          },
+          {
+            "title": "Schedule $S_2$",
+            "body": "On $x$, $r_2(x)$ before $w_1(x)$: $T_2\\to T_1$. On $y$, $w_2(y)$ before $r_1(y)$: $T_2\\to T_1$. Every edge points the same way, so there is no cycle, and $S_2$ is equivalent to the serial schedule $T_2$ then $T_1$."
+          },
+          {
+            "title": "Answer",
+            "body": "$S_1$ not serializable, $S_2$ serializable: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Only two transactions, so look for a conflicting pair in each direction. In S1, T1 reads y before T2 writes it while T2 reads x before T1 writes it: both directions. In S2, T1 acts last on both items. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Reversing the verdicts by reading the schedule start: $r_1(x)$ first suggests T1 first. The schedule must be tested against the whole graph."
+          },
+          {
+            "option": 2,
+            "text": "Missing the $r_1(y)$ versus $w_2(y)$ conflict in $S_1$ because both transactions read $y$ early. The write comes later and still conflicts with the earlier read of the other transaction."
+          },
+          {
+            "option": 3,
+            "text": "Treating $r_1(x)$ before $r_2(x)$ as a conflict. Two reads never conflict."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflict-serializability",
+          "clues": "Two named schedules over $r_i$ and $w_i$ of the same two transactions, and a question about whether each is conflict serializable, call for a precedence graph per schedule.",
+          "contrast": "View serializability would also allow some schedules with a cycle. The question says conflict serializable, so a cycle is decisive and no blind-write exception applies."
+        },
+        "check": {
+          "body": "For $S_1$, argue by contradiction. Any equivalent serial order needs $T_1$ before $T_2$ because $r_1(y)$ precedes $w_2(y)$, and $T_2$ before $T_1$ because $r_2(x)$ precedes $w_1(x)$. Both cannot hold. For $S_2$, write the serial schedule $T_2$ then $T_1$ and compare: $r_2(x)$ before $w_1(x)$ and $w_2(y)$ before $r_1(y)$ both match."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021-s1 question 32 of the paper",
+          "url": "https://gateoverflow.in/357419/gate-cse-2021-set-1-question-32"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each schedule needs its own verdict. For two transactions, what single picture decides whether a schedule can be rearranged into a serial one?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall conflicting operations: which pairs on the same item cannot be swapped, and which pairs can."
+        },
+        {
+          "kind": "principle",
+          "text": "A schedule is conflict serializable exactly when its precedence graph has no cycle. With two transactions, a cycle means conflicts run in both directions."
+        },
+        {
+          "kind": "setup",
+          "text": "Take one schedule at a time. Go item by item, write the operations on $x$ and then on $y$ in schedule order, and note which pairs from different transactions include a write."
+        },
+        {
+          "kind": "partial",
+          "text": "In $S_1$, look at who touches $y$ first and who touches $x$ first among the conflicting pairs. Do both point the same way?"
+        }
+      ],
+      "variation": {
+        "stem": "Let $r_i(z)$ and $w_i(z)$ denote read and write operations on $z$ by transaction $T_i$. Consider two schedules.\n\n$S_1$: $r_1(x)\\,r_2(x)\\,w_1(y)\\,r_2(y)$\n$S_2$: $r_1(x)\\,r_2(y)\\,w_2(x)\\,w_1(y)$\n\nWhich one of the following options is correct?",
+        "options": [
+          "$S_1$ is conflict serializable, and $S_2$ is not conflict serializable.",
+          "$S_1$ is not conflict serializable, and $S_2$ is conflict serializable.",
+          "Both $S_1$ and $S_2$ are conflict serializable.",
+          "Neither $S_1$ nor $S_2$ is conflict serializable."
+        ],
+        "answer": 0,
+        "explanation": "In $S_1$ the two reads of $x$ do not conflict and the only conflict is $w_1(y)$ before $r_2(y)$, giving $T_1\\to T_2$ alone, so there is no cycle. In $S_2$, $r_1(x)$ before $w_2(x)$ gives $T_1\\to T_2$, while $r_2(y)$ before $w_1(y)$ gives $T_2\\to T_1$. That is a cycle, so $S_2$ is not conflict serializable."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q13",
+      "type": "msq",
+      "marks": 1,
+      "key": "A",
+      "topic": "db-transactions.log-recovery",
+      "difficulty": "hard",
+      "stem": "Suppose a database system crashes again while recovering from a previous crash. Assume checkpointing is not done by the database either during the transactions or during recovery.\n\nWhich of the following statements is/are correct?",
+      "options": [
+        "The same undo and redo list will be used while recovering again.",
+        "The system cannot recover any further.",
+        "All the transactions that are already undone and redone will not be recovered again.",
+        "The database will become inconsistent."
+      ],
+      "answer": [
+        0
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "How log-based recovery works",
+            "body": "The DBMS writes every update to a **log** on stable storage before changing the database. After a crash, recovery scans the log and builds two lists: transactions that committed, which are **redone** (their writes are applied again), and transactions that never committed, which are **undone** (their writes are rolled back using old values). Both operations are **idempotent**: doing them twice leaves the same result as doing them once."
+          },
+          {
+            "title": "A crash during recovery",
+            "body": "Recovery only reads the log and sets data values; it does not change which transactions had committed. With no checkpoint, the scan starts from the same place and sees the same log, so it produces the same undo list and redo list. Statement A is true."
+          },
+          {
+            "title": "Why the others fail",
+            "body": "B is false: recovery can always be restarted, as idempotence guarantees. C is false: the system does not remember what the interrupted recovery already finished, so the same transactions are undone and redone again. D is false: replaying the log gives the same consistent state however many times it runs."
+          }
+        ],
+        "shortcut": {
+          "body": "Recovery is restartable and idempotent, so the second attempt just repeats the first with the same lists. Choose A and reject any option saying recovery fails, or skips work already done. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Assuming progress is remembered. Without checkpoints the log offers no marker of what recovery completed, so everything is redone or undone again, harmlessly."
+          },
+          {
+            "option": 1,
+            "text": "Believing that a second crash corrupts the log. The log is on stable storage and recovery never writes to it in a way that blocks a retry."
+          },
+          {
+            "option": 3,
+            "text": "Thinking half-applied redo leaves inconsistency. Redo writes complete values, so repeating it converges to the same state."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.log-recovery",
+          "clues": "\"Crashes again while recovering\" and \"checkpointing is not done\" fix the scenario to restarting redo and undo from the same log with no marker of progress.",
+          "contrast": "With checkpoints, recovery could begin at the last checkpoint, so the lists might differ. The question removes that option, which is why the lists stay the same."
+        },
+        "check": {
+          "body": "Substitute concrete values. If the log says item $A$ goes from 10 to 20 and $T$ committed, redo writes $A=20$; after a crash and a second redo, $A$ is still 20. If $T$ never committed, undo writes $A=10$ both times. Repeating either step cannot change the outcome because each writes a fixed value, not an increment."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021-s1 question 13 of the paper",
+          "url": "https://gateoverflow.in/357439/gate-cse-2021-set-1-question-13"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The system fails during its own repair. Does the second repair start from different information than the first one did?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall how log-based recovery decides which transactions to redo and which to undo after a crash."
+        },
+        {
+          "kind": "principle",
+          "text": "Redo and undo write full old or new values, so applying them a second time gives the same result as applying them once. The log itself is on stable storage."
+        },
+        {
+          "kind": "setup",
+          "text": "Compare the log seen by the second recovery with the log seen by the first. Ask whether the interrupted recovery changed the commit records or only the data values."
+        },
+        {
+          "kind": "partial",
+          "text": "With no checkpoint, recovery scans from the start of the log. Ask what, if anything, tells the second run which transactions the first run already finished."
+        }
+      ],
+      "variation": {
+        "stem": "A database uses a write-ahead log with no checkpoints. The log holds, in order: start $T_1$; $T_1$ changes $A$ from 10 to 20; start $T_2$; $T_2$ changes $B$ from 5 to 7; commit $T_1$. The system crashes, begins recovery, and crashes again part-way through recovery. Which of the following statements is/are correct about the next recovery?",
+        "options": [
+          "$T_1$ is redone, so $A$ ends at 20.",
+          "$T_2$ is undone, so $B$ ends at 5.",
+          "$T_2$ is no longer undone, because the first attempt may have partly rolled it back.",
+          "$T_1$ is undone, because its commit record comes after the update of $T_2$."
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "The log is unchanged by the interrupted recovery, so the next run builds the same lists: $T_1$ committed and is redone ($A=20$), and $T_2$ has no commit record and is undone ($B=5$). Redo and undo write fixed values, so repeating any part of the earlier attempt does not matter. The commit record of $T_1$ decides its fate, not its position relative to $T_2$."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q37",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "db-transactions.conflict-serializability",
+      "difficulty": "hard",
+      "stem": "Consider a schedule of transactions $T_1$ and $T_2$ (table below). Here, RX stands for \"Read(X)\" and WX stands for \"Write(X)\". Which one of the following schedules is conflict equivalent to the above schedule?",
+      "table": {
+        "headers": [
+          "Slot",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10"
+        ],
+        "rows": [
+          [
+            "T1",
+            "RA",
+            "",
+            "",
+            "RC",
+            "",
+            "WD",
+            "",
+            "WB",
+            "Commit",
+            ""
+          ],
+          [
+            "T2",
+            "",
+            "RB",
+            "WB",
+            "",
+            "RD",
+            "",
+            "WC",
+            "",
+            "",
+            "Commit"
+          ]
+        ]
+      },
+      "options": [
+        "T1: RA RC WD WB (slots 4 to 7), Commit (slot 9); T2: RB WB RD (slots 1 to 3), WC (slot 8), Commit (slot 10)",
+        "T1: RA RC WD WB (slots 1 to 4), Commit (slot 9); T2: RB WB RD WC (slots 5 to 8), Commit (slot 10)",
+        "T1: RA RC WD (slots 1 to 3), WB (slot 7), Commit (slot 9); T2: RB WB RD (slots 4 to 6), WC (slot 8), Commit (slot 10)",
+        "T1: RA RC WD WB (slots 5 to 8), Commit (slot 9); T2: RB WB RD WC (slots 1 to 4), Commit (slot 10)"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Precedence graph of the given schedule: T1 to T2 on C and T2 to T1 on B and D, with the pair conditions an equivalent schedule must keep."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Conflict equivalence in plain words",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule. Note that the given schedule itself has a cycle, so it is not serializable; we are asked only which listed schedule keeps every conflicting pair in the same order."
+          },
+          {
+            "title": "List the conflicting pairs of the given schedule",
+            "body": "T1 runs RA, RC, WD, WB; T2 runs RB, WB, RD, WC. Shared items: B, C, D. On B: RB(T2), WB(T2) both come before WB(T1). On D: RD(T2) comes before WD(T1). On C: RC(T1) comes before WC(T2). A is untouched by T2.",
+            "tex": "\\text{RB}_2,\\text{WB}_2 < \\text{WB}_1;\\quad \\text{RD}_2 < \\text{WD}_1;\\quad \\text{RC}_1 < \\text{WC}_2"
+          },
+          {
+            "title": "Test the options",
+            "body": "A: T2 does RB, WB, RD first, then T1 does RA, RC, WD, WB, then T2 does WC. All four required orders hold. B: T1 completes WD and WB before RB, WB, RD of T2, reversing the first two pairs. C: WD of T1 comes before RD of T2, reversing the second pair. D: WC of T2 comes before RC of T1, reversing the last pair."
+          },
+          {
+            "title": "Answer",
+            "body": "Only option A preserves every conflicting pair."
+          }
+        ],
+        "shortcut": {
+          "body": "Write the four required orders once (T2 on B and D first, T1 on C first) and tick them off for each option. Options with T1 entirely first or entirely second fail at once because the schedule needs T2 both before and after T1. About 3 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Running T1 wholly first looks like the serial order T1 then T2, but T2 read and wrote B before T1 wrote it in the original, so this reverses the pair."
+          },
+          {
+            "option": 2,
+            "text": "Keeps T1 before T2 up to WD but reverses RD(T2) versus WD(T1). Positions must be compared per pair, not by blocks."
+          },
+          {
+            "option": 3,
+            "text": "T2 then T1 serially keeps the B and D pairs but reverses RC(T1) versus WC(T2)."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.conflict-serializability",
+          "clues": "A table of two interleaved transactions and options that are rearrangements of the same operations point to comparing conflicting pairs, not to finding a serial order.",
+          "contrast": "A serial schedule exists only when the precedence graph is acyclic, and this given schedule has a cycle. The question asks only for a rearrangement that keeps the conflicting orders, so test pairs directly."
+        },
+        "check": {
+          "body": "Reach the matching option from the given table using only swaps of adjacent operations on different items. Move $RB$, $WB$ and $RD$ of $T_2$ ahead of $RA$ and $RC$, passing only operations on other items. Then swap $WC$ of $T_2$ past $WB$ of $T_1$, which touch different items. No conflicting pair is ever swapped, so the result is conflict equivalent."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020 question 37 of the paper",
+          "url": "https://gateoverflow.in/333194/gate-cse-2020-question-37"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Conflict equivalent does not mean serial. What must two schedules have in common for one to be rearranged into the other?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall which operations on one data item conflict, and why only conflicting operations pin down an order."
+        },
+        {
+          "kind": "principle",
+          "text": "Two schedules over the same operations are conflict equivalent when every conflicting pair appears in the same order in both and each transaction keeps its own operation order."
+        },
+        {
+          "kind": "setup",
+          "text": "Go item by item through the given table. For B, C and D, list the pairs from different transactions with at least one write, in the order the table shows them."
+        },
+        {
+          "kind": "partial",
+          "text": "Item A is touched by one transaction only, so it gives no constraint. Decide which of $T_1$ and $T_2$ goes first on B, and which goes first on C."
+        }
+      ],
+      "variation": {
+        "stem": "Consider a schedule $S$ of transactions $T_1$ and $T_2$, written as a sequence of operations: $r_1(A)\\,r_2(B)\\,w_1(C)\\,w_2(A)\\,r_1(B)\\,r_2(C)$. Which one of the following schedules is conflict equivalent to $S$?",
+        "options": [
+          "$r_2(B)\\,w_2(A)\\,r_1(A)\\,w_1(C)\\,r_1(B)\\,r_2(C)$",
+          "$r_2(B)\\,r_1(A)\\,w_1(C)\\,r_1(B)\\,w_2(A)\\,r_2(C)$",
+          "$r_1(A)\\,r_2(B)\\,w_2(A)\\,r_2(C)\\,w_1(C)\\,r_1(B)$",
+          "$r_2(B)\\,w_2(A)\\,r_2(C)\\,r_1(A)\\,w_1(C)\\,r_1(B)$"
+        ],
+        "answer": 1,
+        "explanation": "The conflicting pairs of $S$ are $r_1(A)$ before $w_2(A)$ and $w_1(C)$ before $r_2(C)$. The reads of $B$ do not conflict. Option B keeps both pairs; option A puts $w_2(A)$ first, option C puts $r_2(C)$ before $w_1(C)$, and option D reverses both."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q11",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "db-transactions.2pl-variants",
+      "difficulty": "medium",
+      "stem": "Consider the following two statements about database transaction schedules:\n\nI. Strict two-phase locking protocol generates conflict serializable schedules that are also recoverable.\nII. Timestamp-ordering concurrency control protocol with Thomas' Write Rule can generate view serializable schedules that are not conflict serializable.\n\nWhich of the above statements is/are TRUE?",
+      "options": [
+        "I only",
+        "II only",
+        "Both I and II",
+        "Neither I nor II"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "The terms",
+            "body": "**Two-phase locking (2PL)**: a transaction never takes a lock after releasing one. **Strict 2PL**: additionally it holds all its write locks until it commits or aborts. A schedule is **recoverable** when each transaction commits after every transaction it read from. **View serializable**: equivalent to a serial schedule in who reads whose write and who writes last; every conflict serializable schedule is view serializable, but not the other way round (the extra ones contain blind writes). **Thomas' Write Rule**: under timestamp ordering, a write that arrives too late is simply skipped, since a newer write has already replaced it."
+          },
+          {
+            "title": "Statement I",
+            "body": "Any 2PL schedule is conflict serializable (order by lock points). Under strict 2PL nobody can read or overwrite an uncommitted write, so a reader always commits after the writer: schedules are strict, hence cascadeless and recoverable. I is true."
+          },
+          {
+            "title": "Statement II",
+            "body": "Skipping an obsolete write can produce a schedule whose conflicts form a cycle but whose reads and final writes match a serial schedule. For example with timestamps $TS(T_1)<TS(T_2)<TS(T_3)$: $r_1(A)\\,w_2(A)\\,w_1(A)\\,w_3(A)$. The late $w_1(A)$ is dropped under Thomas' rule, and the result is view equivalent to $T_1T_2T_3$. As submitted, though, $r_1(A)$ before $w_2(A)$ and $w_2(A)$ before $w_1(A)$ give edges both ways between $T_1$ and $T_2$, so the schedule is not conflict serializable. II is true."
+          },
+          {
+            "title": "Answer",
+            "body": "Both are true: option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Recall: strict 2PL gives conflict serializable and strict (so recoverable); Thomas' rule is the standard source of view-but-not-conflict serializable schedules. Two textbook facts, about 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Accepting I but rejecting II because the timestamp protocol is \"serializable\" and so assumed to be conflict serializable. Thomas' rule goes beyond basic timestamp ordering."
+          },
+          {
+            "option": 1,
+            "text": "Doubting I because plain 2PL is not recoverable. The statement is about strict 2PL, which is."
+          },
+          {
+            "option": 3,
+            "text": "Rejecting both from half-remembered exceptions; each statement states a standard theorem."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.2pl-variants",
+          "clues": "Statement I names \"strict two-phase locking\" with \"recoverable\", and statement II names \"Thomas' Write Rule\" with \"view serializable ... not conflict serializable\". Each is a named protocol property to check.",
+          "contrast": "Basic timestamp ordering without the skip rule yields only conflict serializable schedules. The extra view-serializable schedules appear only when late writes are dropped, which is what separates Thomas' rule from plain timestamp ordering."
+        },
+        "check": {
+          "body": "Check I by the lock rules: a transaction that wants to read an item written by an uncommitted $T_i$ needs a shared lock, but $T_i$ still holds the exclusive lock until it commits, so the reader waits and commits later. Every reads-from pair therefore has the writer committing first, which is recoverability. Check II by the timestamp tests: when $w_1(A)$ arrives, $W\\text{-}TS(A)=TS(T_2)$ is larger than $TS(T_1)$, so basic timestamp ordering would abort $T_1$; $R\\text{-}TS(A)=TS(T_1)$ is not larger than $TS(T_1)$, so Thomas' rule only skips the write and no abort is needed. That skip is exactly what lets this schedule through despite its conflict cycle."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019 question 11 of the paper",
+          "url": "https://gateoverflow.in/302837/gate-cse-2019-question-11"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each statement names a protocol and a promised property. Which properties does each protocol guarantee, and which does it not?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall what strict two-phase locking adds to plain 2PL, and what Thomas' write rule changes in timestamp ordering."
+        },
+        {
+          "kind": "principle",
+          "text": "Every conflict serializable schedule is view serializable, but the reverse fails when blind writes are present. Recoverability depends on commits happening after the writers read from."
+        },
+        {
+          "kind": "setup",
+          "text": "For statement I, ask what a transaction must wait for if it wants a value written by an uncommitted one. For II, ask what happens to a late write that Thomas' rule skips."
+        },
+        {
+          "kind": "partial",
+          "text": "Try a small schedule where a write is skipped because a newer write exists. Check whether the conflict graph of the submitted operations still has a cycle."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following two statements about database concurrency control:\n\nI. Rigorous two-phase locking, which holds all locks until commit, allows a transaction to read a value written by a transaction that has not yet committed.\nII. The basic timestamp-ordering protocol, without Thomas' write rule, generates only conflict serializable schedules.\n\nWhich of the above statements is/are TRUE?",
+        "options": [
+          "I only",
+          "II only",
+          "Both I and II",
+          "Neither I nor II"
+        ],
+        "answer": 1,
+        "explanation": "Under rigorous 2PL a writer keeps its exclusive lock until it commits, so no other transaction can read its value earlier; I is false. Basic timestamp ordering accepts an operation only if it agrees with timestamp order, so every conflict edge goes from the older to the younger transaction and no cycle can form; II is true."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q44",
+      "type": "nat",
+      "marks": 2,
+      "key": "54.0",
+      "topic": "db-transactions.schedule-counting",
+      "difficulty": "hard",
+      "stem": "Two transactions $T_1$ and $T_2$ are given as\n$T_1$: $r_1(X)\\,w_1(X)\\,r_1(Y)\\,w_1(Y)$\n$T_2$: $r_2(Y)\\,w_2(Y)\\,r_2(Z)\\,w_2(Z)$\nwhere $r_i(V)$ denotes a read operation by transaction $T_i$ on a variable $V$ and $w_i(V)$ denotes a write operation by transaction $T_i$ on a variable $V$. The total number of conflict serializable schedules that can be formed by $T_1$ and $T_2$ is ______",
+      "answer": 54,
+      "solution": {
+        "steps": [
+          {
+            "title": "Definitions",
+            "body": "A **schedule** is one interleaving of the operations of several transactions, each transaction keeping its own order. Two operations **conflict** when they come from different transactions, touch the same data item, and at least one is a write: read-write, write-read and write-write. Swapping two adjacent operations that do not conflict changes nothing; swapping two that conflict can change what a transaction reads or what the database ends up holding. Two schedules are **conflict equivalent** when every conflicting pair appears in the same order in both. The **precedence graph** has one node per transaction and an edge $T_i \\to T_j$ whenever an operation of $T_i$ conflicts with and comes before an operation of $T_j$. A schedule is conflict serializable exactly when this graph has no cycle, and any topological order of the graph is an equivalent serial schedule. Two schedules with the same operations may differ only in interleaving, and each transaction keeps its internal order."
+          },
+          {
+            "title": "Only item Y can conflict",
+            "body": "X appears only in $T_1$ and Z only in $T_2$, so only the Y operations create edges: $r_1(Y), w_1(Y)$ against $r_2(Y), w_2(Y)$. There are two transactions, so a cycle needs edges in both directions. The schedule is conflict serializable exactly when all conflicting Y pairs point the same way: all of $T_1$'s Y operations before $T_2$'s ($T_1\\to T_2$), or all of $T_2$'s before $T_1$'s."
+          },
+          {
+            "title": "Case $T_1\\to T_2$",
+            "body": "We need $w_1(Y)$, the last operation of $T_1$, before $r_2(Y)$, the first of $T_2$. That forces all of $T_1$ before all of $T_2$: exactly 1 schedule."
+          },
+          {
+            "title": "Case $T_2\\to T_1$",
+            "body": "We need $w_2(Y)$ before $r_1(Y)$. Write $T_1=a\\,b\\,c\\,d$ (with $c=r_1(Y)$) and $T_2=p\\,q\\,r\\,s$ (with $q=w_2(Y)$). Count the schedules with $q$ before $c$ by complement: the total is $\\binom{8}{4}=70$. Schedules with $c$ before $q$: if $d$ is also before $q$, all of $T_1$ precedes $q$ and $p$ has 5 slots, giving 5; if $d$ is after $q$, then $a,b,c$ interleave with $p$ in 4 ways before $q$, and $d$ with $r,s$ after $q$ in 3 ways, giving 12. So 17 schedules have $c$ before $q$, and $70-17=53$ have $q$ before $c$.",
+            "tex": "\\binom{8}{4}=70,\\quad 70-17=53"
+          },
+          {
+            "title": "Total",
+            "body": "The two cases cannot overlap, because $T_1\\to T_2$ and $T_2\\to T_1$ are exclusive. The total is $1+53=54$.",
+            "tex": "1+53=54"
+          }
+        ],
+        "shortcut": {
+          "body": "Total interleavings are 70. Non-serializable ones need Y operations in both orders; the bad count is 16, so the answer is $70-16=54$. Count the bad ones as the 17 schedules with $c$ before $q$ minus the single serial one. About 3 minutes; the case split is the safest route."
+        },
+        "traps": [
+          {
+            "text": "Answering 70, the number of all interleavings, or 2, the number of serial schedules. Many interleavings are equivalent to a serial one."
+          },
+          {
+            "text": "Answering 53 or 1 by counting only one direction of the Y order. Both $T_1\\to T_2$ and $T_2\\to T_1$ count."
+          },
+          {
+            "text": "Treating $r_1(Y)$ and $r_2(Y)$ as a conflict and halving the count. Two reads never conflict."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.schedule-counting",
+          "clues": "\"The total number of conflict serializable schedules that can be formed\" by two short transactions asks for a count over interleavings, with a serializability test applied to each.",
+          "contrast": "Counting all interleavings gives $\\binom{8}{4}$, and counting serial schedules gives 2. The required number lies between them, so conflicts must be applied rather than either shortcut."
+        },
+        "check": {
+          "body": "Recount the $T_2\\to T_1$ case as lattice paths from $(0,0)$ to $(4,4)$, where $i$ and $j$ count operations done by $T_1$ and $T_2$. Need $w_2(Y)$, the second step of $T_2$, before $r_1(Y)$, the third of $T_1$. Reaching $j=2$ at $i=0,1,2$ gives $1\\cdot15+2\\cdot10+3\\cdot6=53$. Add the one schedule with $T_1$ wholly first to get 54.",
+          "tex": "15+20+18=53,\\quad 53+1=54"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017-s2 question 44 of the paper",
+          "url": "https://gateoverflow.in/118640/gate-cse-2017-set-2-question-44"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before counting, ask which of the three data items can create a conflict between the two transactions at all."
+        },
+        {
+          "kind": "concept",
+          "text": "Recall that a schedule of two transactions is conflict serializable exactly when the conflicts do not point in both directions."
+        },
+        {
+          "kind": "principle",
+          "text": "With two transactions, a cycle needs one edge each way. So a conflict serializable schedule has every conflicting pair going the same way."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the count into two cases by direction. For each, translate \"all conflicting pairs go this way\" into a condition on where two particular operations sit."
+        },
+        {
+          "kind": "partial",
+          "text": "In one direction the condition forces the last operation of one transaction ahead of the first of the other, so only one interleaving fits. Count the other direction by a complement or a path count."
+        }
+      ],
+      "variation": {
+        "stem": "Two transactions are $T_1$: $r_1(X)\\,w_1(X)\\,r_1(Y)\\,w_1(Y)$ and $T_2$: $r_2(Y)\\,w_2(Y)\\,r_2(Z)$. The total number of conflict serializable schedules that can be formed by $T_1$ and $T_2$ is ______",
+        "answer": 23,
+        "explanation": "Only $Y$ is shared, so conflicts occur between $r_1(Y),w_1(Y)$ and $r_2(Y),w_2(Y)$. Serializable means all of one transaction's $Y$ operations precede the other's. $T_1\\to T_2$ forces all of $T_1$ before $r_2(Y)$, leaving 1 schedule. For $T_2\\to T_1$, count interleavings where $w_2(Y)$ precedes $r_1(Y)$; enumeration of all 35 interleavings gives 22 of them, so the total is $1+22=23$."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q42",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "db-transactions.deadlock-prevention",
+      "difficulty": "hard",
+      "stem": "In a database system, unique timestamps are assigned to each transaction using Lamport's logical clock. Let $TS(T_1)$ and $TS(T_2)$ be the timestamps of transactions $T_1$ and $T_2$ respectively. Besides, $T_1$ holds a lock on the resource $R$, and $T_2$ has requested a conflicting lock on the same resource $R$. The following algorithm is used to prevent deadlocks in the database system assuming that a killed transaction is restarted with the same timestamp.\n\nif $TS(T_2) < TS(T_1)$ then $T_1$ is killed else $T_2$ waits.\n\nAssume any transaction that is not killed terminates eventually. Which of the following is TRUE about the database system that uses the above algorithm to prevent deadlocks?",
+      "options": [
+        "The database system is both deadlock-free and starvation-free.",
+        "The database system is deadlock-free, but not starvation-free.",
+        "The database system is starvation-free, but not deadlock-free.",
+        "The database system is neither deadlock-free nor starvation-free."
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Four transactions on a line from oldest to youngest with arrows from each younger transaction to an older one it waits for; arrows only go left."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Deadlock and starvation",
+            "body": "A **deadlock** is a cycle of transactions each waiting for a lock held by the next. **Starvation** is a transaction that is killed or made to wait again and again and never finishes. A **timestamp** is a unique age label: smaller means older. The rule here is the **wound-wait** scheme: if the requester is older than the holder, the holder is killed (wounded); if the requester is younger, it waits."
+          },
+          {
+            "title": "Deadlock-free",
+            "body": "A transaction waits only when the requester is younger than the holder, so every waits-for edge goes from a larger timestamp to a smaller one. Following edges, timestamps strictly decrease, so you can never return to where you started. No cycle, no deadlock.",
+            "tex": "T_i \\text{ waits for } T_j \\Rightarrow TS(T_i) > TS(T_j)"
+          },
+          {
+            "title": "Starvation-free",
+            "body": "A killed transaction restarts with the same timestamp, so its age is never reset. Younger ones that arrive later cannot kill it; only older ones can. The oldest transaction in the system is never killed and, by the stated assumption, finishes. Then the next oldest becomes oldest, and so on, so every transaction eventually finishes."
+          },
+          {
+            "title": "Answer",
+            "body": "Both properties hold: option A."
+          }
+        ],
+        "shortcut": {
+          "body": "Recognise wound-wait, and note that the restart keeps the old timestamp: that is the clause that kills starvation. Wound-wait with preserved timestamps is the textbook deadlock-free, starvation-free scheme. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Saying starvation can occur because the same transaction may be killed repeatedly. Each restart keeps its old timestamp, so it only gets relatively older."
+          },
+          {
+            "option": 2,
+            "text": "Claiming waiting can still cycle. Waits only run from younger to older, so no cycle can close."
+          },
+          {
+            "option": 3,
+            "text": "Mixing up this rule with schemes where a restarted transaction gets a fresh, larger timestamp; that variant can starve."
+          }
+        ],
+        "recognize": {
+          "concept": "db-transactions.deadlock-prevention",
+          "clues": "An age-based rule on lock requests (\"if $TS(T_2) < TS(T_1)$ then kill, else wait\") with restart under the same timestamp is a deadlock-prevention scheme, and the question asks about deadlock and starvation.",
+          "contrast": "Deadlock detection builds a wait-for graph and breaks cycles after they form. Prevention schemes such as this one use timestamps so a cycle can never form."
+        },
+        "check": {
+          "body": "Try to build a cycle with three transactions and see it fail: a cycle $T_a\\to T_b\\to T_c\\to T_a$ would need $TS(T_a)>TS(T_b)>TS(T_c)>TS(T_a)$, which is impossible. For starvation, consider the oldest transaction $O$. Every time it requests a lock held by another, $TS(O)$ is smaller, so the holder is killed and $O$ never waits or dies."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017-s1 question 42 of the paper",
+          "url": "https://gateoverflow.in/118325/gate-cse-2017-set-1-question-42"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Two separate properties are asked about. For each, what would have to go wrong for it to fail?"
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the wait-for relation among transactions that deadlock, and the idea of a timestamp as an age."
+        },
+        {
+          "kind": "principle",
+          "text": "A deadlock needs a cycle of waiting. If every waiting edge moves in one direction along some strict order, no cycle can close."
+        },
+        {
+          "kind": "setup",
+          "text": "Work out, from the rule as written, whether the transaction that waits is older or younger than the one it waits for. Then ask what a restart does to a transaction's age."
+        },
+        {
+          "kind": "partial",
+          "text": "For starvation, consider the oldest transaction in the system. Ask whether the rule ever kills it, and what happens once it finishes."
+        }
+      ],
+      "variation": {
+        "stem": "In a database system, unique timestamps are assigned to transactions. Transaction $T_1$ holds a lock on resource $R$, and $T_2$ requests a conflicting lock on $R$. To prevent deadlocks the system applies: if $TS(T_2) < TS(T_1)$ then $T_2$ waits, else $T_2$ is killed. A killed transaction is restarted with the same timestamp, and any transaction that is not killed terminates eventually. Which of the following is TRUE?",
+        "options": [
+          "The database system is deadlock-free, but not starvation-free.",
+          "The database system is starvation-free, but not deadlock-free.",
+          "The database system is both deadlock-free and starvation-free.",
+          "The database system is neither deadlock-free nor starvation-free."
+        ],
+        "answer": 2,
+        "explanation": "A transaction waits only when it is older than the holder, so every wait-for edge goes from a smaller timestamp to a larger one and no cycle can form. A killed transaction keeps its timestamp, so it only gets relatively older. The oldest transaction is never killed because it always waits, so it finishes, and then the next oldest has the same guarantee."
+      }
+    }
+  ],
+  "skipped": []
+}

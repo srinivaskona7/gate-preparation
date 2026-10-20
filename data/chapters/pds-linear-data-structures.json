@@ -1,0 +1,2164 @@
+{
+  "id": "pds-linear-data-structures",
+  "summary": "Arrays, stacks, queues, deques and linked lists are the building blocks every later data structure uses. GATE asks about them in three ways: the cost of an operation under a given representation, a trace of pushes, pops, enqueues or pointer updates, and short C fragments that rewire list pointers. Most questions reduce to a careful hand simulation: valid stack permutations, infix to postfix conversion, postfix evaluation, circular-queue indices, row-major addresses and Floyd's two-pointer cycle detection.",
+  "highYield": [
+    "Which output sequence cannot come from a stack (or a restricted deque) when 1, 2, …, n are pushed in order; n inputs give the Catalan number C(2n, n)/(n + 1) stack permutations.",
+    "Infix to postfix or prefix with mixed precedence and the right-associative ^, plus evaluating a postfix string with an operand stack.",
+    "Circular-queue full and empty conditions: with one slot sacrificed, empty is front == rear and full is (rear + 1) mod n == front.",
+    "Worst-case costs on singly vs doubly linked lists with head and tail pointers: deleting the last node of a singly linked list stays O(n).",
+    "C fragments that reverse a list, move the last node to the front or insert into a doubly linked list: trace the pointer assignments in order.",
+    "Row-major and column-major address of A[i][j] with non-zero lower bounds."
+  ],
+  "topics": [
+    {
+      "id": "pds-linear-data-structures.arrays",
+      "title": "Arrays, dynamic arrays and sparse representations",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        24,
+        311
+      ],
+      "points": [
+        "An array stores elements contiguously, so element i sits at base + i × w and is read in O(1); searching an unsorted array is O(n) and binary search on a sorted one is O(log n).",
+        "Inserting or deleting at position k shifts every later element, which is O(n − k) and O(n) in the worst case; appending to a static array with spare room is O(1).",
+        "A dynamic array that doubles its capacity when full copies 1 + 2 + 4 + … < 2n elements over n appends, so a single append can cost O(n) but the amortized cost is O(1).",
+        "A sparse matrix with t non-zero entries out of m × n is stored as triplets (row, column, value), usually with a header triplet holding (m, n, t): 3(t + 1) words instead of m × n, worthwhile only when t is small."
+      ],
+      "keyTerms": [
+        "contiguous storage",
+        "amortized O(1)",
+        "triplet representation"
+      ],
+      "lesson": {
+        "why": "Array questions test the cost of an operation, not syntax. Knowing why access is O(1), why insertion shifts elements and why doubling makes appends cheap on average settles most of them.",
+        "intro": "An array is a row of equal-sized cells placed side by side in memory, numbered from 0. Because the cells touch, the machine finds cell $i$ by one multiplication and one addition from the start, no matter how long the array is. The price of that tidy layout is that nothing can be squeezed in: to insert in the middle, every later element must move one cell to the right. A dynamic array hides a fixed array behind a counter. When it fills up, it allocates a new array of double the size and copies everything across.",
+        "definitions": [
+          {
+            "term": "Amortized cost",
+            "meaning": "The total cost of a long run of operations divided by the number of operations, even if a few single operations are expensive."
+          },
+          {
+            "term": "Capacity",
+            "meaning": "The number of cells allocated, as opposed to the number currently holding elements."
+          }
+        ],
+        "principle": {
+          "text": "Cell $i$ is at base $+ i \\cdot w$, so access is $O(1)$. Inserting or deleting at position $k$ shifts the $n-k$ later elements. A doubling dynamic array copies fewer than $2n$ elements over $n$ appends, so each append is $O(1)$ amortized.",
+          "tex": "1 + 2 + 4 + \\dots + 2^{k} < 2n"
+        },
+        "limits": "Amortized O(1) is an average over the whole run: one append can still cost O(n). It also needs geometric growth; adding a fixed number of cells each time makes the total cost quadratic. Sparse storage as triplets pays off only when the number of non-zero entries is small.",
+        "example": {
+          "problem": "A dynamic array starts with capacity 1 and doubles when full. Nine elements are appended one at a time. How many element copies happen in total?",
+          "steps": [
+            "Appends 1 fits in the single cell. Append 2 finds it full, copies 1 element and doubles to capacity 2.",
+            "Append 3 copies 2 elements (capacity 4). Append 5 copies 4 (capacity 8). Append 9 copies 8 (capacity 16).",
+            "Appends 4, 6, 7 and 8 find a free cell and copy nothing. Total copies: $1 + 2 + 4 + 8 = 15$."
+          ],
+          "result": "15 copies over 9 appends, fewer than $2 \\cdot 9 = 18$, so about 1.7 copies per append."
+        },
+        "misconceptions": [
+          "Amortized O(1) does not mean every append is O(1); the append that triggers doubling costs O(n).",
+          "Deleting the last element is O(1), but deleting the first is O(n) because everything shifts; the cost depends on the position, not only on the operation."
+        ],
+        "recall": [
+          {
+            "q": "Why is reading A[i] a constant-time operation?",
+            "a": "The cells are contiguous and equal-sized, so the address is base plus $i \\cdot w$, one multiplication and one addition."
+          },
+          {
+            "q": "What is the worst-case cost of inserting at position $k$ of an array holding $n$ elements?",
+            "a": "$O(n-k)$ shifts, which is $O(n)$ when $k$ is near the front."
+          },
+          {
+            "q": "Why is growing by a fixed amount worse than doubling?",
+            "a": "Each growth copies the whole array, and with a fixed step $c$ there are about $n/c$ growths, giving $O(n^2/c)$ total work."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A dynamic array starts with capacity 1 and doubles whenever it is full and another element arrives. After 33 appends, how many element copies have been made in total?",
+          "answer": 63,
+          "explanation": "Growths happen at appends 2, 3, 5, 9, 17 and 33, copying 1, 2, 4, 8, 16 and 32 elements, which sum to 63. The tempting answer 33 counts one copy per append; the copy count is not the number of appends because only the append that finds the array full copies, and it copies the whole array."
+        },
+        "summary": "Arrays give O(1) access by address arithmetic but O(n) insertion by shifting; a doubling dynamic array copies under $2n$ elements over $n$ appends, so appends are amortized O(1)."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.array-address",
+      "title": "Address calculation: row-major, column-major, triangular",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "C stores a 2-D array row by row (row-major): for A[l₁..u₁][l₂..u₂] with n = u₂ − l₂ + 1 columns, A[i][j] is at B + ((i − l₁)·n + (j − l₂))·w.",
+        "Column-major order (Fortran, MATLAB) swaps the roles: with m = u₁ − l₁ + 1 rows, A[i][j] is at B + ((j − l₂)·m + (i − l₁))·w.",
+        "Lower bounds matter: always subtract them before multiplying. A[−10..10][5..25] has 21 rows and 21 columns, so A[0][10] is (10·21 + 5) = 215 elements past the base.",
+        "A lower-triangular n × n matrix (1-indexed, row-major) keeps only n(n + 1)/2 entries; a[i][j] with j ≤ i is element number i(i − 1)/2 + j, so its address is B + (i(i − 1)/2 + j − 1)·w.",
+        "A 3-D array A[l₁..u₁][l₂..u₂][l₃..u₃] in row-major order with n₂, n₃ elements in the last two dimensions puts A[i][j][k] at B + (((i − l₁)·n₂ + (j − l₂))·n₃ + (k − l₃))·w: whole planes, then whole rows, then elements.",
+        "Other triangles come from the same count. Row-major upper triangle (j ≥ i): offset (i − 1)n − (i − 1)(i − 2)/2 + (j − i). Column-major lower triangle (j ≤ i): offset (j − 1)n − (j − 1)(j − 2)/2 + (i − j), the same layout with i and j swapped."
+      ],
+      "keyTerms": [
+        "row-major",
+        "column-major",
+        "lower bound",
+        "triangular matrix",
+        "upper triangular",
+        "3-D array"
+      ],
+      "lesson": {
+        "why": "Address calculation is a repeated numeric question, and the marks are lost on one detail: forgetting to subtract a lower bound or using the wrong dimension as the multiplier.",
+        "intro": "Memory is a single line of cells, so a table with rows and columns must be flattened. Row-major order stores row 1 completely, then row 2, and so on, as C does. Column-major order stores column 1 completely, then column 2. To find an element, count how many elements are stored before it, multiply by the bytes per element and add the address of the first element. The only real work is counting those earlier elements correctly.",
+        "definitions": [
+          {
+            "term": "Row-major",
+            "meaning": "Storage order in which all elements of one row are adjacent, rows following one another."
+          },
+          {
+            "term": "Lower bound",
+            "meaning": "The smallest legal index in a dimension; it need not be 0."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.arrays"
+        ],
+        "principle": {
+          "text": "With $m$ rows, $n$ columns, lower bounds $l_1, l_2$ and element size $w$, count the elements before the target. Row-major uses whole rows of $n$ elements; column-major uses whole columns of $m$ elements.",
+          "tex": "\\mathrm{Addr}_{\\text{row}} = B + \\big((i-l_1)\\,n + (j-l_2)\\big)w, \\qquad \\mathrm{Addr}_{\\text{col}} = B + \\big((j-l_2)\\,m + (i-l_1)\\big)w"
+        },
+        "limits": "These formulas assume a full rectangular block. A triangular matrix stored without its zero half needs a different count of earlier elements, and a 3-D array adds one more multiplication by the size of the last two dimensions. Languages that index from 1 change the lower bound but not the method.",
+        "example": {
+          "problem": "An array A[-2..3][4..8] holds 4-byte elements and starts at address 1000. Find the address of A[1][6] in row-major order.",
+          "steps": [
+            "Rows: $3-(-2)+1 = 6$. Columns: $8-4+1 = 5$, so each row holds 5 elements.",
+            "Rows before row 1: $1-(-2) = 3$, which is $3 \\cdot 5 = 15$ elements. Elements before column 6 in its row: $6-4 = 2$.",
+            "Elements before the target: $15 + 2 = 17$. Address: $1000 + 17 \\cdot 4 = 1068$."
+          ],
+          "result": "A[1][6] is at address 1068."
+        },
+        "misconceptions": [
+          "Using $i$ directly instead of $i-l_1$ when the lower bound is not 0 gives an offset that is too large, and with a negative bound the wrong sign.",
+          "In column-major order the multiplier is the number of rows $m$, not the number of columns; reusing the row-major multiplier is the common slip."
+        ],
+        "recall": [
+          {
+            "q": "How many elements does a dimension with bounds $l$ to $u$ hold?",
+            "a": "$u - l + 1$."
+          },
+          {
+            "q": "Which dimension size multiplies the first index in row-major order?",
+            "a": "The number of columns, because each earlier row contributes a full row of columns."
+          },
+          {
+            "q": "What does the address formula count before multiplying by $w$?",
+            "a": "The number of elements stored before the target in storage order."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An array A[2..6][-1..3] stores 2-byte elements in column-major order starting at address 500. Find the address of A[4][2].",
+          "answer": 534,
+          "explanation": "There are 5 rows and 5 columns. Columns before column 2: $2-(-1) = 3$, each holding 5 elements, so 15. Rows before row 4 within its column: $4-2 = 2$. The offset is 17 elements, so the address is $500 + 17 \\cdot 2 = 534$. Row-major thinking is the tempting slip: it would multiply the row offset by 5 and add the column offset, which is a different count."
+        },
+        "summary": "Count the elements stored before the target, using $u-l+1$ for dimension sizes and subtracting lower bounds, then multiply by $w$ and add the base; row-major multiplies by columns, column-major by rows."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.stack",
+      "title": "Stack ADT and its two implementations",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        24,
+        311,
+        312,
+        317
+      ],
+      "points": [
+        "A stack is last-in first-out: push, pop, peek (top) and isEmpty all run in O(1).",
+        "Array version: top starts at −1, push does stack[++top] = x after checking top == N − 1 (overflow), and pop returns stack[top--] after checking top == −1 (underflow).",
+        "Linked version: push and pop both work at the head. Using the tail would make pop O(n), because a singly linked list cannot find the node before the tail without a walk.",
+        "Uses: the call stack for recursion, undo, balanced-bracket checking, postfix evaluation, infix conversion, backtracking and iterative depth-first search."
+      ],
+      "keyTerms": [
+        "LIFO",
+        "overflow",
+        "underflow",
+        "call stack"
+      ],
+      "lesson": {
+        "why": "Stack questions reward a clean mental picture of push, pop and the top index; every trace, bracket check and recursion question in this chapter is built on it.",
+        "intro": "A stack is a collection where you may only touch one end, called the top. Adding an item is a push, removing one is a pop, and the item you get back is always the one added most recently. In an array version a number called top records the index of the newest item, and it starts at -1 to mean that nothing is stored yet. A push first checks that the array still has room, then raises top and writes the item. A pop reads the item at top and lowers top.",
+        "analogy": {
+          "text": "A pile of plates: you add a plate on top and take a plate from the top, so the plate you washed last is the first one used.",
+          "breaksWhen": "A real pile lets you slide a plate out of the middle, but a stack never allows access below the top."
+        },
+        "definitions": [
+          {
+            "term": "Overflow",
+            "meaning": "A push on an array stack that is already full, which happens when top equals N - 1."
+          },
+          {
+            "term": "Underflow",
+            "meaning": "A pop on an empty stack, which happens when top equals -1."
+          }
+        ],
+        "principle": {
+          "text": "Last in, first out: pop returns the most recently pushed item that has not yet been popped. Every operation touches only the top, so each takes constant time.",
+          "tex": "\\text{push: } top \\leftarrow top + 1;\\ S[top] \\leftarrow x \\qquad \\text{pop: } x \\leftarrow S[top];\\ top \\leftarrow top - 1"
+        },
+        "limits": "A stack gives no way to reach an item below the top without popping the items above it. The constant-time claim assumes the array has room; a linked version has no fixed capacity but must push and pop at the head to stay constant time.",
+        "example": {
+          "problem": "An array stack has capacity N = 4. Starting empty, the operations push(3), push(8), push(5), pop, push(7), push(1), push(9) run in order. What is stored when the last one is attempted, and what happens?",
+          "steps": [
+            "push(3), push(8), push(5) leave the stack as 3, 8, 5 with top = 2.",
+            "pop removes 5, so the stack is 3, 8 and top = 1. The 5 is gone because only the top can be removed.",
+            "push(7) and push(1) give 3, 8, 7, 1 with top = 3, which equals N - 1, so the array is full.",
+            "push(9) finds top equal to N - 1 and reports overflow; nothing is written."
+          ],
+          "result": "The stack holds 3, 8, 7, 1 (top is 1) and the last push causes overflow."
+        },
+        "misconceptions": [
+          "A pop does not return the oldest item. That is a queue; a stack returns the newest one that is still inside.",
+          "Overflow is tested against N - 1, not N, because the indices run from 0 to N - 1 when top starts at -1."
+        ],
+        "recall": [
+          {
+            "q": "In an array stack where top starts at -1, which condition means the stack is empty?",
+            "a": "top equals -1. Equally, a pop is an underflow exactly when top equals -1."
+          },
+          {
+            "q": "Why must a linked-list stack push and pop at the head?",
+            "a": "Those two operations then take constant time, whereas removing the tail of a singly linked list needs a walk to find the node before it."
+          },
+          {
+            "q": "Name two standard uses of a stack.",
+            "a": "The call stack of recursion and the evaluation of postfix expressions; bracket matching and undo are others."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An empty stack of large capacity receives push(2), push(6), pop, push(4), push(9), pop, pop in that order. What value does the final pop return?",
+          "answer": 4,
+          "explanation": "After push(2), push(6) the stack is 2, 6; the first pop removes 6. push(4) and push(9) give 2, 4, 9. The next pop removes 9 and the final pop returns 4, leaving 2. The tempting answer 2 comes from removing the oldest item as a queue would."
+        },
+        "summary": "A stack returns the newest item first and works only at the top; with top starting at -1, a full array has top = N - 1 and an empty one has top = -1."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.two-stacks-one-array",
+      "title": "Two stacks sharing one array",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Two stacks can share A[0..N−1] by growing toward each other: stack 1 starts with top1 = −1 and grows upward, stack 2 starts with top2 = N and grows downward.",
+        "Neither stack overflows while a free cell remains anywhere: the array is full exactly when top1 + 1 == top2, so no space is wasted on a fixed split.",
+        "Splitting the array into fixed halves instead can report overflow on one stack while the other half is empty, which is why the growing-toward-each-other layout is preferred."
+      ],
+      "keyTerms": [
+        "shared array",
+        "top1 + 1 == top2"
+      ],
+      "lesson": {
+        "why": "Questions ask when a shared array reports overflow and how many more pushes fit. The full test is a single comparison, and the benefit over a fixed split is a recurring point.",
+        "intro": "Two stacks need two places to grow. Instead of cutting an array in half, put the bottom of the first stack at the left end and the bottom of the second at the right end, and let them grow toward each other. The first stack's top index moves up from $-1$, the second's moves down from $N$. As long as one free cell remains anywhere between them, either stack can use it.",
+        "definitions": [
+          {
+            "term": "Overflow",
+            "meaning": "A push onto a stack that has no free cell left to receive the element."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.stack"
+        ],
+        "principle": {
+          "text": "Stack 1 pushes by increasing top1, stack 2 by decreasing top2. A push on either stack is allowed only while a free cell exists between the tops, so the array is full exactly when the tops are adjacent.",
+          "tex": "\\text{full} \\iff \\mathit{top1} + 1 = \\mathit{top2}, \\qquad \\text{free cells} = \\mathit{top2} - \\mathit{top1} - 1"
+        },
+        "limits": "Sharing helps only when the two stacks are not both large at the same time; if both need most of the array, nothing fits. The test assumes top1 starts at $-1$ and top2 at $N$. If top2 is defined as the next free cell from the right, the comparison shifts by one.",
+        "example": {
+          "problem": "A shared array has N = 8 cells. Stack 1 receives 3 elements and stack 2 receives 2. How many more elements can be pushed, and what happens on the next push?",
+          "steps": [
+            "After the pushes, top1 $= 2$ (indices 0 to 2) and top2 $= 8-2 = 6$ (indices 6 and 7).",
+            "Free cells: $\\mathit{top2} - \\mathit{top1} - 1 = 6 - 2 - 1 = 3$, namely indices 3, 4 and 5.",
+            "Pushing three more onto either stack, in any mix, makes the tops adjacent. A fourth push finds top1 + 1 = top2 and reports overflow."
+          ],
+          "result": "3 more elements fit; the next push overflows."
+        },
+        "misconceptions": [
+          "Overflow of one stack does not mean the array is full; with fixed halves it can overflow while the other half is empty, which is why the shared layout exists.",
+          "The full test is not top1 == top2; the tops are adjacent one step earlier, when top1 + 1 equals top2."
+        ],
+        "recall": [
+          {
+            "q": "Where do the two stacks start in an array of size $N$?",
+            "a": "Stack 1 at index 0 growing up (top1 starts at $-1$), stack 2 at index $N-1$ growing down (top2 starts at $N$)."
+          },
+          {
+            "q": "What condition means the shared array is full?",
+            "a": "$\\mathit{top1} + 1 = \\mathit{top2}$."
+          },
+          {
+            "q": "Why is this better than giving each stack half of the array?",
+            "a": "One stack can use all the space the other does not need, so overflow happens only when the whole array is used."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Two stacks share an array of 12 cells in the grow-toward-each-other layout. Stack 1 holds 7 elements and stack 2 holds 2. How many more elements can be pushed onto stack 1 alone before it overflows?",
+          "answer": 3,
+          "explanation": "top1 $= 6$ and top2 $= 12-2 = 10$, so the free cells are $10-6-1 = 3$. Stack 1 can use all of them. The tempting answer 6 comes from the fixed-halves layout, where stack 1 would already have overflowed, since it is limited to 6 cells in total."
+        },
+        "summary": "Two stacks grow from opposite ends of one array and overflow only when $\\mathit{top1}+1 = \\mathit{top2}$, so all free cells are usable by either stack."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.stack-permutations",
+      "title": "Valid pop sequences (stack permutations)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        319
+      ],
+      "points": [
+        "When 1, 2, …, n are pushed in that order with pops interleaved anywhere, a sequence is a valid output exactly when it can be produced by this greedy check: for each output x, push inputs until x is on top, then x must be the top; otherwise the sequence is impossible.",
+        "Equivalent pattern test: an output is invalid exactly when it contains three values x, y, z in that order with y < z < x (a large value, then a smaller one, then one in between). Put differently, once x is popped, the smaller values still inside must come out in decreasing order.",
+        "Example: 3, 1, 2, 4 is impossible because after 3 is popped the stack holds 1 under 2, so 2 must leave before 1.",
+        "The number of valid outputs for n inputs is the Catalan number C(2n, n)/(n + 1): 1, 2, 5, 14, 42 for n = 1 to 5."
+      ],
+      "keyTerms": [
+        "stack permutation",
+        "Catalan number"
+      ],
+      "lesson": {
+        "why": "Asking whether an output order can come from a stack is a repeated exam form, and it is settled by a short simulation rather than by guessing.",
+        "intro": "Suppose the numbers 1, 2, 3, ... are offered in that fixed order. For each number you may either push it onto a stack or, if the stack is not empty, pop the top and send it to the output. Different choices produce different output orders, and an order that some sequence of pushes and pops can produce is called a valid output. Because only the top can leave, you cannot always send out a number you want: it may be buried under others.",
+        "definitions": [
+          {
+            "term": "Valid output",
+            "meaning": "An ordering of the inputs that some sequence of pushes and pops can produce."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.stack"
+        ],
+        "principle": {
+          "text": "To check an output, take its numbers one at a time. Push the inputs in order until the wanted number is on top, then pop it. If the wanted number is already inside but not on top, the output is impossible.",
+          "tex": "\\text{number of valid outputs for } n \\text{ inputs} = \\frac{1}{n+1}\\binom{2n}{n}"
+        },
+        "limits": "The check assumes the inputs arrive in increasing order and that every input is eventually used. With a second container, such as the stack and queue pair of some questions, the output is no longer one stack's output and must be split into a decreasing run and an increasing run. With a stack and a queue side by side, the output is the stack's elements in decreasing order followed by the queue's in increasing order.",
+        "example": {
+          "problem": "Inputs 1, 2, 3, 4 arrive in order. Can the output be 3, 1, 4, 2?",
+          "steps": [
+            "The first output is 3: push 1, 2, 3 and pop 3. The stack is 1, 2 with 2 on top.",
+            "The next output is 1, but 1 lies under 2, and 2 has not been output. 1 cannot be on top, so the output fails here.",
+            "Pattern check: 3, then 1, then 2 is a large value, a smaller one, then one in between, which is the forbidden shape."
+          ],
+          "result": "3, 1, 4, 2 is not a valid output."
+        },
+        "misconceptions": [
+          "Having every number appear once is not enough; 3, 1, 2 looks harmless but is invalid because 2 is above 1 when 3 leaves.",
+          "A number can be popped as soon as it is pushed, so 1, 2, 3 and 3, 2, 1 are both valid."
+        ],
+        "recall": [
+          {
+            "q": "State the pattern that makes a stack output invalid.",
+            "a": "Three values x, y, z appearing in that order with y < z < x."
+          },
+          {
+            "q": "How many valid outputs exist for 5 inputs?",
+            "a": "42, the Catalan number $\\frac{1}{6}\\binom{10}{5}$."
+          },
+          {
+            "q": "After the number x is popped, in what order must the smaller numbers still in the stack leave?",
+            "a": "In decreasing order, since the stack returns the most recently pushed first."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The inputs 1, 2, 3, 4, 5 are pushed in order, with pops allowed at any time. How many valid output orders begin with 3?",
+          "answer": 9,
+          "explanation": "Popping 3 first requires pushing 1, 2, 3, leaving 1 and 2 inside with 2 on top. So 2 must come before 1 among those, while 4 and 5 can still be pushed and popped in any valid way around them. Count by the next output after 3. If it is 2, the stack is 1 and the inputs 4, 5 remain: the rest is 1 then 4, 5 in either order (2 ways), or 4 then 1, 5 in either order (2 ways), or 5, 4, 1 (1 way), giving 5. If it is 4, the stack is 1, 2 and 5 remains: 2, 1, 5 or 2, 5, 1 or 5, 2, 1, giving 3. If it is 5, the stack is 1, 2, 4 and the rest is forced as 4, 2, 1, giving 1. The total is 5 + 3 + 1 = 9. The tempting count of 24 treats the remaining four numbers as freely orderable, which ignores that 1 can never precede 2."
+        },
+        "summary": "Simulate: push inputs until the wanted number is on top, then pop it; if it is buried the output is invalid, and n inputs give a Catalan number of valid outputs."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.infix-conversion",
+      "title": "Infix to postfix and prefix conversion",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        24,
+        316,
+        318,
+        320
+      ],
+      "points": [
+        "Scan left to right: an operand goes straight to the output, ( is pushed, and ) pops operators to the output until the matching ( is removed.",
+        "For an incoming operator, first pop every stacked operator of higher precedence, and also those of equal precedence when the incoming operator is left-associative; stop at ( and then push the incoming one.",
+        "Exponentiation ^ is right-associative, so an incoming ^ does not pop a stacked ^: A ^ B ^ C becomes A B C ^ ^, not A B ^ C ^.",
+        "At the end of the input, pop all remaining operators. Example: (A + B) * C − D becomes A B + C * D −, and A + B * C becomes A B C * +.",
+        "Prefix is safest by building the expression tree mentally and reading it root first: (A + B) * C − D has prefix − * + A B C D.",
+        "The operator stack is deepest just before a ) or a low-precedence operator empties it: in a + b * (c − d / e) ^ f − g it holds + * ( − / at once, 5 symbols counting the parenthesis."
+      ],
+      "keyTerms": [
+        "shunting yard",
+        "precedence",
+        "right-associative",
+        "prefix"
+      ],
+      "lesson": {
+        "why": "Converting an expression to postfix or prefix, and sizing the operator stack during the conversion, are two stack exercises you can trace by hand.",
+        "intro": "In infix notation the operator sits between its operands, so brackets and precedence rules are needed to know what to compute first. Postfix writes the operator after its two operands, so no brackets are needed. To convert, scan the expression left to right with a stack for operators. Operands go straight to the output. An operator waits on the stack until an operator that must be applied before it has been output.",
+        "definitions": [
+          {
+            "term": "Precedence",
+            "meaning": "The rank of an operator: higher-ranked operators are applied first, so ^ ranks above * and /, which rank above + and -."
+          },
+          {
+            "term": "Right-associative",
+            "meaning": "Grouping from the right when equal operators repeat, so A ^ B ^ C means A ^ (B ^ C)."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.stack"
+        ],
+        "principle": {
+          "text": "Output operands at once. For an incoming operator, pop stacked operators of higher precedence, and of equal precedence if the incoming one is left-associative, then push it. Push ( and, on ), pop until the matching (. At the end pop everything.",
+          "tex": "\\text{pop } s \\text{ while } \\mathrm{prec}(s) > \\mathrm{prec}(x) \\ \\text{or} \\ \\big(\\mathrm{prec}(s) = \\mathrm{prec}(x) \\text{ and } x \\text{ is left-assoc}\\big)"
+        },
+        "limits": "The rule is for binary operators with known precedence. Unary operators need extra care, and the stack-size question depends on whether the parenthesis is counted as a stacked symbol, so read the question before counting. Prefix conversion is easier from the expression tree than from this scan.",
+        "example": {
+          "problem": "Convert A + B * C - D / E to postfix.",
+          "steps": [
+            "A goes out. + is pushed. B goes out. * outranks +, so it is pushed. C goes out. Output so far: A B C.",
+            "The incoming - pops * (higher) and + (equal, left-associative), giving A B C * +, then - is pushed. D goes out. / outranks -, so it is pushed. E goes out.",
+            "At the end pop / then -. Output: A B C * + D E / -."
+          ],
+          "result": "A B C * + D E / -"
+        },
+        "misconceptions": [
+          "Treating ^ as left-associative turns A ^ B ^ C into A B ^ C ^; it should be A B C ^ ^ because the incoming ^ does not pop an equal ^.",
+          "Operands never change order in the conversion. If an option has B before A for A + B, it is wrong."
+        ],
+        "recall": [
+          {
+            "q": "What happens to an operand during infix to postfix conversion?",
+            "a": "It is written to the output immediately."
+          },
+          {
+            "q": "When does an incoming operator pop an equal-precedence operator on the stack?",
+            "a": "When the operator is left-associative; for the right-associative ^ it does not."
+          },
+          {
+            "q": "What does ) do?",
+            "a": "It pops operators to the output until the matching ( is found, and removes that ( without outputting it."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which is the postfix form of A + B ^ C ^ D, where ^ is right-associative?",
+          "options": [
+            "A B C D ^ ^ +",
+            "A B C ^ D ^ +",
+            "A B + C ^ D ^",
+            "A B C ^ ^ D +"
+          ],
+          "answer": 0,
+          "explanation": "Right associativity groups B ^ (C ^ D), which is B C D ^ ^, and ^ outranks +, so A is added last: A B C D ^ ^ +. Option 1 is the left-associative reading (B ^ C) ^ D, which is the tempting one. Option 2 applies + before the powers, ignoring precedence."
+        },
+        "summary": "Scan left to right, send operands out, hold operators on a stack and pop those of higher precedence (or equal when left-associative) first; ^ is right-associative."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.postfix-evaluation",
+      "title": "Postfix and prefix evaluation, bracket matching",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        316,
+        317,
+        318,
+        319
+      ],
+      "points": [
+        "Read tokens left to right: push each operand; on a binary operator pop the top as the right operand b, then the next as the left operand a, push a op b.",
+        "Order matters for − , / and ^: in 8 2 3 ^ / the ^ gives 2³ = 8 and then / computes 8 / 8 = 1, the earlier operand on the left.",
+        "Prefix is evaluated by the same stack scanned right to left; now the first value popped is the left operand. − * 3 + 4 2 / 8 ^ 2 2 gives 3 × 6 − 8/4 = 16.",
+        "A well-formed postfix string leaves exactly one value on the stack; the stack depth needed equals the maximum number of operands pending at any point.",
+        "Balanced brackets: push each opener, and on each closer pop and check the pair matches; the string is balanced only if no mismatch occurs and the stack ends empty, so ({[]}) passes."
+      ],
+      "keyTerms": [
+        "operand stack",
+        "reverse Polish notation",
+        "balanced parentheses",
+        "prefix evaluation"
+      ],
+      "lesson": {
+        "why": "Evaluating a postfix expression is a short numeric question that is lost by reversing the operands of subtraction or division, so a stack trace is the safe method.",
+        "intro": "Postfix puts each operator after its two operands, so an expression can be computed in one left-to-right pass with a stack. Numbers are pushed. When an operator appears, the two numbers it needs are the two most recently pushed, so take them off, apply the operator and push the result. At the end, one number remains and it is the answer.",
+        "definitions": [
+          {
+            "term": "Postfix (reverse Polish) notation",
+            "meaning": "A way of writing expressions with each operator after its operands, needing no brackets."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.stack",
+          "pds-linear-data-structures.infix-conversion"
+        ],
+        "principle": {
+          "text": "Push operands. On a binary operator, pop the top as the right operand $b$, pop the next as the left operand $a$, and push $a \\mathbin{op} b$. A well-formed expression leaves exactly one value.",
+          "tex": "\\text{push}(a \\mathbin{\\mathrm{op}} b), \\quad b = \\text{first pop}, \\ a = \\text{second pop}"
+        },
+        "limits": "The method assumes every operator is binary and the string is well formed; too few operands at an operator, or more than one value at the end, means the expression is invalid. Prefix is scanned right to left, which swaps which popped value is the left operand.",
+        "example": {
+          "problem": "Evaluate the postfix expression 5 3 2 * + 4 -.",
+          "steps": [
+            "Push 5, 3, 2. The stack is 5, 3, 2 with 2 on top.",
+            "On *, pop 2 and 3, push $3 \\cdot 2 = 6$. The stack is 5, 6. On +, pop 6 and 5, push 11.",
+            "Push 4. On -, pop 4 as the right operand and 11 as the left, push $11 - 4 = 7$."
+          ],
+          "result": "The value is 7."
+        },
+        "misconceptions": [
+          "The first value popped is the right operand. Computing 4 - 11 instead of 11 - 4 reverses the sign.",
+          "The stack does not hold the answer until the whole string is read; stopping after the first operator gives a partial result."
+        ],
+        "recall": [
+          {
+            "q": "Which popped value is the left operand of a binary operator?",
+            "a": "The second one popped, the value that was pushed earlier."
+          },
+          {
+            "q": "What should remain on the stack at the end of a valid postfix string?",
+            "a": "Exactly one value, the result."
+          },
+          {
+            "q": "How is a prefix expression evaluated with the same stack?",
+            "a": "Scan right to left; now the first value popped is the left operand."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Evaluate the postfix expression 100 5 3 - 2 * / 10 +.",
+          "answer": 35,
+          "explanation": "5 3 - gives 2; 2 * gives 4; 100 divided by 4 gives 25; adding 10 gives 35. Reading the / as 4 / 100 reverses the operands, because the quotient is the earlier-pushed 100 over the later 4, not the reverse."
+        },
+        "summary": "Scan left to right, push operands, and on each operator pop right then left operand and push the result; one value must remain."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.queue-circular",
+      "title": "Queues and the circular array",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        24,
+        312,
+        313,
+        317,
+        318,
+        320
+      ],
+      "points": [
+        "A queue is first-in first-out: enqueue at the rear and dequeue at the front, both O(1). A linked queue inserts at the tail and deletes at the head, since deleting the tail of a singly linked list is O(n).",
+        "A plain array queue wastes the cells left behind as front advances; the circular array reuses them by wrapping indices with rear = (rear + 1) mod N.",
+        "front == rear can mean empty or full, so an implementation must break the tie: keep a count of elements, or leave one slot unused.",
+        "Sacrificed-slot convention (front = first element, rear = next free cell): empty when front == rear, full when (rear + 1) mod N == front, size (rear − front + N) mod N, capacity N − 1.",
+        "A circular singly linked list with one pointer to the rear node gives an O(1) queue: the front is rear->next, so enqueue links after rear and moves rear, and dequeue unlinks rear->next. A pointer to the front node cannot reach the rear without an O(n) walk.",
+        "Uses: breadth-first search and level-order traversal, round-robin scheduling, I/O buffers and producer-consumer pipelines."
+      ],
+      "keyTerms": [
+        "FIFO",
+        "circular buffer",
+        "wrap-around",
+        "sacrificed slot",
+        "circular linked list queue"
+      ],
+      "lesson": {
+        "why": "Circular-queue questions give front and rear values and ask for the size, the full test or the next index, and the whole difficulty is the wrap-around arithmetic.",
+        "intro": "A queue serves elements in the order they arrived: new items join at the rear, and the oldest leaves from the front. In an array, front only moves forward, so the cells behind it are wasted. The fix is to treat the array as a ring: when an index passes the last cell, it wraps back to cell 0 using remainder arithmetic. The ring brings a new problem, because front and rear can be equal when the queue is empty and also when it is full.",
+        "analogy": {
+          "text": "People standing at a ticket counter: new arrivals join the back of the line and the person at the front is served next.",
+          "breaksWhen": "A real line can grow as long as the street allows, but a circular queue has a fixed number of cells and refuses new arrivals when they are all used."
+        },
+        "definitions": [
+          {
+            "term": "FIFO",
+            "meaning": "First in, first out: elements leave in the order they entered."
+          },
+          {
+            "term": "Circular buffer",
+            "meaning": "An array used as a ring, with indices advanced modulo its size."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.arrays"
+        ],
+        "principle": {
+          "text": "Advance an index with $(\\text{index}+1) \\bmod N$. To tell full from empty, keep a count or leave one cell unused. With front as the first element and rear as the next free cell and one cell unused, the tests below hold and capacity is $N-1$.",
+          "tex": "\\text{empty: } \\mathit{rear} = \\mathit{front}, \\quad \\text{full: } (\\mathit{rear}+1) \\bmod N = \\mathit{front}, \\quad \\text{size} = (\\mathit{rear}-\\mathit{front}+N) \\bmod N"
+        },
+        "limits": "These tests belong to the sacrificed-slot convention. With a count variable all $N$ cells are usable and full means count equals $N$. If rear is defined as the last element rather than the next free cell, the formulas shift by one, so fix the definition before applying them.",
+        "example": {
+          "problem": "A circular queue has N = 6 cells, front = rear = 0, and one cell is left unused. Four enqueues, one dequeue and two more enqueues are done. Give front, rear and size, then say what a further enqueue does.",
+          "steps": [
+            "Four enqueues move rear from 0 to 4. The dequeue moves front from 0 to 1. Size is $4 - 1 = 3$.",
+            "Two more enqueues move rear to 5 and then to $(5+1) \\bmod 6 = 0$. Now front = 1, rear = 0, and size is $(0 - 1 + 6) \\bmod 6 = 5$.",
+            "A further enqueue tests $(\\mathit{rear}+1) \\bmod 6 = 1 = \\mathit{front}$, which is true, so the queue is full."
+          ],
+          "result": "front = 1, rear = 0, size 5; the next enqueue is rejected as full."
+        },
+        "misconceptions": [
+          "front == rear is not a full test: it is the empty test in the sacrificed-slot convention, and the same equality after N insertions is why a count or spare slot is needed.",
+          "Rear can be numerically smaller than front when the queue holds elements; the size is (rear - front + N) mod N, not rear - front."
+        ],
+        "recall": [
+          {
+            "q": "How does an index wrap around in a circular queue of size $N$?",
+            "a": "It is advanced as $(\\text{index}+1) \\bmod N$."
+          },
+          {
+            "q": "How many elements can the one-cell-unused convention hold?",
+            "a": "$N-1$."
+          },
+          {
+            "q": "Why is front == rear ambiguous without extra information?",
+            "a": "It holds both for an empty queue and for a queue that has just filled every cell."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A circular queue of N = 8 cells uses the convention front = first element, rear = next free cell, one cell unused. If front = 6 and rear = 2, how many elements does it hold?",
+          "answer": 4,
+          "explanation": "Size is $(2 - 6 + 8) \\bmod 8 = 4$: the elements sit in cells 6, 7, 0 and 1. The tempting answer is a negative or zero value from rear - front, which forgets that rear has wrapped past the end of the array."
+        },
+        "summary": "A circular queue wraps indices with mod $N$; with one cell unused, empty is rear = front, full is (rear + 1) mod N = front, and size is (rear - front + N) mod N."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.deque-priority-queue",
+      "title": "Deques, restricted deques and priority queues",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        24,
+        25,
+        313,
+        317,
+        319,
+        320
+      ],
+      "points": [
+        "A deque supports insertion and deletion at both ends in O(1), using a doubly linked list or a circular array with two indices.",
+        "Input-restricted deque: insert at one end only, delete at both. Output-restricted deque: insert at both ends, delete at one end only. Both accept more output orders than a stack.",
+        "With inputs 1, 2, 3, 4, the order 4, 1, 3, 2 is possible from an input-restricted deque (take 4 from the rear, 1 from the front, then 3 and 2) but not from an output-restricted one.",
+        "Sliding-window maximum keeps candidate indices in a deque in decreasing order of value, giving O(n) total for all windows.",
+        "A priority queue removes the highest-priority element first; a binary heap gives O(log n) insert and delete-max and O(1) peek (heaps are covered with trees)."
+      ],
+      "keyTerms": [
+        "deque",
+        "input-restricted",
+        "output-restricted",
+        "monotonic deque",
+        "priority queue"
+      ],
+      "lesson": {
+        "why": "Questions ask which output orders a restricted deque can produce, and they often reward knowing that a deque accepts more orders than a stack. Priority-queue and sliding-window questions reuse the same end-removal ideas.",
+        "intro": "A deque (double-ended queue) is a line where you may add or remove at either end. Two cut-down versions are common. An input-restricted deque lets you insert at one end only but remove from both. An output-restricted deque lets you insert at both ends but remove from one end only. A priority queue is different: it ignores arrival order and always hands back the element with the highest priority, and a binary heap does this in logarithmic time.",
+        "analogy": {
+          "text": "A train siding with a door at each end: cars can be pushed in or pulled out from either side, so you can reorder them more freely than with a one-door siding.",
+          "breaksWhen": "A restricted deque closes one of the doors for insertion or removal, so the freedom is partial, and a priority queue has no doors at all because it picks by priority, not by position."
+        },
+        "definitions": [
+          {
+            "term": "Deque",
+            "meaning": "A sequence with insertion and deletion allowed at both the front and the rear, each in constant time."
+          },
+          {
+            "term": "Input-restricted deque",
+            "meaning": "A deque where insertion happens at one end only, while deletion is allowed at both ends."
+          },
+          {
+            "term": "Output-restricted deque",
+            "meaning": "A deque where deletion happens at one end only, while insertion is allowed at both ends."
+          },
+          {
+            "term": "Priority queue",
+            "meaning": "A container that always removes the element with the highest priority first."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.stack-permutations",
+          "pds-linear-data-structures.queue-circular"
+        ],
+        "principle": {
+          "text": "A stack is a deque restricted at both ends, so every order a stack produces, a restricted deque produces too. To test a target order, simulate: bring in inputs in increasing order until the wanted value sits at an end you may remove from. A binary heap supports insert and delete-max in $O(\\log n)$ and peek in $O(1)$.",
+          "tex": "\\text{deque ends: } O(1), \\qquad \\text{heap insert / delete-max: } O(\\log n), \\qquad \\text{heap peek: } O(1)"
+        },
+        "limits": "The reachable orders are not the same for the two restrictions: some orders come out of one and not the other. A deque gives no ordering by value; only a priority queue does. Heap costs assume the heap is stored as a tree array, which is covered with trees.",
+        "example": {
+          "problem": "Inputs 1, 2, 3, 4 arrive in that order. Can an input-restricted deque produce the output 4, 1, 3, 2, and can an output-restricted deque?",
+          "steps": [
+            "Input-restricted: insert at the rear only. Insert 1, 2, 3, 4, so the deque reads 1 2 3 4 from front to rear.",
+            "Delete at the rear to output 4, then at the front to output 1. The deque now holds 2 3.",
+            "Delete at the rear to output 3, then the last element 2. The output is 4, 1, 3, 2, so this restriction can produce it.",
+            "Output-restricted: only one end can be removed from, and a full enumeration of all moves shows 4, 1, 3, 2 is never reachable."
+          ],
+          "result": "4, 1, 3, 2 is possible from an input-restricted deque and impossible from an output-restricted one."
+        },
+        "misconceptions": [
+          "Treating the two restricted deques as equivalent: for inputs 1, 2, 3, 4 the order 4, 1, 3, 2 comes from the input-restricted one only.",
+          "Thinking a priority queue is a queue that removes in arrival order; it removes the highest priority first, whatever arrived earlier.",
+          "Assuming a deque can produce every permutation: with four inputs, an input-restricted deque misses some of the 24 orders."
+        ],
+        "recall": [
+          {
+            "q": "Which end restrictions define an input-restricted deque?",
+            "a": "Insertion at one end only; deletion at both ends."
+          },
+          {
+            "q": "What is the cost of inserting into a binary-heap priority queue?",
+            "a": "$O(\\log n)$, with $O(1)$ to peek at the top."
+          },
+          {
+            "q": "Can a restricted deque produce every order a stack can?",
+            "a": "Yes. A stack is a deque restricted at both ends, so its orders are a subset."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Inputs 1, 2, 3, 4 arrive in order. Of the 24 possible output orders, how many can an input-restricted deque produce?",
+          "answer": 22,
+          "explanation": "Enumerating every legal insert and delete move gives 22 distinct output orders, against 14 for a stack. The tempting answer 24 assumes a deque is unrestricted; the tempting answer 14 is the stack count, which ignores the extra removal end."
+        },
+        "summary": "A deque works at both ends; input-restricted inserts at one end, output-restricted deletes at one end, and neither covers the same orders. A priority queue removes the highest priority first, in $O(\\log n)$ with a heap."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.stack-queue-design",
+      "title": "Queue from stacks, stack from queues, min-stack",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        319,
+        320
+      ],
+      "points": [
+        "Queue from two stacks: enqueue pushes onto S1; dequeue pops S2, and only when S2 is empty first moves all of S1 into S2. Each element is pushed and popped at most twice, so both operations are O(1) amortized, but one dequeue can cost O(n).",
+        "Stack from two queues: either push costs O(n) (enqueue the new item into the empty queue, move all others behind it, swap) and pop is O(1), or push is O(1) and pop moves n − 1 items to reach the last one.",
+        "Min-stack: keep an auxiliary stack whose top is always the minimum of the main stack; push min(x, current min) with every push and pop both stacks together, so getMin is O(1). The same idea gives an O(1) max."
+      ],
+      "keyTerms": [
+        "amortized cost",
+        "auxiliary stack"
+      ],
+      "lesson": {
+        "why": "Building one structure from another is a direct test of whether you know exactly what each end of a stack and a queue does.",
+        "intro": "A stack hands back the newest item and a queue hands back the oldest. To make a queue out of two stacks, give the first stack all new items. When an item is needed, empty the first stack into the second, one item at a time. That move reverses the order, so the oldest item ends up on top of the second stack and can be popped. Items are moved only when the second stack is empty, which keeps the order correct. A different design keeps a second stack beside the main one so that the smallest item is always known: each time an item is pushed, the second stack also receives the smaller of that item and its own top, and each pop removes from both. The top of the second stack is then the minimum of everything currently in the main stack.",
+        "prerequisites": [
+          "pds-linear-data-structures.stack"
+        ],
+        "analogy": {
+          "text": "Two stacks of plates: pour one onto the other and the order flips, so the plate that was at the bottom is now at the top.",
+          "breaksWhen": "Plates are moved all at once, but here every move is a single pop and push that costs one step."
+        },
+        "definitions": [
+          {
+            "term": "Amortized cost",
+            "meaning": "The total cost of a sequence of operations divided by their number, so one expensive step is paid for by many cheap ones."
+          }
+        ],
+        "principle": {
+          "text": "Enqueue pushes onto the input stack. Dequeue pops the output stack, first moving everything from the input stack when the output stack is empty. Each item is moved at most once, so any n operations cost O(n) in total.",
+          "tex": "\\text{amortized cost per operation} = \\frac{O(n)}{n} = O(1)"
+        },
+        "limits": "A single dequeue can cost O(n), so the O(1) figure is an average over a sequence, not a bound for each call. Moving the items on every dequeue instead of only when the output stack is empty would give wrong order or lose the amortized bound.",
+        "example": {
+          "problem": "Count each push or pop on the two stacks. Run enqueue a, b, c, dequeue, enqueue d, dequeue, dequeue, dequeue.",
+          "steps": [
+            "The three enqueues push a, b, c onto the input stack: 3 operations.",
+            "The first dequeue finds the output stack empty, so it moves c, b, a across (3 pops and 3 pushes) and pops a: 7 operations in all.",
+            "enqueue d is 1 push. The next two dequeues pop b and c from the output stack: 1 operation each.",
+            "The last dequeue finds the output stack empty, moves d across (2 operations) and pops it: 3 operations."
+          ],
+          "result": "The outputs are a, b, c, d in queue order, and the total cost is 3 + 7 + 1 + 1 + 1 + 3 = 16 stack operations for 8 queue operations."
+        },
+        "misconceptions": [
+          "Moving items back from the output stack to the input stack after every dequeue is unnecessary; items move only when the output stack is empty.",
+          "Constant amortized time does not mean every dequeue is constant; the one that triggers a move costs the length of the input stack."
+        ],
+        "recall": [
+          {
+            "q": "When does a dequeue on two stacks move items between them?",
+            "a": "Only when the output stack is empty, and then it moves every item from the input stack."
+          },
+          {
+            "q": "Why does moving between stacks give queue order?",
+            "a": "Moving reverses the order once, so the oldest item, which was at the bottom of the input stack, reaches the top of the output stack."
+          },
+          {
+            "q": "How does a min-stack answer getMin in constant time?",
+            "a": "An auxiliary stack keeps the minimum so far at its top, pushed and popped together with the main stack."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A queue is built from two stacks as described. Starting empty, enqueue 1, 2, 3, 4, dequeue, dequeue, enqueue 5, dequeue, dequeue, dequeue run in order. How many individual stack pushes and pops happen in total?",
+          "answer": 20,
+          "explanation": "The four enqueues cost 4. The first dequeue moves four items (8 operations) and pops one: 9, and the second dequeue pops 1. enqueue 5 costs 1. The next two dequeues pop 3 and 4 from the output stack at cost 1 each, and the last dequeue moves 5 across (2) and pops it (1). The total is 20. Counting only the enqueues and dequeues as one step each gives 10, which hides the cost of the moves."
+        },
+        "summary": "Two stacks make a queue by reversing once, moving only when the output stack is empty; each item moves at most once so the cost is O(1) amortized but O(n) for one dequeue."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.singly-linked-list",
+      "title": "Singly linked list operations and their costs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        24,
+        313,
+        314,
+        317
+      ],
+      "points": [
+        "Each node holds data and a next pointer. Reaching the k-th node takes O(k), and search is O(n) even when the list is sorted, because there is no random access for binary search.",
+        "Insert or delete at the head is O(1). Insert at the tail is O(1) only with a tail pointer; delete at the tail is O(n) even with one, because the new tail must be found by walking.",
+        "A function that changes the head must take Node ** or return the new head; assigning to a plain Node * parameter changes only the local copy.",
+        "Given only a pointer to a non-last node, it can be deleted in O(1) by copying the next node's data into it and unlinking the next node; the trick fails for the last node.",
+        "Merging two sorted lists of lengths m and n takes O(m + n) by relinking nodes, with no extra space."
+      ],
+      "keyTerms": [
+        "head pointer",
+        "tail pointer",
+        "Node **"
+      ],
+      "lesson": {
+        "why": "Several GATE questions ask for the cost of a list operation or for what a short pointer loop does, and both depend on knowing that a node can only be reached by walking.",
+        "intro": "A singly linked list is a chain of nodes. Each node stores a value and one pointer, next, to the node after it, and the last node's next is NULL. A separate pointer called head holds the first node. Unlike an array, the chain has no index: to reach the k-th node you must start at the head and follow next k - 1 times. Putting a node in or taking one out only changes a few pointers, so no items need to shift. To visit every node, start a pointer at head and repeat: while it is not NULL, use the node and move it to its next. On an empty list head is NULL, so the loop body never runs, and following head->next would dereference NULL and crash.",
+        "analogy": {
+          "text": "A treasure hunt where each clue tells you only where the next clue is hidden, so you must collect them in order from the first.",
+          "breaksWhen": "In a treasure hunt you can never find a clue's predecessor, whereas in a list you can find it by starting again from the head, at the cost of a full walk."
+        },
+        "definitions": [
+          {
+            "term": "Head pointer",
+            "meaning": "The variable holding the address of the first node; losing it loses the list."
+          },
+          {
+            "term": "Tail pointer",
+            "meaning": "An optional variable holding the address of the last node, which makes insertion at the end constant time."
+          }
+        ],
+        "principle": {
+          "text": "Insert or delete at the head takes O(1). Anything that needs the node before a given node, or the k-th node, needs a walk from the head, so it takes time proportional to the position reached.",
+          "tex": "T(\\text{reach } k\\text{-th node}) = k - 1 \\text{ pointer steps} = O(k)"
+        },
+        "limits": "A tail pointer makes inserting at the end constant time but does not make deleting the last node constant time, since the new last node must be found by walking. A function that must change the head needs the address of the head pointer, or must return the new head.",
+        "example": {
+          "problem": "A list holds 4, 7, 2, 9. You are given only a pointer p to the node holding 7. Remove 7 from the list.",
+          "steps": [
+            "There is no way to find the node before 7 without the head, so the usual unlink is unavailable.",
+            "Copy the data of p's next node into p: the node now holds 2, and the list reads 4, 2, 2, 9.",
+            "Set p->next to p->next->next, which unlinks the second 2. The list reads 4, 2, 9."
+          ],
+          "result": "The list is 4, 2, 9, obtained in constant time; the trick fails if p is the last node."
+        },
+        "misconceptions": [
+          "Searching a sorted list is not O(log n); with no random access, binary search cannot jump to the middle, so the search is O(n).",
+          "A tail pointer does not make deleting the last node fast; only inserting there."
+        ],
+        "recall": [
+          {
+            "q": "What is the cost of inserting at the head of a singly linked list?",
+            "a": "O(1): set the new node's next to head, then move head to the new node."
+          },
+          {
+            "q": "Why must a function that changes the head take Node ** or return the new head?",
+            "a": "A plain Node * parameter is a copy, so assigning to it changes only the local variable."
+          },
+          {
+            "q": "What is the worst-case cost of inserting n items one by one into a list kept sorted?",
+            "a": "$\\Theta(n^2)$, because each insertion may walk past all earlier items."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A singly linked list of 20 nodes is reachable only through its head pointer. How many next-pointer steps are needed to reach the 8th node, so that a new node can be inserted after it?",
+          "answer": 7,
+          "explanation": "The head already points to node 1, and each step along next moves one node further, so node 8 is reached after 7 steps. The inserting itself then takes two assignments. The tempting answer 8 counts nodes visited instead of steps taken."
+        },
+        "summary": "A singly linked list is reached only by walking from the head, so head operations are O(1) while position-based and tail-deletion operations are O(n)."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.list-reversal",
+      "title": "Reversing a linked list and pointer-rewiring fragments",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        315,
+        317,
+        318,
+        319
+      ],
+      "points": [
+        "Iterative reversal uses three pointers: save next = cur->next, set cur->next = prev, then advance prev = cur and cur = next; at the end prev is the new head. Time O(n), space O(1).",
+        "Recursive reversal also takes O(n) time but O(n) stack space, one frame per node.",
+        "Reversing in groups of k still touches each node a constant number of times, so it is O(n).",
+        "To move the last node to the front, walk with q to the last node and p one behind it, then set p->next = NULL, q->next = head and head = q; the order of these three lines is what GATE fragments test."
+      ],
+      "keyTerms": [
+        "prev, cur, next",
+        "in-place reversal"
+      ],
+      "lesson": {
+        "why": "Pointer-rewiring fragments appear often, and the order of the assignments decides whether the list survives, so the reversal loop is worth knowing by heart.",
+        "intro": "Reversing a singly linked list means turning every next pointer around so the last node becomes the first. The loop uses three pointers. The pointer cur is the node being fixed, prev is the node already reversed behind it, and next is a saved copy of cur's old next. The old next must be saved first, because turning cur->next around would otherwise cut off the rest of the list. After the turn, both pointers advance by one node.",
+        "prerequisites": [
+          "pds-linear-data-structures.singly-linked-list"
+        ],
+        "definitions": [
+          {
+            "term": "In-place",
+            "meaning": "Using only a constant number of extra variables, no matter how long the list is."
+          }
+        ],
+        "principle": {
+          "text": "Each pass does four steps in this fixed order: next = cur->next, cur->next = prev, prev = cur, cur = next. Each node is handled once, so the time is O(n) and the extra space is O(1); the new head is prev when cur becomes NULL.",
+          "tex": "T(n) = \\Theta(n), \\qquad S(n) = O(1)"
+        },
+        "limits": "The recursive version has the same running time but uses O(n) stack space, one frame per node. Running the four steps in another order, for instance turning cur->next before saving it, loses the rest of the list.",
+        "example": {
+          "problem": "Reverse the list 1, 2, 3, 4 with prev starting at NULL and cur at the node 1. Show prev after each pass.",
+          "steps": [
+            "Pass 1: save next = 2, make node 1 point to NULL, then prev = 1 and cur = 2.",
+            "Pass 2: save next = 3, make node 2 point to 1, then prev = 2 and cur = 3.",
+            "Pass 3: save next = 4, make node 3 point to 2, then prev = 3 and cur = 4.",
+            "Pass 4: save next = NULL, make node 4 point to 3, then prev = 4 and cur = NULL, so the loop stops."
+          ],
+          "result": "prev is the node 4, which becomes the head; the list reads 4, 3, 2, 1."
+        },
+        "misconceptions": [
+          "The loop does not need extra memory proportional to n; three pointers are enough, so reversal is possible in O(1) space.",
+          "Reversal cannot be done faster than O(n), because every one of the n - 1 links has to change."
+        ],
+        "recall": [
+          {
+            "q": "Why must next be saved before cur->next is changed?",
+            "a": "Changing cur->next first loses the only pointer to the rest of the list."
+          },
+          {
+            "q": "What is the new head when the loop ends?",
+            "a": "prev, which points at the old last node once cur has become NULL."
+          },
+          {
+            "q": "What are the time and space of recursive reversal?",
+            "a": "O(n) time and O(n) space for the call stack."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A list holds 10, 20, 30, 40, 50, 60 from head to tail. The three-pointer reversal loop with prev = NULL initially runs exactly three passes and stops. What data value does prev point to?",
+          "answer": 30,
+          "explanation": "Each pass moves prev forward by one node: after pass 1 prev is 10, after pass 2 it is 20, and after pass 3 it is 30, while cur is at 40. The value 40 is tempting because it is the node still waiting to be handled, but prev names the last node already turned around."
+        },
+        "summary": "Reverse a list with prev, cur and next in the fixed order save, turn, advance; it takes O(n) time and O(1) space, and prev is the new head."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.runner-technique",
+      "title": "Two-pointer runner technique and Floyd's cycle detection",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        24,
+        315,
+        317,
+        318,
+        320
+      ],
+      "points": [
+        "Slow moves one node per step and fast moves two. If fast or fast->next becomes NULL there is no cycle; otherwise the two meet inside the cycle. Time O(n), extra space O(1).",
+        "With a tail of μ nodes before the loop and a cycle of λ nodes, the first meeting happens after t steps, where t is the smallest positive multiple of λ with t ≥ μ.",
+        "To find the loop start, reset one pointer to the head and advance both one node at a time: they meet at the loop's first node after exactly μ steps, because μ + k is a multiple of λ when the meeting point is k nodes into the loop.",
+        "The same two speeds find the middle in one pass. On n nodes (0-based), while (fast && fast->next) leaves slow at index ⌊n/2⌋, the second middle when n is even; while (fast->next && fast->next->next) leaves it at ⌊(n − 1)/2⌋, the first middle.",
+        "Two pointers kept k nodes apart find the k-th node from the end in one pass."
+      ],
+      "keyTerms": [
+        "tortoise and hare",
+        "loop start",
+        "middle node"
+      ],
+      "lesson": {
+        "why": "Linked-list questions on cycle detection, loop start and middle node are answered by the same slow and fast pointers. The exam asks where they meet, how many steps it takes, or what a loop returns.",
+        "intro": "A runner technique walks two pointers over a linked list at different speeds. The slow pointer moves one node per step and the fast pointer moves two. On a list that ends, fast reaches the end first and you know there is no cycle. On a list whose last node links back into an earlier node, both pointers end up circling in the loop and fast eventually lands on the same node as slow. The part before the loop has $\\mu$ nodes and the loop itself has $\\lambda$ nodes.",
+        "analogy": {
+          "text": "Two runners on a track with a straight lead-in: the faster runner laps the slower one only if the track is a closed loop.",
+          "breaksWhen": "Runners move continuously and can meet between marks, but the pointers jump node to node, so the meeting must happen exactly on a node."
+        },
+        "definitions": [
+          {
+            "term": "Tortoise and hare",
+            "meaning": "The slow pointer (one node per step) and the fast pointer (two nodes per step)."
+          },
+          {
+            "term": "Loop start",
+            "meaning": "The first node of the cycle, reached from outside the cycle."
+          },
+          {
+            "term": "Middle node",
+            "meaning": "The node slow points to when fast reaches the end of the list. With while (fast && fast->next) slow stops at index ⌊n/2⌋ (second middle for even n); with while (fast->next && fast->next->next) it stops at ⌊(n − 1)/2⌋ (first middle). For 4 nodes, the first test leaves slow at index 2 and the second at index 1."
+          }
+        ],
+        "prerequisites": [
+          "pds-linear-data-structures.singly-linked-list"
+        ],
+        "principle": {
+          "text": "With a tail of $\\mu$ nodes and a loop of $\\lambda$ nodes, the pointers first meet after $t$ steps, where $t$ is the smallest positive multiple of $\\lambda$ with $t \\ge \\mu$. Resetting one pointer to the head and moving both one node at a time makes them meet at the loop start after $\\mu$ steps. The scan takes $O(n)$ time and $O(1)$ extra space.",
+          "tex": "t = \\lambda \\left\\lceil \\mu / \\lambda \\right\\rceil \\quad (\\mu \\ge 1), \\qquad \\text{loop start reached after } \\mu \\text{ more steps}"
+        },
+        "limits": "The meeting count formula needs a cycle to exist; with no cycle fast hits NULL and there is no meeting. The middle-node result depends on the loop condition: for an even number of nodes, one test leaves slow on the second middle and the other on the first. If $\\mu = 0$ the list is a pure cycle and they meet after $\\lambda$ steps.",
+        "example": {
+          "problem": "A list has 7 nodes numbered 0 to 6 from the head, and node 6 points back to node 3. Slow and fast both start at node 0. After how many steps do they meet, and how many steps from the head finds the loop start?",
+          "steps": [
+            "The tail has $\\mu = 3$ nodes (0, 1, 2) and the loop has $\\lambda = 4$ nodes (3, 4, 5, 6).",
+            "The meeting step is the smallest positive multiple of 4 that is at least 3, which is 4. Slow is then at node 4 and fast, having moved 8 nodes, is also at node 4.",
+            "Reset one pointer to node 0 and move both one node per step. After 3 steps both are at node 3, the loop start."
+          ],
+          "result": "They meet after 4 steps at node 4, and the loop start (node 3) is found after 3 more steps."
+        },
+        "misconceptions": [
+          "Believing they meet at the loop start: they meet some nodes inside the loop, and only the reset-to-head walk reaches the loop start.",
+          "Assuming the meeting time is $\\mu$: it is the first multiple of $\\lambda$ that is at least $\\mu$, which can be larger.",
+          "Mixing up the two middle-node loop tests: on an even node count they stop on different middle nodes."
+        ],
+        "recall": [
+          {
+            "q": "How fast do slow and fast move in Floyd's cycle detection?",
+            "a": "Slow moves one node per step and fast moves two nodes per step."
+          },
+          {
+            "q": "How is the loop start found after the first meeting?",
+            "a": "Reset one pointer to the head and move both one node per step. They meet at the loop start after $\\mu$ steps."
+          },
+          {
+            "q": "What are the time and extra space of this method?",
+            "a": "$O(n)$ time and $O(1)$ extra space."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A singly linked list has a tail of 5 nodes before a loop of 3 nodes. Slow moves one node per step and fast two, both starting at the head. After how many steps do they first meet?",
+          "answer": 6,
+          "explanation": "The meeting step is the smallest positive multiple of the loop length 3 that is at least the tail length 5, which is 6; a simulation of both pointers confirms they meet at step 6. The tempting answers are 5, the tail length, and 3, the loop length, each of which ignores one of the two conditions."
+        },
+        "summary": "Slow and fast pointers detect a cycle in $O(n)$ time and $O(1)$ space; they meet after the first multiple of $\\lambda$ that is at least $\\mu$, and a reset-to-head walk of $\\mu$ steps finds the loop start."
+      }
+    },
+    {
+      "id": "pds-linear-data-structures.doubly-circular-lists",
+      "title": "Doubly linked and circular linked lists",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        24,
+        315,
+        316,
+        320
+      ],
+      "points": [
+        "A doubly linked node carries prev and next, so deleting a node given a pointer to it is O(1): p->prev->next = p->next and p->next->prev = p->prev, checking for NULL ends.",
+        "Inserting q after p takes four assignments in a safe order: q->next = p->next, q->prev = p, then p->next->prev = q (if p->next exists), and last p->next = q. Overwriting p->next first loses the rest of the list.",
+        "The cost is one extra pointer per node and more pointer updates on every insertion and deletion.",
+        "In a circular list the last node points back to the first. Keeping only a pointer to the last node gives O(1) access to both ends, which suits round-robin scheduling and ring buffers.",
+        "Traversal of a circular list must stop when it returns to the start node rather than on NULL, or it loops forever."
+      ],
+      "keyTerms": [
+        "prev pointer",
+        "circular list",
+        "sentinel"
+      ],
+      "lesson": {
+        "why": "Questions here compare the cost of deleting from singly and doubly linked lists, or ask how a circular queue must be linked; both come down to which pointers a node carries.",
+        "intro": "A doubly linked list stores two pointers in every node: next to the node after it and prev to the node before it. With prev, a node can reach its predecessor in one step, so a node can be removed when you hold only a pointer to it. In a circular list the last node points back to the first instead of holding NULL, so the chain forms a ring with no end marker. Walking such a ring must stop on returning to the start, not on NULL. A queue kept in a circular singly linked list holds two pointers, FRONT to the node that leaves next and REAR to the node that joined last. Because REAR->next is FRONT, both ends are reached in one step, so enqueue after REAR and dequeue at FRONT are each O(1).",
+        "prerequisites": [
+          "pds-linear-data-structures.singly-linked-list"
+        ],
+        "analogy": {
+          "text": "A doubly linked list is a train with a coupling at both ends of each carriage; a circular list is a model train track where the last carriage is coupled to the first.",
+          "breaksWhen": "A real carriage is coupled mechanically, but a node's two pointers are separate values and can become inconsistent if one is updated and the other is not."
+        },
+        "principle": {
+          "text": "With prev and next, deleting a node needs two assignments, p->prev->next = p->next and p->next->prev = p->prev. Inserting q after p needs four, and p->next must be changed last, because q->next = p->next and p->next->prev = q both read the old value of it.",
+          "tex": "T_{\\text{delete}}(p) = O(1) \\text{ (doubly)}, \\qquad O(n) \\text{ (singly, predecessor by walking)}"
+        },
+        "limits": "The saving costs one extra pointer in every node and more assignments per update. At the ends of the list, p->prev or p->next may be NULL and those assignments must be skipped.",
+        "example": {
+          "problem": "A doubly linked list reads A, B, C. Insert a node q between A and B, with p pointing to A.",
+          "steps": [
+            "Set q->next = p->next, so q points on to B.",
+            "Set q->prev = p, so q points back to A.",
+            "Set p->next->prev = q: B's prev, still reached through p->next, now names q.",
+            "Set p->next = q last, so A points forward to q."
+          ],
+          "result": "The list reads A, q, B, C in both directions."
+        },
+        "misconceptions": [
+          "Setting p->next = q early breaks the later assignments, because p->next->prev would then refer to q itself and B would never be updated.",
+          "Deleting a given node of a singly linked list is not always constant time: copying the next node's data into it is O(1) but fails for the last node, which needs a walk to its predecessor, so the worst case is O(n)."
+        ],
+        "recall": [
+          {
+            "q": "Why is deleting a given node O(1) in a doubly linked list?",
+            "a": "Its prev pointer gives the predecessor directly, so no walk is needed."
+          },
+          {
+            "q": "In a circular singly linked queue with FRONT and REAR pointers, which link must hold?",
+            "a": "The rear node's next points to the front node."
+          },
+          {
+            "q": "How do you stop traversing a circular list?",
+            "a": "Stop when the walk returns to the starting node, since no next pointer is NULL."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The doubly linked list A, B, C has p pointing to A. A new node q must be inserted after A using four assignments: (a) q->next = p->next, (b) q->prev = p, (c) p->next->prev = q, (d) p->next = q. Which order leaves both the forward and backward chains correct?",
+          "options": [
+            "d, a, b, c",
+            "c, d, a, b",
+            "a, b, c, d",
+            "b, d, c, a"
+          ],
+          "answer": 2,
+          "explanation": "Running (a), (b), (c) while p->next still names B and then (d) last gives A, q, B, C in both directions; a simulation of the four orders confirms only this one works. In the orders that run (d) early, p->next is q, so (a) makes q point to itself or (c) updates q's own prev, and B is never linked back to q. The order d, a, b, c looks tidy because the main forward link is made first."
+        },
+        "summary": "A prev pointer makes deletion O(1) and insertion four ordered assignments with p->next changed last; a circular list links the rear back to the front and ends a walk at the start node."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "pds-linear-data-structures.row-major-address",
+      "name": "Row-major address of A[i][j]",
+      "tex": "\\mathrm{Addr}(A[i][j]) = B + \\big((i - l_1)\\,n + (j - l_2)\\big)\\,w",
+      "text": "Addr(A[i][j]) = B + ((i − l₁)·n + (j − l₂))·w",
+      "where": [
+        [
+          "B",
+          "base address of the first element"
+        ],
+        [
+          "l₁, l₂",
+          "lower bounds of the row and column indices"
+        ],
+        [
+          "n",
+          "number of columns, u₂ − l₂ + 1"
+        ],
+        [
+          "w",
+          "bytes per element"
+        ]
+      ],
+      "note": "C arrays are row-major with zero lower bounds. The classic trap is a negative lower bound: subtract it, do not ignore it.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.column-major-address",
+      "name": "Column-major address of A[i][j]",
+      "tex": "\\mathrm{Addr}(A[i][j]) = B + \\big((j - l_2)\\,m + (i - l_1)\\big)\\,w",
+      "text": "Addr(A[i][j]) = B + ((j − l₂)·m + (i − l₁))·w",
+      "where": [
+        [
+          "m",
+          "number of rows, u₁ − l₁ + 1"
+        ]
+      ],
+      "note": "Multiply the column offset by the number of rows, not the number of columns.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.lower-triangular-address",
+      "name": "Lower-triangular matrix, row-major, 1-indexed",
+      "tex": "\\mathrm{Addr}(a_{ij}) = B + \\left(\\frac{i(i-1)}{2} + j - 1\\right) w, \\quad j \\le i",
+      "text": "Addr(a[i][j]) = B + (i(i − 1)/2 + j − 1)·w for j ≤ i",
+      "where": [
+        [
+          "i(i − 1)/2",
+          "entries stored in rows 1 to i − 1"
+        ]
+      ],
+      "note": "Total storage is n(n + 1)/2 elements. For 0-indexed arrays use i(i + 1)/2 + j.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.upper-triangular-address",
+      "name": "Upper-triangular matrix, row-major, 1-indexed",
+      "tex": "\\mathrm{Addr}(a_{ij}) = B + \\left((i-1)\\,n - \\frac{(i-1)(i-2)}{2} + (j - i)\\right) w, \\quad j \\ge i",
+      "text": "Addr(a[i][j]) = B + ((i − 1)n − (i − 1)(i − 2)/2 + (j − i))·w for j ≥ i",
+      "where": [
+        [
+          "n",
+          "order of the square matrix"
+        ],
+        [
+          "(i − 1)n − (i − 1)(i − 2)/2",
+          "entries in rows 1 to i − 1, which hold n, n − 1, …, n − i + 2"
+        ]
+      ],
+      "note": "Swapping i and j gives the column-major lower triangle. Row 1 holds n entries, not 1: do not reuse the lower-triangle formula i(i − 1)/2.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.three-d-address",
+      "name": "Row-major address of A[i][j][k] with lower bounds",
+      "tex": "\\mathrm{Addr}(A[i][j][k]) = B + \\Big(\\big((i - l_1)\\,n_2 + (j - l_2)\\big)\\,n_3 + (k - l_3)\\Big)\\,w",
+      "text": "Addr(A[i][j][k]) = B + (((i − l₁)·n₂ + (j − l₂))·n₃ + (k − l₃))·w",
+      "where": [
+        [
+          "l₁, l₂, l₃",
+          "lower bounds of the three indices"
+        ],
+        [
+          "n₂, n₃",
+          "sizes u₂ − l₂ + 1 and u₃ − l₃ + 1 of the last two dimensions"
+        ],
+        [
+          "w",
+          "bytes per element"
+        ]
+      ],
+      "note": "The size of the first dimension never enters a row-major address. Column-major order reverses the roles: the first index varies fastest.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.circular-queue-index",
+      "name": "Circular queue index wrap",
+      "tex": "\\mathit{rear} \\leftarrow (\\mathit{rear} + 1) \\bmod N, \\qquad \\mathit{front} \\leftarrow (\\mathit{front} + 1) \\bmod N",
+      "text": "rear ← (rear + 1) mod N, front ← (front + 1) mod N",
+      "where": [
+        [
+          "N",
+          "array size"
+        ]
+      ],
+      "note": "front == rear alone cannot tell empty from full; keep a count or sacrifice a slot.",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "pages": [
+        313,
+        317
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.circular-queue-full",
+      "name": "Circular queue full, empty and size (one slot unused)",
+      "tex": "\\text{full: } (\\mathit{rear}+1) \\bmod N = \\mathit{front}, \\quad \\text{empty: } \\mathit{rear} = \\mathit{front}, \\quad \\text{size} = (\\mathit{rear} - \\mathit{front} + N) \\bmod N",
+      "text": "full: (rear + 1) mod N = front; empty: rear = front; size = (rear − front + N) mod N",
+      "where": [
+        [
+          "front",
+          "index of the first element"
+        ],
+        [
+          "rear",
+          "index of the next free cell"
+        ]
+      ],
+      "note": "This convention stores at most N − 1 elements. With a count variable instead, all N cells are usable and full means count == N.",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.catalan-stack-permutations",
+      "name": "Number of stack permutations of n inputs",
+      "tex": "C_n = \\frac{1}{n+1}\\binom{2n}{n}",
+      "text": "Cₙ = C(2n, n)/(n + 1)",
+      "where": [
+        [
+          "n",
+          "number of inputs pushed in a fixed order"
+        ]
+      ],
+      "note": "C₃ = 5, C₄ = 14, C₅ = 42. The same number counts binary trees with n nodes and balanced strings of n bracket pairs.",
+      "topic": "pds-linear-data-structures.stack-permutations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.doubling-copies",
+      "name": "Copies made by a doubling dynamic array",
+      "tex": "\\sum_{k=0}^{\\lfloor \\log_2 (n-1) \\rfloor} 2^k < 2n",
+      "text": "1 + 2 + 4 + … + 2^⌊log₂(n − 1)⌋ < 2n copies over n appends",
+      "where": [
+        [
+          "n",
+          "number of appends starting from capacity 1, n ≥ 2"
+        ]
+      ],
+      "note": "For n = 1 no copy is made. Total work is O(n), so each append is O(1) amortized. Growing by a fixed amount c instead costs O(n²/c) in total.",
+      "topic": "pds-linear-data-structures.arrays",
+      "origin": "source",
+      "pages": [
+        311
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.floyd-meeting",
+      "name": "Floyd's first meeting time",
+      "tex": "t = \\lambda \\cdot \\max\\!\\left(1, \\left\\lceil \\frac{\\mu}{\\lambda} \\right\\rceil\\right)",
+      "text": "t = λ · max(1, ⌈μ/λ⌉)",
+      "where": [
+        [
+          "μ",
+          "nodes before the first node of the loop"
+        ],
+        [
+          "λ",
+          "nodes in the loop"
+        ],
+        [
+          "t",
+          "steps of the slow pointer until the first meeting"
+        ]
+      ],
+      "note": "After the meeting, resetting one pointer to the head and stepping both by one reaches the loop start after exactly μ steps.",
+      "topic": "pds-linear-data-structures.runner-technique",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "pds-linear-data-structures.cx-array-access",
+      "name": "Array: access by index / search unsorted / insert or delete at k",
+      "worst": "O(1) / O(n) / O(n)",
+      "space": "O(n)",
+      "notes": "Insertion or deletion shifts every later element; at the end it is O(1).",
+      "topic": "pds-linear-data-structures.arrays",
+      "origin": "source",
+      "pages": [
+        24,
+        311
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-dynamic-append",
+      "name": "Dynamic array append (capacity doubling)",
+      "average": "O(1) amortized",
+      "worst": "O(n)",
+      "notes": "The O(n) step happens only when a resize copies all elements.",
+      "topic": "pds-linear-data-structures.arrays",
+      "origin": "source",
+      "pages": [
+        311
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-stack-ops",
+      "name": "Stack push / pop / peek (array or head of list)",
+      "worst": "O(1)",
+      "space": "O(n)",
+      "topic": "pds-linear-data-structures.stack",
+      "origin": "source",
+      "pages": [
+        24,
+        311
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-queue-ops",
+      "name": "Queue enqueue / dequeue (circular array or list with tail)",
+      "worst": "O(1)",
+      "space": "O(n)",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "pages": [
+        24,
+        312,
+        313
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-deque-ops",
+      "name": "Deque insert or delete at either end",
+      "worst": "O(1)",
+      "notes": "Needs a doubly linked list or a circular array.",
+      "topic": "pds-linear-data-structures.deque-priority-queue",
+      "origin": "source",
+      "pages": [
+        313,
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-queue-two-stacks",
+      "name": "Queue built from two stacks",
+      "average": "O(1) amortized per operation",
+      "worst": "O(n) for one dequeue",
+      "space": "O(n)",
+      "topic": "pds-linear-data-structures.stack-queue-design",
+      "origin": "source",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-stack-two-queues",
+      "name": "Stack built from two queues",
+      "worst": "O(n) for push or for pop, O(1) for the other",
+      "topic": "pds-linear-data-structures.stack-queue-design",
+      "origin": "source",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-sll-head",
+      "name": "Singly linked list: insert or delete at head",
+      "worst": "O(1)",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "source",
+      "pages": [
+        314
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-sll-tail",
+      "name": "Singly linked list: insert at tail / delete at tail",
+      "worst": "O(1) with tail pointer / O(n)",
+      "notes": "Without a tail pointer insertion is O(n) too. Deletion needs the second-last node, so a tail pointer does not help.",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "source",
+      "pages": [
+        314
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-sll-search",
+      "name": "Linked list: access k-th node / search",
+      "worst": "O(k) / O(n)",
+      "notes": "Still O(n) for a sorted list: binary search needs random access.",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "source",
+      "pages": [
+        314,
+        318
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-dll-delete",
+      "name": "Doubly linked list: delete or insert given a node pointer",
+      "worst": "O(1)",
+      "notes": "A singly linked list needs O(n) to find the predecessor, unless the data-copy trick applies to a non-last node.",
+      "topic": "pds-linear-data-structures.doubly-circular-lists",
+      "origin": "source",
+      "pages": [
+        24,
+        315,
+        319,
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-reverse",
+      "name": "Reverse a singly linked list",
+      "worst": "O(n)",
+      "space": "O(1) iterative, O(n) recursive",
+      "topic": "pds-linear-data-structures.list-reversal",
+      "origin": "source",
+      "pages": [
+        315,
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-floyd",
+      "name": "Floyd's cycle detection and loop start",
+      "worst": "O(n)",
+      "space": "O(1)",
+      "notes": "A visited-set approach is also O(n) time but needs O(n) space.",
+      "topic": "pds-linear-data-structures.runner-technique",
+      "origin": "source",
+      "pages": [
+        315,
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.cx-merge-sorted",
+      "name": "Merge two sorted linked lists",
+      "worst": "O(m + n)",
+      "space": "O(1) extra",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "pds-linear-data-structures.pt-pop-sequence",
+      "title": "Which output sequence is impossible from a stack or a restricted deque",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Simulate each option: keep the next input value and the current container contents.",
+        "For each wanted output, push inputs until it appears at an end you are allowed to remove from.",
+        "If the wanted value is buried, the option is impossible; stop and move to the next option."
+      ],
+      "trap": "Judging by the pattern of numbers instead of simulating; for deques, mixing up which end the restriction applies to.",
+      "topic": "pds-linear-data-structures.stack-permutations",
+      "origin": "source",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-infix-postfix",
+      "title": "Convert infix to postfix or prefix",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Parenthesize fully by precedence: ^ binds tightest and groups right to left; * and / next, left to right; + and − last, left to right.",
+        "For postfix, write each bracketed group as left right operator, innermost first; for prefix, write operator left right.",
+        "Check the answer has every operand in the original order: conversion never reorders operands.",
+        "For the largest operator-stack size, run the stack algorithm itself and record the depth just before each pop, counting ( if the question does."
+      ],
+      "trap": "Treating ^ as left-associative, which turns A ^ B ^ C into A B ^ C ^.",
+      "topic": "pds-linear-data-structures.infix-conversion",
+      "origin": "source",
+      "pages": [
+        316,
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-postfix-eval",
+      "title": "Evaluate a postfix or prefix expression",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Write the stack contents after every token.",
+        "On an operator, the top is the right operand and the one below it the left operand.",
+        "The single value left at the end is the answer.",
+        "For prefix, scan right to left with the same stack; the first value popped is now the left operand."
+      ],
+      "trap": "Reversing the operands of − or /, for example computing 8 − 2 as 2 − 8.",
+      "topic": "pds-linear-data-structures.postfix-evaluation",
+      "origin": "source",
+      "pages": [
+        316,
+        318,
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-circular-queue",
+      "title": "Circular-queue conditions and index traces",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Fix the convention first: what front and rear point to, and whether a count is kept or a slot sacrificed.",
+        "Apply each operation with mod N arithmetic and record front, rear and the size.",
+        "Derive the full and empty tests from the convention, then compare with the options."
+      ],
+      "trap": "Using front == rear as the full test when it is also the empty test.",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "pages": [
+        313,
+        318,
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-list-code",
+      "title": "Trace a C fragment that rewires linked-list pointers",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Draw three or four boxes with arrows and name the pointer variables beside them.",
+        "Execute each assignment in order, redrawing the one arrow it changes.",
+        "Check the edge cases the code must handle: empty list, single node, last node."
+      ],
+      "trap": "Overwriting a next pointer before saving the node it pointed to, which loses the rest of the list.",
+      "topic": "pds-linear-data-structures.list-reversal",
+      "origin": "source",
+      "pages": [
+        314,
+        315
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-operation-cost",
+      "title": "Worst-case cost of an operation under a given representation",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Identify which pointers exist: head only, head and tail, singly or doubly linked, circular.",
+        "Ask what the operation must locate (predecessor, k-th node, new tail) and how far the walk is.",
+        "An operation is O(1) only if every node it touches is reachable from a stored pointer in a constant number of steps."
+      ],
+      "trap": "Assuming a tail pointer makes deleting the last node of a singly linked list O(1).",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "source",
+      "pages": [
+        314,
+        315,
+        321
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.pt-array-address",
+      "title": "Address of an element in a multi-dimensional or triangular array",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Count rows and columns from the bounds: u − l + 1 each.",
+        "Count how many elements precede the target in storage order (row-major or column-major).",
+        "Multiply by the element size and add the base address."
+      ],
+      "trap": "Forgetting to subtract a negative lower bound, or multiplying by the wrong dimension in column-major order.",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "pds-linear-data-structures.q-invalid-pop-sequence",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The values 1, 2, 3, 4 are pushed onto an empty stack in that order, and a pop may be performed at any time. Which of the following cannot be the order in which the values are popped?",
+      "options": [
+        "3, 4, 2, 1",
+        "2, 1, 4, 3",
+        "4, 3, 2, 1",
+        "3, 1, 2, 4"
+      ],
+      "answer": 3,
+      "explanation": "Simulate each. 3, 4, 2, 1: push 1, 2, 3, pop 3; push 4, pop 4; pop 2, pop 1. Valid. 2, 1, 4, 3: push 1, 2, pop 2, pop 1; push 3, 4, pop 4, pop 3. Valid. 4, 3, 2, 1: push all, pop all. Valid. 3, 1, 2, 4: after pushing 1, 2, 3 and popping 3 the stack holds 1 under 2, so the next pop gives 2, not 1. Invalid.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.stack-permutations",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2018) — Stack ops",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-catalan-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The integers 1, 2, 3, 4, 5 are pushed onto a stack in this order, with pops allowed at any time, until all five have been popped. How many distinct pop orders are possible?",
+      "answer": 42,
+      "explanation": "The number of stack permutations of n inputs is the Catalan number C(2n, n)/(n + 1). For n = 5 this is 252/6 = 42. A brute-force check over all 120 permutations of 1 to 5 confirms exactly 42 pass the stack simulation.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.stack-permutations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-postfix-eval",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Evaluate the postfix expression 8 2 3 ^ / 2 3 * + 5 1 * − where ^ is exponentiation and all operators are binary.",
+      "answer": 2,
+      "explanation": "Stack trace: 8 → 8 2 → 8 2 3 → ^ gives 2³ = 8: 8 8 → / gives 8/8 = 1: 1 → 1 2 3 → * gives 6: 1 6 → + gives 7 → 7 5 1 → * gives 5: 7 5 → − gives 7 − 5 = 2. The result is 2.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.postfix-evaluation",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Postfix",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-infix-right-assoc",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "With the usual precedence (^ highest and right-associative, then * and /, then + and −, all left-associative), what is the postfix form of A + B * C ^ D ^ E − F?",
+      "options": [
+        "A B C D E ^ ^ * + F −",
+        "A B C D ^ E ^ * + F −",
+        "A B C D E ^ ^ * F − +",
+        "A B + C D E ^ ^ * F −"
+      ],
+      "answer": 0,
+      "explanation": "Fully parenthesized: (A + (B * (C ^ (D ^ E)))) − F. Postfix of D ^ E is D E ^, then C D E ^ ^, then B C D E ^ ^ *, then A B C D E ^ ^ * +, and finally F − is appended. Option B treats ^ as left-associative, option C groups + after −, and option D applies + before *.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.infix-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-pre-post-forms",
+      "type": "msq",
+      "marks": 1,
+      "stem": "For the infix expression (A + B) * C − D, which of the following statements are correct?",
+      "options": [
+        "Its postfix form is A B + C * D −",
+        "Its prefix form is − * + A B C D",
+        "Its postfix form is A B C + * D −",
+        "Its prefix form is * + A B − C D"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "The expression is ((A + B) * C) − D. Postfix: A B + then C * then D −, giving A B + C * D −. Prefix: − applied to (* (+ A B) C) and D, giving − * + A B C D. A B C + * D − would mean A * (B + C) − D, and * + A B − C D would mean (A + B) * (C − D).",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.infix-conversion",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2020) — Infix to postfix",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-circular-queue-trace",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A circular queue in an array q[0..4] keeps a count. Initially front = rear = −1 and count = 0. enqueue(x): if count == 0 set front = rear = 0, else rear = (rear + 1) mod 5; then q[rear] = x and count++. dequeue(): read q[front]; if count == 1 set front = rear = −1, else front = (front + 1) mod 5; then count−−. The operations enqueue 10, 20, 30, 40, then dequeue twice, then enqueue 50, 60, 70 are performed. What is the final value of rear?",
+      "answer": 1,
+      "explanation": "Enqueue 10, 20, 30, 40 fills indices 0 to 3: front = 0, rear = 3, count = 4. Two dequeues move front to 2, count = 2. Enqueue 50 goes to index 4, 60 wraps to (4 + 1) mod 5 = 0 and 70 to index 1. Final front = 2, rear = 1, count = 5, so the queue is full and has wrapped.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "pages": [
+        313,
+        318
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-circular-queue-full",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A circular queue is stored in an array of size n with no count variable. front holds the index of the first element and rear the index where the next element will be inserted, so one cell is always left unused. Initially front = rear = 0. Which pair of conditions detects full and empty?",
+      "options": [
+        "Full: (rear + 1) mod n == front; Empty: rear == front",
+        "Full: rear == front; Empty: (rear + 1) mod n == front",
+        "Full: (front + 1) mod n == rear; Empty: rear == front",
+        "Full: rear == n − 1; Empty: front == 0"
+      ],
+      "answer": 0,
+      "explanation": "Empty is the starting state, rear == front. The queue is full when inserting one more would make rear catch up with front, that is when (rear + 1) mod n == front; this leaves one cell empty so the two states differ. Option B swaps them, option C tests the wrong direction, and option D ignores wrap-around.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Queue",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-queue-two-stacks",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A queue is built from stacks S1 and S2. enqueue(x) pushes x onto S1. dequeue() pops S2, but if S2 is empty it first pops every element of S1 and pushes each onto S2. Starting empty, the operations are: enqueue 1, enqueue 2, enqueue 3, dequeue, enqueue 4, dequeue, dequeue, dequeue. How many push operations are performed in total on S1 and S2?",
+      "options": [
+        "4",
+        "7",
+        "8",
+        "16"
+      ],
+      "answer": 2,
+      "explanation": "Three enqueues push 1, 2, 3 onto S1 (3 pushes). The first dequeue finds S2 empty and moves 3, 2, 1 onto S2 (3 pushes), then pops 1. Enqueue 4 pushes onto S1 (1 push). The next two dequeues pop 2 and 3 from S2 with no pushes. The last dequeue finds S2 empty, moves 4 across (1 push) and pops it. Total pushes: 3 + 3 + 1 + 1 = 8. The answer 16 counts pushes and pops together.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.stack-queue-design",
+      "origin": "source",
+      "pages": [
+        319
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-move-last-to-front",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Node *f(Node *head) { Node *p = NULL, *q = head; if (head == NULL || head->next == NULL) return head; while (q->next != NULL) { p = q; q = q->next; } p->next = NULL; q->next = head; head = q; return head; } The singly linked list 1 → 2 → 3 → 4 → 5 → 6 → 7 is passed to f. What list does f return?",
+      "options": [
+        "7 → 1 → 2 → 3 → 4 → 5 → 6",
+        "2 → 3 → 4 → 5 → 6 → 7 → 1",
+        "7 → 6 → 5 → 4 → 3 → 2 → 1",
+        "1 → 7 → 2 → 3 → 4 → 5 → 6"
+      ],
+      "answer": 0,
+      "explanation": "The loop stops with q at the last node (7) and p at the second-last (6). p->next = NULL makes 6 the new tail, q->next = head links 7 to 1, and head = q makes 7 the first node. The function moves the last node to the front: 7 → 1 → 2 → 3 → 4 → 5 → 6.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.list-reversal",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-floyd-meeting",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A singly linked list has 8 nodes numbered 0 to 7 from the head, and node 7's next pointer goes back to node 3. Floyd's algorithm starts slow and fast at node 0; in each step slow moves one node and fast moves two. After how many steps do they first point to the same node, and which node is it?",
+      "options": [
+        "5 steps, at node 5",
+        "3 steps, at node 3",
+        "8 steps, at node 0",
+        "5 steps, at node 3"
+      ],
+      "answer": 0,
+      "explanation": "The tail has μ = 3 nodes (0, 1, 2) and the loop has λ = 5 nodes (3 to 7). Positions after each step (slow, fast): (1, 2), (2, 4), (3, 6), (4, 3), (5, 5). They meet after 5 steps at node 5, matching t = smallest multiple of 5 that is ≥ 3. Resetting one pointer to node 0 and stepping both by one then meets at node 3, the loop start, after 3 steps.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.runner-technique",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-dll-insert-after",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a doubly linked list, p points to a node that is not the last node, and q points to a new node to be inserted immediately after p. Which sequence of assignments inserts q correctly?",
+      "options": [
+        "q->next = p->next; q->prev = p; p->next->prev = q; p->next = q;",
+        "p->next = q; q->prev = p; q->next = p->next; p->next->prev = q;",
+        "q->prev = p; p->next = q; p->next->prev = q; q->next = p->next;",
+        "q->next = p->next; p->next = q; p->next->prev = q; q->prev = p;"
+      ],
+      "answer": 0,
+      "explanation": "Option A reads p->next (the old successor) before overwriting it, so q links to the successor, the successor's prev becomes q, and only then p->next becomes q. Option B sets p->next = q first, so q->next = p->next makes q point to itself. Option C has the same problem. Option D runs p->next = q before p->next->prev = q, so that statement writes q->prev (later reset to p by the last line) instead of the successor's prev, which still points to p.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.doubly-circular-lists",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — DLL",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-o1-operations",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A singly linked list of n nodes is accessed through both a head pointer and a tail pointer. Which of the following operations can be done in O(1) worst-case time, independent of n?",
+      "options": [
+        "Insert a new node after the last node",
+        "Delete the last node",
+        "Delete the first node",
+        "Read the value of the middle node"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "Inserting after the last node uses the tail pointer: tail->next = new; tail = new. Deleting the first node only moves head. Deleting the last node requires the new tail, which is the second-last node, and a singly linked list can only reach it by walking from the head: O(n). Reading the middle node needs n/2 steps.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.singly-linked-list",
+      "origin": "source",
+      "pages": [
+        314,
+        321
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-row-major-address",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A two-dimensional array A[−10..10][5..25] of 4-byte integers is stored in row-major order starting at address 1000. What is the address of A[0][10]?",
+      "answer": 1860,
+      "explanation": "Each row has 25 − 5 + 1 = 21 elements. A[0][10] lies 0 − (−10) = 10 full rows in, plus 10 − 5 = 5 elements into its row: 10 × 21 + 5 = 215 elements before it. Address = 1000 + 215 × 4 = 1860.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-two-stacks-overflow",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Two stacks share an array A[0..N−1]. Stack 1 grows upward from index 0 with top1 initially −1, and stack 2 grows downward from index N − 1 with top2 initially N. To use every cell of the array, a push onto either stack should report overflow exactly when:",
+      "options": [
+        "top1 + 1 == top2",
+        "top1 == N/2 or top2 == N/2",
+        "top1 == top2",
+        "top1 == N − 1 and top2 == 0"
+      ],
+      "answer": 0,
+      "explanation": "The free cells are those strictly between top1 and top2, indices top1 + 1 to top2 − 1. There are none exactly when top1 + 1 == top2. Option B is a fixed split, which declares overflow while the other half may be empty. Options C and D describe states in which the two stacks already overlap, so overflow would be detected too late.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.two-stacks-one-array",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-input-restricted-deque",
+      "type": "msq",
+      "marks": 2,
+      "stem": "The values 1, 2, 3, 4 arrive in this order and are inserted into an input-restricted deque, which allows insertion only at the rear but deletion from both the front and the rear. Insertions and deletions may be interleaved. Which of the following output orders are possible?",
+      "options": [
+        "4, 2, 1, 3",
+        "4, 1, 3, 2",
+        "4, 2, 3, 1",
+        "3, 1, 4, 2"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "explanation": "4, 1, 3, 2: insert 1 to 4 (deque 1 2 3 4), delete rear 4, front 1, rear 3, then 2. Possible. 3, 1, 4, 2: insert 1, 2, 3, delete rear 3 and front 1, insert 4, delete rear 4, then 2. Possible. For any order starting with 4, all four values must be inside first, leaving 1 2 3 after 4 leaves; only 1 or 3 can come next, so 4, 2, 1, 3 and 4, 2, 3, 1 are impossible. An exhaustive search over all interleavings gives the same verdicts.",
+      "difficulty": "hard",
+      "topic": "pds-linear-data-structures.deque-priority-queue",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-min-stack",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A min-stack keeps an auxiliary stack whose top always equals the minimum of the main stack: each push(x) also pushes min(x, current minimum), and each pop pops both stacks. After push 5, push 3, push 7, push 3, push 1, pop, pop, what does getMin return, and how many elements does the main stack hold?",
+      "options": [
+        "3, with 3 elements",
+        "1, with 3 elements",
+        "5, with 3 elements",
+        "3, with 4 elements"
+      ],
+      "answer": 0,
+      "explanation": "Main stack after the pushes: 5 3 7 3 1; auxiliary stack: 5 3 3 3 1. Two pops remove 1 and 3 from the main stack and 1 and 3 from the auxiliary one, leaving main 5 3 7 and auxiliary 5 3 3. getMin reads the auxiliary top, 3, and the main stack has 3 elements.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.stack-queue-design",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2015) — Stack",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "id": "pds-linear-data-structures.q-triangular-column-major",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The non-zero part of a 10 × 10 lower-triangular matrix (entries a[i][j] with j ≤ i, indices from 1) is stored column by column in a one-dimensional array starting at address 2000, with 4 bytes per element. What is the address of a[8][5]?",
+      "answer": 2148,
+      "explanation": "Column c of the lower triangle holds rows c to 10, which is 11 − c entries. Columns 1 to 4 hold 10 + 9 + 8 + 7 = 34 entries, the formula (j − 1)n − (j − 1)(j − 2)/2 = 40 − 6. In column 5 the entries a[5][5], a[6][5], a[7][5] precede a[8][5], 3 more. Offset 37, address 2000 + 37 × 4 = 2148. Using the row-major formula i(i − 1)/2 + j − 1 = 32 gives the wrong 2128.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-three-d-address",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A three-dimensional array A[−1..2][0..4][5..7] of 8-byte elements is stored in row-major order starting at address 1200. What is the address of A[1][3][6]?",
+      "answer": 1520,
+      "explanation": "The last two dimensions have n₂ = 5 and n₃ = 3 elements, so each plane holds 15. A[1][3][6] has 1 − (−1) = 2 full planes before it, then 3 − 0 = 3 full rows of 3, then 6 − 5 = 1 element: (2 × 5 + 3) × 3 + 1 = 40 elements. Address 1200 + 40 × 8 = 1520. Ignoring the lower bounds would give (1 × 5 + 3) × 3 + 6 = 30, the wrong 1440.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.array-address",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-prefix-eval",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Evaluate the prefix expression − * 3 + 4 2 / 8 ^ 2 2, where ^ is exponentiation and every operator is binary.",
+      "answer": 16,
+      "explanation": "Scan right to left, pushing operands; at an operator the first value popped is its left operand. 2, 2 → ^ gives 2² = 4 → 8 → / gives 8 / 4 = 2 → 2, 4 → + gives 6 → 3 → * gives 3 × 6 = 18 → − gives 18 − 2 = 16. As an infix expression it is 3 × (4 + 2) − 8 / 2², which is 16. Taking the first pop as the right operand, as in postfix, gives −17.5.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.postfix-evaluation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-conversion-stack-depth",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The infix expression a + b * ( c − d / e ) ^ f − g is converted to postfix with the usual operator-stack algorithm (^ highest and right-associative; * and / next; + and − lowest; all others left-associative). Left parentheses are pushed onto the same stack. What is the largest number of symbols (operators and left parentheses) on the stack at any moment?",
+      "answer": 5,
+      "explanation": "+ is pushed; * has higher precedence, so it is pushed on +; ( is pushed; − stops at ( and is pushed; / beats −, so it is pushed. The stack now holds + * ( − /, 5 symbols. ) pops / and − and removes (, leaving + *; ^ is pushed (3 symbols); the final − pops ^, * and + and is pushed alone. The output is a b c d e / − f ^ * + g −, and the peak is 5.",
+      "difficulty": "medium",
+      "topic": "pds-linear-data-structures.infix-conversion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-linear-data-structures.q-circular-list-queue",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A queue is implemented with a circular singly linked list, and only one external pointer P into the list is kept. Where should P point so that both enqueue and dequeue run in O(1) time?",
+      "options": [
+        "To the front node",
+        "To the rear node",
+        "To the second node from the front",
+        "Nowhere: O(1) for both needs two external pointers"
+      ],
+      "answer": 1,
+      "explanation": "With P at the rear, the front is P->next. Enqueue: new->next = P->next; P->next = new; P = new. Dequeue: f = P->next; P->next = f->next (P becomes NULL if f was the only node). Both are O(1). With P at the front, enqueue must find the rear, and dequeue must update the rear's next pointer, each an O(n) walk around the ring. The second node has the same problem, and one pointer is enough, so D is false.",
+      "difficulty": "easy",
+      "topic": "pds-linear-data-structures.queue-circular",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Array stacks start with top = −1, so the full test is top == N − 1, not top == N; off-by-one here causes both overflow and underflow bugs.",
+      "origin": "source",
+      "pages": [
+        317,
+        320
+      ]
+    },
+    {
+      "text": "front == rear in a circular queue is ambiguous between empty and full; keep a count or leave one slot unused, and read which convention the question uses.",
+      "origin": "source",
+      "pages": [
+        317,
+        320
+      ]
+    },
+    {
+      "text": "A function that inserts at the head must take Node ** or return the new head; changing a Node * parameter does not change the caller's head.",
+      "origin": "source",
+      "pages": [
+        320
+      ]
+    },
+    {
+      "text": "A tail pointer makes insertion at the tail O(1) but not deletion: the second-last node of a singly linked list still needs an O(n) walk.",
+      "origin": "source",
+      "pages": [
+        314
+      ]
+    },
+    {
+      "text": "In postfix evaluation the first value popped is the right operand: for a b −, compute a − b, not b − a.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "^ is right-associative: an incoming ^ must not pop a ^ already on the operator stack.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Deleting a node without free() leaks memory, and traversing a list that might contain a cycle with while (p != NULL) never ends; use Floyd's check first.",
+      "origin": "source",
+      "pages": [
+        320
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Stacks and queues",
+      "lines": [
+        "Stack LIFO, queue FIFO, deque both ends: all core operations O(1)",
+        "Stack permutations of n inputs: Catalan C(2n, n)/(n + 1) = 1, 2, 5, 14, 42",
+        "Circular queue, one slot unused: empty front == rear, full (rear + 1) mod N == front",
+        "Queue from two stacks: O(1) amortized, O(n) worst for one dequeue",
+        "Circular list queue: keep the rear pointer; front is rear->next"
+      ],
+      "origin": "source",
+      "pages": [
+        321
+      ]
+    },
+    {
+      "heading": "Expressions",
+      "lines": [
+        "Operand → output; ( push; ) pop to (; operator pops higher (and equal if left-assoc)",
+        "^ right-assoc: A ^ B ^ C → A B C ^ ^",
+        "Postfix eval: pop b then a, push a op b",
+        "Prefix eval: scan right to left, first pop is the left operand"
+      ],
+      "origin": "source",
+      "pages": [
+        316
+      ]
+    },
+    {
+      "heading": "Linked lists",
+      "lines": [
+        "Insert head O(1); insert tail O(1) with tail pointer; delete tail O(n) in SLL",
+        "DLL delete given node O(1); reverse with prev, cur, next in O(n), O(1) space",
+        "Floyd: slow 1, fast 2; reset one to head to find the loop start",
+        "Middle: while (fast && fast->next) stops slow at ⌊n/2⌋ (second middle for even n)"
+      ],
+      "origin": "source",
+      "pages": [
+        321
+      ]
+    },
+    {
+      "heading": "Arrays",
+      "lines": [
+        "Row-major: B + ((i − l₁)·cols + (j − l₂))·w",
+        "Column-major: B + ((j − l₂)·rows + (i − l₁))·w",
+        "Upper triangle, row-major: (i − 1)n − (i − 1)(i − 2)/2 + (j − i) elements precede a[i][j]",
+        "3-D: (((i − l₁)·n₂ + (j − l₂))·n₃ + (k − l₃))·w",
+        "Doubling dynamic array: append O(1) amortized"
+      ],
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "errata": [
+    {
+      "page": 316,
+      "claim": "Infix to postfix: on reading an operator, pop all operators of higher or equal precedence to the output, then push it.",
+      "correction": "Popping on equal precedence is right only for left-associative operators. For the right-associative ^, an incoming ^ pops only operators of strictly higher precedence, so A ^ B ^ C becomes A B C ^ ^; the stated rule gives A B ^ C ^, which means (A ^ B) ^ C. Popping must also stop at a ( on the stack."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "pds-arrays",
+      "status": "partial",
+      "topics": [
+        "pds-linear-data-structures.arrays",
+        "pds-linear-data-structures.array-address"
+      ]
+    },
+    {
+      "item": "pds-stacks-queues",
+      "status": "partial",
+      "topics": [
+        "pds-linear-data-structures.stack",
+        "pds-linear-data-structures.two-stacks-one-array",
+        "pds-linear-data-structures.stack-permutations",
+        "pds-linear-data-structures.infix-conversion",
+        "pds-linear-data-structures.postfix-evaluation",
+        "pds-linear-data-structures.queue-circular",
+        "pds-linear-data-structures.deque-priority-queue",
+        "pds-linear-data-structures.stack-queue-design"
+      ]
+    },
+    {
+      "item": "pds-linked-lists",
+      "status": "covered",
+      "topics": [
+        "pds-linear-data-structures.singly-linked-list",
+        "pds-linear-data-structures.list-reversal",
+        "pds-linear-data-structures.runner-technique",
+        "pds-linear-data-structures.doubly-circular-lists"
+      ]
+    }
+  ]
+}

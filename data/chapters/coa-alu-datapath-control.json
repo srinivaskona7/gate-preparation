@@ -1,0 +1,2024 @@
+{
+  "id": "coa-alu-datapath-control",
+  "summary": "The ALU computes arithmetic, logical and shift results and raises the Z, N, C and V flags that drive conditional branches; its speed is set by how the carry travels, rippling bit by bit or computed ahead with generate and propagate terms. The control unit turns each instruction into a timed sequence of control signals, either with hardwired logic (fast, rigid, RISC) or with microinstructions read from a control memory (flexible, slower, CISC). GATE asks for flag values, adder delays, and the bit widths of microinstruction fields and control memories.",
+  "highYield": [
+    "Size a microinstruction: control field + ⌈log₂(conditions)⌉ select bits + next-address bits, and the control memory has 2^(address bits) words.",
+    "Horizontal width = number of control signals; vertical width = Σ ⌈log₂(nᵢ + 1)⌉ over mutually exclusive groups.",
+    "Hardwired is faster and suits RISC; microprogrammed is easier to change and suits CISC, but pays a control-memory read per microinstruction.",
+    "Signed overflow V = c_n ⊕ c_{n−1}; carry C and overflow V are independent, so check both on every addition.",
+    "Ripple-carry delay grows linearly with word length; carry-lookahead makes each block's carry a two-level function of g, p and c₀.",
+    "A 4-bit two-level carry-lookahead unit needs 10 AND and 4 OR gates (n(n + 1)/2 and n); a 16-bit two-level CLA gives c₁₆ at 5 and the last sum at 8 gate delays."
+  ],
+  "topics": [
+    {
+      "id": "coa-alu-datapath-control.alu-functions",
+      "title": "What the ALU computes",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        16,
+        255,
+        258,
+        260
+      ],
+      "points": [
+        "The ALU takes two operands A and B plus an operation code and returns a result and a set of status flags.",
+        "Its functional units are an adder/subtractor (ADD, SUB, CMP), a logic unit (AND, OR, XOR, NOT) and a shifter (logical and arithmetic shifts, rotates); a multiplexer picks which unit drives the output.",
+        "Selecting one of k operations needs ⌈log₂ k⌉ function-select bits: 16 operations need 4 bits, 8 need 3.",
+        "CMP is a subtraction whose result is discarded; only the flags are kept for a following conditional branch.",
+        "The arithmetic unit is one adder whose B input passes through a 4-way multiplexer (B, B̄, all 0s, all 1s) plus a carry-in: this yields A + B, A + B + 1, A − B − 1, A − B, A, A + 1, A − 1 and A again, eight operations from 3 select bits."
+      ],
+      "keyTerms": [
+        "function select",
+        "logic unit",
+        "shifter",
+        "CMP"
+      ],
+      "lesson": {
+        "why": "Questions on the ALU ask how many select bits an operation set needs and which unit produces a given result, so the structure has to be second nature.",
+        "intro": "The ALU is the part of the processor that does arithmetic and logic. It receives two operands, A and B, and a short code saying which operation to perform. It returns a result and a few one-bit status flags. Inside are three small units: an adder that also subtracts, a logic unit for AND, OR, XOR and NOT, and a shifter. A multiplexer, which is a switch that forwards one of several inputs, picks which unit's answer leaves the ALU.",
+        "definitions": [
+          {
+            "term": "Function select",
+            "meaning": "The bits of the operation code that tell the ALU which operation to perform."
+          },
+          {
+            "term": "CMP",
+            "meaning": "A compare: the ALU subtracts, throws the result away and keeps only the flags."
+          }
+        ],
+        "principle": {
+          "text": "Choosing one of k operations needs a function-select field of ceil(log2 k) bits. Subtraction reuses the adder by adding the complement of B with a carry-in of 1.",
+          "tex": "b=\\lceil \\log_2 k\\rceil,\\qquad A-B=A+\\overline{B}+1"
+        },
+        "limits": "The select-bit count counts distinct operations, not instructions: many instructions can share one ALU operation. Compare does not store a result, so it changes no register, only the flags.",
+        "example": {
+          "problem": "A 4-bit ALU subtracts B = 3 from A = 6 using its adder. Show the computation.",
+          "steps": [
+            "Write B = 0011 and complement every bit to get 1100.",
+            "Add A, the complement of B and a carry-in of 1: 0110 + 1100 + 1 = 10011.",
+            "Keep the low 4 bits, 0011, and treat the leftmost 1 as the carry out."
+          ],
+          "result": "The result is 0011, which is 3, equal to 6 - 3."
+        },
+        "misconceptions": [
+          "Subtraction does not need a separate subtractor circuit; the adder is reused with B complemented and a carry-in of 1.",
+          "Forgetting the carry-in of 1 gives A + complement of B, which is A - B - 1, one less than the right answer.",
+          "CMP does not leave a difference in a register; only the flags survive."
+        ],
+        "recall": [
+          {
+            "q": "How many function-select bits does an ALU with 12 operations need?",
+            "a": "4 bits, because the ceiling of log2 12 is 4."
+          },
+          {
+            "q": "What does CMP keep from its subtraction?",
+            "a": "Only the status flags; the numerical result is discarded."
+          },
+          {
+            "q": "What picks which functional unit drives the ALU output?",
+            "a": "A multiplexer controlled by the function-select bits."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An ALU must support 20 different operations. How many function-select bits does it need?",
+          "answer": 5,
+          "explanation": "Select bits are the ceiling of log2 20, and 2^4 = 16 is below 20 while 2^5 = 32 covers it, so 5. The value 4 tempts because it is the floor of log2 20, but 4 bits only name 16 operations."
+        },
+        "summary": "The ALU combines an adder-subtractor, a logic unit and a shifter behind a multiplexer; k operations need ceil(log2 k) select bits, and subtraction is A plus complement of B plus 1."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.status-flags",
+      "title": "Status flags and condition codes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        16,
+        255,
+        258,
+        259,
+        261
+      ],
+      "points": [
+        "Z is set when every result bit is 0, N (or S) copies the most significant result bit, C is the carry out of the MSB, and V is set on signed (two's-complement) overflow.",
+        "C reports unsigned overflow and V reports signed overflow; they are computed independently, so any of the four C/V combinations can occur.",
+        "In 8 bits, 0xC0 + 0xC0 = 0x180 leaves result 0x80 with C = 1, N = 1, V = 0 (−64 + −64 = −128 fits), while 0x7F + 0x01 = 0x80 gives C = 0, V = 1.",
+        "Branches test flag combinations: BEQ tests Z = 1, an unsigned 'lower' test uses C, and a signed 'less than' after CMP tests N ⊕ V = 1."
+      ],
+      "keyTerms": [
+        "zero flag",
+        "sign flag",
+        "carry flag",
+        "overflow flag",
+        "condition codes"
+      ],
+      "lesson": {
+        "why": "Flag questions give two operands and ask for Z, N, C and V, and branch questions ask which flags a condition tests. Both reduce to a few rules applied carefully.",
+        "intro": "After an addition or subtraction the ALU sets four one-bit flags that describe the result. Z says the result is all zeros. N copies the leftmost bit of the result, which is the sign in two's complement. C is the carry that falls out of the leftmost bit. V says the answer is wrong when the operands are read as signed numbers. A later branch instruction looks at these flags instead of recomputing anything.",
+        "prerequisites": [
+          "coa-alu-datapath-control.alu-functions"
+        ],
+        "definitions": [
+          {
+            "term": "Carry flag C",
+            "meaning": "The carry out of the most significant bit; it signals overflow for unsigned numbers."
+          },
+          {
+            "term": "Overflow flag V",
+            "meaning": "Set when the signed result does not fit: both operands share a sign and the result has the other sign."
+          }
+        ],
+        "principle": {
+          "text": "C and V are independent. C is the carry out of the top bit, and V is set when the carry into the top bit differs from the carry out of it.",
+          "tex": "Z=\\overline{r_{n-1}+\\cdots+r_0},\\quad N=r_{n-1},\\quad C=c_n,\\quad V=c_n\\oplus c_{n-1}"
+        },
+        "limits": "C means unsigned overflow only for addition; for subtraction many machines treat the carry as an inverted borrow. Whether a result is correct depends on whether the program reads the numbers as signed or unsigned, and the flags report both views.",
+        "example": {
+          "problem": "An 8-bit ALU adds 0x90 and 0x90. Find Z, N, C and V.",
+          "steps": [
+            "0x90 + 0x90 = 0x120, which needs 9 bits, so the 8-bit result is 0x20 and the carry out is 1.",
+            "The result 0x20 is not zero, so Z = 0, and its top bit is 0, so N = 0.",
+            "Both operands have top bit 1 (negative, -112 each) and the result has top bit 0, so the sign changed and V = 1."
+          ],
+          "result": "Z = 0, N = 0, C = 1, V = 1."
+        },
+        "misconceptions": [
+          "A carry out does not imply signed overflow: 0xC0 + 0xC0 sets C = 1 but V = 0, because -64 + -64 = -128 fits in 8 bits.",
+          "Overflow does not imply a carry: 0x7F + 0x01 sets V = 1 with C = 0.",
+          "Z can be 1 together with C = 1, as in 0xF0 + 0x10, because the result 0x00 is zero after the carry is dropped."
+        ],
+        "recall": [
+          {
+            "q": "When is V set after an addition?",
+            "a": "When both operands have the same sign and the result has the opposite sign, equivalently when the carry into the top bit differs from the carry out."
+          },
+          {
+            "q": "What does N copy?",
+            "a": "The most significant bit of the result."
+          },
+          {
+            "q": "Can C and V both be 1 at once?",
+            "a": "Yes. All four combinations of C and V can occur because they are computed independently."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An 8-bit ALU adds 0xF0 and 0x10. Which values of (Z, N, C, V) result?",
+          "options": [
+            "(1, 0, 1, 0)",
+            "(1, 0, 1, 1)",
+            "(0, 0, 1, 0)",
+            "(1, 0, 0, 0)"
+          ],
+          "answer": 0,
+          "explanation": "0xF0 + 0x10 = 0x100, so the 8-bit result is 0x00 with carry out 1: Z = 1, N = 0, C = 1. The operands are -16 and +16, which differ in sign, so no overflow and V = 0. Choosing V = 1 tempts because a carry occurred, but a carry is not an overflow; choosing Z = 0 forgets that the dropped carry leaves an all-zero result."
+        },
+        "summary": "Z flags an all-zero result, N copies the sign bit, C is the carry out of the top bit and V is signed overflow; C and V are independent."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.adder-subtractor",
+      "title": "Ripple-carry adder, adder-subtractor and overflow detection",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "An n-bit ripple-carry adder chains n full adders; stage i cannot settle until carry cᵢ arrives, so the worst-case delay grows linearly in n.",
+        "With carry delay t_c per stage and sum delay t_s after the carry-in, the last sum bit settles at (n − 1)·t_c + t_s and the carry-out at n·t_c.",
+        "One adder also subtracts: XOR each Bᵢ with a mode bit M and feed M in as c₀, so M = 1 computes A + B̄ + 1 = A − B in two's complement.",
+        "Signed overflow happens exactly when the carry into the MSB differs from the carry out of it: V = c_n ⊕ c_{n−1}. Equivalently, two operands of the same sign give a result of the other sign."
+      ],
+      "keyTerms": [
+        "full adder",
+        "ripple carry",
+        "two's complement",
+        "mode bit"
+      ],
+      "lesson": {
+        "why": "Delay of a ripple adder, the adder-subtractor wiring and the overflow test are all standard computations in this chapter.",
+        "intro": "A full adder adds two bits and an incoming carry, and produces a sum bit and an outgoing carry. Chaining n of them, with each carry-out feeding the next carry-in, adds two n-bit numbers. This is a ripple-carry adder: the carry has to travel through every stage in turn, so a wider adder is slower. The same adder can subtract if each bit of B is flipped and a 1 is added in at the bottom.",
+        "prerequisites": [
+          "coa-alu-datapath-control.status-flags"
+        ],
+        "definitions": [
+          {
+            "term": "Full adder",
+            "meaning": "A one-bit circuit that adds two bits and a carry-in, giving a sum bit and a carry-out."
+          },
+          {
+            "term": "Mode bit M",
+            "meaning": "A control bit that XORs with every bit of B and is also the carry-in c0; M = 0 adds and M = 1 subtracts."
+          }
+        ],
+        "principle": {
+          "text": "With carry delay t_c per stage and carry-to-sum delay t_s, the last sum bit settles after n-1 carry delays plus one sum delay. Setting M = 1 gives A plus complement of B plus 1, which is A minus B; signed overflow is the carry into the top bit XOR the carry out.",
+          "tex": "T_{\\text{sum}}=(n-1)t_c+t_s,\\quad A-B=A+\\overline{B}+1,\\quad V=c_n\\oplus c_{n-1}"
+        },
+        "limits": "The delay formula assumes t_c is measured from carry-in to carry-out of a stage and that the operands are present at time zero; read the question for how t_c is defined. The overflow test applies to signed numbers only.",
+        "example": {
+          "problem": "A 4-bit adder-subtractor with M = 1 computes 7 - 5. Show the bits and the overflow flag.",
+          "steps": [
+            "B = 0101 XOR 1111 gives 1010, and c0 = M = 1.",
+            "Add 0111 + 1010 + 1 = 10010, so the 4-bit result is 0010.",
+            "Working stage by stage, every carry c1 to c4 is 1, so the carry into the top bit equals the carry out and V = 1 XOR 1 = 0."
+          ],
+          "result": "The result is 0010, which is 2, with no overflow."
+        },
+        "misconceptions": [
+          "The carry out of a subtraction is 1 when no borrow is needed, so a carry of 1 here is normal and not an error.",
+          "The last sum bit does not wait for n carry delays; it waits for n-1 carry delays and then one sum delay.",
+          "Overflow is not simply the carry out; it compares the carry out with the carry into the top bit."
+        ],
+        "recall": [
+          {
+            "q": "How does one adder subtract?",
+            "a": "XOR every bit of B with a mode bit M and use M as the carry-in, so M = 1 gives A + complement of B + 1."
+          },
+          {
+            "q": "Why is a ripple-carry adder slow?",
+            "a": "Each stage waits for the carry from the stage below, so the delay grows linearly with the number of bits."
+          },
+          {
+            "q": "What is the signed overflow test in terms of carries?",
+            "a": "V is the carry into the most significant bit XOR the carry out of it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An 8-bit ripple-carry adder has a carry delay of 2 ns per stage (carry-in to carry-out) and a sum delay of 3 ns from carry-in to sum. Operands and the first carry-in are available at time 0. At what time, in ns, does the most significant sum bit settle?",
+          "answer": 17,
+          "explanation": "The carry into the last stage appears after 7 stage delays, 7 x 2 = 14 ns, and the sum then takes 3 ns, giving 17 ns. The value 19 tempts by charging all 8 carry delays before the sum, and 16 is the time of the final carry-out, not the last sum bit."
+        },
+        "summary": "A ripple adder's delay grows with n, subtraction reuses it through XOR with a mode bit and a carry-in of 1, and signed overflow is the carry into the top bit XOR the carry out."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.carry-lookahead",
+      "title": "Carry-lookahead adders",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Each bit forms generate gᵢ = aᵢbᵢ and propagate pᵢ = aᵢ ⊕ bᵢ; then c_{i+1} = gᵢ + pᵢcᵢ, and the sum is sᵢ = pᵢ ⊕ cᵢ.",
+        "Expanding the recurrence writes every carry as a two-level AND-OR of g, p and c₀, for example c₂ = g₁ + p₁g₀ + p₁p₀c₀, so all carries of a block appear after a constant delay.",
+        "The cost is fan-in and gate count, which grow quickly with width, so wide adders chain 4-bit lookahead blocks or add a second lookahead level using block generate and propagate signals.",
+        "Generating c₁…cₙ in two-level form takes 1 + 2 + … + n = n(n + 1)/2 AND gates and n OR gates (gᵢ feeds the OR directly); the widest gate has fan-in n + 1. A 4-bit unit: 10 AND, 4 OR, fan-in 5.",
+        "With g/p ready after 1 gate delay and each block's carry-out 2 gate delays after its carry-in, four rippled 4-bit blocks produce c₁₆ at 1 + 2 + 2 + 2 + 2 = 9 gate delays.",
+        "A second lookahead level uses block signals P = p₃p₂p₁p₀ and G = g₃ + p₃g₂ + p₃p₂g₁ + p₃p₂p₁g₀, so c₄ = G + P·c₀. In a 16-bit two-level adder c₁₆ is ready at 5 gate delays and the last sum at 8."
+      ],
+      "keyTerms": [
+        "generate",
+        "propagate",
+        "lookahead block",
+        "fan-in"
+      ],
+      "lesson": {
+        "why": "Delay and gate-count questions compare ripple and lookahead adders, and they expect the generate and propagate expressions to be written correctly.",
+        "intro": "In a ripple adder each carry waits for the one before it. A carry-lookahead adder removes the wait by computing every carry directly from the input bits. For each bit position it forms two signals: generate, which says this position makes a carry by itself, and propagate, which says this position passes an incoming carry along. Every carry is then a short AND-OR expression of these signals and the first carry-in.",
+        "prerequisites": [
+          "coa-alu-datapath-control.adder-subtractor"
+        ],
+        "definitions": [
+          {
+            "term": "Generate",
+            "meaning": "g_i = a_i AND b_i: position i produces a carry whatever comes in."
+          },
+          {
+            "term": "Propagate",
+            "meaning": "p_i = a_i XOR b_i: position i passes an incoming carry to the next position."
+          }
+        ],
+        "principle": {
+          "text": "The carry out of position i is generated there or propagated from below. Expanding the recurrence gives each carry as a two-level circuit, and the sum bit is the propagate XOR the carry in.",
+          "tex": "c_{i+1}=g_i+p_ic_i,\\quad s_i=p_i\\oplus c_i,\\quad c_2=g_1+p_1g_0+p_1p_0c_0"
+        },
+        "limits": "Lookahead trades speed for hardware: gate fan-in and count grow quickly with width, so wide adders chain 4-bit lookahead blocks or add a second lookahead level instead of one huge unit.",
+        "example": {
+          "problem": "A 4-bit lookahead adder adds A = 1011 and B = 0110 with c0 = 0. Find the carries and sum.",
+          "steps": [
+            "Per bit from bit 0 to bit 3: g = 0, 1, 0, 0 and p = 1, 0, 1, 1.",
+            "c1 = g0 + p0c0 = 0; c2 = g1 + p1g0 + p1p0c0 = 1; c3 = g2 + p2c2 = 1; c4 = g3 + p3c3 = 1.",
+            "Sum bits s_i = p_i XOR c_i give 1, 0, 0, 0 from bit 0 upward, so the sum is 0001 with carry out 1."
+          ],
+          "result": "The sum is 0001 with carry out 1, matching 11 + 6 = 17."
+        },
+        "misconceptions": [
+          "Propagate is XOR, not OR in the sum; the sum bit needs p_i XOR c_i.",
+          "Lookahead does not make the delay zero; it makes it constant for a block, and wide adders still chain blocks.",
+          "A position with g = 1 needs no incoming carry to produce one, so its propagate value does not matter for that carry."
+        ],
+        "recall": [
+          {
+            "q": "What are generate and propagate for bit i?",
+            "a": "g_i = a_i AND b_i and p_i = a_i XOR b_i."
+          },
+          {
+            "q": "Why does lookahead need extra hardware?",
+            "a": "Each carry is a wide AND-OR of g, p and c0, so gate count and fan-in grow with the width."
+          },
+          {
+            "q": "How do wide lookahead adders limit that growth?",
+            "a": "They chain 4-bit blocks or add a second level using block generate and propagate signals."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A two-level AND-OR carry-lookahead unit produces carries c1 to c5, with each g_i term used directly as a literal input of the OR gate. How many AND gates does it need?",
+          "answer": 15,
+          "explanation": "Carry c_i needs i AND gates, since its term g_(i-1) is a single literal and needs none; the total over c1 to c5 is 1 + 2 + 3 + 4 + 5 = 15, which is n(n+1)/2. The value 20 tempts by counting a separate gate for every product term of each carry, including the lone g term."
+        },
+        "summary": "Lookahead forms generate and propagate per bit and writes each carry as a two-level expression, giving constant delay per block at the cost of gates and fan-in."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.bit-slice-shifter",
+      "title": "Bit-slice ALUs and shifters",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        255,
+        260
+      ],
+      "points": [
+        "A bit-slice ALU replicates one identical 1-bit cell (full adder, logic gates and a result multiplexer) n times, with the carry chained from cell to cell.",
+        "A 4-input result multiplexer inside each cell needs 2 select lines; in general an m-input multiplexer needs ⌈log₂ m⌉.",
+        "A barrel (logarithmic) shifter shifts by any amount in one pass: stage j shifts by 2^j or passes through, so an n-bit shifter uses log₂ n stages of n 2:1 multiplexers (32 bits: 5 stages, 160 multiplexers).",
+        "An arithmetic right shift copies the sign bit into the vacated positions; a logical right shift fills them with 0."
+      ],
+      "keyTerms": [
+        "bit slice",
+        "barrel shifter",
+        "arithmetic shift",
+        "logical shift"
+      ],
+      "lesson": {
+        "why": "Shifter questions ask how many multiplexers or stages a barrel shifter uses, and the difference between logical and arithmetic shifts decides signed-number answers.",
+        "intro": "A bit-slice ALU is built by copying one identical one-bit cell n times. Each cell holds a full adder, some logic gates and a multiplexer that chooses which result the cell outputs, and the carry passes from each cell to the next. Shifting is a separate job. A barrel shifter moves a word by any amount in a single pass through a few stages, where each stage either shifts by a fixed power of two or leaves the word alone.",
+        "prerequisites": [
+          "coa-alu-datapath-control.alu-functions"
+        ],
+        "definitions": [
+          {
+            "term": "Barrel shifter",
+            "meaning": "A shifter that moves a word by any amount in one pass using log2 n stages of 2-to-1 multiplexers."
+          },
+          {
+            "term": "Arithmetic right shift",
+            "meaning": "A right shift that copies the sign bit into the vacated positions, keeping the sign of a two's-complement number."
+          }
+        ],
+        "principle": {
+          "text": "Stage j of a barrel shifter shifts by 2^j or passes the word through, so any amount from 0 to n-1 is built from its binary digits. An n-bit barrel shifter has log2 n stages of n multiplexers each.",
+          "tex": "\\text{stages}=\\log_2 n,\\qquad \\text{multiplexers}=n\\log_2 n"
+        },
+        "limits": "The stage count assumes n is a power of two and that shift amounts stay below n. A multiplexer with m inputs needs ceil(log2 m) select lines, so a 4-input result multiplexer in a cell needs 2.",
+        "example": {
+          "problem": "An 8-bit register holds 10110100. Shift it right by 2, first logically and then arithmetically.",
+          "steps": [
+            "Moving every bit two places right drops the two lowest bits, leaving 101101 in the low six positions.",
+            "A logical shift fills the two vacated top positions with 0, giving 00101101.",
+            "An arithmetic shift fills them with the sign bit, which is 1, giving 11101101."
+          ],
+          "result": "Logical: 00101101. Arithmetic: 11101101, which is -76 divided by 4 = -19."
+        },
+        "misconceptions": [
+          "Arithmetic right shift is not the same as logical right shift for negative numbers; only the arithmetic form keeps the sign.",
+          "A barrel shifter does not shift one position per clock; it reaches any amount in one pass.",
+          "The stage count is log2 n, not n: a 32-bit shifter has 5 stages."
+        ],
+        "recall": [
+          {
+            "q": "How many stages does a 32-bit barrel shifter have?",
+            "a": "5 stages, each made of 32 two-to-one multiplexers, so 160 multiplexers in total."
+          },
+          {
+            "q": "What fills the vacated bits in a logical right shift?",
+            "a": "Zeros."
+          },
+          {
+            "q": "How many select lines does a 4-input multiplexer need?",
+            "a": "2 select lines."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 64-bit barrel shifter is built from 2-to-1 multiplexers, with one stage for each power-of-two shift amount. How many multiplexers does it use in total?",
+          "answer": 384,
+          "explanation": "Stages number log2 64 = 6, and each stage has 64 multiplexers, so 6 x 64 = 384. The value 64 tempts by counting a single stage, and 4096 by treating the shifter as one multiplexer per bit per possible shift amount."
+        },
+        "summary": "A bit-slice ALU repeats one cell n times; a barrel shifter reaches any shift amount in log2 n stages of n multiplexers, and an arithmetic right shift keeps the sign bit."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.datapath-components",
+      "title": "Datapath registers and buses",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        16,
+        255,
+        258,
+        259,
+        260
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "The datapath holds PC (next instruction address), IR (current instruction), a register file, the ALU, MAR and MDR (the memory interface), multiplexers for ALU inputs and a sign extender for immediates.",
+        "Sign extension copies the sign bit to widen a signed immediate (8-bit 0xF5 becomes 0xFFF5); zero extension pads unsigned values with 0s.",
+        "Single-bus organisations move one value per clock, so an ALU operation needs a holding register Y and an output register Z; two- and three-bus designs move more operands per cycle at the cost of more wiring."
+      ],
+      "keyTerms": [
+        "PC",
+        "IR",
+        "MAR",
+        "MDR",
+        "register file",
+        "sign extension"
+      ],
+      "lesson": {
+        "why": "Datapath figures with registers, multiplexers and an ALU are the stage on which control-step and cycle-time questions are set, and some questions ask only what operand combinations the wiring allows.",
+        "intro": "The datapath is the set of storage boxes and wires that data moves through while an instruction runs. PC holds the address of the next instruction, IR holds the instruction being carried out, and a register file holds the program's working values. MAR holds an address sent to memory and MDR holds the word that comes back. A multiplexer is a switch: several inputs, one output, and a select line says which input gets through. The ALU takes two inputs and combines them as its control lines direct.",
+        "prerequisites": [
+          "coa-alu-datapath-control.alu-functions"
+        ],
+        "analogy": {
+          "text": "A multiplexer is a railway points switch: several tracks lead in, one track leads out, and the signal box decides which track is connected.",
+          "breaksWhen": "A real switch is set by one lever; two multiplexers in a datapath usually have separate select lines, so their settings combine freely."
+        },
+        "definitions": [
+          {
+            "term": "Immediate",
+            "meaning": "A constant stored inside the instruction word itself, so it needs no register."
+          },
+          {
+            "term": "Sign extension",
+            "meaning": "Widening a signed value by copying its sign bit into the new upper bits, which keeps the value unchanged."
+          }
+        ],
+        "principle": {
+          "text": "If each ALU input has its own multiplexer with its own select line, every choice on one side can pair with every choice on the other. With $m$ sources on one side and $n$ on the other the ALU can see $m\\times n$ operand pairs. A source wired straight in, with no multiplexer, counts as one choice.",
+          "tex": "\\text{operand pairs} = m \\times n"
+        },
+        "limits": "This counts what the wiring permits, not what the instruction set offers: an instruction set may never use some pairs. If both selects were tied to one line, the settings would move together and the count would drop to the number of select values.",
+        "example": {
+          "problem": "The left ALU input comes from a multiplexer choosing PC or R1. The right input comes from a multiplexer choosing R2, the constant 4, or an 8-bit immediate sign-extended to 16 bits. The selects are independent. How many operand pairs can the ALU see, which pair computes PC + 4, and what 16-bit value does the immediate 0x8C become?",
+          "steps": [
+            "Left side has 2 sources and right side has 3, so the pairs number $2\\times3=6$.",
+            "PC + 4 needs PC on the left and the constant 4 on the right, which is one of the six pairs.",
+            "Sign extension copies the top bit of 0x8C. In binary 0x8C is 10001100, whose top bit is 1, so eight 1s are placed above it, giving 0xFF8C.",
+            "As an 8-bit signed value 0x8C is $140-256=-116$; as a 16-bit value 0xFF8C is also $-116$, so the value is preserved."
+          ],
+          "result": "Six operand pairs; PC and the constant 4 give PC + 4; the immediate 0x8C becomes 0xFF8C, still $-116$."
+        },
+        "misconceptions": [
+          "Believing an immediate can only be paired with a register. If both ALU inputs have a multiplexer offering the immediate, two immediates are possible; the wiring decides, not habit.",
+          "Padding a negative immediate with zeros. That turns 0x8C into 0x008C, which is $+140$, not $-116$; zero extension is for unsigned values only.",
+          "Treating MAR and MDR as the same register. MAR carries the address going out to memory, MDR carries the data moving in or out."
+        ],
+        "recall": [
+          {
+            "q": "What does PC hold, and what does IR hold?",
+            "a": "PC holds the address of the next instruction. IR holds the instruction currently being executed."
+          },
+          {
+            "q": "With independent selects, how many operand pairs do a 2-input and a 3-input multiplexer give the ALU?",
+            "a": "Six, since every choice on one side pairs with every choice on the other."
+          },
+          {
+            "q": "How is a signed 8-bit value widened to 16 bits without changing its value?",
+            "a": "Copy its sign bit into all the new upper bits."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An 8-bit signed immediate 0xB4 is widened to 16 bits by the sign extender before entering the ALU. Which 16-bit pattern is produced?",
+          "options": [
+            "0x00B4",
+            "0xB4B4",
+            "0xFFB4",
+            "0x7FB4"
+          ],
+          "answer": 2,
+          "explanation": "0xB4 is 10110100, so its sign bit is 1 and eight 1s fill the new upper byte, giving 0xFFB4, which is $-76$ in both widths. 0x00B4 is tempting because it is zero extension, but it would change the value to $+180$. 0xB4B4 repeats the byte, which no extender does."
+        },
+        "summary": "A datapath is registers, multiplexers and an ALU joined by wires. Independent multiplexers multiply their choices into operand pairs, and sign extension keeps a signed immediate's value when it is widened."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.single-multi-cycle",
+      "title": "Single-cycle versus multi-cycle implementation",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        256,
+        258,
+        259,
+        261
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "A single-cycle CPU finishes every instruction in one clock, so the clock period must fit the slowest instruction, normally a load that uses all five steps.",
+        "A multi-cycle CPU spends one clock per step, so the period is the slowest step and each instruction takes only the steps it needs (typically 3 to 5 cycles).",
+        "Multi-cycle wins only if the CPI × step time beats the single-cycle period: with steps 200, 100, 150, 200, 100 ps and CPI 4.05 it averages 810 ps against 750 ps, so it is slower."
+      ],
+      "lesson": {
+        "why": "Questions give per-step delays or per-type cycle counts and ask for a clock period, an average time per instruction or which design is faster, so the two timing rules must be second nature.",
+        "intro": "Executing an instruction takes several steps, for example fetching it, decoding it, computing, touching memory and writing a result. A single-cycle processor does all the steps of an instruction inside one clock tick. A multi-cycle processor gives each step its own tick and lets an instruction stop after the steps it needs. The clock period is the time between ticks, and CPI is the average number of ticks an instruction takes.",
+        "prerequisites": [
+          "coa-alu-datapath-control.datapath-components"
+        ],
+        "definitions": [
+          {
+            "term": "CPI",
+            "meaning": "Cycles per instruction: ticks spent on an instruction, averaged over the instruction mix when several types occur."
+          },
+          {
+            "term": "Clock period",
+            "meaning": "The time between two ticks; it must be at least as long as the slowest piece of work done in one tick."
+          }
+        ],
+        "principle": {
+          "text": "A single-cycle clock must fit the slowest instruction, which uses every step, so its period is the sum of the step times. A multi-cycle clock must fit only the slowest step, so its period is the maximum step time. Average time per instruction is CPI times the period. Total time is total cycles times the period, with total cycles the sum of count times CPI over the instruction types, so a known total time gives the period by division.",
+          "tex": "T_{\\text{single}}=\\sum_i t_i,\\qquad T_{\\text{multi}}=\\mathrm{CPI}\\cdot\\max_i t_i,\\qquad T_{\\text{total}}=\\Big(\\sum_k n_k\\,\\mathrm{CPI}_k\\Big)\\cdot T_{\\text{clock}}"
+        },
+        "limits": "The formulas assume no overlap between instructions and equal step lengths per tick; a pipelined design overlaps instructions and follows other rules. The weighted CPI needs the fraction of each instruction type, and an unweighted average of the CPIs is wrong.",
+        "example": {
+          "problem": "Five steps take 180, 80, 120, 160 and 60 ps. In the instruction mix, 50% of instructions need 4 cycles, 30% need 5 cycles and 20% need 3 cycles on the multi-cycle design. Which design is faster per instruction?",
+          "steps": [
+            "Single-cycle period is the sum of all steps: $180+80+120+160+60=600$ ps.",
+            "Multi-cycle period is the slowest step, 180 ps.",
+            "Weighted CPI is $0.5\\times4+0.3\\times5+0.2\\times3=4.1$.",
+            "Multi-cycle time per instruction is $4.1\\times180=738$ ps, which is more than 600 ps.",
+            "Run backwards: if 2000 such instructions took 1476 ns in total, total cycles are $2000\\times4.1=8200$, so the period is $1476/8200=0.18$ ns, which is 180 ps."
+          ],
+          "result": "Single-cycle takes 600 ps per instruction and multi-cycle 738 ps, so single-cycle is faster here."
+        },
+        "misconceptions": [
+          "Assuming multi-cycle is always faster because its clock is shorter. It spends several ticks per instruction, so it can lose, as the example shows.",
+          "Averaging the CPIs of the types without weights. A type that rarely runs would count as much as one that dominates.",
+          "Dividing total time by the instruction count to get the clock period. That gives time per instruction; the period needs total cycles."
+        ],
+        "recall": [
+          {
+            "q": "What sets the clock period of a single-cycle processor?",
+            "a": "The sum of the step times, because the slowest instruction uses all the steps in one tick."
+          },
+          {
+            "q": "What sets the clock period of a multi-cycle processor?",
+            "a": "The slowest single step."
+          },
+          {
+            "q": "How is the total execution time of a program related to cycles?",
+            "a": "Total time equals total clock cycles times the clock period, with total cycles the sum of count times CPI over the instruction types."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A multi-cycle processor has step times of 120, 60, 100, 140 and 80 ps. Of its instructions, 30% need 3 cycles, 50% need 4 cycles and 20% need 5 cycles. What is the average time per instruction, in ps?",
+          "answer": 546,
+          "explanation": "The clock period is the slowest step, 140 ps. The weighted CPI is $0.3\\times3+0.5\\times4+0.2\\times5=3.9$, so the average time is $3.9\\times140=546$ ps. Using the sum of the steps, 500 ps, as the period is tempting but that is the single-cycle period. Using the unweighted CPI of 4 gives 560 ps."
+        },
+        "summary": "Single-cycle uses the sum of the step times as its period and one tick per instruction. Multi-cycle uses the slowest step as its period and CPI ticks, so compare the sum of the steps with CPI times the slowest step."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.control-sequences",
+      "title": "Control steps for instruction execution",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [
+        17
+      ],
+      "points": [
+        "Every instruction begins with the fetch: MAR ← PC, MDR ← M[MAR], IR ← MDR, PC ← PC + 1 (or + instruction size). The control unit then decodes IR and issues the execute steps.",
+        "On a single-bus datapath one register drives the bus per step, so fetch takes 3 steps: (1) PCout, MARin, Read, Select4, Add, Zin; (2) Zout, PCin, Yin, wait for memory; (3) MDRout, IRin.",
+        "ADD R1, (R3) on that datapath then needs 4 more steps: R3out, MARin, Read; R1out, Yin, wait; MDRout, SelectY, Add, Zin; Zout, R1in, End. Seven steps in all.",
+        "Each step is one control word; the hardwired unit decodes it from the step counter and opcode, the microprogrammed unit reads it from control memory."
+      ],
+      "keyTerms": [
+        "RTL",
+        "control step",
+        "WMFC",
+        "fetch cycle"
+      ],
+      "lesson": {
+        "why": "Control-step questions ask you to order or count the register transfers that carry out an instruction, and the order is forced by a few dependency rules you can apply in under a minute.",
+        "intro": "A control step is one clock tick during which the control unit raises a few signals, such as putting a register's value on the bus or latching the bus into a register. Every instruction starts with a fetch, which reads it from memory into the instruction register IR. After the fetch, the execute steps carry out what the instruction asks. On a single-bus datapath only one value can ride the bus per step, so helper registers hold the other operand and the result: Y holds the first operand and Z the ALU output.",
+        "prerequisites": [
+          "coa-alu-datapath-control.datapath-components"
+        ],
+        "definitions": [
+          {
+            "term": "Register transfer",
+            "meaning": "A step that moves a value from one register to another, written such as R5out for placing R5 on the bus."
+          },
+          {
+            "term": "Fetch",
+            "meaning": "The opening steps that copy PC to MAR, read memory and place the word in IR."
+          }
+        ],
+        "principle": {
+          "text": "Two rules fix the order. The fetch comes before any execute step, because the instruction must be in IR first. A register may be read only after the step that writes it has run, so each helper register must be loaded before the step that uses it.",
+          "tex": "\\text{write}(X) \\prec \\text{read}(X)"
+        },
+        "limits": "The rules fix only dependent steps; two steps with no shared register may swap places. The counts of steps depend on the datapath: a design with more buses or no Y and Z registers needs fewer steps.",
+        "example": {
+          "problem": "On a single-bus datapath with Y and Z registers and a 3-step fetch, write the steps for SUB R2, R5, meaning $R2 \\leftarrow R2 - R5$, and count the total.",
+          "steps": [
+            "After the fetch, put R2 on the bus and load Y: R2out, Yin. The ALU needs this first operand parked in Y.",
+            "Put R5 on the bus; the ALU subtracts it from Y and the result is latched into Z: R5out, Sub, Zin.",
+            "Move the result into R2: Zout, R2in, End. Z is read only after the step that wrote it.",
+            "With sample values R2 = 50 and R5 = 8 the three steps leave R2 equal to 42. Total steps are $3+3=6$."
+          ],
+          "result": "Three execute steps after a 3-step fetch, six in all, ending with R2 = 42 for the sample values."
+        },
+        "misconceptions": [
+          "Putting the step that reads Z before the step that writes it. The register still holds an old value, so the instruction would store the wrong result.",
+          "Executing before the fetch is complete. IR does not yet hold the instruction, so there is nothing to decode.",
+          "Assuming two operands can be put on a single bus at once. That is why the first operand is parked in Y."
+        ],
+        "recall": [
+          {
+            "q": "What is the purpose of the fetch steps?",
+            "a": "They copy the instruction from memory into IR so that the control unit can decode it."
+          },
+          {
+            "q": "Why does a single-bus datapath need Y and Z registers?",
+            "a": "The bus carries one value per step, so Y parks the first operand and Z captures the ALU result."
+          },
+          {
+            "q": "What rule orders two steps that use the same register?",
+            "a": "The step that writes the register must come before the step that reads it."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "On a single-bus datapath, the instruction R4 <- R4 + R6 is carried out by the steps: 1. R6out, Add, Zin; 2. Zout, R4in; 3. MDRout, IRin; 4. R4out, Yin. Which is the correct order of execution?",
+          "options": [
+            "4, 3, 1, 2",
+            "3, 1, 4, 2",
+            "3, 4, 1, 2",
+            "3, 4, 2, 1"
+          ],
+          "answer": 2,
+          "explanation": "Step 3 latches the instruction into IR, so it comes first. Step 4 loads Y before step 1 adds, and step 1 writes Z before step 2 reads it, giving 3, 4, 1, 2. Option A runs the execute step before the instruction is in IR. Option B adds before Y is loaded, and option D reads Z before it is written, which is tempting because the result is only copied."
+        },
+        "summary": "Fetch first, then every register written before it is read. On a single-bus datapath this means load Y, add into Z, then copy Z to the destination."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.hardwired-control",
+      "title": "Hardwired control",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        256,
+        258,
+        259,
+        260
+      ],
+      "points": [
+        "Control signals come from combinational logic whose inputs are the decoded opcode, the current control step (from a step counter and decoder, or the state of an FSM) and status flags.",
+        "A step counter of ⌈log₂ k⌉ bits drives a decoder whose outputs T₁…T_k mark the current step; End resets it to T₁. As an FSM with S states it needs ⌈log₂ S⌉ flip-flops (S with one-hot encoding).",
+        "To design a signal from a step table, OR together Tᵢ·Iⱼ for every step i of instruction j that lists it, then factor: if S is active in T₂ of I₁ and I₃ and in T₃ of I₂, S = T₂(I₁ + I₃) + T₃·I₂.",
+        "Each signal is a sum-of-products such as Zin = T1 + T6·ADD + T4·BR, so it is available after a few gate delays: the fastest possible control.",
+        "Adding or changing an instruction means redesigning the logic, and the logic becomes unwieldy for large, irregular instruction sets.",
+        "Its speed and fixed, simple instruction formats make it the natural choice for RISC and pipelined processors."
+      ],
+      "keyTerms": [
+        "step counter",
+        "control step decoder",
+        "finite-state machine"
+      ],
+      "lesson": {
+        "why": "Hardwired control is the contrasting case to microprogrammed control in many questions, and a step table often has to be turned into a logic expression for one control signal.",
+        "intro": "A control unit decides, step by step, which control signals to switch on so that an instruction executes. In a hardwired design these signals come straight out of logic gates. The gates read three things: the decoded opcode, which instruction is running, the current step number from a step counter and its decoder, and the status flags. No memory is read to produce a signal, so the delay is only a few gate delays.",
+        "prerequisites": [
+          "coa-alu-datapath-control.control-sequences"
+        ],
+        "definitions": [
+          {
+            "term": "Step counter",
+            "meaning": "A counter whose value, decoded into T1, T2 and so on, marks the current control step; End resets it to T1."
+          },
+          {
+            "term": "Control step decoder",
+            "meaning": "Decodes the step counter into one active line per step."
+          }
+        ],
+        "principle": {
+          "text": "Each control signal is the OR of the AND terms Ti times Ij over every step i of instruction j in which the signal is on; steps shared by all instructions, such as fetch, appear as a bare Ti. A counter for k steps needs ceil(log2 k) bits.",
+          "tex": "S=\\sum_{(i,j):\\,S\\in\\text{step } i\\text{ of }I_j}T_i\\cdot I_j"
+        },
+        "limits": "Changing or adding an instruction means redesigning the logic, which becomes unwieldy for large irregular instruction sets; the design suits regular, fast RISC-style machines.",
+        "example": {
+          "problem": "A signal S is on in step T1 of every instruction, in step T3 of ADD and in step T4 of BR. Write S and the counter size if the longest instruction has 6 steps.",
+          "steps": [
+            "T1 is a fetch step shared by all instructions, so it appears alone.",
+            "Add the ADD term T3 AND ADD and the BR term T4 AND BR.",
+            "With 6 steps the counter needs ceil(log2 6) = 3 bits."
+          ],
+          "result": "S = T1 + T3.ADD + T4.BR, with a 3-bit step counter."
+        },
+        "misconceptions": [
+          "A hardwired unit does not read a control memory; that is microprogrammed control.",
+          "Shared fetch steps are not repeated per instruction; they appear once as Ti.",
+          "Hardwired control is not easy to extend: each new instruction changes the logic."
+        ],
+        "recall": [
+          {
+            "q": "What three inputs do the hardwired control gates read?",
+            "a": "The decoded opcode, the current control step and the status flags."
+          },
+          {
+            "q": "Why is hardwired control fast?",
+            "a": "Each signal is a sum-of-products of a few gates, so no memory access is needed."
+          },
+          {
+            "q": "What is its main drawback?",
+            "a": "Adding or changing an instruction requires redesigning the logic."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A signal S is on in step T2 of instructions I1 and I3 and in step T4 of instruction I2 only. Which expression gives S?",
+          "options": [
+            "T2(I1 + I3) + T4.I2",
+            "T2.I1.I3 + T4.I2",
+            "(T2 + T4)(I1 + I2 + I3)",
+            "T2.I2 + T4(I1 + I3)"
+          ],
+          "answer": 0,
+          "explanation": "S is the OR of T2.I1, T2.I3 and T4.I2, and factoring T2 gives T2(I1 + I3) + T4.I2. The second option ANDs I1 with I3, which no single instruction satisfies. The third option turns S on in steps where it is off, and the fourth swaps which steps go with which instructions."
+        },
+        "summary": "Hardwired control derives each signal as a sum of Ti.Ij terms from the step decoder and opcode decoder, which makes it fast but hard to change."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.microprogrammed-control",
+      "title": "Microprogrammed control",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        257,
+        258,
+        259,
+        260,
+        261
+      ],
+      "points": [
+        "Control words are stored as microinstructions in a control memory (control store, usually ROM); each machine instruction is interpreted by a microroutine.",
+        "The control address register (CAR, or μPC) points at the current microinstruction; the sequencer computes the next address by incrementing, branching on a flag, or mapping the opcode to its routine.",
+        "The next CAR value comes from CAR + 1, the branch address when the selected condition is true, a mapping of the opcode to the first word of its routine (for example opcode bits placed as 0xxxx00, giving 4-word slots) or a saved return address for a micro-subroutine.",
+        "Control memory must hold the fetch routine plus every execute routine (plus interrupt routines); the CAR then needs ⌈log₂ words⌉ bits. 4 fetch + 30 × 6 execute + 10 interrupt words = 194 words and an 8-bit CAR.",
+        "A microinstruction is read from control memory for every micro-step, which is why microprogrammed control is slower than hardwired.",
+        "It is easy to design, debug and update (new firmware, no new logic), which suits CISC processors with many complex instructions."
+      ],
+      "keyTerms": [
+        "control memory",
+        "CAR",
+        "μPC",
+        "sequencer",
+        "microroutine",
+        "firmware"
+      ],
+      "lesson": {
+        "why": "Microprogrammed control is the standard contrast to hardwired control, and questions ask how many words the control memory holds and how wide the control address register must be.",
+        "intro": "Instead of building gates for every control signal, the designer stores the signals as numbers in a small memory called the control memory. One stored word, a microinstruction, holds the control signals for one step. A control address register holds the address of the word to read next. Each machine instruction is carried out by a short run of microinstructions called its microroutine. After every read, the sequencer picks the next address: the current one plus 1, a branch target, or the start of the routine for the instruction just fetched.",
+        "prerequisites": [
+          "coa-alu-datapath-control.control-sequences",
+          "coa-alu-datapath-control.hardwired-control"
+        ],
+        "definitions": [
+          {
+            "term": "Control memory",
+            "meaning": "A fast read-only memory holding every microinstruction, including the fetch routine and one routine per instruction."
+          },
+          {
+            "term": "Control address register (CAR)",
+            "meaning": "Holds the address of the next microinstruction to read; also called the microprogram counter."
+          },
+          {
+            "term": "Microroutine",
+            "meaning": "The sequence of microinstructions that carries out one machine instruction."
+          }
+        ],
+        "principle": {
+          "text": "The control memory must hold the fetch routine, every execute routine and any other routine such as interrupt handling, and the CAR needs enough bits to address every word.",
+          "tex": "\\text{words} = w_{\\text{fetch}} + \\sum_j w_j + w_{\\text{other}},\\qquad \\text{CAR bits} = \\lceil \\log_2 \\text{words} \\rceil"
+        },
+        "limits": "Only distinct routines are counted: the fetch routine is stored once and shared by all instructions. The formula gives the minimum CAR width; if the question fixes the address field width, use that value instead.",
+        "example": {
+          "problem": "A processor has a 3-word fetch routine, 20 instructions with 5-word execute routines each, and 7 words of interrupt routines. How wide is the CAR?",
+          "steps": [
+            "Execute routines: 20 x 5 = 100 words.",
+            "Total words: 3 + 100 + 7 = 110.",
+            "The CAR must address 110 words, so it needs ceil(log2 110) = 7 bits, since 2^6 = 64 is too few and 2^7 = 128 is enough."
+          ],
+          "result": "110 words and a 7-bit CAR."
+        },
+        "misconceptions": [
+          "The fetch routine is not repeated for each instruction; it is stored once and every instruction's microroutine begins after it.",
+          "One control-memory read supplies all control signals of a step, so the cost is one read per microinstruction, not one per signal."
+        ],
+        "recall": [
+          {
+            "q": "What does the sequencer decide?",
+            "a": "The next CAR value: current address plus 1, a branch target, the start of an opcode's routine, or a saved return address."
+          },
+          {
+            "q": "Why is microprogrammed control slower than hardwired control?",
+            "a": "Every micro-step needs a control-memory read, whereas hardwired signals appear after a few gate delays."
+          },
+          {
+            "q": "Which processors is it suited to?",
+            "a": "Processors with many complex instructions, since a new instruction only needs new microcode."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A microprogrammed control unit has a 4-word fetch routine, 40 instructions whose execute routines take 3 words each, and 12 words of other routines. What is the minimum number of bits in the control address register?",
+          "answer": 8,
+          "explanation": "Words = 4 + 40 x 3 + 12 = 136. Since 2^7 = 128 < 136 <= 256 = 2^8, the CAR needs 8 bits. Seven bits tempts because the execute routines alone take only 120 words, but the fetch and other routines must also be addressed."
+        },
+        "summary": "A control memory stores microinstructions; the CAR walks through them under the sequencer. Size the memory by adding fetch, execute and other routines, then take the ceiling of log2 for the CAR."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.horizontal-vertical",
+      "title": "Horizontal and vertical microinstructions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        17,
+        257,
+        258,
+        259,
+        260,
+        261
+      ],
+      "points": [
+        "Horizontal format gives one bit per control signal: the word is as wide as the signal count, needs no decoder and can activate any combination of signals in one step.",
+        "Vertical format encodes each group of mutually exclusive signals into a field decoded by extra logic; a group of n signals needs ⌈log₂(n + 1)⌉ bits once a 'none active' code is kept.",
+        "Vertical words are narrower and save control memory but add decoder delay and allow less parallelism; real designs mix both.",
+        "Eight mutually exclusive ALU operations encode in 3 bits when one of them is always active; 4 independent signals stay as 4 separate bits."
+      ],
+      "keyTerms": [
+        "horizontal microcode",
+        "vertical microcode",
+        "encoded field",
+        "mutually exclusive signals"
+      ],
+      "lesson": {
+        "why": "Questions give groups of control signals and ask for the microinstruction width in horizontal and vertical format, and the rounding rule is where marks are lost.",
+        "intro": "A microinstruction must say which control signals are on. The simplest way is one bit per signal, called horizontal format: wide, but every signal is available at once and nothing needs decoding. Some signals can never be on together, such as the different operations of an ALU. Those can share a short binary code that a decoder expands back into separate signals. That is vertical format: a narrower word, at the price of a decoder delay and fewer signals that can be on together.",
+        "definitions": [
+          {
+            "term": "Mutually exclusive signals",
+            "meaning": "Signals of which at most one is ever active in the same step."
+          },
+          {
+            "term": "Encoded field",
+            "meaning": "A group of bits holding a binary code that a decoder turns into one active signal."
+          }
+        ],
+        "principle": {
+          "text": "Horizontal width is the number of signals. A vertical group of n mutually exclusive signals needs enough codes for n signals plus one 'none active' code; independent signals keep one bit each.",
+          "tex": "W_h = \\sum_i n_i,\\qquad W_v = \\sum_i \\lceil \\log_2 (n_i + 1) \\rceil"
+        },
+        "limits": "The +1 applies when a step may leave the whole group idle. If one signal of the group is always active, n codes are enough and the width is the ceiling of log2 n. Signals that can be active together cannot share a field.",
+        "example": {
+          "problem": "A control word has 6 mutually exclusive ALU operations, 3 mutually exclusive register-output signals and 4 independent signals. Find the horizontal and vertical widths.",
+          "steps": [
+            "Horizontal: 6 + 3 + 4 = 13 bits.",
+            "ALU group: ceil(log2 7) = 3 bits. Register group: ceil(log2 4) = 2 bits.",
+            "Independent signals stay as 4 bits, so vertical width is 3 + 2 + 4 = 9 bits."
+          ],
+          "result": "Horizontal 13 bits, vertical 9 bits."
+        },
+        "misconceptions": [
+          "Dropping the +1 gives wrong widths: 3 exclusive signals plus 'none' need 4 codes and so 2 bits, but 4 exclusive signals plus 'none' need 5 codes and so 3 bits, not 2.",
+          "Vertical is not faster. It saves control memory but adds a decoder delay and cannot activate two signals of one field together."
+        ],
+        "recall": [
+          {
+            "q": "Why is horizontal format fast?",
+            "a": "Each bit drives a signal directly, so no decoder is needed and many signals can be active in one step."
+          },
+          {
+            "q": "How many bits encode a group of 7 mutually exclusive signals that may all be idle?",
+            "a": "ceil(log2 8) = 3 bits."
+          },
+          {
+            "q": "What is the cost of vertical format?",
+            "a": "A decoder delay and less parallelism, in return for a narrower control word."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A control word has two groups of mutually exclusive signals, one of 12 signals and one of 5, either of which may be idle, plus 3 independent signals. What is the vertical microinstruction width in bits?",
+          "answer": 10,
+          "explanation": "Group of 12: ceil(log2 13) = 4. Group of 5: ceil(log2 6) = 3. Add 3 independent bits: 10. The horizontal width would be 20, which tempts if the grouping is overlooked; dropping the idle code would give ceil(log2 12) + ceil(log2 5) + 3, which happens to be the same 10 here but fails for exact powers of two such as a group of 8."
+        },
+        "summary": "Horizontal uses one bit per signal and is wide and parallel. Vertical encodes exclusive groups with ceil(log2(n + 1)) bits and is narrow but needs decoding."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.microinstruction-format",
+      "title": "Microinstruction fields and control memory size",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [
+        257
+      ],
+      "points": [
+        "A typical microinstruction has three fields: control signals, a condition-select field that picks one status input of a multiplexer, and a next-address field used when the selected condition is true.",
+        "With s selectable conditions the select field needs ⌈log₂ s⌉ bits; a next-address field of x bits addresses a control memory of 2^x words.",
+        "Given the total width W and the control-field width, the next-address field is whatever remains: x = W − control − select.",
+        "Control memory size in bits = words × microinstruction width."
+      ],
+      "keyTerms": [
+        "condition select",
+        "next-address field",
+        "control word"
+      ],
+      "lesson": {
+        "why": "Sizing questions give some fields of a microinstruction and ask for another, or for the control memory size, and the answer is always a short chain of ceilings and subtraction.",
+        "intro": "A microinstruction usually has three fields. The first holds the control signals to apply in this step. The second is a condition-select field: it names which status condition, such as the zero flag, a multiplexer should test. The third is a next-address field, the address to jump to if the selected condition is true. If it is false, the control address register simply moves to the following word. All three fields together make up the width of one control-memory word.",
+        "definitions": [
+          {
+            "term": "Condition select",
+            "meaning": "A field naming which of s status inputs the branch multiplexer passes on."
+          },
+          {
+            "term": "Next-address field",
+            "meaning": "The branch target loaded into the CAR when the chosen condition is true."
+          }
+        ],
+        "principle": {
+          "text": "The select field needs ceil(log2 s) bits for s conditions, a next-address field of x bits reaches 2^x words, and the three fields add up to the word width.",
+          "tex": "W = W_{\\text{ctrl}} + \\lceil \\log_2 s \\rceil + x,\\qquad \\text{words} = 2^{x},\\quad \\text{size} = \\text{words}\\times W"
+        },
+        "limits": "This layout is one common format. If a question describes a different field layout, for example an extra mode field, add or subtract that field too. When the number of words is not a power of two, x is the ceiling of log2 of the word count.",
+        "example": {
+          "problem": "A microinstruction is 40 bits wide with 26 control-signal bits and 5 selectable conditions. Find the next-address width, the number of control-memory words and the memory size.",
+          "steps": [
+            "Select field: ceil(log2 5) = 3 bits.",
+            "Next-address field: 40 - 26 - 3 = 11 bits.",
+            "Words: 2^11 = 2048; size = 2048 x 40 = 81920 bits."
+          ],
+          "result": "11-bit next address, 2048 words, 81920 bits."
+        },
+        "misconceptions": [
+          "The next-address field is not log2 of the number of conditions; it depends on how many words the control memory has.",
+          "Check which quantity is given. A known memory size fixes x directly, and the control field is then the leftover, not the other way round."
+        ],
+        "recall": [
+          {
+            "q": "What does the condition-select field do?",
+            "a": "It chooses which status condition the multiplexer tests to decide whether to branch."
+          },
+          {
+            "q": "How many bits does the select field need for s conditions?",
+            "a": "ceil(log2 s) bits."
+          },
+          {
+            "q": "How is control memory size in bits found?",
+            "a": "Number of words, 2^x, times the microinstruction width."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A control memory has 512 words, each 30 bits wide, with a branch multiplexer choosing among 6 status conditions. How many bits are left for the control-signal field?",
+          "answer": 18,
+          "explanation": "Next-address field: log2 512 = 9 bits. Select field: ceil(log2 6) = 3 bits. Control field: 30 - 3 - 9 = 18. Taking the select field as 2 bits, from log2 6 = 2.58 rounded down, tempts to give 19."
+        },
+        "summary": "Width is control bits plus select bits plus next-address bits. The next-address width gives 2^x words, and size is words times width."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.nanoprogramming",
+      "title": "Nanoprogramming",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        17
+      ],
+      "points": [
+        "Nanoprogramming is two-level control: the microprogram stores short indices, and a nanomemory stores each distinct wide control word once.",
+        "N microinstructions using D distinct control words of width w need N·⌈log₂ D⌉ + D·w bits instead of N·w.",
+        "It saves memory when many microinstructions repeat the same control word, and costs a second memory access per step."
+      ],
+      "keyTerms": [
+        "nanomemory",
+        "two-level control store"
+      ],
+      "lesson": {
+        "why": "Nanoprogramming appears rarely, but when it does the question is a storage comparison that is a short formula once you know what each level holds.",
+        "intro": "In a large microprogram many microinstructions carry exactly the same wide control word. Storing every copy wastes memory. Nanoprogramming splits storage in two levels. A nanomemory keeps each distinct control word once. The microprogram memory keeps only a short index into the nanomemory for each microinstruction. Every step now reads two memories, first the index and then the control word it points to, so memory is saved at the cost of time.",
+        "definitions": [
+          {
+            "term": "Nanomemory",
+            "meaning": "The second-level store holding each distinct wide control word exactly once."
+          }
+        ],
+        "principle": {
+          "text": "With N microinstructions of which D control words are distinct, each of width w, the two-level store holds an index of ceil(log2 D) bits per microinstruction plus D control words.",
+          "tex": "S_{\\text{two-level}} = N\\lceil \\log_2 D \\rceil + D\\,w \\quad\\text{vs}\\quad S_{\\text{one-level}} = N\\,w"
+        },
+        "limits": "It pays off only when D is much smaller than N. If most control words are distinct, the indexes are extra cost and the two-level store is larger. It also needs two accesses per step, so it is slower.",
+        "example": {
+          "problem": "A microprogram has 200 microinstructions using 16 distinct 48-bit control words. Compare one-level and two-level storage.",
+          "steps": [
+            "One level: 200 x 48 = 9600 bits.",
+            "Index width: ceil(log2 16) = 4 bits, so the microprogram memory takes 200 x 4 = 800 bits.",
+            "Nanomemory: 16 x 48 = 768 bits; two-level total 1568 bits."
+          ],
+          "result": "1568 bits against 9600 bits."
+        },
+        "misconceptions": [
+          "Nanoprogramming does not make the control faster; each step needs two memory reads.",
+          "The saving comes from repeated control words. It is not a general compression of the microprogram."
+        ],
+        "recall": [
+          {
+            "q": "What does the microprogram memory hold in a two-level scheme?",
+            "a": "A short index per microinstruction, pointing to a control word in the nanomemory."
+          },
+          {
+            "q": "When does the two-level scheme save memory?",
+            "a": "When many microinstructions share the same control word, so D is much smaller than N."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A microprogram has 500 microinstructions using 32 distinct 40-bit control words. How many bits does a two-level (micro plus nano) store need?",
+          "answer": 3780,
+          "explanation": "Indexes: 500 x ceil(log2 32) = 500 x 5 = 2500 bits. Nanomemory: 32 x 40 = 1280 bits. Total 3780 bits. The one-level figure of 20000 bits tempts if the nanomemory is forgotten or the index is not counted."
+        },
+        "summary": "Two-level control stores each distinct control word once and gives every microinstruction a short index, trading a second memory access for less storage."
+      }
+    },
+    {
+      "id": "coa-alu-datapath-control.risc-cisc",
+      "title": "RISC versus CISC",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        17,
+        258
+      ],
+      "points": [
+        "RISC: fixed-length instructions, load-store architecture (only loads and stores touch memory), many registers, few simple addressing modes, hardwired control, easy to pipeline.",
+        "CISC: variable-length instructions, memory operands in ALU instructions, many addressing modes, fewer registers, traditionally microprogrammed.",
+        "Modern x86 cores translate CISC instructions into RISC-like micro-operations executed by hardwired, pipelined logic."
+      ],
+      "keyTerms": [
+        "load-store",
+        "fixed-length instructions",
+        "micro-operations"
+      ],
+      "lesson": {
+        "why": "Questions ask which properties belong to RISC and which to CISC, and the answer follows from one design choice: how much work a single instruction may do.",
+        "intro": "A RISC design keeps instructions simple and uniform: all the same length, and only load and store instructions touch memory, while arithmetic works on registers. Because each instruction is small and regular, the control logic can be hardwired and the instructions flow easily through a pipeline. A CISC design allows richer instructions: different lengths, arithmetic that reads memory directly, and many addressing modes. This makes programs shorter but the decoding and control harder, so such processors traditionally use microprogrammed control.",
+        "definitions": [
+          {
+            "term": "Load-store architecture",
+            "meaning": "Only load and store instructions access memory; all other instructions work on registers."
+          },
+          {
+            "term": "Micro-operation",
+            "meaning": "A simple internal operation; modern x86 cores break each CISC instruction into these."
+          }
+        ],
+        "principle": {
+          "text": "RISC trades more, simpler instructions for fast, regular, hardwired and pipelined execution; CISC trades complex variable-length instructions for compact programs and a microprogrammed control unit."
+        },
+        "limits": "The split is a tendency, not a law. Modern x86 processors accept CISC instructions but translate them into RISC-like micro-operations run by hardwired, pipelined logic.",
+        "example": {
+          "problem": "Decide whether the instruction ADD R1, [R2], which adds a memory word to R1, fits a RISC or CISC design, and show what a RISC machine would use.",
+          "steps": [
+            "The ADD reads an operand from memory, so an arithmetic instruction touches memory. A load-store machine does not allow this.",
+            "A RISC machine first runs LOAD R3, [R2], then ADD R1, R1, R3, both on registers.",
+            "So the first form is CISC-style: one complex instruction; the second is RISC-style: two simple ones."
+          ],
+          "result": "Memory operand in ADD is CISC-style; RISC uses a LOAD followed by a register ADD."
+        },
+        "misconceptions": [
+          "RISC programs are not shorter. They use more instructions; the gain is in simple, fast execution of each.",
+          "Having few instructions is not what defines RISC. Fixed length, load-store access and simple addressing do."
+        ],
+        "recall": [
+          {
+            "q": "Which instructions may access memory in a RISC machine?",
+            "a": "Only loads and stores."
+          },
+          {
+            "q": "Which control style does RISC usually use, and why?",
+            "a": "Hardwired, because simple fixed-format instructions need small, fast logic and pipeline well."
+          },
+          {
+            "q": "How do modern x86 cores run CISC code quickly?",
+            "a": "They translate each instruction into RISC-like micro-operations executed by hardwired, pipelined logic."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following is a typical feature of a RISC processor rather than a CISC processor?",
+          "options": [
+            "Variable-length instructions with many addressing modes",
+            "Arithmetic instructions that take operands directly from memory",
+            "Load-store architecture with fixed-length instructions",
+            "A control unit that is traditionally microprogrammed"
+          ],
+          "answer": 2,
+          "explanation": "Fixed-length instructions with only loads and stores accessing memory are RISC traits. The other three describe CISC: variable length with many modes, memory operands in arithmetic instructions, and microprogrammed control. The last option tempts because microprogrammed control sounds simpler, but RISC prefers hardwired control for speed."
+        },
+        "summary": "RISC uses fixed-length, register-based instructions with load-store memory access and hardwired control; CISC uses complex variable-length instructions with memory operands and microprogrammed control."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "coa-alu-datapath-control.select-bits",
+      "name": "Select bits for k alternatives",
+      "tex": "b = \\lceil \\log_2 k \\rceil",
+      "text": "b = ⌈log₂ k⌉",
+      "where": [
+        [
+          "k",
+          "ALU operations, multiplexer inputs or status conditions to choose among"
+        ]
+      ],
+      "note": "16 ALU operations need 4 bits; a 4-input multiplexer needs 2 select lines.",
+      "topic": "coa-alu-datapath-control.alu-functions",
+      "origin": "source",
+      "pages": [
+        260,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.overflow-flag",
+      "name": "Signed overflow flag",
+      "tex": "V = c_n \\oplus c_{n-1}",
+      "text": "V = c(n) ⊕ c(n−1)",
+      "where": [
+        [
+          "c_n",
+          "carry out of the MSB"
+        ],
+        [
+          "c_{n−1}",
+          "carry into the MSB"
+        ]
+      ],
+      "note": "Equivalent test: both operands have the same sign and the result has the other sign. C = c_n is the unsigned overflow.",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.zero-flag",
+      "name": "Zero and sign flags",
+      "tex": "Z = \\overline{r_{n-1} + \\cdots + r_1 + r_0}, \\qquad N = r_{n-1}",
+      "text": "Z = NOR of all result bits; N = r(n−1)",
+      "topic": "coa-alu-datapath-control.status-flags",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.subtract-identity",
+      "name": "Subtraction through the adder",
+      "tex": "A - B = A + \\overline{B} + 1",
+      "text": "A − B = A + B̄ + 1",
+      "note": "Implemented by XORing each Bᵢ with the mode bit M and setting c₀ = M.",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.ripple-delay",
+      "name": "Ripple-carry adder delay",
+      "tex": "T_{\\text{sum}} = (n-1)\\,t_c + t_s, \\qquad T_{\\text{carry}} = n\\,t_c",
+      "text": "T_sum = (n − 1)·t_c + t_s;  T_carry = n·t_c",
+      "where": [
+        [
+          "n",
+          "word length in bits"
+        ],
+        [
+          "t_c",
+          "carry-in to carry-out delay of one full adder"
+        ],
+        [
+          "t_s",
+          "carry-in to sum delay of one full adder"
+        ]
+      ],
+      "note": "The whole result is ready at the larger of the two. Read carefully whether t_c is measured from carry-in or from the operand inputs.",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.cla-carry",
+      "name": "Carry-lookahead recurrence",
+      "tex": "g_i = a_i b_i,\\quad p_i = a_i \\oplus b_i,\\quad c_{i+1} = g_i + p_i c_i,\\quad s_i = p_i \\oplus c_i",
+      "text": "g(i) = a(i)b(i); p(i) = a(i) ⊕ b(i); c(i+1) = g(i) + p(i)c(i); s(i) = p(i) ⊕ c(i)",
+      "note": "Expanding gives c₄ = g₃ + p₃g₂ + p₃p₂g₁ + p₃p₂p₁g₀ + p₃p₂p₁p₀c₀, a two-level circuit.",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.cla-block-delay",
+      "name": "Rippled carry-lookahead blocks",
+      "tex": "T_{c_{n}} = t_{gp} + \\frac{n}{k}\\, t_{\\text{block}}",
+      "text": "T(c_n) = t_gp + (n/k)·t_block",
+      "where": [
+        [
+          "k",
+          "bits per lookahead block"
+        ],
+        [
+          "t_gp",
+          "delay to form g and p"
+        ],
+        [
+          "t_block",
+          "carry-in to carry-out delay of one block"
+        ]
+      ],
+      "note": "16 bits in 4-bit blocks with t_gp = 1 and t_block = 2 gate delays: c₁₆ at 9; the last sum bit one XOR later, at 10.",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.horizontal-width",
+      "name": "Horizontal microinstruction width",
+      "tex": "W_h = \\sum_i n_i",
+      "text": "W_h = total number of control signals",
+      "where": [
+        [
+          "n_i",
+          "signals in group i"
+        ]
+      ],
+      "topic": "coa-alu-datapath-control.horizontal-vertical",
+      "origin": "source",
+      "pages": [
+        258
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.vertical-width",
+      "name": "Vertical (encoded) microinstruction width",
+      "tex": "W_v = \\sum_i \\lceil \\log_2 (n_i + 1) \\rceil",
+      "text": "W_v = Σ ⌈log₂(n(i) + 1)⌉",
+      "where": [
+        [
+          "n_i",
+          "mutually exclusive signals in group i"
+        ]
+      ],
+      "note": "The +1 reserves a code for 'no signal of this group'. If the question says one signal of the group is always active, use ⌈log₂ nᵢ⌉ instead.",
+      "topic": "coa-alu-datapath-control.horizontal-vertical",
+      "origin": "source",
+      "pages": [
+        258,
+        260
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.microinstruction-width",
+      "name": "Microinstruction field widths",
+      "tex": "W = W_{\\text{ctrl}} + \\lceil \\log_2 s \\rceil + x, \\qquad \\text{words} = 2^{x}",
+      "text": "W = W_ctrl + ⌈log₂ s⌉ + x;  control memory words = 2^x",
+      "where": [
+        [
+          "s",
+          "status conditions the branch multiplexer selects among"
+        ],
+        [
+          "x",
+          "next-address field width"
+        ]
+      ],
+      "topic": "coa-alu-datapath-control.microinstruction-format",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.nano-storage",
+      "name": "Two-level (nano) control storage",
+      "tex": "S_{\\text{two-level}} = N \\lceil \\log_2 D \\rceil + D\\,w \\quad \\text{vs} \\quad S_{\\text{one-level}} = N w",
+      "text": "S_two-level = N·⌈log₂ D⌉ + D·w, against N·w for one level",
+      "where": [
+        [
+          "N",
+          "microinstructions"
+        ],
+        [
+          "D",
+          "distinct control words"
+        ],
+        [
+          "w",
+          "control-word width"
+        ]
+      ],
+      "topic": "coa-alu-datapath-control.nanoprogramming",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.cycle-time",
+      "name": "Single-cycle versus multi-cycle time per instruction",
+      "tex": "T_{\\text{single}} = \\sum_j t_j, \\qquad T_{\\text{multi}} = \\mathrm{CPI} \\times \\max_j t_j",
+      "text": "T_single = sum of step delays of the slowest instruction; T_multi = CPI × slowest step",
+      "topic": "coa-alu-datapath-control.single-multi-cycle",
+      "origin": "source",
+      "pages": [
+        256
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.cla-gate-count",
+      "name": "Gate count of a two-level carry-lookahead unit",
+      "tex": "\\#\\text{AND} = \\frac{n(n+1)}{2},\\qquad \\#\\text{OR} = n,\\qquad \\text{max fan-in} = n+1",
+      "text": "AND gates = n(n + 1)/2; OR gates = n; largest fan-in = n + 1",
+      "where": [
+        [
+          "n",
+          "carries c₁…cₙ generated in two-level AND-OR form"
+        ]
+      ],
+      "note": "cᵢ has i + 1 product terms, but gᵢ₋₁ is a single literal and needs no AND gate. n = 4: 10 AND, 4 OR.",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.cla-block-gp",
+      "name": "Block generate and propagate",
+      "tex": "P = p_3 p_2 p_1 p_0,\\quad G = g_3 + p_3 g_2 + p_3 p_2 g_1 + p_3 p_2 p_1 g_0,\\quad c_4 = G + P\\,c_0",
+      "text": "P = p₃p₂p₁p₀; G = g₃ + p₃g₂ + p₃p₂g₁ + p₃p₂p₁g₀; c₄ = G + P·c₀",
+      "note": "With g/p at 1 gate delay: P at 2, G at 3, second-level carries at 5, in-block carries at 7, sums at 8 for 16 bits.",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.hardwired-signal",
+      "name": "Hardwired control signal",
+      "tex": "S = \\sum_{(i,j)\\,:\\,S \\in \\text{step } i \\text{ of } I_j} T_i \\cdot I_j",
+      "text": "S = OR of Tᵢ·Iⱼ over every step i of instruction j that activates S",
+      "where": [
+        [
+          "T_i",
+          "step-decoder output for step i"
+        ],
+        [
+          "I_j",
+          "instruction-decoder output for instruction j"
+        ]
+      ],
+      "note": "Fetch steps are shared by all instructions and appear as a bare Tᵢ.",
+      "topic": "coa-alu-datapath-control.hardwired-control",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.control-memory-words",
+      "name": "Control memory words and CAR width",
+      "tex": "\\text{words} = w_{\\text{fetch}} + \\sum_j w_j + w_{\\text{other}},\\qquad \\text{CAR} = \\lceil \\log_2 \\text{words} \\rceil",
+      "text": "words = fetch routine + Σ execute routines + other routines; CAR bits = ⌈log₂ words⌉",
+      "where": [
+        [
+          "w_j",
+          "microinstructions in the routine of instruction j"
+        ]
+      ],
+      "note": "Size in bits = words × width; a next-address field matches the CAR width.",
+      "topic": "coa-alu-datapath-control.microprogrammed-control",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "coa-alu-datapath-control.microinstruction-sizing",
+      "title": "Field widths and control memory size of a microinstruction",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Control field: count the signals (horizontal) or sum ⌈log₂(nᵢ + 1)⌉ over the encoded groups (vertical).",
+        "Condition-select field: ⌈log₂ s⌉ for s multiplexer inputs.",
+        "Next-address field: x = total width − control − select, or log₂ of the control-memory words when the size is given.",
+        "Control memory = 2^x words, each W bits."
+      ],
+      "trap": "Mixing up which quantity is given: total width fixes x; control-memory size fixes x the other way round.",
+      "topic": "coa-alu-datapath-control.microinstruction-format",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.vertical-encoding",
+      "title": "Horizontal versus vertical width for grouped control signals",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Horizontal: add up all signals.",
+        "Vertical: for each mutually exclusive group of n signals take ⌈log₂(n + 1)⌉; independent signals keep 1 bit each.",
+        "Subtract for the saving if asked."
+      ],
+      "trap": "Dropping the +1 'none active' code: a group of 7 needs 3 bits, a group of 8 needs 4 unless one signal is always on.",
+      "topic": "coa-alu-datapath-control.horizontal-vertical",
+      "origin": "source",
+      "pages": [
+        258,
+        260
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.adder-delay",
+      "title": "Worst-case delay of ripple-carry and carry-lookahead adders",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the arrival time of every carry: ripple adds t_c per bit, lookahead blocks add one block delay per block.",
+        "Start each block at max(its carry-in time, g/p ready time).",
+        "Add the sum delay after the last carry the question asks about.",
+        "Two-level lookahead: g/p at 1, block P at 2 and G at 3, second-level carries 2 later, in-block carries 2 after their block carry, then one XOR for the sum."
+      ],
+      "trap": "Counting n carry delays to the last sum bit; it needs only n − 1 plus one sum delay.",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.flag-evaluation",
+      "title": "Flag values after an addition or subtraction",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Add in binary and keep n bits; the bit pushed out is C.",
+        "Z if the n-bit result is 0, N from its MSB.",
+        "V if both operands share a sign and the result has the other sign (or c_n ⊕ c_{n−1})."
+      ],
+      "trap": "Assuming a carry means overflow: C = 1 with V = 0 is common for adding two negative numbers.",
+      "topic": "coa-alu-datapath-control.status-flags",
+      "origin": "source",
+      "pages": [
+        255,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.control-step-count",
+      "title": "Control steps for an instruction on a single-bus datapath",
+      "frequency": "low",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Fetch takes 3 steps: PC to MAR with PC + 1 formed in Z; Z to PC while memory responds; MDR to IR.",
+        "For each memory operand, add a step to load MAR and one to wait for and use MDR.",
+        "An ALU operation needs one operand parked in Y, then one step computing into Z and one step moving Z to the destination."
+      ],
+      "trap": "Putting two registers on the single bus in the same step.",
+      "topic": "coa-alu-datapath-control.control-sequences",
+      "origin": "curated",
+      "pages": [
+        17
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.control-unit-properties",
+      "title": "Hardwired versus microprogrammed, horizontal versus vertical",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Hardwired: logic gates and a step counter, fast, rigid, RISC.",
+        "Microprogrammed: control memory, CAR and sequencer, flexible, slower (one control-memory read per micro-step), CISC.",
+        "Horizontal: wide, no decoding, parallel; vertical: narrow, decoded, slower."
+      ],
+      "topic": "coa-alu-datapath-control.microprogrammed-control",
+      "origin": "source",
+      "pages": [
+        256,
+        257,
+        260,
+        261,
+        262
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.hardwired-signal-expression",
+      "title": "Control signal expression from a step table",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For the signal asked, list every (step, instruction) cell that contains it.",
+        "Write the OR of Tᵢ·Iⱼ over those cells.",
+        "Factor common steps, T₂·I₁ + T₂·I₃ = T₂(I₁ + I₃), and match the options."
+      ],
+      "trap": "Reading the table by instruction and factoring by Iⱼ when the options are grouped by step, or missing a cell where the signal appears a second time.",
+      "topic": "coa-alu-datapath-control.hardwired-control",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "coa-alu-datapath-control.q-control-memory-words",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A microprogrammed control unit uses 30-bit microinstructions with three fields: a 17-bit control field, a condition-select field driving a multiplexer with 16 status inputs (one tied to logic 1 for unconditional branches), and a next-address field. All 30 bits are used. How many words does the control memory have?",
+      "answer": 512,
+      "explanation": "The select field must choose among 16 inputs: ⌈log₂ 16⌉ = 4 bits. The next-address field takes the rest: 30 − 17 − 4 = 9 bits, which addresses 2⁹ = 512 control-memory words.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.microinstruction-format",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-vertical-width",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A processor has 26 control signals: three mutually exclusive groups of 7, 3 and 12 signals, plus 4 signals that may be active independently. Each exclusive group must also be able to activate none of its signals. What is the minimum width of the control field in vertical (encoded) form?",
+      "answer": 13,
+      "explanation": "Each group of n needs ⌈log₂(n + 1)⌉ bits: 7 → 3, 3 → 2, 12 → 4. The 4 independent signals need 1 bit each. Total 3 + 2 + 4 + 4 = 13 bits, against 26 in horizontal form.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.horizontal-vertical",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2013) — Control signals",
+      "pages": [
+        258,
+        260,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-ripple-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 32-bit ripple-carry adder is built from full adders. Each full adder produces its carry-out 2 ns after its carry-in is stable and its sum 3 ns after its carry-in is stable. All operand bits and c₀ are applied at t = 0. After how many nanoseconds are all sum bits and the final carry-out guaranteed stable?",
+      "answer": 65,
+      "explanation": "Carry cᵢ arrives at 2i ns. The last sum bit s₃₁ needs c₃₁, ready at 62 ns, plus 3 ns: 65 ns. The carry-out c₃₂ is ready at 64 ns. The later of the two is 65 ns.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-cla-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 16-bit adder is made of four 4-bit carry-lookahead blocks, with the carry-out of each block feeding the carry-in of the next. All gᵢ and pᵢ are ready 1 gate delay after the operands are applied at t = 0, and c₀ is available at t = 0. Each block produces its carry-out 2 gate delays after both its g/p signals and its carry-in are available. After how many gate delays is c₁₆ available?",
+      "answer": 9,
+      "explanation": "Block 0 starts at max(1, 0) = 1 and gives c₄ at 3. Block 1 gives c₈ at max(1, 3) + 2 = 5, block 2 gives c₁₂ at 7, and block 3 gives c₁₆ at 9 gate delays. (The last sum bit needs one more XOR, at 10.)",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-nanoprogram-storage",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A microprogram has 2048 microinstructions, each with a 100-bit control word, but only 256 of the control words are distinct. In a two-level design the microprogram stores the minimum-width index into a nanomemory that holds each distinct control word once. Ignoring sequencing fields, what is the total storage of the two-level design in bits?",
+      "answer": 41984,
+      "explanation": "Indexing 256 words needs 8 bits, so the micro memory holds 2048 × 8 = 16384 bits. The nanomemory holds 256 × 100 = 25600 bits. Total 16384 + 25600 = 41984 bits, against 2048 × 100 = 204800 bits for a single-level store.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.nanoprogramming",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-multicycle-time",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The five execution steps take IF 200 ps, ID 100 ps, EX 150 ps, MEM 200 ps and WB 100 ps. A multi-cycle implementation clocks at the slowest step and uses 5 cycles for loads (25% of instructions), 4 for stores (10%), 4 for ALU instructions (45%) and 3 for branches (20%). What is its average time per instruction in ps? (Ignore register overhead.)",
+      "answer": 810,
+      "explanation": "Clock = max step = 200 ps. CPI = 0.25·5 + 0.10·4 + 0.45·4 + 0.20·3 = 1.25 + 0.4 + 1.8 + 0.6 = 4.05. Average time = 4.05 × 200 = 810 ps. A single-cycle design would need 200 + 100 + 150 + 200 + 100 = 750 ps per instruction, so here multi-cycle is slower.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.single-multi-cycle",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2016) — Single cycle",
+      "pages": [
+        256,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-flags-add",
+      "type": "msq",
+      "marks": 1,
+      "stem": "An 8-bit ALU adds 0xC0 and 0xC0. Which flags are set afterwards? (C is the carry out of bit 7; V is signed overflow.)",
+      "options": [
+        "Z (zero)",
+        "N (negative)",
+        "C (carry)",
+        "V (overflow)"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "0xC0 + 0xC0 = 0x180. The 8-bit result is 0x80 and the ninth bit is carried out, so C = 1. The result is non-zero (Z = 0) and its MSB is 1 (N = 1). As signed values this is −64 + −64 = −128, which fits in 8 bits, so V = 0: the carries into and out of bit 7 are both 1.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.status-flags",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — ALU",
+      "pages": [
+        255,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-control-unit-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about control units are true?",
+      "options": [
+        "Hardwired control generally produces control signals faster than microprogrammed control.",
+        "Adding a new instruction is usually easier with microprogrammed control than with hardwired control.",
+        "Vertical microinstructions need no decoding logic.",
+        "Microprogrammed control is slower because every control signal needs its own control-memory read."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Hardwired control is gate logic, so it is fastest; microprogrammed control changes by rewriting the control store, which is easier than redesigning logic. Vertical fields are encoded and must be decoded. The slowdown comes from one control-memory read per microinstruction, and that one read delivers all of the step's signals together, not one read per signal.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.microprogrammed-control",
+      "origin": "source",
+      "sourceLabel": "PYQ-7 (GATE 2020) — Control store",
+      "pages": [
+        256,
+        257,
+        261
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-overflow-rule",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In an n-bit two's-complement adder, let c_n be the carry out of the most significant bit and c_{n−1} the carry into it. Signed overflow occurs exactly when:",
+      "options": [
+        "c_n = 1",
+        "c_n ⊕ c_{n−1} = 1",
+        "c_n · c_{n−1} = 1",
+        "the result's MSB is 1"
+      ],
+      "answer": 1,
+      "explanation": "Overflow means the MSB was computed from a carry inconsistent with the sign: two positives give a carry into the MSB but none out, two negatives give a carry out but none in. Both cases, and only they, have c_n ≠ c_{n−1}. c_n alone is the unsigned carry, and adding two negatives without overflow (for example −1 + −1) sets c_n.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-adder-subtractor",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4-bit adder-subtractor feeds each Bᵢ through an XOR gate whose other input is a mode line M, and drives the adder's carry-in c₀ from M as well. With M = 1, the adder outputs:",
+      "options": [
+        "A + B",
+        "A − B",
+        "A + B̄ (one's-complement difference)",
+        "B − A"
+      ],
+      "answer": 1,
+      "explanation": "With M = 1 each XOR inverts its Bᵢ, and c₀ = 1 adds one more: A + B̄ + 1 = A + (−B) in two's complement, which is A − B. Without the carry-in the result would be A + B̄, one less than the difference.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.adder-subtractor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-alu-select-bits",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An ALU supports 16 distinct operations, selected by a binary-encoded function code. What is the minimum number of function-select bits?",
+      "options": [
+        "2",
+        "4",
+        "8",
+        "16"
+      ],
+      "answer": 1,
+      "explanation": "k bits distinguish 2^k operations, so 16 operations need ⌈log₂ 16⌉ = 4 bits. 16 bits would be a one-hot (horizontal-style) code.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.alu-functions",
+      "origin": "source",
+      "pages": [
+        260
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-horizontal-advantage",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Compared with a vertical microinstruction format, the main advantage of a horizontal format is:",
+      "options": [
+        "A smaller control memory",
+        "Any combination of control signals can be activated in one step without decoding",
+        "Fewer microinstructions are needed to address the control memory",
+        "It can be implemented without a control address register"
+      ],
+      "answer": 1,
+      "explanation": "One bit per signal means no decoder delay and full parallelism. The price is width: horizontal words need more control memory, not less, and both formats still need a CAR to sequence microinstructions.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.horizontal-vertical",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2019) — Microinstruction",
+      "pages": [
+        257,
+        260
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-single-bus-steps",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A single-bus CPU has registers Y (ALU input) and Z (ALU output); only one register can drive the bus per step, and a memory read completes in the step after Read is issued. Fetch takes 3 steps. How many control steps in total, fetch included, does ADD R1, (R3) need, where R1 ← R1 + M[R3]?",
+      "options": [
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      "answer": 2,
+      "explanation": "Fetch: (1) PCout, MARin, Read, Select4, Add, Zin; (2) Zout, PCin, Yin, wait; (3) MDRout, IRin. Execute: (4) R3out, MARin, Read; (5) R1out, Yin, wait for memory; (6) MDRout, SelectY, Add, Zin; (7) Zout, R1in, End. Parking R1 in Y during the memory wait saves a step, giving 7.",
+      "difficulty": "hard",
+      "topic": "coa-alu-datapath-control.control-sequences",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-barrel-shifter",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 32-bit logarithmic barrel shifter can shift left by any amount from 0 to 31 in one pass. How many stages of 2:1 multiplexers does it need?",
+      "options": [
+        "5",
+        "6",
+        "31",
+        "32"
+      ],
+      "answer": 0,
+      "explanation": "Stage j either shifts by 2^j or passes the word unchanged; the five stages 1, 2, 4, 8, 16 combine to any shift amount 0–31, matching the 5-bit shift count. Each stage has 32 multiplexers, 160 in total.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.bit-slice-shifter",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-risc-features",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which combination of features is characteristic of a RISC processor?",
+      "options": [
+        "Variable-length instructions, many addressing modes, microprogrammed control",
+        "Fixed-length instructions, load-store architecture, hardwired control",
+        "Memory operands in ALU instructions, few registers, hardwired control",
+        "Fixed-length instructions, memory-to-memory arithmetic, microprogrammed control"
+      ],
+      "answer": 1,
+      "explanation": "RISC keeps instructions simple and uniform: fixed length, only loads and stores touch memory, many registers and hardwired control, all of which make pipelining easy. Variable length, many modes, memory operands and microcode are CISC traits.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.risc-cisc",
+      "origin": "source",
+      "pages": [
+        17,
+        258
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-fastest-control",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Where are the control signals of a hardwired control unit generated from?",
+      "options": [
+        "Microinstructions read from a control ROM",
+        "Combinational logic driven by the opcode, the control-step counter and the status flags",
+        "A nanomemory indexed by the opcode",
+        "The instruction cache"
+      ],
+      "answer": 1,
+      "explanation": "A hardwired unit decodes the opcode and the current step (from a counter or FSM state) and combines them with flags in gate logic; there is no control memory, which is why it is the faster design.",
+      "difficulty": "easy",
+      "topic": "coa-alu-datapath-control.hardwired-control",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Hardwired",
+      "pages": [
+        256,
+        259,
+        260
+      ]
+    },
+    {
+      "id": "coa-alu-datapath-control.q-cla-gate-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A 4-bit carry-lookahead unit generates c₁, c₂, c₃ and c₄ from gᵢ, pᵢ and c₀ in two-level AND-OR form, with no gate shared between carries. Each gᵢ that appears alone in a sum goes straight into the OR gate. How many AND gates does the unit need?",
+      "answer": 10,
+      "explanation": "cᵢ = gᵢ₋₁ + pᵢ₋₁gᵢ₋₂ + … + pᵢ₋₁…p₀c₀ has i + 1 terms; the first is the single literal gᵢ₋₁, so cᵢ needs i AND gates. Total 1 + 2 + 3 + 4 = 10 AND gates, plus 4 OR gates, the widest AND (p₃p₂p₁p₀c₀) having fan-in 5.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-two-level-cla",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 16-bit adder uses four 4-bit lookahead blocks and a second-level lookahead unit. Operands and c₀ arrive at t = 0; every gate, XOR included, has 1 unit of delay. gᵢ and pᵢ take 1 level, block P takes 1 more AND, block G 2 more levels (AND-OR), the second-level unit forms c₄, c₈, c₁₂ and c₁₆ from G, P and c₀ in 2 levels, each block forms its internal carries from its carry-in in 2 levels, and sᵢ = pᵢ ⊕ cᵢ. When is s₁₅ stable?",
+      "answer": 8,
+      "explanation": "g, p at 1; P at 2 and G at 3; the second-level carries c₄, c₈, c₁₂, c₁₆ at 3 + 2 = 5; inside the last block c₁₅ needs c₁₂, so it is ready at 5 + 2 = 7; s₁₅ = p₁₅ ⊕ c₁₅ at 8. Rippling four blocks instead gives c₁₆ at 9.",
+      "difficulty": "hard",
+      "topic": "coa-alu-datapath-control.carry-lookahead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-hardwired-signal",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A hardwired CPU runs three instructions in three steps each. I₁: T₁ {S1, S3}, T₂ {S2}, T₃ {S4, S5}. I₂: T₁ {S1, S3}, T₂ {S5}, T₃ {S2}. I₃: T₁ {S1, S3}, T₂ {S2, S5}, T₃ {S4}. Iⱼ is the instruction-decoder output and Tᵢ the step-decoder output. Which pair of expressions generates S2 and S5?",
+      "options": [
+        "S2 = T₂(I₁ + I₃) + T₃·I₂ and S5 = T₃·I₁ + T₂(I₂ + I₃)",
+        "S2 = T₂(I₁ + I₂) + T₃·I₃ and S5 = T₃·I₁ + T₂(I₂ + I₃)",
+        "S2 = T₂(I₁ + I₃) + T₃·I₂ and S5 = T₂·I₁ + T₃(I₂ + I₃)",
+        "S2 = T₂ + T₃·I₂ and S5 = T₃·I₁ + T₂"
+      ],
+      "answer": 0,
+      "explanation": "S2 appears in T₂ of I₁, T₃ of I₂ and T₂ of I₃: T₂·I₁ + T₃·I₂ + T₂·I₃ = T₂(I₁ + I₃) + T₃·I₂. S5 appears in T₃ of I₁, T₂ of I₂ and T₂ of I₃: T₃·I₁ + T₂(I₂ + I₃). Dropping the Iⱼ factor (last option) would fire S2 in T₂ of I₂, where it is not listed.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.hardwired-control",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-alu-datapath-control.q-control-memory-bits",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A microprogrammed CPU has 30 machine instructions. A shared fetch routine has 4 microinstructions, each instruction has its own execute routine of 6 microinstructions, and interrupt handling needs 10 more. The control memory holds exactly these microinstructions. Each microinstruction has 28 control bits and a next-address field just wide enough to address any of them, and nothing else. What is the control memory size in bits?",
+      "answer": 6984,
+      "explanation": "Words = 4 + 30 × 6 + 10 = 194. Addressing 194 words needs ⌈log₂ 194⌉ = 8 bits, so each microinstruction is 28 + 8 = 36 bits. Size = 194 × 36 = 6984 bits.",
+      "difficulty": "medium",
+      "topic": "coa-alu-datapath-control.microprogrammed-control",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Single-cycle clock period = slowest instruction; multi-cycle clock period = slowest step. Multi-cycle is not automatically faster: compare CPI × step time with the single-cycle period.",
+      "origin": "source",
+      "pages": [
+        256,
+        261
+      ]
+    },
+    {
+      "text": "Microprogrammed control pays one control-memory read per microinstruction, not per control signal; one read delivers the whole control word.",
+      "origin": "source",
+      "pages": [
+        261
+      ]
+    },
+    {
+      "text": "Carry and overflow are different flags: 0xC0 + 0xC0 in 8 bits sets C but not V, and 0x7F + 0x01 sets V but not C.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Encoding a group of n mutually exclusive signals takes ⌈log₂(n + 1)⌉ bits when the group can be idle; using ⌈log₂ n⌉ is right only if one signal is always active.",
+      "origin": "source",
+      "pages": [
+        258,
+        260
+      ]
+    },
+    {
+      "text": "Sign extension copies the sign bit for signed immediates; zero extension pads unsigned ones with 0s. Using the wrong one changes negative offsets into large positive ones.",
+      "origin": "source",
+      "pages": [
+        261
+      ]
+    },
+    {
+      "text": "The last sum bit of a ripple adder waits for n − 1 carry delays plus one sum delay, not n carry delays.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "ALU",
+      "lines": [
+        "Z = all result bits 0; N = MSB; C = carry out; V = c_n ⊕ c_(n−1)",
+        "A − B = A + B̄ + 1 (XOR B with M, c₀ = M)",
+        "Ripple: last sum at (n − 1)t_c + t_s; CLA: c(i+1) = g(i) + p(i)c(i)",
+        "k operations → ⌈log₂ k⌉ select bits; barrel shifter → log₂ n stages"
+      ],
+      "origin": "source",
+      "pages": [
+        255,
+        260
+      ]
+    },
+    {
+      "heading": "Control unit",
+      "lines": [
+        "Hardwired: gates + step counter, fast, rigid, RISC",
+        "Microprogrammed: control memory + CAR + sequencer, flexible, slower, CISC",
+        "Nanoprogramming: N·⌈log₂ D⌉ + D·w bits"
+      ],
+      "origin": "source",
+      "pages": [
+        17,
+        262
+      ]
+    },
+    {
+      "heading": "Microinstruction",
+      "lines": [
+        "Horizontal: 1 bit per signal, wide, parallel, no decoder",
+        "Vertical: Σ ⌈log₂(nᵢ + 1)⌉ bits, narrow, decoded, slower",
+        "W = control + ⌈log₂ conditions⌉ + next address; words = 2^(next-address bits)"
+      ],
+      "origin": "source",
+      "pages": [
+        262
+      ]
+    },
+    {
+      "heading": "Execution",
+      "lines": [
+        "Fetch: MAR ← PC; MDR ← M[MAR]; IR ← MDR; PC ← PC + 1",
+        "Single-bus fetch = 3 steps; ADD R1, (R3) = 7 steps",
+        "Single-cycle period = slowest instruction; multi-cycle = slowest step"
+      ],
+      "origin": "source",
+      "pages": [
+        17,
+        256
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 260,
+      "claim": "The next microinstruction address is stored in the branch field of the microinstruction.",
+      "correction": "The address goes in the next-address field. The branch (condition-select) field only chooses which status condition decides whether that address or the incremented CAR is used, matching the three-field layout control | branch | next address."
+    },
+    {
+      "page": 261,
+      "claim": "Microprogrammed control is slower because each control signal requires a control-memory read.",
+      "correction": "One control-memory read fetches a whole microinstruction, which carries all the control signals of that micro-step. The overhead is one read per microinstruction (micro-step), not per signal."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "coa-alu-design",
+      "status": "partial",
+      "topics": [
+        "coa-alu-datapath-control.alu-functions",
+        "coa-alu-datapath-control.status-flags",
+        "coa-alu-datapath-control.adder-subtractor",
+        "coa-alu-datapath-control.carry-lookahead",
+        "coa-alu-datapath-control.bit-slice-shifter"
+      ]
+    },
+    {
+      "item": "coa-control-unit-design",
+      "status": "partial",
+      "topics": [
+        "coa-alu-datapath-control.hardwired-control",
+        "coa-alu-datapath-control.microprogrammed-control",
+        "coa-alu-datapath-control.horizontal-vertical",
+        "coa-alu-datapath-control.microinstruction-format",
+        "coa-alu-datapath-control.control-sequences",
+        "coa-alu-datapath-control.nanoprogramming",
+        "coa-alu-datapath-control.risc-cisc"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2013 @@
+{
+  "id": "os-processes-threads",
+  "summary": "A process is a program in execution: an address space holding code, data, heap and stack, plus a PCB through which the kernel tracks it. This chapter follows a process through its states, its creation with fork and exec and its reaping with wait, then turns to threads, which share one address space, and the user-level vs kernel-level trade-off. It closes with system calls, the trap-based doorway into the kernel, and the IPC mechanisms processes use to cooperate. GATE asks mostly 1-mark concept questions here, plus fork-counting numericals that reward a careful tree.",
+  "highYield": [
+    "Counting processes or prints after fork() calls in loops, if-conditions and short-circuit && / || expressions: draw the fork tree or multiply per-statement factors.",
+    "Legal state transitions: Running → Ready (preempt), Running → Waiting (block), Waiting → Ready (event done); Waiting never goes straight to Running.",
+    "What the threads of a process share (code, data, heap, open files) and keep private (stack, registers, PC), and therefore what a thread switch saves.",
+    "User-level vs kernel-level thread statements: who schedules them, switch cost, what a blocking call blocks, and whether several cores can be used.",
+    "System calls and dual mode: a call traps into kernel mode, privileged instructions (timer, interrupts, I/O, MMU) run only there, and a mode switch is not a context switch."
+  ],
+  "topics": [
+    {
+      "id": "os-processes-threads.process-concept",
+      "title": "Program vs process and the address-space layout",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        42,
+        464
+      ],
+      "points": [
+        "A program is a passive file on disk; a process is that program in execution, with its own address space, CPU state and OS resources. One program can back many processes at once.",
+        "The address space holds text (code), data (globals and statics), the heap (dynamic allocation, grows upward) and the stack (call frames and locals, grows downward).",
+        "The kernel tracks each process through its process control block, which lives in kernel memory rather than in the process's own address space."
+      ],
+      "keyTerms": [
+        "text segment",
+        "data segment",
+        "heap",
+        "stack",
+        "address space"
+      ],
+      "lesson": {
+        "why": "Questions on processes assume you can tell a program from a process and say where a variable lives in memory. Both rest on the four regions of the address space.",
+        "intro": "A program is a file of instructions sitting on disk; it does nothing by itself. When the system starts it, the result is a process: the program in execution, with its own private memory, its own CPU state and its own open files. Starting the same program twice gives two processes. The private memory is called the address space and is split into four regions: the code, the global data, a heap for memory requested while running, and a stack for function calls.",
+        "definitions": [
+          {
+            "term": "Text segment",
+            "meaning": "The region holding the program code, fixed once loaded."
+          },
+          {
+            "term": "Heap",
+            "meaning": "The region for dynamically allocated memory such as malloc results; it grows toward higher addresses."
+          },
+          {
+            "term": "Stack",
+            "meaning": "The region for call frames, parameters and local variables; it grows toward lower addresses."
+          }
+        ],
+        "principle": {
+          "text": "A program is passive and one program can back many processes. Each process owns one address space with a text, a data, a heap and a stack region, and where a variable lives depends on how it is declared: globals and statics in data, locals in the stack, malloc results in the heap."
+        },
+        "limits": "The four-region picture is the usual textbook layout; real systems add further regions such as shared libraries and memory-mapped files. Two processes of the same program can share the read-only code pages in physical memory even though each has its own address space.",
+        "example": {
+          "problem": "A C program declares int g = 5; as a global, calls main which declares int x = 1; and runs int *p = malloc(40); static int s = 0; inside a function. State the region of g, x, p, the 40 bytes that p points to, and s.",
+          "steps": [
+            "g is a global, so it is stored in the data segment.",
+            "s is static, so it also lives in the data segment even though it is declared inside a function.",
+            "x and the pointer variable p are locals, so both sit in the stack frame of their function.",
+            "The 40 bytes returned by malloc come from the heap; p itself holds only their address."
+          ],
+          "result": "g and s in data, x and p in the stack, the 40 bytes in the heap."
+        },
+        "misconceptions": [
+          "A program and a process are not the same thing: running the same program twice creates two processes with separate address spaces, not one process used twice.",
+          "The pointer p and the memory it points to are in different regions: p is on the stack, while the malloc block is on the heap.",
+          "A static local is not on the stack; it keeps its value between calls because it lives in the data segment."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between a program and a process?",
+            "a": "A program is a passive file on disk; a process is that program in execution with its own address space, CPU state and resources."
+          },
+          {
+            "q": "Which region holds global variables and statics?",
+            "a": "The data segment."
+          },
+          {
+            "q": "In which directions do the heap and the stack grow?",
+            "a": "The heap grows toward higher addresses and the stack toward lower addresses, so they grow toward each other."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A function contains the declaration static int count = 0; and also the local int n = 3;. In which regions of the process are count and n stored?",
+          "options": [
+            "count in the stack, n in the heap",
+            "count in the data segment, n in the stack",
+            "count in the heap, n in the data segment",
+            "count and n both in the stack"
+          ],
+          "answer": 1,
+          "explanation": "A static variable lasts for the whole run, so it is placed in the data segment, while an ordinary local lives in the stack frame of the call. Both in the stack tempts because both are declared inside a function, but a static does not vanish when the call returns."
+        },
+        "summary": "A program is a file, a process is its execution with a private address space. Text holds code, data holds globals and statics, the heap holds malloc blocks and the stack holds locals."
+      }
+    },
+    {
+      "id": "os-processes-threads.process-states",
+      "title": "Process states and transitions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        464,
+        465,
+        468
+      ],
+      "points": [
+        "New: being created. Ready: in memory, waiting only for a CPU. Running: executing. Waiting (blocked): waiting for an event such as I/O completion. Terminated: finished, awaiting cleanup.",
+        "Transitions: New → Ready (admit), Ready → Running (dispatch), Running → Ready (preempt), Running → Waiting (I/O request or blocking call), Waiting → Ready (event done), Running → Terminated (exit).",
+        "A blocked process whose event completes goes to Ready, never straight to Running, and nothing moves from Ready to Waiting, because only a running process can issue a request.",
+        "Running → Ready is the preemption edge: a purely non-preemptive scheduler never forces it, so a process keeps the CPU until it blocks or exits.",
+        "With one CPU at most one process is Running at any instant; the Ready and Waiting states can hold any number of processes.",
+        "Systems that swap add suspended states: the medium-term scheduler moves Ready or Waiting processes out to disk (Ready-suspend, Blocked-suspend) and later brings them back."
+      ],
+      "keyTerms": [
+        "dispatch",
+        "preemption",
+        "blocked",
+        "ready queue"
+      ],
+      "lesson": {
+        "why": "Questions on process states ask which transitions can happen and how often a process enters a queue, and both are settled by a few fixed rules about the state diagram.",
+        "intro": "At any moment a process is in one state. It is New while the system sets it up, Ready when it could run but waits for the CPU, Running while it holds the CPU, Waiting while it needs an event such as the end of an input or output transfer, and Terminated when it has finished. The kernel moves a process from one state to another, and only some moves exist.",
+        "prerequisites": [
+          "os-processes-threads.process-concept"
+        ],
+        "definitions": [
+          {
+            "term": "Dispatch",
+            "meaning": "The kernel gives the CPU to a process taken from the ready queue, moving it from Ready to Running."
+          },
+          {
+            "term": "Waiting (blocked)",
+            "meaning": "The state of a process that cannot continue until an event, such as the end of an I/O transfer, happens."
+          }
+        ],
+        "principle": {
+          "text": "Running is entered only from Ready, because only the dispatcher hands out the CPU and it picks from the ready queue. Waiting is entered only from Running, because only an executing process can ask for something and then have to wait. A finished event sends a process to Ready, never straight to Running."
+        },
+        "limits": "Running to Ready exists only when the scheduler is preemptive; under a purely non-preemptive policy a process leaves Running only by blocking or ending. Systems that swap processes to disk add suspended states that this five-state picture leaves out.",
+        "example": {
+          "problem": "A process is admitted, runs, issues a read() on a terminal and blocks, gets its data, runs again, is preempted by a timer, runs, issues a write() to a file and blocks until the write completes, and then runs to the end. How many times does it enter the ready queue after its first admission?",
+          "steps": [
+            "List the states in order: New, Ready, Running, Waiting, Ready, Running, Ready, Running, Waiting, Ready, Running, Terminated.",
+            "Every adjacent pair in this list is an allowed move, so the sequence is legal.",
+            "Count the entries into Ready after the first one: once after the read finishes, once after the preemption, once after the write finishes."
+          ],
+          "result": "The process re-enters the ready queue 3 times; each I/O completion and each preemption adds one entry."
+        },
+        "misconceptions": [
+          "A process whose I/O has finished does not run at once; it joins the ready queue and waits for a dispatch, so Waiting to Running never exists.",
+          "A ready process cannot move to Waiting, because waiting follows a request and only the process on the CPU can make one.",
+          "A process re-enters the ready queue once per I/O completion and once per preemption. A library call counts as an I/O request only when the problem says it blocks; buffered output often causes no blocking at all."
+        ],
+        "recall": [
+          {
+            "q": "From which states can a process enter Running?",
+            "a": "Only from Ready, because the dispatcher takes the next process from the ready queue."
+          },
+          {
+            "q": "Which two events put a process into the ready queue after it has started running?",
+            "a": "A preemption sends it straight back to Ready, and the completion of an awaited I/O event sends a waiting process to Ready."
+          },
+          {
+            "q": "Why is Ready to Waiting impossible?",
+            "a": "A ready process is not executing, so it cannot issue the request that would make it wait."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In the five-state process model with preemptive scheduling, which of these transitions is NOT possible?",
+          "options": [
+            "Waiting to Ready",
+            "Ready to Running",
+            "Running to Waiting",
+            "New to Running"
+          ],
+          "answer": 3,
+          "explanation": "A new process is admitted to the ready queue and must be dispatched from there, so New to Running does not exist. Waiting to Ready happens when the awaited event completes, Ready to Running is the dispatch, and Running to Waiting is a blocking request. New to Running tempts because a fresh process seems ready to start at once."
+        },
+        "summary": "Running comes only from Ready and Waiting only from Running; finished events and preemptions both lead to Ready, so count queue entries by counting I/O completions and preemptions."
+      }
+    },
+    {
+      "id": "os-processes-threads.pcb",
+      "title": "Process control block",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        465,
+        468
+      ],
+      "points": [
+        "The PCB is the kernel's record of a process: PID, state, program counter, CPU registers, scheduling information, memory-management information (page-table base, limits), open files and accounting data.",
+        "On a context switch the kernel saves the outgoing process's CPU state into its PCB and reloads the incoming process's state from its PCB.",
+        "Scheduler queues such as the ready queue and device wait queues are lists of PCBs; changing a process's state means moving its PCB to another queue."
+      ],
+      "keyTerms": [
+        "PID",
+        "program counter",
+        "ready queue"
+      ],
+      "lesson": {
+        "why": "The PCB explains what a context switch saves and what moving between scheduler queues really means. Questions on switching cost and process state rely on it.",
+        "intro": "The kernel cannot ask a process what it is doing, so it keeps a record for every process in kernel memory, called the process control block or PCB. The record holds the process identifier, its current state, the saved program counter and register values, scheduling data, memory-management data and the list of open files. A process is therefore known to the kernel through its PCB.",
+        "prerequisites": [
+          "os-processes-threads.process-concept",
+          "os-processes-threads.process-states"
+        ],
+        "definitions": [
+          {
+            "term": "PID",
+            "meaning": "The number that identifies a process uniquely in the kernel."
+          },
+          {
+            "term": "Ready queue",
+            "meaning": "A list of the PCBs of processes that are ready to run and waiting for the CPU."
+          }
+        ],
+        "principle": {
+          "text": "The PCB holds everything needed to stop a process and resume it later: PID, state, program counter, registers, scheduling and memory-management information and open files. Changing a process state means updating its PCB and moving it to the queue for the new state."
+        },
+        "limits": "The PCB lives in kernel memory, not in the process address space, so the process cannot read or change it directly. Threads of one process share most of the PCB contents, while each thread keeps its own registers and stack.",
+        "example": {
+          "problem": "The ready queue holds the PCBs P1, P2, P3 in that order. P1 is dispatched and later preempted, then P2 is dispatched and blocks on I/O, and later its I/O completes. Give the ready queue at the end.",
+          "steps": [
+            "Dispatching P1 removes its PCB from the head, leaving P2, P3. The preemption saves the registers into the P1 PCB and appends it: P2, P3, P1.",
+            "Dispatching P2 leaves P3, P1. P2 blocks, so its PCB moves to the device wait queue, not to the ready queue.",
+            "When its I/O completes, the P2 PCB moves from the wait queue to the tail of the ready queue: P3, P1, P2."
+          ],
+          "result": "The ready queue is P3, P1, P2."
+        },
+        "misconceptions": [
+          "The PCB is not stored inside the process own memory; it sits in kernel memory so the process cannot tamper with it.",
+          "Moving a process between states does not copy its memory. Only the PCB moves from one queue to another.",
+          "The PCB stores the saved register values only while the process is not running; a running process keeps them in the real CPU registers."
+        ],
+        "recall": [
+          {
+            "q": "Name four things stored in a PCB.",
+            "a": "Any four of PID, state, program counter, CPU registers, scheduling information, memory-management information, open files and accounting data."
+          },
+          {
+            "q": "What does the kernel do with the PCB on a context switch?",
+            "a": "It saves the CPU state of the outgoing process into its PCB and loads the CPU state of the incoming process from its PCB."
+          },
+          {
+            "q": "What is a ready queue made of?",
+            "a": "A list of PCBs of the processes that are ready to run."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A running process makes a blocking read request. What does the kernel do with its PCB?",
+          "options": [
+            "Deletes it and creates a new one when the read ends",
+            "Moves it to the wait queue of that device and marks the state Waiting",
+            "Leaves it in the ready queue and marks the state Running",
+            "Copies it into the address space of the process"
+          ],
+          "answer": 1,
+          "explanation": "A blocked process stays alive, so its PCB is kept, its state becomes Waiting and it joins the wait queue of the device until the I/O finishes. Deleting the PCB tempts because the process stops running, but stopping is not termination."
+        },
+        "summary": "The PCB is the kernel record of a process in kernel memory, holding state and saved CPU context. Context switches save and restore through it and queues are lists of PCBs."
+      }
+    },
+    {
+      "id": "os-processes-threads.context-switch",
+      "title": "Context switching",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        467,
+        468,
+        469
+      ],
+      "points": [
+        "A context switch saves the CPU state of the running process into its PCB and restores another process's saved state, so the CPU resumes that process exactly where it stopped.",
+        "It is pure overhead: no user work is done while switching, and the incoming process starts with cold caches and, after an address-space change, a flushed or re-tagged TLB.",
+        "It is triggered when the scheduler preempts the running process, when the process makes a blocking system call, or when interrupt handling makes another process the one to run.",
+        "Switching between two threads of one process restores registers, PC and stack pointer but keeps the address space, so it skips the page-table switch and costs less than a process switch."
+      ],
+      "keyTerms": [
+        "dispatcher",
+        "dispatch latency",
+        "TLB flush"
+      ],
+      "lesson": {
+        "why": "Context-switch questions ask what must be saved, what a switch costs and how much CPU time it wastes, and each answer follows from what the CPU holds for the running process.",
+        "intro": "A context switch is the kernel taking the CPU from one process or thread and giving it to another. The CPU holds the running program's state in its registers, including the program counter that marks the next instruction. To pause the program the kernel copies that state into the process control block, a kernel record kept for each process, and to resume another program it loads that program's saved state. No user work happens during this copying, so it is pure overhead. Threads of one process use the same address space, so they share one page table; different processes each have their own.",
+        "prerequisites": [
+          "os-processes-threads.process-states"
+        ],
+        "principle": {
+          "text": "A switch away from the running process is guaranteed only when it cannot continue, for example on a blocking system call or a page fault. A timer or another process's interrupt only gives the scheduler a choice, and a non-preemptive policy may keep the same process. When every slice is used in full and one switch follows each slice, the useful share of CPU time is the quantum divided by the quantum plus the switch time, so for a quantum $q$ and a switch time $s$:",
+          "tex": "\\text{efficiency} = \\frac{q}{q + s}"
+        },
+        "limits": "The formula assumes every slice is used in full and exactly one switch follows each slice. A task that blocks early wastes less quantum but still pays the switch. Switching between threads of one process skips the page-table change, so it costs less than a process switch.",
+        "example": {
+          "problem": "A round-robin scheduler uses a quantum of 10 ms and a context switch takes 2 ms. Every process always uses its full quantum. What fraction of CPU time does useful work?",
+          "steps": [
+            "One cycle is a quantum followed by a switch: 10 ms + 2 ms = 12 ms.",
+            "Only the 10 ms quantum is useful work.",
+            "The fraction is $10 / 12 = 0.8333$, which is 83.33 percent."
+          ],
+          "result": "About 83.33 percent of CPU time is useful and 16.67 percent is switching overhead."
+        },
+        "misconceptions": [
+          "A thread switch inside one process still saves the program counter, the stack pointer and the registers; only the page table base register can stay as it is.",
+          "A short quantum is not free: each slice pays the same switch time, so efficiency falls as $q$ shrinks.",
+          "An interrupt does not always cause a context switch: a timer tick or a disk interrupt for another process only runs the scheduler, which may let the same process continue."
+        ],
+        "recall": [
+          {
+            "q": "Where does the kernel save a process's CPU state during a context switch?",
+            "a": "In the process control block of the outgoing process, from which it is restored later."
+          },
+          {
+            "q": "Which items need no saving when switching between two threads of the same process?",
+            "a": "The page table base register, because both threads use the same address space."
+          },
+          {
+            "q": "Why is a context switch called overhead?",
+            "a": "The CPU does copying for the kernel instead of running any user program."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A scheduler gives each process a quantum of 18 ms and a context switch costs 2 ms. Every process uses its full quantum. What percentage of CPU time does useful work?",
+          "answer": 90,
+          "explanation": "One cycle lasts 18 + 2 = 20 ms and 18 ms of it is useful, so the fraction is 18 / 20 = 0.9, which is 90 percent. Answering 18 / 2 = 9 tempts because it compares useful time with overhead alone; efficiency must divide by the whole cycle."
+        },
+        "summary": "A context switch saves the outgoing CPU state in the process control block and loads the incoming one; it is overhead, and efficiency with full quanta is $q / (q + s)$.",
+        "definitions": [
+          {
+            "term": "Kernel",
+            "meaning": "The core of the operating system, which runs in privileged mode and manages the CPU, memory and devices."
+          },
+          {
+            "term": "Time quantum",
+            "meaning": "The longest stretch of CPU time a process may use in one go under round-robin scheduling before the scheduler may switch to another process."
+          },
+          {
+            "term": "Round-robin",
+            "meaning": "A scheduling policy that gives each ready process one quantum in turn, then moves to the next."
+          },
+          {
+            "term": "Page table base register",
+            "meaning": "The CPU register that points to the page table of the running process, which maps its addresses to memory."
+          }
+        ]
+      }
+    },
+    {
+      "id": "os-processes-threads.fork-exec-wait",
+      "title": "fork, exec, wait and exit",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        465,
+        468
+      ],
+      "points": [
+        "fork() creates a child that is a copy of the caller. It returns twice: 0 in the child and the child's PID in the parent; it returns −1 in the parent if no child could be created.",
+        "Parent and child both continue from the point where fork() returns, each in its own address space. Modern kernels share pages copy-on-write and copy a page only when either side writes to it.",
+        "exec() replaces the caller's code, data, heap and stack with a new program while keeping the same PID and, by default, the open file descriptors. It returns only if it fails.",
+        "exit(status) ends a process; the parent collects the status with wait() or waitpid(), which blocks until a child terminates and lets the kernel release the child's last resources.",
+        "A shell runs a command with fork-then-exec: it forks a child, the child execs the program, and the parent waits for the child."
+      ],
+      "keyTerms": [
+        "copy-on-write",
+        "waitpid",
+        "exit status"
+      ],
+      "lesson": {
+        "why": "Questions trace code that calls fork, exec and wait, so you must know what each call returns, what it keeps and when it blocks.",
+        "intro": "The call fork() makes a second process that is a copy of the caller. Afterwards two processes run the same code from the point just after the call; fork returns 0 in the new child and the child PID in the parent, so the code can tell them apart. The call exec() throws away the current program of the caller and loads another into the same process. The call wait() makes a parent sleep until one of its children has ended. A shell starts a command by combining them: fork, then exec in the child, while the parent waits.",
+        "prerequisites": [
+          "os-processes-threads.process-concept"
+        ],
+        "definitions": [
+          {
+            "term": "Copy-on-write",
+            "meaning": "After fork, parent and child share memory pages and a page is copied only when one of them writes to it."
+          },
+          {
+            "term": "Exit status",
+            "meaning": "The value a terminating process passes to exit, which the parent reads with wait or waitpid."
+          }
+        ],
+        "principle": {
+          "text": "fork returns twice, 0 in the child and the child PID in the parent. exec replaces the code, data, heap and stack but keeps the PID and open files, and returns only on failure. wait blocks the parent until a child ends and gives it the exit status."
+        },
+        "limits": "The lines after a successful exec in the same block never run, because the old program is gone. Copy-on-write is an optimisation: the program must behave as if the child had a full private copy. wait returns at once with an error if the caller has no children.",
+        "example": {
+          "problem": "A program prints A, then calls fork. The child calls execl on a program that prints X and then ends, and the code after execl would print B. The parent calls wait and then prints C. List the output assuming exec succeeds.",
+          "steps": [
+            "A is printed once, by the original process, before the fork.",
+            "In the child, exec replaces the program, so the line that would print B is never reached. The new program prints X.",
+            "The parent blocks in wait until the child has ended, so C is printed after X."
+          ],
+          "result": "The output is A, X, C; B is never printed."
+        },
+        "misconceptions": [
+          "exec does not create a new process; it keeps the same PID and only changes the program being run.",
+          "Code after a successful exec does not run, so a statement after execl executes only if exec failed.",
+          "fork does not return the same value in both processes. The child sees 0 and the parent sees the child PID, which is why the test if (fork() == 0) selects the child."
+        ],
+        "recall": [
+          {
+            "q": "What does fork return in the parent and in the child?",
+            "a": "It returns the child PID in the parent, 0 in the child, and -1 in the parent if no child could be made."
+          },
+          {
+            "q": "What stays the same across an exec call?",
+            "a": "The PID and, by default, the open file descriptors; the code, data, heap and stack are replaced."
+          },
+          {
+            "q": "What does wait do?",
+            "a": "It blocks the caller until a child terminates, then returns that child exit status and lets the kernel free the child last resources."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In a parent process, pid = fork() is followed by if (pid == 0) { execl(\"/bin/ls\", \"ls\", NULL); printf(\"Z\"); } else { wait(NULL); }. If /bin/ls exists and runs, how many times is Z printed?",
+          "options": [
+            "Exactly once, in the child",
+            "Exactly once, in the parent",
+            "Twice",
+            "Never"
+          ],
+          "answer": 3,
+          "explanation": "A successful execl replaces the child program with ls, so the following printf never runs, and the parent branch does not print Z. Once in the child tempts because the printf follows execl in the same block, but execl returns only on failure."
+        },
+        "summary": "fork copies the caller and returns 0 in the child, exec replaces the program inside the same process and returns only on failure, and wait blocks the parent until a child ends."
+      }
+    },
+    {
+      "id": "os-processes-threads.fork-counting",
+      "title": "Counting processes created by fork()",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        470
+      ],
+      "points": [
+        "Each unconditional fork() executed by every existing process doubles the population, so n sequential forks give 2ⁿ processes in total, of which 2ⁿ − 1 are new children.",
+        "A fork inside a loop runs once per iteration in every process alive at that iteration; count the iterations that actually reach fork() and use that count as n.",
+        "Draw the fork tree one level per fork() call. A child resumes exactly where fork() returns, with the value 0, so it first finishes the rest of that same statement or expression; it never restarts at the top of the program.",
+        "If each process prints once per iteration after forking, iteration k prints 2ᵏ lines, for 2ⁿ⁺¹ − 2 in total, provided output is flushed before each fork."
+      ],
+      "keyTerms": [
+        "fork tree"
+      ],
+      "lesson": {
+        "why": "Fork-counting questions are a regular numeric question, and every one is solved by the same step: count the forks that actually run and double the population for each.",
+        "intro": "The system call fork() makes a copy of the calling process. The original is the parent and the copy is the child. Both continue from the statement right after the call, each with its own copy of every variable. So when a number of processes all execute one fork(), each of them makes one child and the number of processes doubles.",
+        "prerequisites": [
+          "os-processes-threads.process-concept"
+        ],
+        "principle": {
+          "text": "If $n$ rounds of fork() are executed and every live process reaches each round, the total number of processes is $2^n$, including the original, and the number of new children is $2^n - 1$. A loop contributes one round for every iteration in which fork() really runs.",
+          "tex": "\\text{processes} = 2^{n}, \\qquad \\text{children} = 2^{n} - 1"
+        },
+        "limits": "The doubling rule holds only when every process executes the fork. If a condition, a return, a break or a short-circuit operator lets some processes skip it, the count is smaller and you must follow the processes one at a time. It also assumes fork() always succeeds.",
+        "example": {
+          "problem": "What is the total number of processes, and the number of children, when this runs? for (i = 0; i < 5; i++) if (i % 3 != 2) fork();",
+          "steps": [
+            "The test i % 3 != 2 fails only for $i = 2$, so fork() runs for $i = 0, 1, 3, 4$.",
+            "That is $n = 4$ rounds, and every process reaches every round, so the count doubles four times: 1, 2, 4, 8, 16.",
+            "The 16 processes include the original, so 15 of them are children."
+          ],
+          "result": "There are 16 processes in total, of which 15 are children."
+        },
+        "misconceptions": [
+          "The number of loop iterations is not the number of forks; count only the iterations in which the condition lets fork() run.",
+          "A child does not start from the top of the program; it continues from the statement after fork(), with the loop variable it inherited.",
+          "A printf inside the loop runs once per process in every round, so the totals add across rounds ($2 + 4 + 8$ for 3 rounds, not $2^3$). A wait() call changes the order of events, not how many times anything runs."
+        ],
+        "recall": [
+          {
+            "q": "What does fork() return in the parent and in the child?",
+            "a": "A positive child id in the parent and 0 in the child."
+          },
+          {
+            "q": "How many processes exist after $n$ unconditional fork() rounds starting from one process?",
+            "a": "$2^n$ processes in total, which is $2^n - 1$ children."
+          },
+          {
+            "q": "How should a fork inside a loop be counted?",
+            "a": "Count the iterations in which fork() actually executes and use that as $n$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many times is printf executed in the program below? int x = 5; while (x > 0) { fork(); x = x - 2; } printf(\"done\");",
+          "answer": 8,
+          "explanation": "The loop runs for x = 5, 3, 1, which is 3 iterations, and every process forks in each, so the population doubles three times to $2^3 = 8$. Each of the 8 processes leaves the loop and executes printf once. Answering 3 tempts because it counts loop iterations instead of processes."
+        },
+        "summary": "Each executed round of fork() doubles the processes, so $n$ rounds give $2^n$ processes and $2^n - 1$ children; count only the rounds that really run."
+      }
+    },
+    {
+      "id": "os-processes-threads.fork-conditional",
+      "title": "fork() in conditions, short-circuit expressions and variables",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "fork() is non-zero (true) in the parent and 0 (false) in the child, so if (fork() == 0) runs its body only in the child and if (fork()) only in the parent.",
+        "In A && B the right fork runs only where the left returned non-zero (the parent), so fork() && fork() makes 3 processes. In A || B it runs only where the left returned 0 (the child), so fork() || fork() also makes 3.",
+        "fork() && fork() || fork() makes 5 processes: the two processes in which the && part is false (the first fork's child and the second fork's child) each run the third fork, giving 3 + 2.",
+        "For a sequence of separate statements, multiply per-statement factors: an unconditional fork() is ×2, fork() && fork() is ×3, and fork() && fork() || fork() is ×5.",
+        "After fork() each process has its own copy of every variable. A variable can print the same virtual address in parent and child yet hold different values, because that address maps to different physical frames."
+      ],
+      "keyTerms": [
+        "short-circuit evaluation",
+        "copy-on-write"
+      ],
+      "lesson": {
+        "why": "Questions put fork() inside conditions and logical operators, and the answer depends on which processes evaluate which fork() calls.",
+        "intro": "After fork() the parent receives a positive number, which C reads as true, and the child receives 0, which C reads as false. So a test on fork() splits the two processes: if (fork() == 0) runs its body in the child only. The logical operators && and || also stop early. In A && B the right side runs only if the left side was true, and in A || B only if the left side was false.",
+        "prerequisites": [
+          "os-processes-threads.fork-counting"
+        ],
+        "principle": {
+          "text": "Follow each process separately. A process executes a fork() only if control reaches it, and after a fork the parent continues with a non-zero value and the child with 0. A short-circuited fork() is never executed, so it creates nothing."
+        },
+        "limits": "The result depends on the order of evaluation being left to right, which C guarantees for && and ||. Statements joined by a semicolon are separate steps, so their factors multiply, but within one expression a skipped fork() breaks plain doubling. It also assumes every fork() succeeds.",
+        "example": {
+          "problem": "How many processes exist at the printf in this code? if (fork() == 0) { fork(); fork(); } printf(\"x\");",
+          "steps": [
+            "The first fork() makes one child, so there are 2 processes. The parent sees a non-zero value and skips the body.",
+            "The child sees 0 and enters the body. Its first fork() makes 2 processes out of it, and its second doubles them again to 4.",
+            "All processes then reach printf: 1 parent plus 4 from the child's branch."
+          ],
+          "result": "There are 5 processes at the printf, so it runs 5 times."
+        },
+        "misconceptions": [
+          "fork() || fork() does not make 4 processes; the right fork() runs only in the process where the left one returned 0, so there are 3.",
+          "The parent and the child do not share variables after fork(); each has its own copy, even if a printed address is the same.",
+          "A loop body of if (fork() == 0) continue; break; does not double the processes. The child keeps looping while the parent leaves, so each iteration adds one process and 3 iterations leave 4."
+        ],
+        "recall": [
+          {
+            "q": "Which process runs the body of if (fork() == 0)?",
+            "a": "The child, because fork() returns 0 only there."
+          },
+          {
+            "q": "How many processes does fork() && fork() create in total?",
+            "a": "Three, because only the parent, which got a non-zero value, runs the second fork()."
+          },
+          {
+            "q": "In A || B, when is B skipped, and which process of fork() || fork() skips it?",
+            "a": "B is skipped when A is true; the parent gets a non-zero value from the left fork(), so the parent skips the right side."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many times is printf executed? fork() || fork(); fork(); printf(\"y\");",
+          "answer": 6,
+          "explanation": "In fork() || fork() the parent of the first fork gets a non-zero value and skips the right side, while the child gets 0 and runs the second fork(), so 3 processes remain. The next statement forks in each of them, doubling the count to 6, and each prints once. Answering 8 tempts because it treats both forks of the expression as running in every process."
+        },
+        "summary": "A fork() in a condition splits parent from child by its return value, and short-circuit operators skip it in some processes; count by following each process, then multiply across statements."
+      }
+    },
+    {
+      "id": "os-processes-threads.zombie-orphan",
+      "title": "Zombie and orphan processes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        465,
+        468,
+        471
+      ],
+      "points": [
+        "A zombie has terminated but its parent has not yet collected its exit status with wait(); it holds no memory or CPU time but keeps its process-table entry and PID.",
+        "An orphan is a still-running process whose parent has terminated; init (PID 1) adopts it and reaps it when it exits.",
+        "If a parent never calls wait(), its exited children stay zombies until the parent itself exits, when init adopts and reaps them. Accumulated zombies can exhaust the process table.",
+        "Zombie ≠ orphan: a zombie is dead and waiting to be reaped; an orphan is alive and has merely lost its parent."
+      ],
+      "keyTerms": [
+        "reaping",
+        "init",
+        "SIGCHLD"
+      ],
+      "lesson": {
+        "why": "Zombie and orphan are easy to swap in true-or-false statements. Telling them apart, and counting which children are zombies, is a short and certain mark.",
+        "intro": "When a process ends, the kernel frees its memory but keeps a small record with its exit status until the parent asks for it with wait. A child that has ended and is waiting to be asked about is a zombie. It is dead and uses no CPU or memory, but it still holds its PID and a slot in the process table. The reverse case is a child that is still running when its parent ends. It is an orphan and a system process called init adopts it.",
+        "prerequisites": [
+          "os-processes-threads.fork-exec-wait"
+        ],
+        "definitions": [
+          {
+            "term": "Reaping",
+            "meaning": "Collecting a terminated child exit status with wait so the kernel can remove its process-table entry."
+          },
+          {
+            "term": "init",
+            "meaning": "The first process, PID 1, which adopts orphans and reaps them when they end."
+          }
+        ],
+        "principle": {
+          "text": "A zombie is terminated but not yet reaped, and only its process-table entry remains. An orphan is alive and has lost its parent, which init adopts. A parent that never calls wait leaves its ended children as zombies until the parent itself ends, when init reaps them."
+        },
+        "limits": "A zombie cannot be killed with a signal because it is already dead; it disappears only when its parent reaps it or the parent ends. If the parent ignores SIGCHLD in the usual way on Linux, the kernel may reap children automatically and no zombies remain.",
+        "example": {
+          "problem": "A parent forks 4 children. Three of them end quickly and one keeps running. The parent calls wait twice and then sleeps for a long time without calling wait again. How many zombies exist during the sleep?",
+          "steps": [
+            "Three children have ended, so each has a record waiting to be reaped.",
+            "Each wait call reaps one ended child, so two calls reap two records.",
+            "One ended child remains unreaped, so it is a zombie. The fourth child is still running, so it is not a zombie."
+          ],
+          "result": "1 zombie; the running child is neither zombie nor orphan."
+        },
+        "misconceptions": [
+          "A zombie is not a running process wasting CPU. It is already dead and holds only a process-table entry and its PID.",
+          "An orphan is not a zombie. An orphan is still alive and merely has a new parent, init.",
+          "A process does not become a zombie when its own parent ends; init adopts it and reaps it at exit, so it is removed at once."
+        ],
+        "recall": [
+          {
+            "q": "What is a zombie process?",
+            "a": "A process that has terminated but whose parent has not yet collected its exit status with wait."
+          },
+          {
+            "q": "What is an orphan process and who takes it over?",
+            "a": "A running process whose parent has terminated; init, PID 1, adopts it."
+          },
+          {
+            "q": "What resource does a zombie still hold?",
+            "a": "Its PID and its process-table entry, which can run out if zombies pile up."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A parent forks 6 children. Five of them terminate. The parent calls wait three times and then loops forever without another wait call. How many zombies exist?",
+          "answer": 2,
+          "explanation": "Five children have ended and three wait calls reap three of them, leaving 5 - 3 = 2 zombies. The sixth child is still running and so is not a zombie. Answering 3 tempts if you count the wait calls instead of the unreaped children."
+        },
+        "summary": "A zombie is dead and waiting to be reaped, an orphan is alive and has lost its parent. Count zombies as ended children minus those reaped by wait."
+      }
+    },
+    {
+      "id": "os-processes-threads.threads",
+      "title": "Threads: what is shared and what is private",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        465,
+        466,
+        468
+      ],
+      "points": [
+        "A thread is a unit of CPU scheduling inside a process. The threads of one process share its code, global data, heap, open files and the address space itself.",
+        "Each thread has its own thread ID, program counter, register set and stack, so local variables live on per-thread stacks.",
+        "Compared with processes, threads are cheaper to create and switch, and they communicate through shared memory without kernel help.",
+        "The price is weak isolation: a stray write or crash in one thread can corrupt or kill the whole process, and shared data needs synchronisation."
+      ],
+      "keyTerms": [
+        "thread ID",
+        "per-thread stack",
+        "lightweight process"
+      ],
+      "lesson": {
+        "why": "Thread questions ask what threads of one process share and what each keeps private, and tracing a variable's owner decides the printed output.",
+        "intro": "A process owns an address space, which holds its code, its global data and its heap, and a table of open files. A thread is one path of execution inside the process. Several threads can run in the same process, and to run independently each needs its own record of where it is and its own working space for calls.",
+        "prerequisites": [
+          "os-processes-threads.process-concept"
+        ],
+        "definitions": [
+          {
+            "term": "Heap",
+            "meaning": "The memory region from which malloc takes blocks; it belongs to the process, so every thread can reach it."
+          },
+          {
+            "term": "Stack",
+            "meaning": "The region that holds local variables and return addresses of calls; each thread has its own."
+          },
+          {
+            "term": "Lock",
+            "meaning": "A variable that lets one thread at a time run a protected piece of code; the others wait at Acquire until the owner calls Release."
+          }
+        ],
+        "principle": {
+          "text": "A thread owns only its thread id, program counter, registers and stack. Everything else in the process, meaning code, global data, heap and open files, is shared by all its threads, and the hardware does not protect threads of one process from each other."
+        },
+        "limits": "The sharing is inside one process only; two different processes have separate address spaces, so a global variable of one is a different location from the same-named global of the other. A pointer to another thread's stack still works inside the process, but that stack is not shared by design. Threads can be managed by a user-space library as well as by the kernel, so a statement that threads exist only in kernel space is false.",
+        "example": {
+          "problem": "Three threads with ids 1, 2 and 3 each run: int tmp = 10; tmp = tmp + id; Acquire L; total = total + tmp; Release L; where total is global and starts at 0. What is total at the end and what is each thread's tmp?",
+          "steps": [
+            "tmp is a local variable, so each thread has its own copy on its own stack: the values are 11, 12 and 13.",
+            "total is global, so all three threads add to one shared location.",
+            "The lock lets only one thread update total at a time, so no update is lost: $11 + 12 + 13 = 36$."
+          ],
+          "result": "total is 36, and the threads hold the private values 11, 12 and 13."
+        },
+        "misconceptions": [
+          "Threads do not share a stack; sharing it would let one thread's calls overwrite the frames of another.",
+          "Sharing the heap does not make a local pointer variable shared; the pointer lives on one thread's stack, only the block it points to is reachable by others."
+        ],
+        "recall": [
+          {
+            "q": "Which items does each thread keep private?",
+            "a": "Its thread id, program counter, registers and stack."
+          },
+          {
+            "q": "Which parts of a process do all its threads share?",
+            "a": "The code, global data, heap and open files, which together make up the address space and resources."
+          },
+          {
+            "q": "Why is a crash in one thread dangerous for the others?",
+            "a": "All threads run in one address space without protection from each other, so a stray write or a fault can corrupt or kill the whole process."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Thread A calls malloc and stores the returned address in its local pointer p. Which statement about thread B in the same process is correct?",
+          "options": [
+            "B can see A's variable p, because all stack data is shared.",
+            "The block disappears when A returns from its function, because it lives on A's stack.",
+            "B can use the block if it obtains its address, but p itself is on A's private stack.",
+            "B can never use the block, because the heap belongs to thread A alone."
+          ],
+          "answer": 2,
+          "explanation": "The block comes from the heap, which is shared by the whole process, so B can use it once it learns the address, for example through a global. The pointer variable p is a local on A's stack and is private. The first option tempts by confusing the heap with the stack, and the second by confusing where malloc places data."
+        },
+        "summary": "Threads of a process share code, globals, heap and open files, and keep only their own id, program counter, registers and stack; locals are private and globals are shared."
+      }
+    },
+    {
+      "id": "os-processes-threads.ult-vs-klt",
+      "title": "User-level vs kernel-level threads",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        468,
+        469
+      ],
+      "points": [
+        "User-level threads are created, scheduled and switched by a library in user space; the kernel sees only the enclosing process. A switch needs no kernel entry, so it is very fast.",
+        "Because the kernel schedules only the process, one user-level thread blocking in a system call blocks every thread of that process, and the threads cannot run on several cores at once.",
+        "Kernel-level threads are known to and scheduled by the kernel: one can block while its siblings keep running, and they can run in parallel on multiple cores.",
+        "Kernel threads cost more: creating and switching them goes through the kernel, so both are slower than for user-level threads.",
+        "User-level threads work even on a kernel without thread support and let the application choose its own scheduling policy."
+      ],
+      "keyTerms": [
+        "thread library",
+        "kernel thread"
+      ],
+      "lesson": {
+        "why": "Statements comparing user-level and kernel-level threads are a recurring true-or-false type, and each one turns on who schedules the thread.",
+        "intro": "A thread is a path of execution inside a process. A user-level thread is managed by a library inside the process: the kernel does not know it exists and sees only one process. A kernel-level thread is created and scheduled by the kernel itself. This one difference decides everything else: how fast switching is, whether a block stalls the whole process and whether several threads can use several cores at once.",
+        "prerequisites": [
+          "os-processes-threads.threads"
+        ],
+        "definitions": [
+          {
+            "term": "Thread library",
+            "meaning": "Code in user space that creates, schedules and switches user-level threads without asking the kernel."
+          },
+          {
+            "term": "Kernel thread",
+            "meaning": "A thread known to the kernel, which schedules it on a CPU like a process."
+          }
+        ],
+        "principle": {
+          "text": "User-level threads switch without entering the kernel, so they are cheap, but the kernel sees one schedulable unit: a blocking system call in one thread blocks all of them and they cannot run on several cores. Kernel-level threads cost more to create and switch, but one can block while others run and they can run in parallel."
+        },
+        "limits": "The comparison is about pure user-level or pure kernel-level threads. Real systems mix them, as in the many-to-many model, and some libraries avoid blocking by using non-blocking calls. Kernel threads also cost more only per operation; for I/O-heavy programs the extra concurrency usually outweighs it.",
+        "example": {
+          "problem": "A process has 3 threads on a machine with 4 cores. Thread 1 makes a blocking read. Compare how many of the other threads can still run if the threads are user-level and if they are kernel-level.",
+          "steps": [
+            "With user-level threads the kernel sees one process, and the process is blocked in the system call, so no thread of it runs.",
+            "With kernel-level threads the kernel blocks only thread 1 and still schedules threads 2 and 3.",
+            "The two remaining kernel threads can also run on two different cores at the same time."
+          ],
+          "result": "User-level: 0 of the others run. Kernel-level: both of the others run, in parallel if cores are free."
+        },
+        "misconceptions": [
+          "User-level threads are not faster in every way. Switching is cheap, but they give no parallelism on multiple cores and one blocking call stops them all.",
+          "Kernel-level threads are not free: creation and switching go through the kernel, so each costs more than a user-level operation.",
+          "A user-level thread library does not need kernel support for threads; it works even on a kernel that knows only processes."
+        ],
+        "recall": [
+          {
+            "q": "Who schedules a user-level thread?",
+            "a": "The thread library inside the process; the kernel only sees the process."
+          },
+          {
+            "q": "Why does one blocking call stop all user-level threads of a process?",
+            "a": "The kernel schedules the process as one unit, so when it blocks in the system call, no thread of that process runs."
+          },
+          {
+            "q": "Which kind of thread can run on multiple cores at once?",
+            "a": "Kernel-level threads, because the kernel can schedule each of them on a different core."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about user-level threads in a process on a multicore machine is correct?",
+          "options": [
+            "Two of them can run on two cores at the same time",
+            "A blocking system call in one thread lets the others continue",
+            "A thread switch needs no kernel entry",
+            "The kernel schedules each thread separately"
+          ],
+          "answer": 2,
+          "explanation": "User-level threads are switched by the library in user space, so a switch makes no kernel call. The first and fourth statements describe kernel-level threads, and the second is false because the whole process blocks. The second tempts because it is true for kernel threads."
+        },
+        "summary": "User-level threads are scheduled by a library: switching is fast, but a block stops the whole process and there is no multicore parallelism. Kernel-level threads reverse both, at a higher cost."
+      }
+    },
+    {
+      "id": "os-processes-threads.threading-models",
+      "title": "Multithreading models",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        470
+      ],
+      "points": [
+        "Many-to-one: all user threads of a process map onto one kernel thread. Switching is cheap, but one blocking call stalls them all and they never run in parallel.",
+        "One-to-one: each user thread gets its own kernel thread, as on Linux and Windows. It gives full concurrency and parallelism at the cost of one kernel thread per user thread.",
+        "Many-to-many: N user threads are multiplexed over M kernel threads (M ≤ N), giving parallelism without a kernel thread per user thread. The two-level variant also lets chosen threads be bound one-to-one."
+      ],
+      "keyTerms": [
+        "many-to-one",
+        "one-to-one",
+        "many-to-many",
+        "two-level model"
+      ],
+      "lesson": {
+        "why": "Questions ask what each mapping between user and kernel threads allows, usually how many threads can run in parallel or whether one block stalls the rest.",
+        "intro": "A program creates user threads, but only kernel threads are actually put on a CPU. A threading model is the rule that maps the user threads of a process onto kernel threads. Three mappings exist. Many-to-one puts all user threads on a single kernel thread. One-to-one gives each user thread its own kernel thread. Many-to-many shares a smaller pool of kernel threads among the user threads.",
+        "prerequisites": [
+          "os-processes-threads.ult-vs-klt"
+        ],
+        "definitions": [
+          {
+            "term": "Two-level model",
+            "meaning": "A many-to-many variant that also lets selected user threads be bound to their own kernel thread."
+          }
+        ],
+        "principle": {
+          "text": "The number of user threads running in parallel is limited by the number of kernel threads they are mapped to and by the number of cores.",
+          "tex": "\\text{parallel threads} = \\min(U,\\ K,\\ C)"
+        },
+        "limits": "The formula gives an upper bound that holds when no thread is blocked. U is the number of user threads, K the kernel threads mapped to the process and C the cores. Many-to-one has K = 1, one-to-one has K = U, and many-to-many has K = M with M at most U.",
+        "example": {
+          "problem": "A process has 6 user threads on a machine with 4 cores. What is the largest number that can run in parallel under many-to-one, one-to-one and many-to-many with 3 kernel threads?",
+          "steps": [
+            "Many-to-one has K = 1, so the bound is min(6, 1, 4) = 1.",
+            "One-to-one has K = 6, so the bound is min(6, 6, 4) = 4, limited by the cores.",
+            "Many-to-many with M = 3 has K = 3, so the bound is min(6, 3, 4) = 3."
+          ],
+          "result": "The bounds are 1, 4 and 3 threads."
+        },
+        "misconceptions": [
+          "More user threads do not give more parallelism by themselves. Parallelism is capped by the kernel threads and the cores.",
+          "One-to-one is not unlimited: each user thread costs a kernel thread, so systems cap how many can be created.",
+          "Many-to-many does not guarantee that a blocked thread stalls nothing. It helps only when spare kernel threads exist for the other user threads."
+        ],
+        "recall": [
+          {
+            "q": "What is the many-to-one model and its main weakness?",
+            "a": "All user threads map to one kernel thread; a blocking call stalls all of them and they never run in parallel."
+          },
+          {
+            "q": "What does one-to-one cost?",
+            "a": "It needs one kernel thread for every user thread, which uses more kernel resources."
+          },
+          {
+            "q": "What does the two-level model add?",
+            "a": "It allows many-to-many multiplexing and also lets chosen user threads be bound one-to-one to kernel threads."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A process has 8 user threads and runs on a machine with 4 cores. Under a many-to-many model it is given 3 kernel threads. What is the largest number of its threads that can execute at the same instant?",
+          "answer": 3,
+          "explanation": "The bound is min(8, 3, 4) = 3, because only 3 kernel threads exist for the process. Answering 4 tempts if you count only the cores, and 8 if you count the user threads."
+        },
+        "summary": "The three models differ in how many kernel threads the user threads get: one, one each, or a shared pool. Parallelism is capped by min(U, K, C) and a block stalls only the threads that depend on the blocked kernel thread."
+      }
+    },
+    {
+      "id": "os-processes-threads.system-calls",
+      "title": "System calls",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        467,
+        468
+      ],
+      "points": [
+        "A system call is the controlled entry from a user program into a kernel service, such as creating a process, reading a file or sending a message.",
+        "Categories: process control (fork, exec, exit, wait), file management (open, read, write, close), device management (ioctl, read, write), information (getpid, alarm, sleep) and communication (pipe, shmget, msgget).",
+        "Mechanism: the library wrapper puts the call number and arguments in registers or on the stack and executes a trap instruction; the CPU switches to kernel mode and the handler dispatches through the system-call table.",
+        "When the service finishes, a return-from-trap instruction restores user mode. The mode switches and argument checking make a system call far costlier than an ordinary function call.",
+        "Arguments reach the kernel in one of three ways: in registers (fastest, few arguments), in a block or table in memory whose address goes in a register (Linux for many arguments), or pushed on the stack and popped by the kernel. The kernel validates every pointer before using it.",
+        "Kernel entries come in three kinds: an interrupt is asynchronous, raised by a device or the timer; an exception (fault) is synchronous, caused by the instruction itself, such as divide by zero or a page fault; a system call is a deliberate, synchronous software interrupt (trap).",
+        "Return behaviour differs by call: read returns the byte count, 0 at end-of-file and −1 on error; fork returns twice; exec returns only on failure; exit never returns. Buffered library I/O (fgetc, printf) batches many operations into one read or write system call."
+      ],
+      "keyTerms": [
+        "trap",
+        "system-call table",
+        "library wrapper",
+        "software interrupt",
+        "parameter block",
+        "exception"
+      ],
+      "lesson": {
+        "why": "Questions ask which library functions always enter the kernel and how a system call differs from an ordinary call, and both depend on what only the kernel can do.",
+        "intro": "A user program runs in user mode and is not allowed to touch devices or other processes' memory. When it needs such a service, for example to write to a file or to end itself, it asks the kernel through a system call. The library function that the programmer calls loads the call number and arguments, then runs a special trap instruction that switches the CPU into kernel mode and starts the kernel's handler. When the handler finishes, a return instruction switches back to user mode.",
+        "definitions": [
+          {
+            "term": "Trap",
+            "meaning": "A deliberate instruction that switches the CPU into kernel mode and jumps to a fixed kernel entry."
+          },
+          {
+            "term": "Library wrapper",
+            "meaning": "Ordinary user-mode code, such as printf, that may or may not end in a system call."
+          }
+        ],
+        "principle": {
+          "text": "A library function makes a system call only when its job needs the kernel: a device, the timer, the process table or the address space. Work that stays in the program's own memory, such as string length, needs no system call. Buffered functions batch many calls into one system call."
+        },
+        "limits": "A function that sometimes needs the kernel does not always make a system call: malloc usually serves a request from memory it already holds. The batch count assumes the buffer is flushed only when full and at the end, so an explicit flush or a line-buffered terminal changes it. Reading a file to end-of-file costs one extra read call that returns 0, so $R = \\lceil F / B \\rceil + 1$, even when $B$ divides $F$.",
+        "example": {
+          "problem": "A program writes 10000 bytes to a file, one byte at a time, using a library output function with a 4096-byte buffer that is flushed only when full and at exit. How many write system calls are made, compared with one-byte direct write calls?",
+          "steps": [
+            "The buffer fills after 4096 bytes and is flushed: 1 call, then again after 8192 bytes: 2 calls.",
+            "The remaining $10000 - 8192 = 1808$ bytes are flushed at exit: 1 more call.",
+            "Direct write calls of one byte each would need 10000 calls."
+          ],
+          "result": "Buffering needs $\\lceil 10000 / 4096 \\rceil = 3$ system calls, against 10000 without it."
+        },
+        "misconceptions": [
+          "A library call is not the same as a system call; printf is user code that ends in a write call only when its buffer is flushed.",
+          "A system call is not a plain function call; it changes the CPU mode, and that makes it far more costly."
+        ],
+        "recall": [
+          {
+            "q": "What does a trap instruction do?",
+            "a": "It switches the CPU into kernel mode and jumps to the kernel's system-call handler."
+          },
+          {
+            "q": "Why can strlen never need a system call?",
+            "a": "It only reads bytes in the program's own memory, which needs no kernel service."
+          },
+          {
+            "q": "Why does sleep always make a system call?",
+            "a": "Stopping the process for a time needs the kernel's timer and scheduler."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A program writes 9000 bytes to a file one byte at a time using a library function with a 1024-byte buffer, flushed only when full and when the file is closed. How many write system calls are made?",
+          "answer": 9,
+          "explanation": "Eight full buffers of 1024 bytes cover 8192 bytes and give 8 calls, and the last 808 bytes are flushed on close for a ninth call, which equals $\\lceil 9000 / 1024 \\rceil = 9$. Answering 9000 tempts because it assumes each library call becomes its own system call."
+        },
+        "summary": "A system call is a trap into the kernel for work only the kernel can do; library functions enter it only when needed, and buffering turns many calls into few."
+      }
+    },
+    {
+      "id": "os-processes-threads.dual-mode",
+      "title": "Dual-mode operation and privileged instructions",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A mode bit separates kernel (supervisor) mode from user mode; the usual textbook convention is 0 for kernel and 1 for user. Traps, interrupts and exceptions enter kernel mode, and a return-from-trap instruction leaves it.",
+        "Privileged instructions run only in kernel mode: I/O instructions, setting the timer, disabling interrupts, loading the page-table base or other MMU registers, and changing the mode bit. Executed in user mode, the hardware does not run them but raises an illegal-instruction trap, and the OS usually kills the process.",
+        "Reading the clock, ordinary arithmetic and the trap instruction itself are not privileged; the trap must work in user mode because it is how user code asks for kernel service.",
+        "A mode switch (user to kernel and back) is not a context switch: a non-blocking system call normally enters and leaves the kernel within the same process, and a context switch happens only if the kernel decides to run another process.",
+        "Not every library function is a system call: strlen never enters the kernel, and malloc enters it only occasionally (brk or mmap) to grow the heap, while exit and sleep always do."
+      ],
+      "keyTerms": [
+        "mode bit",
+        "kernel mode",
+        "user mode",
+        "privileged instruction"
+      ],
+      "lesson": {
+        "why": "Questions on system calls, traps and interrupts hinge on one fact: which actions force the CPU into kernel mode and which instructions only kernel mode may run.",
+        "intro": "The CPU keeps one bit that records whether it is running ordinary program code (user mode) or operating-system code (kernel mode). Some instructions, such as talking to a device or changing memory-protection registers, would let a program damage others, so the hardware refuses them unless the bit says kernel mode. A user program that needs such a service cannot flip the bit itself. It executes a special trap instruction, the hardware switches to kernel mode and jumps to a fixed kernel routine, and when that routine finishes the CPU returns to user mode.",
+        "prerequisites": [
+          "os-processes-threads.system-calls"
+        ],
+        "analogy": {
+          "text": "A bank vault with a guard: customers work in the lobby, and anything touching the vault goes through a request at the counter, where the guard acts for them.",
+          "breaksWhen": "The guard is a person who can be talked round; the hardware mode check cannot be argued with, and the kernel routine entry points are fixed, not chosen by the caller."
+        },
+        "definitions": [
+          {
+            "term": "Privileged instruction",
+            "meaning": "An instruction the hardware runs only in kernel mode, such as device I/O, disabling interrupts or setting the timer."
+          },
+          {
+            "term": "Trap",
+            "meaning": "A deliberate instruction by which a user program asks the kernel for a service, switching the CPU into kernel mode."
+          },
+          {
+            "term": "Exception",
+            "meaning": "An event raised by the running instruction itself, such as a page fault or division by zero, that sends the CPU into a kernel handler."
+          },
+          {
+            "term": "Interrupt",
+            "meaning": "A signal from hardware, such as a timer or a device, that makes the CPU stop the running program and run a kernel handler."
+          }
+        ],
+        "principle": {
+          "text": "The CPU enters kernel mode only through an interrupt, an exception or a trap. An action guarantees a switch only if it always raises one of these; a privileged instruction run in user mode raises an exception instead of executing."
+        },
+        "limits": "A mode switch is not a context switch: a system call normally returns to the same process, and another process runs only if the kernel chooses so. Library functions such as malloc or printf enter the kernel only sometimes, so they do not guarantee a switch.",
+        "example": {
+          "problem": "A user program does these four things in order: adds two integers, calls a function it wrote itself, calls the system call read, then executes the instruction that disables interrupts. Which of them involve kernel mode, and what happens at the last one?",
+          "steps": [
+            "Adding integers and calling the program's own function are ordinary instructions; the mode bit stays at user.",
+            "The system call read is a trap, so the CPU switches to kernel mode, runs the kernel routine, and returns to user mode.",
+            "Disabling interrupts is privileged. The bit says user mode, so the hardware does not execute it and raises an illegal-instruction exception.",
+            "The kernel handler for that exception usually terminates the process."
+          ],
+          "result": "Only the system call (and the handler after the illegal instruction) runs in kernel mode; the disable-interrupts instruction is refused."
+        },
+        "misconceptions": [
+          "Calling malloc or printf is not the same as a system call; most such calls are served inside the library without ever entering the kernel.",
+          "A mode switch is not a context switch; a non-blocking system call returns to the same process and no other process need run.",
+          "The trap instruction is not privileged; if it were, user programs could never request kernel services."
+        ],
+        "recall": [
+          {
+            "q": "Which three events move the CPU from user mode into kernel mode?",
+            "a": "An interrupt, an exception raised by the running instruction, and a trap instruction such as a system call."
+          },
+          {
+            "q": "What happens when a privileged instruction executes in user mode?",
+            "a": "The hardware does not run it and raises an illegal-instruction exception; the OS usually kills the process."
+          },
+          {
+            "q": "Why must the trap instruction be allowed in user mode?",
+            "a": "It is the only way user code can ask the kernel for a service, so forbidding it would make system calls impossible."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A user process, running in user mode, does exactly one of the following. Which one is certain to make the CPU enter kernel mode?",
+          "options": [
+            "Reads a variable that is already in a CPU register",
+            "Calls strlen on a string",
+            "Executes a trap instruction to invoke the system call write",
+            "Calls a function defined in its own source file"
+          ],
+          "answer": 2,
+          "explanation": "A trap instruction always transfers control to the kernel, so the system call write guarantees the switch. Reading a register, calling strlen and calling the program's own function are ordinary user-mode work; strlen tempts because it is a library call, but it only scans memory and never needs the kernel."
+        },
+        "summary": "A mode bit separates user from kernel mode; interrupts, exceptions and traps are the only ways in, privileged instructions fail in user mode, and library calls guarantee nothing unless they trap."
+      }
+    },
+    {
+      "id": "os-processes-threads.ipc-models",
+      "title": "IPC: shared memory and message passing",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        43,
+        467,
+        468
+      ],
+      "points": [
+        "Shared memory: the processes map one region into their address spaces and exchange data with ordinary loads and stores. After setup no kernel call is needed, so it is the fastest IPC, but the processes must synchronise access themselves.",
+        "Message passing: the kernel carries messages between send() and receive(). It is easier to use correctly and extends across machines, but every message costs system calls and copying.",
+        "Naming: direct communication names the peer process, as in send(P, msg); indirect communication goes through a mailbox or port that several processes can share.",
+        "A blocking (synchronous) send waits until the message is received, and a blocking receive waits for a message; when both block the exchange is a rendezvous. Non-blocking calls return at once.",
+        "Buffering: a zero-capacity link forces a rendezvous, a bounded queue blocks a sender only when full, and an unbounded queue never blocks senders."
+      ],
+      "keyTerms": [
+        "mailbox",
+        "rendezvous",
+        "bounded buffer"
+      ],
+      "lesson": {
+        "why": "Questions ask which IPC style is faster, which needs synchronisation, and how many items a circular buffer holds. All three come from knowing who does the work: the kernel or the processes.",
+        "intro": "Two processes have separate address spaces, so one cannot simply read the other's variables. They need an agreed channel. There are two designs. In shared memory the operating system maps one region into both processes, and they then read and write it like ordinary memory. In message passing the processes never touch common memory; they hand messages to the operating system, which delivers them.",
+        "prerequisites": [
+          "os-processes-threads.process-concept"
+        ],
+        "analogy": {
+          "text": "Shared memory is a whiteboard in a room both people can reach; message passing is a mail service where every letter goes through the post office.",
+          "breaksWhen": "A whiteboard needs a rule about who writes when, but the kernel's mail service already orders and delivers each message safely."
+        },
+        "definitions": [
+          {
+            "term": "Mailbox",
+            "meaning": "A queue owned by the kernel that several processes can send to and receive from, so senders need not name each other."
+          },
+          {
+            "term": "Rendezvous",
+            "meaning": "An exchange where a blocking send and a blocking receive meet: neither finishes until the other is ready."
+          },
+          {
+            "term": "Bounded buffer",
+            "meaning": "A queue of fixed size; a sender must wait when it is full and a receiver must wait when it is empty."
+          }
+        ],
+        "principle": {
+          "text": "Shared memory costs the kernel only at setup, so it is faster, but the processes must coordinate access themselves. Message passing costs a system call and a copy per message, but the kernel orders delivery. In an in/out circular buffer of N slots, full means (in + 1) mod N = out and empty means in = out, so one slot stays unused.",
+          "tex": "\\text{full} \\iff (\\mathit{in} + 1) \\bmod N = \\mathit{out}, \\qquad \\text{capacity} = N - 1"
+        },
+        "limits": "The one-unused-slot rule applies only when full and empty are told apart by in and out alone. If the buffer also keeps a count of items, all N slots can be used. A zero-capacity message link holds nothing, so it always forces a rendezvous.",
+        "example": {
+          "problem": "A circular buffer has N = 6 slots, with in = 0 and out = 0 at the start. A producer writes items one at a time and a consumer reads none. How many items can be written before the producer must wait?",
+          "steps": [
+            "Empty is in = out, so the buffer starts empty.",
+            "Each write advances in by one, modulo 6. After 5 writes, in = 5 and out = 0.",
+            "The next write would make in = (5 + 1) mod 6 = 0, which equals out and would look empty, so the producer must stop."
+          ],
+          "result": "5 items, which is N - 1."
+        },
+        "misconceptions": [
+          "Shared memory is not automatically safe. After the region is mapped the kernel no longer mediates access, so two writers can corrupt each other's data unless they synchronise.",
+          "A blocking send does not mean the message is lost if the receiver is slow; it means the sender waits until the message is accepted or received."
+        ],
+        "recall": [
+          {
+            "q": "Why is shared memory usually faster than message passing?",
+            "a": "After the region is mapped, the processes use ordinary loads and stores with no system call per transfer."
+          },
+          {
+            "q": "What is the capacity of an in/out circular buffer of N slots?",
+            "a": "N - 1, because one slot is left unused so that full and empty are distinguishable."
+          },
+          {
+            "q": "What happens in a rendezvous?",
+            "a": "A blocking send and a blocking receive both wait until the other side is ready, and then the message is exchanged."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A producer and a consumer share a circular buffer of 12 slots. It is empty when in = out = 0 and uses only the in and out indices to detect full and empty. What is the largest number of items it can hold at one time?",
+          "answer": 11,
+          "explanation": "Full is (in + 1) mod 12 = out, which is reached after 11 writes with no reads. The tempting answer 12 would need in = out for a full buffer, but that state already means empty."
+        },
+        "summary": "Shared memory is fast but leaves synchronisation to the processes; message passing is kernel-mediated and safer. A circular buffer with only in and out holds N - 1 items."
+      }
+    },
+    {
+      "id": "os-processes-threads.pipes-sockets-signals",
+      "title": "Pipes, FIFOs, sockets and signals",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        43,
+        44,
+        467,
+        468,
+        470
+      ],
+      "points": [
+        "An anonymous pipe is a one-way kernel byte buffer with a read end and a write end; it connects related processes that inherit the descriptors across fork(). Two-way traffic needs two pipes.",
+        "A named pipe (FIFO) has a filesystem name, so unrelated processes can open it.",
+        "A reader sees end-of-file only after every write end is closed, including any copy the reader itself inherited; until then read() on an empty pipe blocks. Writing to a pipe with no reader raises SIGPIPE.",
+        "Sockets are endpoints that work within one machine or across a network, as streams (TCP) or datagrams (UDP).",
+        "Signals notify a process of an event. Synchronous ones such as SIGSEGV and SIGFPE come from its own faulting instruction; asynchronous ones such as SIGINT (Ctrl-C), SIGTERM and SIGALRM come from outside. Most can be caught or ignored, but not SIGKILL or SIGSTOP."
+      ],
+      "keyTerms": [
+        "pipe",
+        "FIFO",
+        "socket",
+        "SIGPIPE",
+        "SIGKILL"
+      ],
+      "lesson": {
+        "why": "Questions test when a read on a pipe returns end-of-file, which mechanisms suit unrelated processes, and which signals cannot be caught. Each has a short rule you can recall in the exam hall.",
+        "intro": "A pipe is a one-way channel inside the kernel: bytes written at one end come out of the other end in order. A pipe is created before fork(), and both processes inherit its two ends, so it links related processes. A FIFO is a pipe that has a name in the filesystem, so unrelated processes can open it. A socket is a communication endpoint that also works between machines. A signal is a short notification sent to a process to tell it that an event happened.",
+        "prerequisites": [
+          "os-processes-threads.ipc-models",
+          "os-processes-threads.fork-exec-wait"
+        ],
+        "definitions": [
+          {
+            "term": "Descriptor",
+            "meaning": "A small integer that a process uses to refer to an open file, pipe end or socket."
+          },
+          {
+            "term": "End-of-file on a pipe",
+            "meaning": "The result of read() returning 0, which happens only after every write end of the pipe is closed."
+          },
+          {
+            "term": "SIGPIPE",
+            "meaning": "The signal raised when a process writes to a pipe that has no reader."
+          }
+        ],
+        "principle": {
+          "text": "A read on an empty pipe blocks while any write end is still open anywhere, including a copy inherited by the reader itself. It returns end-of-file only when all write ends are closed. Most signals can be caught or ignored; SIGKILL and SIGSTOP cannot."
+        },
+        "limits": "An anonymous pipe carries data one way and only between processes that share the descriptors, so two-way talk needs two pipes and unrelated processes need a FIFO or a socket. A signal carries no data beyond its kind, so it is a notification and not a way to send messages.",
+        "example": {
+          "problem": "A parent creates a pipe and calls fork(). The child loops on read() from the pipe. The parent writes 10 bytes and then closes its write end. The child never closes its own copy of the write end. Does the child's read() ever return 0?",
+          "steps": [
+            "After fork(), the pipe has two write ends: the parent's and the child's inherited copy.",
+            "The parent closes its write end, but the child's copy is still open.",
+            "End-of-file needs every write end closed, so after reading the 10 bytes the next read() blocks."
+          ],
+          "result": "No. The child blocks forever unless it closes its own write end first."
+        },
+        "misconceptions": [
+          "Closing the writer's end in the writing process is not enough for end-of-file; a forgotten inherited copy in the reader keeps the pipe open.",
+          "SIGSEGV and SIGFPE are not delivered from outside; they are synchronous and come from the process's own faulting instruction, unlike SIGINT, SIGTERM and SIGALRM."
+        ],
+        "recall": [
+          {
+            "q": "Why can an anonymous pipe not connect two unrelated processes?",
+            "a": "Its descriptors are passed only by inheritance across fork(), so only related processes hold them."
+          },
+          {
+            "q": "When does read() on a pipe return end-of-file?",
+            "a": "Only when every write end of the pipe is closed."
+          },
+          {
+            "q": "Which signals cannot be caught or ignored?",
+            "a": "SIGKILL and SIGSTOP."
+          },
+          {
+            "q": "What happens when a process writes to a pipe with no reader?",
+            "a": "It receives SIGPIPE."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A process writes to a pipe whose read end has been closed by every process. Which is the result?",
+          "options": [
+            "The write blocks until a reader opens the pipe again.",
+            "The process receives SIGPIPE.",
+            "The write succeeds and the data is discarded silently.",
+            "The pipe is converted into a FIFO."
+          ],
+          "answer": 1,
+          "explanation": "A write with no reader has nobody to receive the data, so the kernel raises SIGPIPE. Blocking is tempting because an empty read blocks, but that rule is about reading while a writer exists."
+        },
+        "summary": "Pipes link related processes, FIFOs link unrelated ones, sockets work across machines. End-of-file needs all write ends closed, and SIGKILL and SIGSTOP cannot be caught."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "os-processes-threads.fork-process-count",
+      "name": "Processes after n unconditional forks",
+      "tex": "P = 2^{n}",
+      "text": "P = 2ⁿ",
+      "where": [
+        [
+          "P",
+          "processes in total, including the original"
+        ],
+        [
+          "n",
+          "fork() calls executed in sequence by every process"
+        ]
+      ],
+      "note": "Use as n only the fork() calls that every process reaches; conditional or short-circuit forks need the tree or per-statement factors.",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "source",
+      "pages": [
+        470
+      ]
+    },
+    {
+      "id": "os-processes-threads.fork-child-count",
+      "name": "Child processes created by n forks",
+      "tex": "C = 2^{n} - 1",
+      "text": "C = 2ⁿ − 1",
+      "where": [
+        [
+          "C",
+          "new processes, excluding the original"
+        ]
+      ],
+      "note": "\"How many processes\" usually includes the original (2ⁿ); \"how many child processes are created\" excludes it (2ⁿ − 1).",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.fork-print-count",
+      "name": "Lines printed by a fork-then-print loop",
+      "tex": "\\text{prints} = \\sum_{k=1}^{n} 2^{k} = 2^{n+1} - 2",
+      "text": "prints = 2¹ + 2² + … + 2ⁿ = 2ⁿ⁺¹ − 2",
+      "where": [
+        [
+          "n",
+          "loop iterations, each doing fork() and then one print"
+        ]
+      ],
+      "note": "Iteration k runs in 2ᵏ processes. If output is buffered and not flushed before fork(), children inherit the unflushed text and extra copies appear.",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.short-circuit-forks",
+      "name": "Process factors of short-circuit fork expressions",
+      "tex": "\\begin{aligned} \\texttt{fork() \\&\\& fork()} &\\;\\Rightarrow\\; \\times 3 \\\\ \\texttt{fork() || fork()} &\\;\\Rightarrow\\; \\times 3 \\\\ \\texttt{fork() \\&\\& fork() || fork()} &\\;\\Rightarrow\\; \\times 5 \\end{aligned}",
+      "text": "fork() && fork() → ×3; fork() || fork() → ×3; fork() && fork() || fork() → ×5",
+      "where": [
+        [
+          "×k",
+          "each process that runs the statement ends up as k processes"
+        ]
+      ],
+      "note": "&& evaluates its right side only where the left returned non-zero (the parent); || only where the left returned 0 (the child). Multiply the factors of separate statements.",
+      "topic": "os-processes-threads.fork-conditional",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.circular-buffer-capacity",
+      "name": "Capacity of an in/out circular buffer",
+      "tex": "\\text{full} \\iff (\\mathit{in} + 1) \\bmod N = \\mathit{out}, \\qquad \\text{capacity} = N - 1",
+      "text": "full ⇔ (in + 1) mod N = out; capacity = N − 1",
+      "where": [
+        [
+          "N",
+          "number of buffer slots"
+        ],
+        [
+          "in, out",
+          "next slot to write and next slot to read; in = out means empty"
+        ]
+      ],
+      "note": "One slot stays unused so that full and empty look different. Keeping a separate count of items lets all N slots be used.",
+      "topic": "os-processes-threads.ipc-models",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.read-syscall-count",
+      "name": "read() system calls to consume a file to end-of-file",
+      "tex": "R = \\left\\lceil \\frac{F}{B} \\right\\rceil + 1",
+      "text": "R = ⌈F / B⌉ + 1",
+      "where": [
+        [
+          "R",
+          "read() system calls, including the final one that returns 0"
+        ],
+        [
+          "F",
+          "file size in bytes"
+        ],
+        [
+          "B",
+          "bytes requested per read() (the stdio buffer size, or 1 for byte-at-a-time reads)"
+        ]
+      ],
+      "note": "The +1 is the call that returns 0 and signals end-of-file; it is needed even when B divides F. Unbuffered 1-byte reads cost F + 1 calls, so buffering cuts the mode switches by roughly a factor of B.",
+      "topic": "os-processes-threads.system-calls",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "os-processes-threads.fork-count",
+      "title": "Counting processes, children or prints from fork() code",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "List the fork() calls that every process reaches; each unconditional fork in straight-line code doubles the count.",
+        "For a loop, count the iterations whose condition lets fork() run; that count is the exponent.",
+        "For if-conditions and && / ||, follow the parent (non-zero) and the child (0) separately, or multiply per-statement factors (×2, ×3, ×5).",
+        "Answer exactly what is asked: total processes, child processes (one fewer) or lines printed."
+      ],
+      "trap": "Children resume where fork() returns, not from the top, and \"child processes\" excludes the original.",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "source",
+      "pages": [
+        470
+      ]
+    },
+    {
+      "id": "os-processes-threads.fork-trace-values",
+      "title": "Tracing variable values and output after fork()",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Split execution at each fork into a parent branch (return value > 0) and a child branch (return value 0).",
+        "Give each branch its own copy of every variable from the moment of the fork; later updates in one branch never reach the other.",
+        "Printed addresses are virtual, so parent and child print the same address for a variable even when the values differ.",
+        "Output order between parent and child is unspecified unless wait() or other synchronisation forces it."
+      ],
+      "trap": "Assuming the child sees the parent's later updates, or that equal printed addresses mean shared memory.",
+      "topic": "os-processes-threads.fork-conditional",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.state-transition",
+      "title": "Which process-state transitions are possible",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Draw the five-state diagram with its six edges: admit, dispatch, preempt, block, wake-up and exit.",
+        "Check each listed transition against the diagram; Waiting → Running and Ready → Waiting never occur.",
+        "Check the scheduling assumption: without preemption, Running → Ready is never forced."
+      ],
+      "trap": "An I/O completion makes the process Ready, not Running; it still waits for the dispatcher.",
+      "topic": "os-processes-threads.process-states",
+      "origin": "source",
+      "pages": [
+        465,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.thread-sharing",
+      "title": "What threads share and what a thread switch saves",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Shared by all threads of a process: code, globals, heap, open files, address space and page tables.",
+        "Private to each thread: thread ID, program counter, registers, stack pointer and stack.",
+        "A switch between threads of one process saves and restores only the private CPU state; the page-table base stays the same."
+      ],
+      "trap": "Local variables live on the stack, so each thread has its own copy even though the stacks share one address space.",
+      "topic": "os-processes-threads.threads",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.ult-klt-compare",
+      "title": "True or false statements on user-level and kernel-level threads",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Ask who schedules the threads: a user-space library (ULT) or the kernel (KLT).",
+        "Blocking: one ULT blocking in a system call blocks the whole process; one KLT blocking leaves its siblings runnable.",
+        "Parallelism: only kernel-visible threads can run on several cores at once. Speed: ULT switches avoid the kernel and are faster."
+      ],
+      "trap": "Swapping the blocking rule: it is user-level threads under many-to-one that all block together.",
+      "topic": "os-processes-threads.ult-vs-klt",
+      "origin": "source",
+      "pages": [
+        466,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.syscall-mode",
+      "title": "System calls, privileged instructions and mode switches",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Ask whether the operation controls hardware that user code must not touch: I/O devices, the timer, interrupts, the MMU or the mode bit.",
+        "If it does, it is privileged and reachable only through a system call; reading the clock or executing the trap instruction is not privileged.",
+        "For a library function, ask whether it must enter the kernel (exit, sleep) or can finish in user space (strlen, most malloc calls)."
+      ],
+      "trap": "Treating every library call as a system call, or every mode switch as a context switch.",
+      "topic": "os-processes-threads.dual-mode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.syscall-count",
+      "title": "Counting system calls or mode switches made by a code fragment",
+      "frequency": "low",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Mark which calls in the fragment are system calls (read, write, fork, exit) and which are library calls that may batch them (fgetc, printf, malloc).",
+        "For buffered I/O, count refills: ⌈F/B⌉ reads of data plus one read that returns 0 at end-of-file.",
+        "Each system call is two mode switches (enter and leave the kernel); add a context switch only where the call blocks or the caller is preempted."
+      ],
+      "trap": "Forgetting the final read() that returns 0, or counting one system call per fgetc instead of one per buffer refill.",
+      "topic": "os-processes-threads.system-calls",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.ipc-choice",
+      "title": "Choosing and characterising an IPC mechanism",
+      "frequency": "low",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Shared memory is fastest after setup and needs explicit synchronisation; message passing goes through the kernel and is simpler to use correctly.",
+        "Anonymous pipes need a common ancestor; FIFOs and sockets serve unrelated processes, and sockets also work across machines.",
+        "For pipe behaviour, track every open write end: a reader gets end-of-file only when the last one closes."
+      ],
+      "trap": "Believing the kernel synchronises shared memory: once the region is mapped, it no longer mediates any access.",
+      "topic": "os-processes-threads.ipc-models",
+      "origin": "source",
+      "pages": [
+        467,
+        471
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "os-processes-threads.q-fork-three-calls",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A process executes fork(); fork(); fork(); and every call succeeds. How many processes exist once all three statements have run, counting the original process?",
+      "answer": 8,
+      "explanation": "Every process alive at a fork() executes it, so each call doubles the count: 1 → 2 → 4 → 8. That is 2³ = 8 processes, of which 7 are children.",
+      "difficulty": "easy",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — fork tree",
+      "pages": [
+        470
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-fork-loop-even",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Every fork() in this code succeeds: for (i = 0; i < 10; i++) if (i % 2 == 0) fork(); How many child processes are created, not counting the original process?",
+      "answer": 31,
+      "explanation": "fork() runs only for i = 0, 2, 4, 6 and 8, and each child inherits i and continues the loop, so every process alive at those iterations forks. Five doublings give 2⁵ = 32 processes, so 32 − 1 = 31 children are created.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.fork-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-fork-short-circuit",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A process runs the three statements fork(); then fork() && fork() || fork(); then fork(); and every fork() succeeds. How many processes exist at the end, including the original?",
+      "answer": 20,
+      "explanation": "The first statement turns 1 process into 2. In the second, each process forks; the parent sees non-zero and runs the second fork, whose child sees 0, so its && is false and it runs the third fork; the first child sees 0, skips the second fork and runs the third. Each process becomes 5, giving 2 × 5 = 10. The last fork doubles that to 20.",
+      "difficulty": "hard",
+      "topic": "os-processes-threads.fork-conditional",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-circular-buffer",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Two processes share a circular buffer of 8 slots. The producer writes at index in and the consumer reads at index out; the buffer is empty when in == out and full when (in + 1) % 8 == out, and no item counter is kept. What is the largest number of items the buffer can hold at once?",
+      "answer": 7,
+      "explanation": "Filling all 8 slots would make in wrap round to equal out, which is the empty condition. The full test therefore fires one slot early, so the buffer holds at most 8 − 1 = 7 items. A separate count variable would allow all 8.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.ipc-models",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-fork-variable-copies",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A program declares int a = 10; and calls fork(), which succeeds. The child executes a = a + 5 and prints the value of a and the address &a as x and y. The parent executes a = a − 5 and prints them as u and v. Which relation holds?",
+      "options": [
+        "u = x + 10 and v = y",
+        "u = x + 10 and v ≠ y",
+        "u + 10 = x and v = y",
+        "u + 10 = x and v ≠ y"
+      ],
+      "answer": 2,
+      "explanation": "After fork() parent and child own separate copies of a, both starting at 10. The child prints x = 15 and the parent u = 5, so u + 10 = x. Addresses are virtual and the child's address space is a copy of the parent's, so &a is the same virtual address in both (v = y), even though the two copies live in different physical frames.",
+      "difficulty": "hard",
+      "topic": "os-processes-threads.fork-conditional",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-state-transitions",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In the five-state process model with a preemptive scheduler, which of these transitions can occur? I. Running → Ready, II. Ready → Running, III. Blocked → Running, IV. Blocked → Ready.",
+      "options": [
+        "I and II only",
+        "I, II and III only",
+        "I, II and IV only",
+        "II and IV only"
+      ],
+      "answer": 2,
+      "explanation": "Running → Ready is a preemption, Ready → Running is a dispatch, and Blocked → Ready happens when the awaited event completes. A blocked process never goes straight to Running: it rejoins the ready queue and waits for the dispatcher.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.process-states",
+      "origin": "source",
+      "pages": [
+        43,
+        465
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-ult-klt-false",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which statement about user-level threads (many-to-one) and kernel-level threads is false?",
+      "options": [
+        "Switching between user-level threads of one process needs no switch into kernel mode.",
+        "Kernel-level threads of one process can run on different cores at the same time.",
+        "The kernel is unaware of user-level threads and schedules only their process.",
+        "When one kernel-level thread blocks in a system call, every other thread of its process blocks too."
+      ],
+      "answer": 3,
+      "explanation": "The kernel schedules each kernel-level thread separately, so when one blocks its siblings stay runnable; that is the main advantage of kernel threads. The other statements are true: user-level switches happen inside the library, kernel threads can run in parallel, and the kernel sees only the process that holds the user-level threads.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.ult-vs-klt",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Thread types",
+      "pages": [
+        43,
+        466,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-many-to-one",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In which multithreading model does a blocking system call by one thread stall every thread of the process, with no two threads of the process ever running in parallel?",
+      "options": [
+        "Many-to-one",
+        "One-to-one",
+        "Many-to-many",
+        "Two-level"
+      ],
+      "answer": 0,
+      "explanation": "Many-to-one maps all user threads onto a single kernel thread, so the kernel can run only one of them at a time, and when that kernel thread blocks, all of them wait. One-to-one, many-to-many and two-level give the other threads further kernel threads to run on.",
+      "difficulty": "easy",
+      "topic": "os-processes-threads.threading-models",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        470
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-zombie-orphan",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A parent creates a child and then loops forever without calling wait(). The child exits. Later the parent is killed. What happens to the child?",
+      "options": [
+        "It is an orphan while the parent loops, and is reaped as soon as it exits.",
+        "It is a zombie until the parent dies; it is then adopted by init (PID 1), which reaps it.",
+        "It is removed from the process table the moment it calls exit.",
+        "It stays a zombie permanently, because only its own parent may collect its status."
+      ],
+      "answer": 1,
+      "explanation": "An exited child whose status has not been collected is a zombie, so the child stays a zombie while the parent loops. When the parent dies, the child is re-parented to init (PID 1), which waits for adopted children and so removes the zombie's process-table entry.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.zombie-orphan",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Zombie",
+      "pages": [
+        43,
+        465,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-exec-pid",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A process with PID 4200 calls execvp() to run another program, and the call succeeds. Which statement is true?",
+      "options": [
+        "The program runs in a new process with a new PID, and execvp() returns that PID.",
+        "The program runs as a child, and the caller resumes after the child exits.",
+        "The PID stays 4200, the code, data, heap and stack are replaced, and execvp() never returns.",
+        "The PID stays 4200, and execvp() returns 0 once the new program has been loaded."
+      ],
+      "answer": 2,
+      "explanation": "exec replaces the program inside the existing process: same PID and parent, open descriptors kept unless marked close-on-exec, but a new code, data, heap and stack. The old code no longer exists, so there is nothing to return to; exec returns −1 only when it fails.",
+      "difficulty": "easy",
+      "topic": "os-processes-threads.fork-exec-wait",
+      "origin": "source",
+      "pages": [
+        43,
+        465
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-mode-vs-context-switch",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A running process makes a system call that completes without blocking, and no interrupt or preemption occurs meanwhile. What must happen?",
+      "options": [
+        "A switch to kernel mode and back to user mode; no context switch is needed.",
+        "A context switch to a kernel process and another one back to the caller.",
+        "A context switch, because the PCB must be saved before kernel code can run.",
+        "Neither a mode switch nor a context switch, because the call does not block."
+      ],
+      "answer": 0,
+      "explanation": "The trap moves the same process into kernel mode, the kernel runs the service on its behalf, and the return-from-trap drops back to user mode. A context switch is needed only when the kernel decides to run a different process, and a non-blocking call with no preemption never forces that.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.dual-mode",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-shared-memory",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Two processes on one machine exchange large volumes of data and want the fastest IPC mechanism. Which mechanism fits, and what does it require of them?",
+      "options": [
+        "Shared memory; the processes must synchronise access themselves.",
+        "Message passing; the kernel copies each message, so no synchronisation is needed.",
+        "Shared memory; the kernel serialises every access to the shared region.",
+        "Pipes; the kernel buffer makes them faster than any shared region."
+      ],
+      "answer": 0,
+      "explanation": "Once the region is mapped into both address spaces, data moves with ordinary loads and stores and no system call per transfer, which makes shared memory the fastest mechanism. The kernel does not mediate those accesses, so the processes must coordinate with semaphores, mutexes or similar tools.",
+      "difficulty": "easy",
+      "topic": "os-processes-threads.ipc-models",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — IPC",
+      "pages": [
+        43,
+        467,
+        471
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-pipe-eof",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A parent creates a pipe and forks. The parent closes its read end, writes 100 bytes and closes its write end. The child keeps both of its pipe descriptors open and calls read() in a loop until read() returns 0. What happens to the child?",
+      "options": [
+        "It reads the 100 bytes, then read() returns 0 and the loop ends.",
+        "It reads the 100 bytes, then blocks forever in read().",
+        "Its first read() returns 0, because the parent has closed its write end.",
+        "It is killed by SIGPIPE when it reads from the drained pipe."
+      ],
+      "answer": 1,
+      "explanation": "read() on an empty pipe returns 0 only when no write end is open anywhere. The child still holds its own inherited write descriptor, so after draining the 100 bytes it blocks waiting for data that can never arrive; it should close its unused write end first. SIGPIPE is sent to writers when no read end is open, never to readers.",
+      "difficulty": "hard",
+      "topic": "os-processes-threads.pipes-sockets-signals",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-thread-switch-saved",
+      "type": "msq",
+      "marks": 1,
+      "stem": "The CPU switches from one thread to another thread of the same process. Which of the following must be saved for the outgoing thread and reloaded for the incoming one?",
+      "options": [
+        "The page-table base register",
+        "The stack pointer",
+        "The program counter",
+        "The general-purpose registers"
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "explanation": "Each thread has its own stack, program counter and register values, so these make up the per-thread context a switch saves and restores. Both threads run in the same address space, so the page-table base register keeps its value; skipping that change is why a thread switch is cheaper than a process switch.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.threads",
+      "origin": "source",
+      "pages": [
+        43,
+        466,
+        467
+      ]
+    },
+    {
+      "id": "os-processes-threads.q-library-syscalls",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these C library calls always enter the kernel through a system call?",
+      "options": [
+        "exit(0)",
+        "malloc(16)",
+        "sleep(1)",
+        "strlen(s)"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "exit(0) must ask the kernel to end the process, and sleep(1) must ask the kernel to suspend the process and wake it a second later, so both always trap. strlen(s) only scans memory in user space. malloc(16) usually hands out memory the allocator already holds, and enters the kernel (brk or mmap) only when the heap must grow.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.system-calls",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-buffered-read-calls",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A program reads a 10,000-byte file to end-of-file in two versions. Version A calls fgetc() until it returns EOF; the stdio library refills its 4096-byte buffer with one read() system call each time the buffer is empty. Version B calls read(fd, &c, 1) until it returns 0. Counting in each version the final read() that returns 0, how many more read() system calls does version B make than version A?",
+      "answer": 9997,
+      "explanation": "Version A: the refills return 4096, 4096 and 1808 bytes, and a fourth read() returns 0, so ⌈10000/4096⌉ + 1 = 3 + 1 = 4 calls. Version B: one call per byte plus the call that returns 0, 10000 + 1 = 10001 calls. The difference is 10001 − 4 = 9997. Each of those calls costs two mode switches, which is why buffered library I/O is so much faster.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.system-calls",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "os-processes-threads.q-privileged",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following must be privileged instructions, executable only in kernel mode?",
+      "options": [
+        "Read the time-of-day clock",
+        "Set the interval timer",
+        "Execute the trap (system call) instruction",
+        "Disable interrupts"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "explanation": "Setting the timer or disabling interrupts would let a user program keep the CPU and stop the OS from regaining control, so both are privileged. Reading the clock harms nobody, and the trap instruction must work in user mode because it is how a user program enters the kernel.",
+      "difficulty": "medium",
+      "topic": "os-processes-threads.dual-mode",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "fork() returns twice, 0 in the child and the child's PID in the parent, and the child resumes where the fork() call returns, not at the top of main.",
+      "origin": "source",
+      "pages": [
+        471
+      ]
+    },
+    {
+      "text": "A zombie has exited but not been reaped; an orphan is still running after its parent died. They are different states with different fixes: wait() in the parent, or adoption by init.",
+      "origin": "source",
+      "pages": [
+        471
+      ]
+    },
+    {
+      "text": "Under many-to-one, one user-level thread blocking in a system call blocks the whole process; a kernel-level thread blocks only itself.",
+      "origin": "source",
+      "pages": [
+        471
+      ]
+    },
+    {
+      "text": "Threads share code, globals, heap and open files, but each has its own stack, registers and program counter, so local variables are per-thread.",
+      "origin": "source",
+      "pages": [
+        471
+      ]
+    },
+    {
+      "text": "n forks give 2ⁿ processes but only 2ⁿ − 1 children: check whether the question counts the original process.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A mode switch into the kernel is not a context switch: a system call that does not block normally returns to the same process, unless the kernel preempts it on the way out.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Parent and child print the same address for a variable yet hold different values: the address is virtual and the memory is not shared.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A blocked process goes to Ready when its event completes, never straight to Running.",
+      "origin": "source",
+      "pages": [
+        465
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Process",
+      "lines": [
+        "Process = program in execution: text, data, heap, stack + PCB",
+        "States: New, Ready, Running, Waiting, Terminated",
+        "Waiting → Ready on the event; never Waiting → Running",
+        "PCB: PID, state, PC, registers, memory info, open files, accounting",
+        "Context switch: save one PCB, load another; pure overhead"
+      ],
+      "origin": "source",
+      "pages": [
+        465,
+        467,
+        472
+      ]
+    },
+    {
+      "heading": "fork, exec, wait",
+      "lines": [
+        "fork(): 0 → child, child PID → parent, −1 → failure",
+        "n forks → 2ⁿ processes, 2ⁿ − 1 children",
+        "Copy-on-write: a page is copied on its first write",
+        "exec(): same PID, new image, returns only on failure",
+        "No wait() → zombie; parent dead → orphan adopted by init"
+      ],
+      "origin": "source",
+      "pages": [
+        465,
+        470,
+        472
+      ]
+    },
+    {
+      "heading": "Threads",
+      "lines": [
+        "Shared: code, data, heap, files. Private: stack, registers, PC",
+        "ULT: fast switch, kernel unaware, one block blocks all, no multicore",
+        "KLT: kernel-scheduled, blocks only itself, runs in parallel",
+        "Models: many-to-one, one-to-one, many-to-many (M ≤ N)"
+      ],
+      "origin": "source",
+      "pages": [
+        466,
+        470,
+        472
+      ]
+    },
+    {
+      "heading": "System calls and IPC",
+      "lines": [
+        "System call = trap: user → kernel mode, then return-from-trap",
+        "Privileged: I/O, timer, interrupt disable, MMU registers",
+        "Args: registers, memory block via register, or stack; read to EOF: ⌈F/B⌉ + 1 calls",
+        "Shared memory fastest, needs synchronisation; message passing via the kernel",
+        "Pipe one-way, EOF once every write end closes; FIFO for unrelated processes",
+        "SIGKILL and SIGSTOP cannot be caught or ignored"
+      ],
+      "origin": "source",
+      "pages": [
+        467,
+        472
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 43,
+      "claim": "The process states form the chain New → Ready → Running → Waiting → Terminated.",
+      "correction": "The states form a cycle, not a chain. A Waiting process returns to Ready when its event completes, never straight to Running; a Running process can also be preempted back to Ready; and Terminated is normally entered from Running when the process exits."
+    },
+    {
+      "page": 467,
+      "claim": "Signals are asynchronous notifications, with SIGINT, SIGKILL and SIGSEGV as examples.",
+      "correction": "SIGSEGV is a synchronous signal: like SIGFPE, it is raised by the process's own faulting instruction and delivered to that process. SIGINT, SIGKILL, SIGTERM and SIGALRM are asynchronous, sent from outside the process at an unpredictable point."
+    },
+    {
+      "page": 468,
+      "claim": "Signals are asynchronous notifications used for events such as keyboard interrupts or fatal errors.",
+      "correction": "The keyboard interrupt (SIGINT) is asynchronous, but fatal-error signals such as SIGSEGV and SIGFPE are synchronous: they are caused by an instruction of the receiving process itself."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "os-system-calls",
+      "status": "partial",
+      "topics": [
+        "os-processes-threads.system-calls",
+        "os-processes-threads.dual-mode"
+      ]
+    },
+    {
+      "item": "os-processes-threads",
+      "status": "covered",
+      "topics": [
+        "os-processes-threads.process-concept",
+        "os-processes-threads.process-states",
+        "os-processes-threads.pcb",
+        "os-processes-threads.context-switch",
+        "os-processes-threads.fork-exec-wait",
+        "os-processes-threads.fork-counting",
+        "os-processes-threads.fork-conditional",
+        "os-processes-threads.zombie-orphan",
+        "os-processes-threads.threads",
+        "os-processes-threads.ult-vs-klt",
+        "os-processes-threads.threading-models"
+      ]
+    },
+    {
+      "item": "os-ipc",
+      "status": "covered",
+      "topics": [
+        "os-processes-threads.ipc-models",
+        "os-processes-threads.pipes-sockets-signals"
+      ]
+    }
+  ]
+}

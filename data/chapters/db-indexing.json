@@ -1,0 +1,2203 @@
+{
+  "id": "db-indexing",
+  "summary": "A file is a sequence of fixed-size disk blocks, and the cost of an operation is the number of block accesses it needs. Heap, sorted and hashed files trade insertion speed against search speed. An index is a small sorted file of (key, pointer) entries, so a search reads a few index blocks instead of the whole file. Primary, clustering and secondary indexes differ in the field they use and in being sparse or dense, and multilevel indexes grow naturally into B-trees and B+ trees. GATE tests the arithmetic: blocking factor, block accesses, node order from block size, capacity and height bounds, and insertions with splits.",
+  "highYield": [
+    "Block accesses with an index: binary search over bᵢ index blocks costs ⌈log₂ bᵢ⌉ plus 1 for the data block; a multilevel index costs one access per level plus 1.",
+    "B+ tree order from block size: internal node n·K + (n + 1)·P ≤ B, leaf n·(K + Pr) + P ≤ B; take the largest integer n.",
+    "Capacity of a B-tree of order m with L levels: at most m^L − 1 keys and at least 2⌈m/2⌉^(L−1) − 1.",
+    "Insertion trace in a B+ tree: a leaf split copies its separator up, an internal split moves its middle key up, and the tree grows only at the root.",
+    "A sparse index needs the file sorted on the index field; a secondary index is always dense, and a file has at most one primary or clustering index.",
+    "Hashing gives about one block access for equality search but no range queries; a B+ tree answers ranges by walking its linked leaves."
+  ],
+  "topics": [
+    {
+      "id": "db-indexing.file-organization",
+      "title": "Heap, sorted and hashed files",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        574,
+        575,
+        577,
+        578,
+        579,
+        580
+      ],
+      "points": [
+        "A file is stored in fixed-size disk blocks, and disk I/O dominates the running time, so file operations are measured in block accesses rather than comparisons.",
+        "Heap (unordered) file: a new record goes into the last block, so insertion takes O(1) block accesses, but a search for a key reads b/2 blocks on average and a search on a non-key field reads all b.",
+        "Sorted (sequential) file: records are ordered on one field, so a search on that field is a binary search over the blocks, ⌈log₂ b⌉ accesses. Insertion and deletion must preserve the order, by shifting records or using overflow blocks.",
+        "Hashed file: a hash function on the key chooses the bucket, so an equality search costs about one block access, while a range search or a search on another field becomes a full scan.",
+        "A file can be physically ordered on only one field, so a table has at most one clustering order and one primary or clustering index."
+      ],
+      "keyTerms": [
+        "block access",
+        "heap file",
+        "sorted file",
+        "hashed file"
+      ],
+      "lesson": {
+        "why": "Questions on this chapter price every operation in disk block reads, and the file layout decides that price before any index is added.",
+        "intro": "A table is stored as a file of fixed-size disk blocks, and reading one block is the unit of cost; comparing records inside a block in memory is free by comparison. The file can keep its records in three ways. A heap file puts records wherever there is room, usually at the end. A sorted file keeps them ordered on one field. A hashed file lets a function of the key pick the block. Each way makes some operations cheap and others expensive. Later lessons add an index, a separate small sorted list of (key, pointer) entries that leads to the data block; it is mentioned here only to price one case, a scan through an index on a field the file is not sorted on.",
+        "definitions": [
+          {
+            "term": "Block access",
+            "meaning": "One transfer of a disk block into memory; the unit in which file operations are costed."
+          },
+          {
+            "term": "Heap file",
+            "meaning": "A file whose records sit in no particular order, with new records added at the end."
+          },
+          {
+            "term": "Unclustered index",
+            "meaning": "An index on a field the file is not sorted on, so neighbouring index entries point to different data blocks."
+          }
+        ],
+        "principle": {
+          "text": "Cost is the number of blocks read. For a file of $b$ blocks, a heap search on the key reads about $b/2$ blocks on average, a sorted search on the sort field reads $\\lceil \\log_2 b \\rceil$, and a hashed equality search reads about one.",
+          "tex": "\\text{heap: } \\tfrac{b}{2} \\qquad \\text{sorted: } \\lceil \\log_2 b \\rceil \\qquad \\text{hashed: } \\approx 1"
+        },
+        "limits": "Binary search is fast only on the field the file is sorted on; a search on any other field is a full scan of $b$ blocks. A hashed file cannot answer range queries, and a full scan costs about $b$ reads for heap and sorted files alike. Scanning the file through an unclustered index costs up to $r$ block reads, one per record, because neighbouring entries point to different blocks; this is far worse than the $b$ reads of a heap or sorted scan.",
+        "example": {
+          "problem": "A file occupies 1000 blocks. Find the cost of looking up one record by its key in a heap file and in a file sorted on that key.",
+          "steps": [
+            "A heap file has no order to exploit, so the search reads blocks one by one; on average the record is halfway, so $1000/2 = 500$ blocks.",
+            "The sorted file halves the remaining range at every step, so the worst case is $\\lceil \\log_2 1000 \\rceil$ block reads.",
+            "Since $2^9 = 512 < 1000 \\le 1024 = 2^{10}$, that is 10 reads."
+          ],
+          "result": "Heap about 500 block reads on average; sorted file 10 in the worst case."
+        },
+        "misconceptions": [
+          "Sorted order does not help every search: a file sorted on RollNo gives no shortcut for a search on Name, which still reads all blocks.",
+          "A heap file is not slow at everything; appending a record costs a constant number of block accesses, and scanning the whole file is as cheap as for a sorted file.",
+          "The cost is counted in blocks, not records, so a file with ten records per block is searched in a tenth of the record count."
+        ],
+        "recall": [
+          {
+            "q": "Why are file operations costed in block accesses?",
+            "a": "Disk transfer time dominates, and a whole block is read at once, so the number of blocks read decides the running time."
+          },
+          {
+            "q": "Which file organisation answers an equality search on the key in about one block access?",
+            "a": "A hashed file, because the hash of the key names the block."
+          },
+          {
+            "q": "Why is a full scan equally cheap on heap and sorted files?",
+            "a": "Both pack records into consecutive blocks, so reading all $b$ blocks costs $b$ either way."
+          },
+          {
+            "q": "What does a scan through an unclustered index cost?",
+            "a": "Up to $r$ block reads, one per record, against $b$ for a heap or sorted file."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A file of 4096 blocks is sorted on its key. Taking the cost of a binary search over $b$ blocks as $\\lceil \\log_2 b \\rceil$ block accesses, what is the worst-case number of block accesses to locate the block holding a given key value?",
+          "answer": 12,
+          "explanation": "Binary search halves the block range each time, so the worst case is $\\lceil \\log_2 4096 \\rceil = 12$ because $2^{12} = 4096$. The value 2048 tempts as the heap-style half of the file, and 4096 as a full scan, but both ignore the sort order."
+        },
+        "summary": "Costs are block reads. Heap: about $b/2$ for a key search and cheap insertion. Sorted: $\\lceil \\log_2 b \\rceil$ on the sort field only. Hashed: about one read for equality, none of the help for ranges."
+      }
+    },
+    {
+      "id": "db-indexing.blocking-factor",
+      "title": "Blocking factor and file size",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "The blocking factor bfr = ⌊B / R⌋ is the number of whole records of size R that fit in a block of size B, in an unspanned organisation where no record crosses a block boundary.",
+        "A file of r records needs b = ⌈r / bfr⌉ blocks, and each block wastes B − bfr·R bytes. Example: 20,000 records of 200 bytes in 2048-byte blocks give bfr = 10, b = 2000 and 48 unused bytes per block.",
+        "A spanned organisation lets a record continue in the next block, so no space is wasted and b = ⌈r·R / B⌉. Problems assume unspanned records unless they say otherwise.",
+        "The same arithmetic applies to an index file: entries of size K + P give fo = ⌊B / (K + P)⌋ entries per block, called the fan-out."
+      ],
+      "keyTerms": [
+        "blocking factor",
+        "unspanned",
+        "fan-out"
+      ],
+      "lesson": {
+        "why": "Almost every numeric question in this chapter starts by turning record and block sizes into a count of records per block and then of blocks.",
+        "intro": "A disk block has a fixed size $B$ bytes, and a record has size $R$ bytes. If records may not be split across two blocks (an unspanned layout), a block holds as many whole records as fit and the leftover bytes are wasted. The number of records per block is the blocking factor. Dividing the number of records by it, and rounding up, gives the number of blocks the file needs.",
+        "definitions": [
+          {
+            "term": "Blocking factor",
+            "meaning": "The number of whole records that fit in one block, written $bfr$."
+          },
+          {
+            "term": "Unspanned",
+            "meaning": "A layout in which no record crosses a block boundary, so each block ends with some unused bytes."
+          }
+        ],
+        "principle": {
+          "text": "Round down to whole records per block, then round up to whole blocks for the file. The same two steps apply to an index file, where the record is an index entry.",
+          "tex": "bfr = \\left\\lfloor \\frac{B}{R} \\right\\rfloor, \\qquad b = \\left\\lceil \\frac{r}{bfr} \\right\\rceil"
+        },
+        "limits": "The floor applies only to unspanned records; a spanned layout uses $b = \\lceil rR/B \\rceil$ with no waste. The floor also applies when entries cannot be split, so never divide the total bytes by $B$ when the question says records are not split.",
+        "example": {
+          "problem": "A file has 30,000 records of 150 bytes each in blocks of 1024 bytes, unspanned. Find the blocking factor, the number of blocks and the wasted bytes per block.",
+          "steps": [
+            "Records per block: $\\lfloor 1024/150 \\rfloor = 6$, since $6 \\times 150 = 900$ and $7 \\times 150 = 1050$ is too big.",
+            "Blocks: $\\lceil 30000/6 \\rceil = 5000$.",
+            "Waste per block: $1024 - 900 = 124$ bytes."
+          ],
+          "result": "$bfr = 6$, 5000 blocks, 124 bytes unused in each block."
+        },
+        "misconceptions": [
+          "Computing blocks as $\\lceil rR/B \\rceil$ is wrong for an unspanned file; it ignores the wasted bytes and undercounts (here it would give 4395 instead of 5000).",
+          "Rounding the blocking factor to the nearest integer instead of down gives a record that does not fit in the block.",
+          "Forgetting that an index entry is key plus pointer: the entry size is $K + P$, not $K$ alone."
+        ],
+        "recall": [
+          {
+            "q": "How is the blocking factor computed for unspanned records?",
+            "a": "$\\lfloor B/R \\rfloor$, the block size divided by the record size, rounded down."
+          },
+          {
+            "q": "How many blocks does a file of $r$ records need?",
+            "a": "$\\lceil r / bfr \\rceil$, rounded up because a partly filled last block still occupies a block."
+          },
+          {
+            "q": "What is the size of an index entry?",
+            "a": "The search-key size plus the pointer size, $K + P$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A file has 75,000 records of 110 bytes each, stored unspanned in blocks of 1024 bytes. How many blocks does the file occupy?",
+          "answer": 8334,
+          "explanation": "Records per block: $\\lfloor 1024/110 \\rfloor = 9$. Blocks: $\\lceil 75000/9 \\rceil = 8334$, since $75000/9 = 8333.3$. The value 8057 tempts: dividing total bytes gives $\\lceil 8250000/1024 \\rceil = 8057$, which undercounts because it ignores the wasted bytes at the end of every block."
+        },
+        "summary": "Whole records per block is $\\lfloor B/R \\rfloor$, blocks in the file is $\\lceil r/bfr \\rceil$, and the same arithmetic with entry size $K+P$ sizes an index file."
+      }
+    },
+    {
+      "id": "db-indexing.index-types",
+      "title": "Primary, clustering and secondary indexes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        575,
+        577,
+        579,
+        580,
+        581,
+        582
+      ],
+      "points": [
+        "A single-level index is an ordered file of (search-key value, pointer) entries. It is much smaller than the data file and is searched by binary search.",
+        "Primary index: built on the ordering key field of a sorted file. It has one entry per data block, holding the block's first (anchor) key, so it is sparse.",
+        "Clustering index: built on an ordering field that is not a key, with one entry per distinct value pointing to the first block that holds it. A file has at most one primary or clustering index, because it can be sorted on only one field.",
+        "Secondary index: built on any field the file is not ordered on, key or non-key. Records with a given value can be in any block, so the index must be dense, and a table may have many secondary indexes.",
+        "Terminology varies between textbooks: some call any index on the ordering field a clustering or primary index, which may then be dense or sparse, and every other index secondary or non-clustering."
+      ],
+      "keyTerms": [
+        "primary index",
+        "clustering index",
+        "secondary index",
+        "anchor record"
+      ],
+      "lesson": {
+        "why": "Questions ask you to name an index as primary, clustering or secondary, or to count its entries, and the answer depends on one fact: whether the file is sorted on the indexed field.",
+        "intro": "An index is a small sorted list of (key, pointer) pairs that lets you find a record without scanning the whole file. Which kind of index you can build depends on how the data file itself is stored. A data file can be physically sorted on only one field, called its ordering field. If the index is on that field, the index can be short, with one entry per data block. If the index is on any other field, the records with neighbouring keys are scattered across blocks, so the index needs an entry for every record.",
+        "prerequisites": [
+          "db-indexing.file-organization",
+          "db-indexing.blocking-factor"
+        ],
+        "definitions": [
+          {
+            "term": "Ordering field",
+            "meaning": "The field on which the data file is physically sorted. A file has at most one."
+          },
+          {
+            "term": "Anchor record",
+            "meaning": "The first record of a data block, whose key is stored in a primary index entry for that block."
+          }
+        ],
+        "principle": {
+          "text": "Ask two questions. Is the file sorted on the indexed field? If yes and the field is a key, the index is primary; if yes and the field repeats, it is clustering. If no, it is secondary and must have one entry per record. A file has at most one primary or clustering index and any number of secondary indexes.",
+          "tex": "\\text{entries}_{\\text{primary}} = b, \\qquad \\text{entries}_{\\text{secondary}} = r"
+        },
+        "limits": "Some textbooks call any index on the ordering field primary or clustering and allow it to be dense, and call every other index secondary. Follow the definition the question gives. A secondary index on a non-key field may also point to buckets of pointers instead of repeating each value.",
+        "example": {
+          "problem": "A file has 30,000 records of 100 bytes in blocks of 1024 bytes, sorted on its key field. An index entry is a 10-byte key plus a 6-byte pointer. Compare the number of index blocks for an index on the key field with those for an index on an unsorted key field.",
+          "steps": [
+            "Records per block: $\\lfloor 1024/100 \\rfloor = 10$, so the file has $\\lceil 30000/10 \\rceil = 3000$ blocks.",
+            "Index entries per block: $\\lfloor 1024/16 \\rfloor = 64$.",
+            "The index on the sorted key is a primary index with one entry per data block: 3000 entries, so $\\lceil 3000/64 \\rceil = 47$ index blocks.",
+            "The index on the unsorted key is secondary with one entry per record: 30,000 entries, so $\\lceil 30000/64 \\rceil = 469$ index blocks."
+          ],
+          "result": "The primary index takes 47 blocks and the secondary index takes 469 blocks."
+        },
+        "misconceptions": [
+          "Calling an index primary just because its field is a key. What matters is whether the file is sorted on that field.",
+          "Giving a primary index one entry per record. It has one entry per data block.",
+          "Thinking a table can have several primary or clustering indexes. It can be sorted on only one field, so it has at most one."
+        ],
+        "recall": [
+          {
+            "q": "How many entries does a primary index have?",
+            "a": "One per data block, holding the key of the block's anchor record."
+          },
+          {
+            "q": "Why must a secondary index have an entry for every record?",
+            "a": "The file is not sorted on that field, so a record with a given key can be in any block and one entry per block would not find it."
+          },
+          {
+            "q": "What separates a primary index from a clustering index?",
+            "a": "Both are on the ordering field, but a primary index is on a key field and a clustering index is on a field whose values repeat."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A file is stored sorted on the non-key field Dept, and an index is built on Dept with one entry per distinct value pointing to the first block holding it. What kind of index is this?",
+          "options": [
+            "Primary index",
+            "Clustering index",
+            "Secondary index",
+            "Dense secondary index"
+          ],
+          "answer": 1,
+          "explanation": "The file is sorted on Dept, so the index is on the ordering field. Dept repeats, so it is not a key, which makes the index a clustering index. Primary is tempting because the index is on the ordering field, but a primary index needs a key. Secondary fits only an index on a field the file is not sorted on."
+        },
+        "summary": "Sorted on the field and a key means primary; sorted on a repeating field means clustering; not sorted means secondary, with one entry per record."
+      }
+    },
+    {
+      "id": "db-indexing.dense-sparse",
+      "title": "Dense and sparse indexes",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        575,
+        577,
+        579,
+        581
+      ],
+      "points": [
+        "A dense index has an entry for every search-key value, which for a key field means every record. A sparse index has entries for only some values, typically one per data block.",
+        "A sparse index works only when the file is sorted on the index field: find the largest entry not greater than the search key, then scan forward from the block it points to.",
+        "Sparse indexes are smaller and cheaper to maintain. Dense indexes can answer some queries, such as existence tests or counts, from the index alone.",
+        "Entry counts: a primary index has one entry per data block (b entries), while a dense secondary index on a key has one per record (r entries)."
+      ],
+      "keyTerms": [
+        "dense index",
+        "sparse index"
+      ],
+      "lesson": {
+        "why": "GATE asks both for true-or-false statements about which index can be sparse and for entry counts that differ between the two kinds.",
+        "intro": "An index is a small file of entries, each pairing a search-key value with a pointer into the data file. A dense index has one entry for every search-key value, so a lookup finds its key directly. A sparse index keeps entries for only some values, usually the first key of each data block. To use it, find the last entry not larger than the key you want, jump to that block, and read forward inside it.",
+        "prerequisites": [
+          "db-indexing.blocking-factor"
+        ],
+        "definitions": [
+          {
+            "term": "Dense index",
+            "meaning": "An index with an entry for every search-key value in the file."
+          },
+          {
+            "term": "Sparse index",
+            "meaning": "An index with entries for only some key values, typically one per data block."
+          }
+        ],
+        "principle": {
+          "text": "A sparse index is legal only when the data file is sorted on the search key, because the forward scan from the nearest smaller entry must reach the record. A structure that sends a key to a place with no order, such as a hash index, must be dense."
+        },
+        "limits": "A sparse index on a field the file is not sorted on cannot work: the record could lie in any block. A file can be sorted on only one field, so every other field needs a dense index. A B+ tree follows the same rule: if the data file is sorted on the key, its leaves may hold one entry per data block (sparse); on an unsorted field the leaves must hold every key (dense).",
+        "example": {
+          "problem": "A file sorted on its key has 10,000 records, 20 per block. An index entry takes 10 bytes and blocks are 1000 bytes. Compare the sizes of a sparse and a dense index.",
+          "steps": [
+            "Data blocks: $10000/20 = 500$.",
+            "Sparse index: one entry per data block, so 500 entries. With $\\lfloor 1000/10 \\rfloor = 100$ entries per block it occupies $\\lceil 500/100 \\rceil = 5$ blocks.",
+            "Dense index: one entry per record, so 10,000 entries, which fill $\\lceil 10000/100 \\rceil = 100$ blocks."
+          ],
+          "result": "The sparse index takes 5 blocks and the dense index 100."
+        },
+        "misconceptions": [
+          "An index on a non-key sorted field is not automatically sparse or dense; the choice is about whether every value has an entry, and sparse needs sorted data.",
+          "A hash index is not sparse just because it is small; it must have an entry for each key since neighbouring keys land in unrelated buckets.",
+          "Sparse does not mean fewer records are reachable; every record is still found by scanning forward from the entry.",
+          "A B+ tree index is not always dense; when the file is sorted on the key, its leaves can hold one entry per block and the index is sparse."
+        ],
+        "recall": [
+          {
+            "q": "What condition must hold for a sparse index to work?",
+            "a": "The data file must be sorted on the indexed field."
+          },
+          {
+            "q": "How many entries does a primary (sparse) index have?",
+            "a": "One per data block, so $b$ entries."
+          },
+          {
+            "q": "How many entries does a dense secondary index on a key have?",
+            "a": "One per record, so $r$ entries."
+          },
+          {
+            "q": "Can a B+ tree index be sparse?",
+            "a": "Yes, when the data file is sorted on the key and the leaves hold one entry per data block; on an unsorted field the leaves hold every key and it is dense."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A file of 8000 records, 40 per block, is not sorted on field F, and F has distinct values. How many entries must an index on F hold to support a lookup by F?",
+          "options": [
+            "200",
+            "8000",
+            "40",
+            "7960"
+          ],
+          "answer": 1,
+          "explanation": "The file is not sorted on F, so a sparse index cannot work and the index must be dense: one entry per record, $8000$. The value 200 is $8000/40$, the entry count of a sparse index with one entry per block, which tempts but needs a file sorted on F."
+        },
+        "summary": "Dense means an entry per key value ($r$ entries on a key); sparse means about one per data block ($b$ entries) and needs the data sorted on that field."
+      }
+    },
+    {
+      "id": "db-indexing.index-access-cost",
+      "title": "Counting block accesses with an index",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [
+        575
+      ],
+      "points": [
+        "Binary search over an index of bᵢ blocks costs ⌈log₂ bᵢ⌉ block accesses, plus one more to read the data block. Without the index, binary search on the data file costs ⌈log₂ b⌉.",
+        "Example: 2000 data blocks give a primary index of 2000 entries. At 16 bytes per entry and 128 entries per 2048-byte block, the index fills 16 blocks, so a search costs ⌈log₂ 16⌉ + 1 = 5 accesses instead of ⌈log₂ 2000⌉ = 11.",
+        "A secondary index on a key has one entry per record, so it is larger than a primary index, yet it helps more: without it, a search on that field is a linear scan of b/2 blocks on average.",
+        "On a non-key field, a secondary index can store one entry per distinct value pointing to a block of record pointers. This extra level of indirection adds one access before the data blocks are read."
+      ],
+      "lesson": {
+        "why": "The standard numeric question gives sizes and asks how many block accesses a search takes with an index, so the sum of index and data reads must be set up correctly.",
+        "intro": "Searching a sorted data file by binary search reads about $\\log_2 b$ blocks. A primary index is a much smaller sorted file, one entry per data block, so binary search over it takes far fewer reads. Once the index entry names the data block, one more read fetches that block. The saving comes from the index being many times smaller than the data file.",
+        "prerequisites": [
+          "db-indexing.blocking-factor",
+          "db-indexing.dense-sparse"
+        ],
+        "definitions": [
+          {
+            "term": "Index blocks",
+            "meaning": "The number of blocks the index file occupies, $b_i = \\lceil \\text{entries} / \\text{entries per block} \\rceil$."
+          }
+        ],
+        "principle": {
+          "text": "With a single-level primary index of $b_i$ blocks, finding the data block takes $\\lceil \\log_2 b_i \\rceil$ reads, and fetching the record adds one.",
+          "tex": "\\text{cost} = \\lceil \\log_2 b_i \\rceil + 1"
+        },
+        "limits": "Read the question for what it wants: if it asks only to identify the data block, the final read is not counted. A secondary index on a key needs one entry per record, so its index file is larger, and the formula for $b_i$ changes accordingly.",
+        "example": {
+          "problem": "A file sorted on its key has 4000 data blocks. A primary index entry takes 12 bytes and a block holds 1024 bytes. How many block accesses does a search for one record take with the index, and without it?",
+          "steps": [
+            "Entries per index block: $\\lfloor 1024/12 \\rfloor = 85$.",
+            "The index has 4000 entries, one per data block, so $b_i = \\lceil 4000/85 \\rceil = 48$ blocks.",
+            "Binary search over the index: $\\lceil \\log_2 48 \\rceil = 6$, plus 1 to read the data block, giving 7.",
+            "Without the index: $\\lceil \\log_2 4000 \\rceil = 12$."
+          ],
+          "result": "7 accesses with the index against 12 without."
+        },
+        "misconceptions": [
+          "The index has one entry per data block, not per record, for a primary index; using $r$ entries sizes it far too large.",
+          "Forgetting the final data-block read is a common slip when the question asks for the record, while adding it is wrong when it asks only for the block identity.",
+          "Taking $\\log_2$ of the number of index entries rather than of the number of index blocks."
+        ],
+        "recall": [
+          {
+            "q": "How many entries does a primary index hold?",
+            "a": "One per data block of the sorted file."
+          },
+          {
+            "q": "What is the cost of a search through a single-level primary index?",
+            "a": "$\\lceil \\log_2 b_i \\rceil + 1$ block accesses, where $b_i$ is the number of index blocks."
+          },
+          {
+            "q": "Why does the index reduce the cost?",
+            "a": "It is far smaller than the data file, so binary search runs over many fewer blocks."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sorted file has 6000 data blocks. A primary index has one 16-byte entry per data block, and blocks are 512 bytes. By binary search on the index, how many block accesses fetch one record, counting the data block?",
+          "answer": 9,
+          "explanation": "Entries per block: $\\lfloor 512/16 \\rfloor = 32$. Index blocks: $\\lceil 6000/32 \\rceil = 188$. Search: $\\lceil \\log_2 188 \\rceil = 8$, plus one data block gives 9. The value 8 tempts when the final data read is forgotten, and 13 is the cost of binary search on the data file alone."
+        },
+        "summary": "Size the index as entries over entries per block, then cost a search as $\\lceil \\log_2 b_i \\rceil$ plus one data read if the record itself is wanted."
+      }
+    },
+    {
+      "id": "db-indexing.multilevel-index",
+      "title": "Multilevel indexes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        575,
+        577,
+        579,
+        581
+      ],
+      "points": [
+        "A multilevel index treats the first-level index as a sorted file and builds a sparse index on it, repeating until the top level fits in one block.",
+        "Each level has fo times fewer blocks than the level below, so r₁ first-level entries need t = ⌈log_fo r₁⌉ levels. For example, 20,000 entries at fo = 128 give levels of 157, 2 and 1 blocks: t = 3.",
+        "A search reads one block per level and then the data block, t + 1 accesses, compared with ⌈log₂ bᵢ⌉ + 1 for binary search on a single-level index.",
+        "A static multilevel index is hard to maintain under insertions and deletions. B-trees and B+ trees are multilevel indexes that leave free space in every node and rebalance themselves."
+      ],
+      "keyTerms": [
+        "multilevel index",
+        "fan-out"
+      ],
+      "lesson": {
+        "why": "Counting the levels of a multilevel index and the block accesses a search needs is a standard NAT question, and the arithmetic is short once you see the pattern.",
+        "intro": "A single-level index is a sorted file, and searching it by binary search still costs several block reads when it is large. The fix is to index the index. Treat the first-level index as a sorted file, build a small index on it that has one entry per block, then do it again on that one, until the top level fits in a single block. A search starts at that top block and reads one block per level on the way down, then reads the data block. Each level is smaller than the one below by the number of entries a block holds.",
+        "prerequisites": [
+          "db-indexing.dense-sparse",
+          "db-indexing.index-access-cost"
+        ],
+        "definitions": [
+          {
+            "term": "Fan-out",
+            "meaning": "The number of index entries that fit in one block, $\\lfloor B/(K+P) \\rfloor$."
+          },
+          {
+            "term": "Level",
+            "meaning": "One layer of the index. The first level indexes the data file, and the top level is the single block you start from."
+          }
+        ],
+        "principle": {
+          "text": "Each level has fo times fewer blocks than the one below, rounded up. Keep dividing the number of entries by fo until one block remains. The number of divisions is the number of levels $t$, and a search reads $t$ index blocks plus one data block.",
+          "tex": "t = \\lceil \\log_{fo} r_1 \\rceil, \\qquad \\text{accesses} = t + 1"
+        },
+        "limits": "This describes a static index built once. Insertions and deletions break the sorted, packed layout, which is why real systems use B-trees and B+ trees that keep spare space in every node. Count levels by repeated rounded-up division when the numbers are not exact powers, since the formula with a logarithm must also be rounded up.",
+        "example": {
+          "problem": "A first-level index has 50,000 entries and a block holds 40 entries. Find the number of levels and the block accesses for a search.",
+          "steps": [
+            "First level: $\\lceil 50000/40 \\rceil = 1250$ blocks.",
+            "Second level indexes those 1250 blocks: $\\lceil 1250/40 \\rceil = 32$ blocks.",
+            "Third level indexes those 32 blocks: $\\lceil 32/40 \\rceil = 1$ block, so we stop.",
+            "Three levels, so a search reads 3 index blocks and then 1 data block."
+          ],
+          "result": "$t = 3$ levels and 4 block accesses."
+        },
+        "misconceptions": [
+          "Forgetting the final data-block access and answering $t$ instead of $t+1$.",
+          "Rounding down when dividing. A partly filled block still has to be read, so every division rounds up.",
+          "Dividing the number of data records by fo instead of the number of first-level entries."
+        ],
+        "recall": [
+          {
+            "q": "When does a multilevel index stop adding levels?",
+            "a": "When the current level fits in a single block."
+          },
+          {
+            "q": "How many block accesses does a search through $t$ levels cost?",
+            "a": "$t + 1$: one block per level and then the data block."
+          },
+          {
+            "q": "Why is a static multilevel index awkward to maintain?",
+            "a": "Inserting or deleting records disturbs the packed sorted levels, and B-trees avoid this by leaving free space in nodes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A first-level index has 100,000 entries and each index block holds 50 entries. A multilevel index is built on it, and a search ends with one data block read. How many block accesses does a search need?",
+          "answer": 4,
+          "explanation": "Level sizes are $\\lceil 100000/50 \\rceil = 2000$, then $\\lceil 2000/50 \\rceil = 40$, then $1$, so $t = 3$ and a search needs $3 + 1 = 4$ accesses. The value 3 tempts if you forget the data block, and 2 comes from rounding the logarithm down."
+        },
+        "summary": "Divide the entries by fo, rounding up, until one block is left. The count of divisions is the number of levels t, and a search costs t + 1 accesses."
+      }
+    },
+    {
+      "id": "db-indexing.b-tree",
+      "title": "B-trees",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        575,
+        576,
+        578,
+        579,
+        580,
+        581
+      ],
+      "points": [
+        "In a B-tree of order m, the maximum number of children, every internal node except the root has between ⌈m/2⌉ and m children, and every node except the root holds between ⌈m/2⌉ − 1 and m − 1 keys. The root has between 2 and m children unless it is the only node.",
+        "Keys in a node are sorted, and the subtree between two adjacent keys holds the values that lie between them. All leaves are on the same level, so the tree is always balanced.",
+        "Every key appears exactly once, in a leaf or an internal node, together with its record pointer, so a search may stop at an internal node.",
+        "Search, insertion and deletion each touch O(log_m n) nodes. Inserting into a full node splits it and moves the median key up, and the tree grows taller only when the root splits."
+      ],
+      "keyTerms": [
+        "order",
+        "B-tree",
+        "balanced"
+      ],
+      "lesson": {
+        "why": "B-tree properties, such as the allowed key counts per node and what happens on a split, are tested directly and underlie every capacity and insertion question in this chapter.",
+        "intro": "A B-tree is a search tree built for disks, where every node is one block and has many children instead of two. Keys inside a node are sorted, and the child between two adjacent keys holds the values that lie between them. The tree is kept balanced by two rules: all leaves are at the same depth, and every node except the root must be at least about half full. When a node becomes too full, it splits in two and sends its middle key up to the parent. Each key is stored once in the whole tree, together with the pointer to its record, so a search can finish at an internal node.",
+        "prerequisites": [
+          "db-indexing.multilevel-index"
+        ],
+        "definitions": [
+          {
+            "term": "Order $m$",
+            "meaning": "The maximum number of children of a node. Some books define it as the maximum number of keys, so check the question."
+          },
+          {
+            "term": "Split",
+            "meaning": "Dividing an overfull node into two and moving its median key into the parent."
+          }
+        ],
+        "principle": {
+          "text": "In a B-tree of order $m$, a node other than the root has between $\\lceil m/2 \\rceil$ and $m$ children and so between $\\lceil m/2 \\rceil - 1$ and $m-1$ keys. The root has at least 2 children unless it is the only node. All leaves share one level, so search, insert and delete each touch $O(\\log n)$ nodes.",
+          "tex": "\\left\\lceil \\tfrac{m}{2} \\right\\rceil - 1 \\le \\text{keys} \\le m - 1"
+        },
+        "limits": "The key-count bounds hold for non-root nodes only; the root may hold a single key. They also assume the book's definition of order as maximum children. In a B+ tree, internal nodes hold no record pointers and all keys appear again in the leaves, so search always goes to a leaf.",
+        "example": {
+          "problem": "Insert 10, 20, 30, 40 and then 50 into an empty B-tree of order 5. Show the tree after each stage that changes its shape.",
+          "steps": [
+            "Order 5 means at most 4 keys per node. Inserting 10, 20, 30, 40 fills the root: [10 20 30 40].",
+            "Inserting 50 would give 5 keys, which is too many, so the node splits.",
+            "The median of 10, 20, 30, 40, 50 is 30. It moves up into a new root, and the remaining keys form two nodes: [10 20] and [40 50]."
+          ],
+          "result": "The root is [30] with children [10 20] and [40 50]; the tree now has 2 levels."
+        },
+        "misconceptions": [
+          "Applying the half-full minimum to the root. The root only needs 1 key.",
+          "Copying the median into the parent and keeping it in a child. In a B-tree the median moves up and is stored once; copying is a B+ tree leaf rule.",
+          "Mixing up order and key count: a node of order $m$ holds at most $m-1$ keys."
+        ],
+        "recall": [
+          {
+            "q": "How many keys can a B-tree node of order $m$ hold at most?",
+            "a": "$m - 1$, one fewer than the maximum number of children."
+          },
+          {
+            "q": "What is the minimum number of keys in a non-root node of order $m$?",
+            "a": "$\\lceil m/2 \\rceil - 1$."
+          },
+          {
+            "q": "When does a B-tree grow taller?",
+            "a": "Only when the root splits, which creates a new root above the two halves."
+          },
+          {
+            "q": "Why is a B-tree always balanced?",
+            "a": "Splits push keys upward and height changes only at the root, so every leaf stays at the same depth."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the minimum number of keys that a non-root node of a B-tree of order 7 must hold?",
+          "answer": 3,
+          "explanation": "A non-root node has at least $\\lceil 7/2 \\rceil = 4$ children and therefore at least $4 - 1 = 3$ keys. The value 4 tempts because it is the minimum number of children, and 6 is the maximum number of keys."
+        },
+        "summary": "Non-root nodes keep between ceil(m/2) - 1 and m - 1 keys, leaves share a level, and an overfull node splits and sends its median up."
+      }
+    },
+    {
+      "id": "db-indexing.b-plus-tree",
+      "title": "B+ trees",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        576,
+        578,
+        579,
+        580,
+        581,
+        582
+      ],
+      "points": [
+        "A B+ tree keeps every key, with its record pointer or record, in the leaves. Internal nodes hold only routing keys, which may repeat keys stored in the leaves.",
+        "The leaves are linked in key order, so a range query finds its first key with one root-to-leaf search and then walks the leaf chain without going back up.",
+        "Every search ends at a leaf, so all searches cost the same number of levels. Internal nodes carry no record pointers, so they fit more keys per block, which gives a higher fan-out and usually a shallower tree than a B-tree with the same block size.",
+        "Database systems such as MySQL InnoDB, Oracle and PostgreSQL use B+ tree variants as their default index structure."
+      ],
+      "keyTerms": [
+        "B+ tree",
+        "leaf chain",
+        "routing key"
+      ],
+      "lesson": {
+        "why": "Statements about B+ trees are decided by what leaves hold and what internal nodes do not, and the answers hinge on what leaves hold and what internal nodes do not.",
+        "intro": "A B+ tree is a balanced search tree whose nodes are disk blocks. Internal nodes contain only routing keys and pointers to child nodes; they steer the search. Every actual key, with its pointer to a data record, sits in a leaf. The leaves are linked to each other in key order, so after one search from the root a range can be read by following the links. To keep the tree shallow, every node except the root must stay at least half full, holding at least half of its maximum keys or children. The root is exempt because it has no sibling to merge with, so it may hold as few as one key. The fan-out of a node is its number of children.",
+        "prerequisites": [
+          "db-indexing.dense-sparse"
+        ],
+        "definitions": [
+          {
+            "term": "Routing key",
+            "meaning": "A key stored in an internal node only to decide which child to visit next."
+          },
+          {
+            "term": "Leaf chain",
+            "meaning": "The pointers linking each leaf to the next in key order."
+          },
+          {
+            "term": "Fan-out",
+            "meaning": "The number of children of an internal node; a larger fan-out makes the tree shallower."
+          }
+        ],
+        "principle": {
+          "text": "All data entries are in the leaves, all leaves are at the same depth, and leaves are linked in sorted order. Internal nodes carry no record pointers, so each holds more keys and the tree stays shallow."
+        },
+        "limits": "The rule that a node is at least half full applies to every node except the root. Internal keys may repeat keys that also live in leaves, so a routing key does not mean its record is in that internal node.",
+        "example": {
+          "problem": "A B+ tree has height 3 (root, one internal level, leaves). Its leaves, in order, hold keys [5, 12], [25, 31], [44, 52], [60, 71]. How many nodes are read to answer the range query 25 to 60?",
+          "steps": [
+            "Descend from the root to the leaf that holds 25: one node per level, which is 3 reads.",
+            "Leaf [25, 31] gives 25 and 31; follow the chain to [44, 52] (1 read) and then [60, 71] (1 read), which holds 60.",
+            "The next key, 71, exceeds 60, so the scan stops without climbing back up."
+          ],
+          "result": "3 + 2 = 5 node reads, with no second descent."
+        },
+        "misconceptions": [
+          "Internal nodes do not point to data records; only leaves do, which is exactly why a B+ tree differs from a B-tree.",
+          "The half-full rule is not waived for all leaves or all internal nodes; only the root is exempt.",
+          "A range query does not repeat the root-to-leaf search for each key; it descends once and follows the leaf links."
+        ],
+        "recall": [
+          {
+            "q": "Where does a B+ tree store pointers to data records?",
+            "a": "Only in the leaf nodes."
+          },
+          {
+            "q": "Why are the leaves linked?",
+            "a": "So a range query can walk through consecutive keys after one descent."
+          },
+          {
+            "q": "Which node is exempt from the half-full rule?",
+            "a": "The root."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about a B+ tree index is correct?",
+          "options": [
+            "Internal nodes store a record pointer for every key they hold.",
+            "Only the root node may be less than half full.",
+            "Leaf nodes are at different depths when the tree is unbalanced.",
+            "A range query must search from the root once for each key in the range."
+          ],
+          "answer": 1,
+          "explanation": "Every node except the root must be at least half full, so only the root may be below that. Internal nodes hold no record pointers, which rules out the first option. All leaves sit at the same depth, ruling out the third, and the leaf chain removes the repeated descents in the fourth, which tempts because a naive search would repeat them."
+        },
+        "summary": "Records live only in the linked, same-depth leaves; internal nodes route, which gives high fan-out; only the root may be under half full."
+      }
+    },
+    {
+      "id": "db-indexing.node-order",
+      "title": "Node order from block size",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        576,
+        579,
+        580
+      ],
+      "points": [
+        "Write the space a node needs and take the largest integer that fits in a block of B bytes. Let K be the key size, P a block (child) pointer and Pr a record pointer.",
+        "B+ tree internal node with n keys and n + 1 child pointers: n·K + (n + 1)·P ≤ B. With B = 512, K = 6 and P = 4: 10n + 4 ≤ 512, so n = 50 keys and 51 children.",
+        "B+ tree leaf with n keys: n·(K + Pr) + P ≤ B, where the extra P links to the next leaf. B-tree node with n keys: n·(K + Pr) + (n + 1)·P ≤ B, because every key carries a record pointer.",
+        "Order means the maximum number of children in some textbooks and the maximum number of keys in others, and a few use a minimum instead; check the definition a question uses, and compute keys and children separately when in doubt."
+      ],
+      "keyTerms": [
+        "order",
+        "block pointer",
+        "record pointer"
+      ],
+      "lesson": {
+        "why": "A recurring numeric question asks for the largest order or number of keys a node can have when it must fit in one block.",
+        "intro": "Every tree node is stored in one disk block, so its size cannot exceed the block size $B$. A node contains keys of size $K$ and pointers of size $P$ to child blocks. A node with $n$ keys has $n+1$ child pointers. Add up the bytes, write the inequality against $B$, and take the largest whole number $n$ that satisfies it.",
+        "prerequisites": [
+          "db-indexing.blocking-factor",
+          "db-indexing.b-plus-tree"
+        ],
+        "definitions": [
+          {
+            "term": "Block pointer",
+            "meaning": "A pointer to another block, here a child node."
+          },
+          {
+            "term": "Order",
+            "meaning": "The maximum number of child pointers in a node in most GATE questions, but some books use maximum keys, so check the question."
+          }
+        ],
+        "principle": {
+          "text": "For a B+ tree internal node with $n$ keys, the bytes used are $nK + (n+1)P$, and this must not exceed $B$. A leaf with $n$ keys, record pointers of size $P_r$ and one next-leaf pointer needs $n(K+P_r) + P$.",
+          "tex": "nK + (n+1)P \\le B \\Rightarrow n = \\left\\lfloor \\frac{B - P}{K + P} \\right\\rfloor"
+        },
+        "limits": "A B-tree node also carries a record pointer with every key, so its inequality is $n(K+P_r) + (n+1)P \\le B$. When a question defines order as keys or as a minimum, convert from keys and children yourself.",
+        "example": {
+          "problem": "A B+ tree internal node must fit in a block of 1024 bytes. Keys are 10 bytes and block pointers 6 bytes. Find the maximum number of keys and children.",
+          "steps": [
+            "Bytes for $n$ keys: $10n + 6(n+1) = 16n + 6$.",
+            "Require $16n + 6 \\le 1024$, so $n \\le 1018/16 = 63.6$.",
+            "Take the floor: $n = 63$ keys, and $63 + 1 = 64$ children; the node uses $16 \\cdot 63 + 6 = 1014$ bytes."
+          ],
+          "result": "At most 63 keys and 64 children."
+        },
+        "misconceptions": [
+          "Counting $n$ pointers instead of $n+1$ gives an off-by-one error in both the inequality and the answer.",
+          "Rounding $n$ up instead of down makes the node larger than the block.",
+          "Stating the keys when the question asks for the order (children), or the reverse, without checking the definition."
+        ],
+        "recall": [
+          {
+            "q": "How many child pointers does an internal node with $n$ keys have?",
+            "a": "$n + 1$."
+          },
+          {
+            "q": "Why is the largest $n$ taken as a floor?",
+            "a": "A node with a fraction of a key cannot exist, and rounding up would exceed the block size."
+          },
+          {
+            "q": "How does a B-tree node differ from a B+ tree internal node in size?",
+            "a": "It stores a record pointer with each key, so each key costs $K + P_r$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a B+ tree, a node must fit in a block of 400 bytes. Keys are 8 bytes and block pointers are 4 bytes. What is the maximum number of child pointers an internal node can hold?",
+          "answer": 34,
+          "explanation": "With $n$ keys the node needs $8n + 4(n+1) = 12n + 4 \\le 400$, so $n \\le 33$ and the node has $n + 1 = 34$ children. The value 33 tempts because it is the number of keys, and 100 comes from dividing $400$ by the pointer size alone."
+        },
+        "summary": "Write $nK + (n+1)P \\le B$, take the largest whole $n$, and add one for children; adjust for record pointers in B-trees and leaves."
+      }
+    },
+    {
+      "id": "db-indexing.tree-capacity",
+      "title": "Maximum and minimum keys for a given height",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [
+        578
+      ],
+      "points": [
+        "A B-tree of order m with L levels holds at most m^L − 1 keys: with every node full, level j has m^(j−1) nodes of m − 1 keys each.",
+        "At the minimum, the root holds 1 key and every other node ⌈m/2⌉ − 1 keys, which gives 2⌈m/2⌉^(L−1) − 1 keys. For m = 4 and L = 3 the range is 7 to 63 keys.",
+        "A B+ tree with L levels, internal fan-out p and leaf capacity n holds at most p^(L−1)·n keys. At the minimum, for L ≥ 2, it has 2⌈p/2⌉^(L−2) leaves with at least ⌈n/2⌉ keys each.",
+        "Inverting the bounds gives the height range for N keys in a B-tree of order m: at least ⌈log_m(N + 1)⌉ levels, and at most $1 + \\left\\lfloor \\log_{\\lceil m/2 \\rceil} \\frac{N+1}{2} \\right\\rfloor$."
+      ],
+      "lesson": {
+        "why": "Given the order and the number of levels, GATE asks for the largest or smallest number of keys a B-tree can store, and the answer is a short sum once you decide which nodes are full and which are minimal.",
+        "intro": "The number of keys in a tree depends on how many nodes there are and how full each is. The most keys appear when every node is completely full. The fewest appear when the root has the bare minimum of two children and every other node is only half full. In both cases you add up the keys level by level. The root is level 1, and each level below has as many nodes as the level above has children.",
+        "prerequisites": [
+          "db-indexing.b-tree",
+          "db-indexing.node-order"
+        ],
+        "definitions": [
+          {
+            "term": "Level",
+            "meaning": "A row of nodes at the same depth, counted from 1 at the root."
+          }
+        ],
+        "principle": {
+          "text": "For a B-tree of order $m$ with $L$ levels, a full tree has $m^{j-1}$ nodes on level $j$ with $m-1$ keys each, which sums to $m^L - 1$. The thinnest tree has a root with 1 key and 2 children, and every other node has $\\lceil m/2 \\rceil$ children and $\\lceil m/2 \\rceil - 1$ keys.",
+          "tex": "N_{\\max} = m^{L} - 1, \\qquad N_{\\min} = 2\\left\\lceil \\tfrac{m}{2} \\right\\rceil^{L-1} - 1"
+        },
+        "limits": "These counts are for B-trees where every node holds keys. A B+ tree stores data keys only in the leaves, so its capacity is $p^{L-1}\\cdot n$ with leaf capacity $n$. Check whether the question counts the root as level 1 or level 0, and whether height means levels or edges.",
+        "example": {
+          "problem": "A B-tree of order 5 has 3 levels. Find the maximum and minimum number of keys.",
+          "steps": [
+            "Maximum: every node has 4 keys. Levels have 1, 5 and 25 nodes, so $4 + 20 + 100 = 124$ keys, which equals $5^3 - 1$.",
+            "Minimum: the root has 1 key and 2 children. Other nodes have $\\lceil 5/2 \\rceil = 3$ children and 2 keys.",
+            "Level 2 has 2 nodes with 2 keys each, giving 4 keys. Level 3 has $2 \\cdot 3 = 6$ nodes with 2 keys each, giving 12 keys.",
+            "The total is $1 + 4 + 12 = 17$, which equals $2 \\cdot 3^2 - 1$."
+          ],
+          "result": "At most 124 keys and at least 17 keys."
+        },
+        "misconceptions": [
+          "Applying the half-full minimum to the root. The root has 1 key and 2 children at the minimum.",
+          "Counting levels from 0, which changes the exponent by one.",
+          "Using $m^L$ instead of $m^L - 1$. A full node holds $m-1$ keys, not $m$."
+        ],
+        "recall": [
+          {
+            "q": "How many keys does a full B-tree of order $m$ with $L$ levels hold?",
+            "a": "$m^L - 1$."
+          },
+          {
+            "q": "What is the fewest children a non-root internal node can have?",
+            "a": "$\\lceil m/2 \\rceil$."
+          },
+          {
+            "q": "How many children does the root have in the thinnest B-tree with 2 or more levels?",
+            "a": "Two, with a single key."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the maximum number of keys in a B-tree of order 6 that has 4 levels, counting the root as level 1?",
+          "answer": 1295,
+          "explanation": "Every node is full with 5 keys, and the nodes per level are 1, 6, 36 and 216, so the keys are $5 \\cdot (1 + 6 + 36 + 216) = 5 \\cdot 259 = 1295$, which is $6^4 - 1$. The value 1296 tempts because it is $6^4$, forgetting that a node has one fewer key than children."
+        },
+        "summary": "Maximum keys are m^L - 1 with every node full. For the minimum, the root has 1 key and other nodes have ceil(m/2) - 1, giving 2*ceil(m/2)^(L-1) - 1."
+      }
+    },
+    {
+      "id": "db-indexing.insertion-splits",
+      "title": "Insertion with node splits",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        578,
+        580,
+        581
+      ],
+      "points": [
+        "Insert into the correct leaf. If a B+ tree leaf overflows, split it in two and copy the first key of the new right leaf into the parent as a separator; the key stays in the leaf level.",
+        "If an internal node overflows, split it and move its middle key up to the parent; unlike in a leaf split, that key leaves the level it was on. Splits can cascade up to the root.",
+        "When the root splits, a new root with one key and two children is created and the height grows by one. This is the only way a B-tree or B+ tree gains height, which keeps all leaves on one level.",
+        "When the keys left after a split cannot be halved evenly, textbooks differ on which side gets the extra key, so follow the rule the question states.",
+        "Deletion runs the other way: an underflowing node borrows a key from a sibling or merges with it, and merges can remove the root level."
+      ],
+      "keyTerms": [
+        "split",
+        "copy up",
+        "push up",
+        "underflow"
+      ],
+      "lesson": {
+        "why": "Questions ask what a B+ tree looks like after one insertion, and the marks go to the learner who knows which key is copied and which is moved when nodes overflow.",
+        "intro": "Every node has a fixed capacity of keys. A new key goes into the leaf whose range contains it. If that leaf now holds one key too many, it is cut into two leaves and the parent receives a new separator key to tell them apart. The parent may then be over capacity too, so the same cut repeats one level up. If the cutting reaches the root, a new root is made above it and the tree grows one level taller.",
+        "prerequisites": [
+          "db-indexing.b-plus-tree",
+          "db-indexing.node-order"
+        ],
+        "analogy": {
+          "text": "A shelf with fixed room for three books: when a fourth arrives, you add a second shelf, share the books between the two, and write a label on the index card saying where the second shelf begins.",
+          "breaksWhen": "A shelf label is only a pointer, but in a B+ tree a leaf split copies the key, so the key stays in the leaf while an internal split moves the key out of its node."
+        },
+        "definitions": [
+          {
+            "term": "Overflow",
+            "meaning": "A node holds more keys than its capacity allows, which forces a split."
+          },
+          {
+            "term": "Copy up",
+            "meaning": "A leaf split puts a copy of the new right leaf's first key into the parent; the key also stays in the leaf."
+          },
+          {
+            "term": "Push up",
+            "meaning": "An internal split moves the middle key into the parent, and the key leaves the node it was in."
+          }
+        ],
+        "principle": {
+          "text": "A node splits only when it exceeds its capacity. A leaf split copies a key up, an internal split moves a key up, and height grows only when the root itself splits."
+        },
+        "limits": "If the target leaf has room, nothing splits and no separator changes. When the keys left to share between the two halves are an odd number, the halves cannot be equal, so follow the side rule the question states.",
+        "example": {
+          "problem": "A B+ tree holds at most 3 keys per node. The root holds 11 and has two leaves, (2, 5, 8) and (11, 14, 17). Insert 9. What does the tree look like afterwards?",
+          "steps": [
+            "Since 9 is below 11, it belongs to the left leaf, which becomes 2, 5, 8, 9: four keys, one over capacity.",
+            "Split that leaf into (2, 5) and (8, 9). Copy the first key of the new right leaf, 8, into the parent.",
+            "The root now holds 8 and 11, which is within capacity, so no further split happens."
+          ],
+          "result": "Root (8, 11) with three leaves (2, 5), (8, 9) and (11, 14, 17); the height stays 2 and the node count goes from 3 to 4."
+        },
+        "misconceptions": [
+          "A leaf split does not remove the separator key from the leaf; in a B+ tree every key stays in a leaf, and only a copy goes up.",
+          "A split does not always raise the height. The height grows only when the root overflows, so a split that the parent can absorb stops there."
+        ],
+        "recall": [
+          {
+            "q": "Which key goes into the parent when a B+ tree leaf splits?",
+            "a": "A copy of the first key of the new right leaf. The key also stays in that leaf."
+          },
+          {
+            "q": "What differs when an internal node splits?",
+            "a": "The middle key moves up into the parent and no longer appears in either half."
+          },
+          {
+            "q": "When does a B+ tree become taller?",
+            "a": "Only when the root overflows and splits, creating a new root with one key and two children."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A B+ tree holds at most 3 keys per node. The root holds 10, 20, 30 and has four leaves: (2, 5, 8), (10, 12, 15), (20, 22, 25) and (30, 35, 40). The key 41 is inserted. How many nodes does the tree have afterwards?",
+          "answer": 8,
+          "explanation": "41 goes to the last leaf, which then holds four keys and splits into (30, 35) and (40, 41), copying 40 up. The root now holds 10, 20, 30, 40 and overflows, so it splits and a new root appears above it. That adds a leaf, a second internal node and a new root: 5 nodes become 8. Answering 6 counts the leaf split but forgets that the parent overflows too."
+        },
+        "summary": "Insert into the right leaf, split on overflow, copy up on a leaf split, push up on an internal split, and add a level only when the root splits."
+      }
+    },
+    {
+      "id": "db-indexing.tree-search-cost",
+      "title": "Search, insertion and range-query cost in trees",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        576,
+        578,
+        579,
+        581,
+        582
+      ],
+      "points": [
+        "A point search reads one node per level: h block accesses to reach a B+ tree leaf, plus one for the data block when the leaves hold record pointers rather than records.",
+        "A range query costs h accesses to reach the first leaf, one access for each further leaf in the range, and, for an unclustered index, one data access per matching record.",
+        "An insertion reads h nodes and writes the leaf, and each split adds writes for the new node and its parent. Splits are rare when nodes are large, and even a cascade up to the root costs O(log_p n).",
+        "Fan-out makes trees shallow: with fan-out 100, three levels of a B+ tree index about a million keys, and keeping the root in memory saves one access per search."
+      ],
+      "lesson": {
+        "why": "The search-cost question appears as a numeric answer, and it needs the node capacity, the number of levels and the final data-block read computed in the right order.",
+        "intro": "Each node of a B+ tree fills exactly one disk block, and reading one block is one disk access. A search starts at the root and reads one node per level until it reaches a leaf. If the leaf holds a pointer to the record rather than the record itself, one more access fetches the data block. So the cost is the number of levels plus one. The number of levels is the smallest height whose full capacity holds all the keys.",
+        "prerequisites": [
+          "db-indexing.b-plus-tree",
+          "db-indexing.node-order"
+        ],
+        "definitions": [
+          {
+            "term": "Fan-out",
+            "meaning": "The number of child pointers a node can hold; a block of B bytes holds p pointers and p minus 1 keys."
+          },
+          {
+            "term": "Pointer size and key size",
+            "meaning": "P is the number of bytes in one pointer and k the number of bytes in one search key."
+          },
+          {
+            "term": "Key count",
+            "meaning": "N is the number of keys the index must cover, one per record for a dense index."
+          },
+          {
+            "term": "Disk access",
+            "meaning": "One block read from disk, the unit in which these questions count cost."
+          }
+        ],
+        "principle": {
+          "text": "The largest p with p pointers and p minus 1 keys fitting in a block gives the node capacity. A tree of h levels holds at most (p minus 1) times p to the power h minus 1 keys, and one search costs h plus 1 accesses.",
+          "tex": "p\\cdot P + (p-1)\\cdot k \\le B,\\qquad (p-1)\\,p^{\\,h-1} \\ge N,\\qquad \\text{accesses} = h + 1"
+        },
+        "limits": "The extra access exists only when the leaves point to records. If the leaves hold whole records, or the root is cached in memory, the count changes by one, so read what the question assumes. The minimum case assumes full nodes; the worst case uses half-full nodes and more levels.",
+        "example": {
+          "problem": "A block is 1024 bytes, a key is 10 bytes, a pointer is 6 bytes and the file has 500,000 records, one per block. Find the number of disk accesses for a search in the smallest possible B+ tree.",
+          "steps": [
+            "Solve $6p + 10(p-1) \\le 1024$, which gives $16p \\le 1034$, so $p = 64$ pointers and 63 keys per node.",
+            "Full capacity by height: 63 keys for 1 level, 4,032 for 2, 258,048 for 3, and 16,515,072 for 4.",
+            "500,000 exceeds 258,048 but fits in 16,515,072, so 4 levels are needed. Add one access for the record's block."
+          ],
+          "result": "4 + 1 = 5 disk accesses."
+        },
+        "misconceptions": [
+          "Do not count p keys per node. A node with p pointers holds only p minus 1 keys, and using p gives a capacity that is too high.",
+          "Do not stop at the leaf level. When each record is in its own block, the leaf only points to it, so the data read is a further access."
+        ],
+        "recall": [
+          {
+            "q": "How many disk accesses does a B+ tree point search cost?",
+            "a": "One per level down to the leaf, plus one for the data block when leaves hold record pointers."
+          },
+          {
+            "q": "How do you find the node capacity from the block size?",
+            "a": "Take the largest p such that p pointers and p minus 1 keys fit in the block, giving p minus 1 keys per node."
+          },
+          {
+            "q": "How do you find the number of levels for N keys?",
+            "a": "Take the smallest h for which (p minus 1) times p to the power h minus 1 is at least N."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A B+ tree index uses a block size of 2048 bytes, a key size of 8 bytes and a pointer size of 8 bytes. The file has 5 million records, each stored in its own block. Assuming nothing is in memory and the tree is packed as full as possible, how many disk accesses does the smallest search take?",
+          "answer": 5,
+          "explanation": "Solving $8p + 8(p-1) \\le 2048$ gives $p = 128$ and 127 keys per node. Full capacities are 127, 16,256 and 2,080,768 for 1, 2 and 3 levels, so 5 million needs 4 levels, and the record block adds one: 5. The tempting answer is 4, which comes from 3 levels plus one, because 2 million is easy to mistake for enough."
+        },
+        "summary": "Compute the node capacity from the block, find the fewest levels that hold N keys, and add one access for the record block."
+      }
+    },
+    {
+      "id": "db-indexing.hashing",
+      "title": "Static, extendible and linear hashing",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        576,
+        577,
+        578,
+        579,
+        580
+      ],
+      "points": [
+        "Static hashing fixes the number of buckets M and places a record in bucket h(K) mod M. As the file grows, overflow chains lengthen and performance degrades.",
+        "Extendible hashing keeps a directory of 2^d bucket pointers indexed by d bits of the hash, where d is the global depth. Each bucket has a local depth d′ ≤ d, and 2^(d − d′) directory entries point to it.",
+        "When a bucket with d′ < d overflows, it alone splits and its directory entries are shared between the two halves. Only when d′ = d does the directory double first.",
+        "Linear hashing has no directory: buckets split one at a time in a fixed order (bucket 0, then 1, and so on), whichever bucket overflowed, and overflow chains hold the excess until a bucket's turn comes.",
+        "Hash indexes answer equality searches in about one block access but cannot answer range queries or return keys in order."
+      ],
+      "keyTerms": [
+        "static hashing",
+        "extendible hashing",
+        "global depth",
+        "local depth",
+        "linear hashing"
+      ],
+      "lesson": {
+        "why": "Hashing questions ask how many directory entries point to a bucket, when the directory doubles, and when a hash index cannot be used, all of which follow from a few rules.",
+        "intro": "Hashing finds a record by computing its bucket directly from the key, without searching an index. In static hashing the number of buckets $M$ is fixed and a key goes to bucket $h(K) \\bmod M$. A file that keeps growing overfills its buckets and builds long overflow chains. Extendible hashing avoids this by looking at only the first $d$ bits of the hash value and keeping a directory of $2^d$ pointers to buckets. When a bucket overflows only that bucket splits, and the directory grows only when it has to.",
+        "prerequisites": [
+          "db-indexing.file-organization"
+        ],
+        "definitions": [
+          {
+            "term": "Global depth $d$",
+            "meaning": "The number of hash bits the directory uses, so the directory has $2^d$ entries."
+          },
+          {
+            "term": "Local depth $d'$",
+            "meaning": "The number of hash bits that all keys in one bucket share. It never exceeds $d$."
+          },
+          {
+            "term": "Overflow chain",
+            "meaning": "Extra blocks linked to a full bucket to hold the keys that do not fit."
+          }
+        ],
+        "principle": {
+          "text": "In extendible hashing, a bucket with local depth $d'$ is pointed to by $2^{d-d'}$ directory entries. When a bucket with $d' < d$ overflows, it splits and its entries are divided between the two halves. When $d' = d$ the directory doubles first, and $d$ grows by 1. Linear hashing has no directory and splits buckets one at a time in a fixed order.",
+          "tex": "\\text{pointers to a bucket} = 2^{\\,d - d'}"
+        },
+        "limits": "A hash index answers equality searches in about one block access, but it cannot answer range queries or return keys in sorted order, because hashing scatters neighbouring keys. Use a B+ tree for those.",
+        "example": {
+          "problem": "An extendible hash table has global depth 1, buckets hold 2 keys, and the hash value is 4 bits taken from the left. Bucket 0 holds 0010 and bucket 1 holds 1001 and 1100. Insert 1110.",
+          "steps": [
+            "The first bit of 1110 is 1, so it belongs in bucket 1, which already holds two keys. It overflows.",
+            "The bucket has local depth 1, equal to the global depth 1, so the directory must double to depth 2 with entries 00, 01, 10 and 11.",
+            "Entries 00 and 01 both still point to the old bucket 0, whose local depth stays 1.",
+            "Bucket 1 splits on the first two bits. 1001 starts with 10, while 1100 and 1110 start with 11."
+          ],
+          "result": "The directory has 4 entries. Entry 10 points to a bucket holding 1001, and entry 11 points to a bucket holding 1100 and 1110."
+        },
+        "misconceptions": [
+          "Doubling the directory on every overflow. It doubles only when the full bucket's local depth equals the global depth.",
+          "Believing each bucket has exactly one directory entry. A bucket with $d' < d$ is shared by $2^{d-d'}$ entries.",
+          "Using a hash index for a range query such as keys between 10 and 20, which hashing cannot support."
+        ],
+        "recall": [
+          {
+            "q": "What is the size of the directory in extendible hashing?",
+            "a": "$2^d$ entries, where $d$ is the global depth."
+          },
+          {
+            "q": "When does the extendible hashing directory double?",
+            "a": "When a bucket overflows and its local depth equals the global depth."
+          },
+          {
+            "q": "Why can a hash index not answer range queries?",
+            "a": "The hash function scatters nearby keys across buckets, so there is no order to follow."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An extendible hash table has global depth 5. One bucket has local depth 3. How many directory entries point to that bucket?",
+          "answer": 4,
+          "explanation": "The bucket is shared by $2^{5-3} = 4$ directory entries, those that agree on its first 3 bits. The value 8 tempts because it is $2^3$, and 32 is the size of the whole directory."
+        },
+        "summary": "Extendible hashing uses d hash bits and 2^d directory entries, with 2^(d-d') entries per bucket. It doubles the directory only when d' equals d, and it cannot serve range queries."
+      }
+    },
+    {
+      "id": "db-indexing.bitmap-index",
+      "title": "Bitmap indexes",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        577,
+        578,
+        579,
+        581,
+        582
+      ],
+      "points": [
+        "A bitmap index stores, for each distinct value of a column, a bit vector with one bit per row, set to 1 when the row has that value.",
+        "Conditions combine with bitwise AND, OR and NOT on whole vectors, which makes multi-condition queries on low-cardinality columns very fast.",
+        "With v distinct values and r rows the index needs v·r bits before compression, so it suits columns such as gender or status and grows large on high-cardinality columns.",
+        "Every insert or update touches the bit vectors, so bitmap indexes suit read-mostly OLAP and data-warehouse workloads rather than transaction processing."
+      ],
+      "keyTerms": [
+        "bitmap index",
+        "low cardinality",
+        "OLAP"
+      ],
+      "lesson": {
+        "why": "Bitmap questions ask when a bitmap index is the right choice, how big it is, and how it answers queries with several conditions.",
+        "intro": "A bitmap index stores one string of bits for each distinct value of a column. The string has one bit per row of the table, and the bit is 1 when that row has the value and 0 otherwise. To answer a query with several conditions, the database does not look at the rows at all. It combines the bit strings with AND, OR and NOT, and the positions of the 1 bits in the result are the matching rows. This is very fast when each column has only a few distinct values.",
+        "prerequisites": [
+          "db-indexing.index-types"
+        ],
+        "definitions": [
+          {
+            "term": "Cardinality",
+            "meaning": "The number of distinct values in a column. Low cardinality means few distinct values, such as status or gender."
+          },
+          {
+            "term": "OLAP",
+            "meaning": "Analytical workloads that read large volumes of data and rarely update it, as in a data warehouse."
+          }
+        ],
+        "principle": {
+          "text": "With $v$ distinct values and $r$ rows, an uncompressed bitmap index has $v$ bit vectors of $r$ bits each, so $v \\cdot r$ bits. Combine conditions with bitwise AND, OR and NOT on whole vectors. Updates must change the vectors, so the index fits read-mostly data.",
+          "tex": "\\text{size} = v \\cdot r \\text{ bits}"
+        },
+        "limits": "A high-cardinality column, such as an identifier, needs a huge number of mostly empty vectors, so a bitmap index is a poor choice there unless compressed. It is also a poor fit for transaction processing with frequent inserts and updates, and it does not help range queries on ordered values as a B+ tree does.",
+        "example": {
+          "problem": "A table of 8 rows has Status = A, B, A, C, B, A, C, A and City = X, X, Y, Y, X, Y, X, X. Find the rows with Status = A and City = X.",
+          "steps": [
+            "The vector for Status = A marks rows holding A: 10100101.",
+            "The vector for City = X marks rows holding X: 11001011.",
+            "AND the two vectors bit by bit: 10000001.",
+            "The result has 2 ones, at positions 1, 8 counting from the left, and nothing else is read."
+          ],
+          "result": "Rows 1 and 8 match, so 2 rows."
+        },
+        "misconceptions": [
+          "Choosing a bitmap index for a column with millions of distinct values. The vectors grow with the number of values.",
+          "Using bitmap indexes on tables with heavy transaction traffic, where every update touches the vectors.",
+          "Thinking the AND of two vectors needs the table rows. It works on the vectors alone."
+        ],
+        "recall": [
+          {
+            "q": "What does a single bit vector in a bitmap index represent?",
+            "a": "One distinct column value, with a 1 for each row that has it."
+          },
+          {
+            "q": "How many bits does an uncompressed bitmap index on a column take?",
+            "a": "$v \\cdot r$, the distinct values times the rows."
+          },
+          {
+            "q": "Which workload suits bitmap indexes?",
+            "a": "Read-mostly analytical workloads with many conditions on low-cardinality columns."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A column of a table with 2,000,000 rows has 12 distinct values. How many bytes does an uncompressed bitmap index on it occupy?",
+          "answer": 3000000,
+          "explanation": "There are 12 vectors of 2,000,000 bits, so $12 \\cdot 2{,}000{,}000 = 24{,}000{,}000$ bits, and dividing by 8 gives 3,000,000 bytes. The value 24,000,000 tempts if you forget to convert bits to bytes."
+        },
+        "summary": "A bitmap index keeps one bit vector per value and combines conditions with bitwise operations. It costs v times r bits and suits low-cardinality, read-mostly data."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "db-indexing.records-per-block",
+      "name": "Blocking factor",
+      "tex": "\\text{bfr} = \\left\\lfloor \\frac{B}{R} \\right\\rfloor",
+      "text": "bfr = ⌊B / R⌋",
+      "where": [
+        [
+          "B",
+          "block size in bytes"
+        ],
+        [
+          "R",
+          "record size in bytes"
+        ]
+      ],
+      "note": "For unspanned records, which never cross a block boundary.",
+      "topic": "db-indexing.blocking-factor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.file-block-count",
+      "name": "Blocks in a file",
+      "tex": "b = \\left\\lceil \\frac{r}{\\text{bfr}} \\right\\rceil",
+      "text": "b = ⌈r / bfr⌉",
+      "where": [
+        [
+          "r",
+          "number of records"
+        ],
+        [
+          "bfr",
+          "records per block"
+        ]
+      ],
+      "note": "20,000 records at bfr = 10 occupy 2000 blocks.",
+      "topic": "db-indexing.blocking-factor",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.sorted-search-cost",
+      "name": "Binary search on a sorted file",
+      "tex": "\\text{accesses} = \\lceil \\log_2 b \\rceil",
+      "text": "accesses = ⌈log₂ b⌉",
+      "where": [
+        [
+          "b",
+          "number of data blocks"
+        ]
+      ],
+      "note": "Only for a search on the ordering field. A heap file needs b/2 accesses on average to find a key, and b for a non-key field.",
+      "topic": "db-indexing.file-organization",
+      "origin": "source",
+      "pages": [
+        574,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.index-entries-per-block",
+      "name": "Index fan-out",
+      "tex": "fo = \\left\\lfloor \\frac{B}{K + P} \\right\\rfloor",
+      "text": "fo = ⌊B / (K + P)⌋",
+      "where": [
+        [
+          "K",
+          "search-key size"
+        ],
+        [
+          "P",
+          "pointer size in an index entry"
+        ]
+      ],
+      "note": "With B = 2048, K = 10 and P = 6, each index block holds 128 entries.",
+      "topic": "db-indexing.multilevel-index",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.single-index-search-cost",
+      "name": "Search through a single-level index",
+      "tex": "\\text{accesses} = \\lceil \\log_2 b_i \\rceil + 1",
+      "text": "accesses = ⌈log₂ bᵢ⌉ + 1",
+      "where": [
+        [
+          "b_i",
+          "number of index blocks"
+        ]
+      ],
+      "note": "The extra access reads the data block that the index entry points to.",
+      "topic": "db-indexing.index-access-cost",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.multilevel-search-cost",
+      "name": "Levels and cost of a multilevel index",
+      "tex": "t = \\lceil \\log_{fo} r_1 \\rceil, \\qquad \\text{accesses} = t + 1",
+      "text": "t = ⌈log_fo r₁⌉; accesses = t + 1",
+      "where": [
+        [
+          "r_1",
+          "entries in the first-level index"
+        ],
+        [
+          "fo",
+          "index entries per block"
+        ]
+      ],
+      "note": "Equivalently, divide the block count by fo repeatedly, rounding up, until one block remains; the number of divisions is t.",
+      "topic": "db-indexing.multilevel-index",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.bplus-internal-capacity",
+      "name": "B+ tree internal node capacity",
+      "tex": "nK + (n+1)P \\le B",
+      "text": "n·K + (n + 1)·P ≤ B",
+      "where": [
+        [
+          "n",
+          "keys in the node; it has n + 1 children"
+        ],
+        [
+          "P",
+          "child (block) pointer size"
+        ]
+      ],
+      "note": "Block 4096 B, key 4 B and pointer 4 B give 8n + 4 ≤ 4096, so n = 511.",
+      "topic": "db-indexing.node-order",
+      "origin": "source",
+      "pages": [
+        576,
+        579,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.bplus-leaf-capacity",
+      "name": "B+ tree leaf capacity",
+      "tex": "n(K + P_r) + P \\le B",
+      "text": "n·(K + Pr) + P ≤ B",
+      "where": [
+        [
+          "P_r",
+          "record pointer size"
+        ],
+        [
+          "P",
+          "pointer to the next leaf"
+        ]
+      ],
+      "note": "Block 1024 B, key 9 B, record pointer 7 B and next-leaf pointer 6 B give 16n + 6 ≤ 1024, so n = 63.",
+      "topic": "db-indexing.node-order",
+      "origin": "source",
+      "pages": [
+        576
+      ]
+    },
+    {
+      "id": "db-indexing.btree-node-capacity",
+      "name": "B-tree node capacity",
+      "tex": "n(K + P_r) + (n+1)P \\le B",
+      "text": "n·(K + Pr) + (n + 1)·P ≤ B",
+      "where": [
+        [
+          "n",
+          "keys in the node; it has n + 1 children"
+        ]
+      ],
+      "note": "Every B-tree key carries a record pointer, so a B-tree node holds fewer keys than a B+ tree internal node in the same block.",
+      "topic": "db-indexing.node-order",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.btree-node-key-range",
+      "name": "Keys in a non-root B-tree node",
+      "tex": "\\left\\lceil \\tfrac{m}{2} \\right\\rceil - 1 \\;\\le\\; \\text{keys} \\;\\le\\; m - 1",
+      "text": "⌈m/2⌉ − 1 ≤ keys ≤ m − 1",
+      "where": [
+        [
+          "m",
+          "order: the maximum number of children"
+        ]
+      ],
+      "note": "The root is exempt from the lower bound and may hold a single key.",
+      "topic": "db-indexing.b-tree",
+      "origin": "source",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.btree-max-keys",
+      "name": "Maximum keys in a B-tree with L levels",
+      "tex": "N_{\\max} = m^{L} - 1",
+      "text": "N_max = m^L − 1",
+      "where": [
+        [
+          "L",
+          "number of levels, counting the root as level 1"
+        ]
+      ],
+      "note": "Order 4 and 3 levels: 4³ − 1 = 63 keys.",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.btree-min-keys",
+      "name": "Minimum keys in a B-tree with L levels",
+      "tex": "N_{\\min} = 2\\left\\lceil \\tfrac{m}{2} \\right\\rceil^{L-1} - 1",
+      "text": "N_min = 2⌈m/2⌉^(L−1) − 1",
+      "note": "Order 4 and 3 levels: 2·2² − 1 = 7 keys.",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.bplus-max-keys",
+      "name": "Maximum keys in a B+ tree with L levels",
+      "tex": "N_{\\max} = p^{\\,L-1} \\cdot n",
+      "text": "N_max = p^(L−1)·n",
+      "where": [
+        [
+          "p",
+          "maximum children of an internal node"
+        ],
+        [
+          "n",
+          "maximum keys in a leaf"
+        ]
+      ],
+      "note": "Fan-out 51 with 50 keys per leaf: 3 levels hold at most 51²·50 = 130,050 keys.",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.btree-level-bounds",
+      "name": "Height range of a B-tree",
+      "tex": "\\lceil \\log_m (N+1) \\rceil \\;\\le\\; L \\;\\le\\; 1 + \\left\\lfloor \\log_{\\lceil m/2 \\rceil} \\frac{N+1}{2} \\right\\rfloor",
+      "text": "⌈log_m(N + 1)⌉ ≤ L ≤ 1 + ⌊log_⌈m/2⌉((N + 1)/2)⌋",
+      "where": [
+        [
+          "N",
+          "number of keys"
+        ],
+        [
+          "L",
+          "number of levels"
+        ]
+      ],
+      "note": "Obtained by solving the maximum and minimum key counts for L.",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "db-indexing.heap-search",
+      "name": "Heap file: search on a key field",
+      "average": "b/2 block accesses",
+      "worst": "b block accesses",
+      "notes": "A search on a non-key field always reads all b blocks, since any block may hold a match.",
+      "topic": "db-indexing.file-organization",
+      "origin": "source",
+      "pages": [
+        574,
+        578,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.heap-insert",
+      "name": "Heap file: insertion",
+      "average": "O(1): read and rewrite the last block",
+      "worst": "O(1)",
+      "notes": "Deletion first has to find the record, so it costs as much as a search.",
+      "topic": "db-indexing.file-organization",
+      "origin": "source",
+      "pages": [
+        574,
+        579,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.sorted-search",
+      "name": "Sorted file: search on the ordering field",
+      "average": "⌈log₂ b⌉ block accesses",
+      "worst": "⌈log₂ b⌉ block accesses",
+      "notes": "Insertion must keep the order, rewriting about b/2 blocks on average unless an overflow area is used.",
+      "topic": "db-indexing.file-organization",
+      "origin": "source",
+      "pages": [
+        574,
+        578,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.hash-search",
+      "name": "Static hash file: equality search",
+      "best": "1 block access",
+      "average": "1 access plus the overflow chain",
+      "worst": "b, if every record hashes to one bucket",
+      "notes": "Range queries and searches on other fields still need a full scan.",
+      "topic": "db-indexing.hashing",
+      "origin": "source",
+      "pages": [
+        575,
+        577,
+        578
+      ]
+    },
+    {
+      "id": "db-indexing.extendible-search",
+      "name": "Extendible hashing: equality search",
+      "best": "1 access with the directory in memory",
+      "average": "2 accesses: directory, then bucket",
+      "notes": "Growth splits one bucket at a time; the directory doubles only when the overflowing bucket's local depth equals the global depth.",
+      "topic": "db-indexing.hashing",
+      "origin": "source",
+      "pages": [
+        576,
+        577
+      ]
+    },
+    {
+      "id": "db-indexing.single-index-search",
+      "name": "Single-level index: search",
+      "average": "⌈log₂ bᵢ⌉ + 1 block accesses",
+      "worst": "⌈log₂ bᵢ⌉ + 1 block accesses",
+      "notes": "Binary search over the bᵢ index blocks, then one access to the data block.",
+      "topic": "db-indexing.index-access-cost",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-indexing.multilevel-search",
+      "name": "Multilevel index: search",
+      "average": "t + 1, with t = ⌈log_fo r₁⌉",
+      "worst": "t + 1",
+      "notes": "One block per index level, then the data block.",
+      "topic": "db-indexing.multilevel-index",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.btree-search",
+      "name": "B-tree: search",
+      "best": "1 node, when the key is in the root",
+      "worst": "h = O(log_m n) nodes",
+      "notes": "A search may stop at an internal node, but most keys sit on the lowest level, so the average is close to h.",
+      "topic": "db-indexing.b-tree",
+      "origin": "source",
+      "pages": [
+        576,
+        578,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.bplus-search",
+      "name": "B+ tree: point search",
+      "best": "h nodes",
+      "average": "h nodes",
+      "worst": "h = O(log_p n) nodes",
+      "notes": "Every search ends at a leaf; add 1 to read the data block when the leaves hold record pointers.",
+      "topic": "db-indexing.tree-search-cost",
+      "origin": "source",
+      "pages": [
+        576,
+        578,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.bplus-insert",
+      "name": "B+ tree: insertion",
+      "average": "h reads and 1 leaf write",
+      "worst": "O(h) writes when splits reach the root",
+      "notes": "Splits are rare when nodes are large, and even a cascade up to the root keeps the cost O(log_p n).",
+      "topic": "db-indexing.insertion-splits",
+      "origin": "source",
+      "pages": [
+        578,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.bplus-range",
+      "name": "B+ tree: range query",
+      "best": "h node reads when the range fits in one leaf",
+      "average": "h + L − 1 node reads for L leaves in the range",
+      "notes": "One root-to-leaf search finds the first key, and the linked leaves are then read in key order. An unclustered index adds one data-block access per matching record.",
+      "topic": "db-indexing.tree-search-cost",
+      "origin": "source",
+      "pages": [
+        576,
+        578,
+        579,
+        581
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "db-indexing.count-index-accesses",
+      "title": "Block accesses with and without an index",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Compute the blocking factor bfr = ⌊B / R⌋ and the data blocks b = ⌈r / bfr⌉.",
+        "Count index entries: one per data block for a primary index, one per record for a secondary index on a key. Divide by fo = ⌊B / (K + P)⌋ to get the index blocks bᵢ.",
+        "Single level: ⌈log₂ bᵢ⌉ + 1 accesses. Multilevel: divide by fo repeatedly until one block remains, and add 1 for the data block to the number of levels."
+      ],
+      "trap": "Giving a primary index one entry per record instead of one per block, or forgetting the final data-block access.",
+      "topic": "db-indexing.index-access-cost",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.compute-node-order",
+      "title": "Order of a B-tree or B+ tree node from block size",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "List what the node holds: keys, child pointers and, for B-tree nodes and B+ tree leaves, record pointers.",
+        "Set up the inequality: internal B+ node nK + (n + 1)P ≤ B; leaf n(K + Pr) + P ≤ B; B-tree node n(K + Pr) + (n + 1)P ≤ B.",
+        "Take the largest integer n, and report keys or children according to how the question defines order."
+      ],
+      "trap": "Adding record pointers to a B+ tree internal node, or giving the key count when the question asks for the number of children.",
+      "topic": "db-indexing.node-order",
+      "origin": "source",
+      "pages": [
+        576,
+        579,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.count-tree-capacity",
+      "title": "Maximum or minimum keys and nodes for a given height",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "For the maximum, fill every node: level j has m^(j−1) nodes, each with m − 1 keys in a B-tree, and B+ tree leaves hold the leaf capacity.",
+        "For the minimum, give the root 2 children and every other node ⌈m/2⌉ children, with the minimum number of keys in each node.",
+        "Add up level by level, or use m^L − 1 and 2⌈m/2⌉^(L−1) − 1 for a B-tree."
+      ],
+      "trap": "Applying the ⌈m/2⌉ minimum to the root, or counting levels from 0 when the question counts the root as level 1.",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "source",
+      "pages": [
+        578
+      ]
+    },
+    {
+      "id": "db-indexing.trace-insertion",
+      "title": "Trace insertions with node splits",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Insert each key into its leaf in sorted order, and split only when the node exceeds its maximum.",
+        "On a B+ tree leaf split, copy the first key of the new right leaf into the parent; on an internal split, move the middle key up.",
+        "Recheck the parent after every promotion, since splits can cascade, and create a new root when the old root splits."
+      ],
+      "trap": "Removing the separator from the leaf level in a B+ tree, or using a split rule different from the one the question states.",
+      "topic": "db-indexing.insertion-splits",
+      "origin": "source",
+      "pages": [
+        578,
+        580,
+        581
+      ]
+    },
+    {
+      "id": "db-indexing.classify-index",
+      "title": "Classify an index as primary, clustering or secondary, dense or sparse",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Ask whether the file is physically ordered on the index field: if yes, the index is primary (key field) or clustering (non-key field); if not, it is secondary.",
+        "Primary and clustering indexes can be sparse; a secondary index must be dense.",
+        "Remember the limits: at most one primary or clustering index per file, and any number of secondary indexes."
+      ],
+      "trap": "Calling an index primary just because its field is a key; what matters is whether the file is sorted on that field.",
+      "topic": "db-indexing.index-types",
+      "origin": "source",
+      "pages": [
+        575,
+        579,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.choose-structure",
+      "title": "Choose a file organisation or index for a workload",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Equality lookups only: a hash index. Range conditions, ORDER BY or prefix searches: a B+ tree.",
+        "Many AND/OR conditions on low-cardinality columns in a read-mostly warehouse: bitmap indexes.",
+        "Insert-heavy data that is rarely searched, such as a log: a heap file."
+      ],
+      "trap": "Choosing hashing for a range query, or a bitmap index for a frequently updated, high-cardinality column.",
+      "topic": "db-indexing.tree-search-cost",
+      "origin": "source",
+      "pages": [
+        577,
+        580,
+        581
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "db-indexing.q-primary-index-accesses",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A file of 30,000 records, each 100 bytes, is stored unspanned in 1024-byte blocks and sorted on its key field. A primary index on that key uses 16-byte entries (a 10-byte key and a 6-byte block pointer). How many block accesses does a search for one record take using binary search on the index, including the access to the data block?",
+      "answer": 7,
+      "explanation": "The blocking factor is ⌊1024 / 100⌋ = 10, so the file has 30,000 / 10 = 3000 blocks. A primary index is sparse, with one entry per data block: 3000 entries. Each index block holds ⌊1024 / 16⌋ = 64 entries, so the index needs ⌈3000 / 64⌉ = 47 blocks. Binary search over them takes ⌈log₂ 47⌉ = 6 accesses, plus 1 for the data block: 7. Binary search on the data file alone would take ⌈log₂ 3000⌉ = 12.",
+      "difficulty": "medium",
+      "topic": "db-indexing.index-access-cost",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.q-multilevel-secondary",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A file of 30,000 records, each 100 bytes, is stored unspanned in 1024-byte blocks. A secondary index with 16-byte entries is built on a candidate key that the file is not sorted on, and it is then made into a multilevel index. How many block accesses does a search for one record take, including the access to the data block?",
+      "answer": 4,
+      "explanation": "A secondary index on a key is dense: 30,000 entries. At ⌊1024 / 16⌋ = 64 entries per block, the first level needs ⌈30,000 / 64⌉ = 469 blocks, the second ⌈469 / 64⌉ = 8 and the third 1. A search reads one block per level and then the data block: 3 + 1 = 4. Binary search on the 469-block first level alone would take ⌈log₂ 469⌉ + 1 = 10.",
+      "difficulty": "medium",
+      "topic": "db-indexing.multilevel-index",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "id": "db-indexing.q-bplus-internal-keys",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A B+ tree is stored in 1024-byte disk blocks. A search key takes 8 bytes and a child (block) pointer takes 4 bytes. What is the maximum number of keys an internal node can hold?",
+      "answer": 85,
+      "explanation": "An internal node with n keys has n + 1 child pointers, so 8n + 4(n + 1) ≤ 1024, which gives 12n ≤ 1020 and n ≤ 85. The node holds 85 keys and has 86 children; B+ tree internal nodes carry no record pointers.",
+      "difficulty": "easy",
+      "topic": "db-indexing.node-order",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — B+ tree calc",
+      "pages": [
+        576,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.q-bplus-leaf-keys",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "B+ tree leaves are stored in 2048-byte blocks. Each leaf entry is a 10-byte key with a 6-byte record pointer, and each leaf also stores one 4-byte pointer to the next leaf. What is the maximum number of keys in a leaf?",
+      "options": [
+        "128",
+        "127",
+        "146",
+        "102"
+      ],
+      "answer": 1,
+      "explanation": "A leaf with n keys needs n(10 + 6) + 4 ≤ 2048 bytes, so 16n ≤ 2044 and n ≤ 127.75, which gives 127. Forgetting the next-leaf pointer gives 128, using the internal-node layout with 4-byte child pointers gives 146, and charging every key both pointers gives 102.",
+      "difficulty": "medium",
+      "topic": "db-indexing.node-order",
+      "origin": "curated",
+      "pages": [
+        576
+      ]
+    },
+    {
+      "id": "db-indexing.q-bplus-three-level-capacity",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A B+ tree uses 1024-byte blocks, 8-byte keys, 4-byte block pointers and 4-byte record pointers. Internal nodes hold keys and child pointers; each leaf holds (key, record pointer) pairs and one pointer to the next leaf. What is the maximum number of keys a B+ tree with exactly 3 levels (root, one internal level, leaves) can index?",
+      "answer": 628660,
+      "explanation": "Internal nodes: 8n + 4(n + 1) ≤ 1024 gives 85 keys, so up to 86 children. Leaves: 12n + 4 ≤ 1024 also gives 85 keys. A full root has 86 children, each of those has 86 leaf children, and each leaf holds 85 keys: 86 × 86 × 85 = 628,660.",
+      "difficulty": "hard",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": [
+        578
+      ]
+    },
+    {
+      "id": "db-indexing.q-btree-max-keys",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a B-tree of order m, where the order is the maximum number of children a node may have, what is the maximum number of keys in a node?",
+      "options": [
+        "m",
+        "m + 1",
+        "⌈m/2⌉ − 1",
+        "m − 1"
+      ],
+      "answer": 3,
+      "explanation": "A node with k keys separates k + 1 subtrees, so a node with at most m children holds at most m − 1 keys. ⌈m/2⌉ − 1 is the minimum for a node other than the root.",
+      "difficulty": "easy",
+      "topic": "db-indexing.b-tree",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — B-tree",
+      "pages": [
+        575,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.q-btree-min-keys-node",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Every node of a B-tree can hold at most 7 keys. What is the minimum number of keys in a node other than the root?",
+      "options": [
+        "4",
+        "1",
+        "3",
+        "2"
+      ],
+      "answer": 2,
+      "explanation": "At most 7 keys means at most 8 children, so the order is 8. A non-root node needs at least ⌈8/2⌉ = 4 children and therefore at least 3 keys. Only the root may drop to a single key.",
+      "difficulty": "easy",
+      "topic": "db-indexing.b-tree",
+      "origin": "curated",
+      "pages": [
+        575,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.q-btree-min-keys-tree",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A B-tree has order 5: each node has at most 5 children. What is the minimum number of keys in such a B-tree with exactly 4 levels?",
+      "options": [
+        "53",
+        "80",
+        "15",
+        "624"
+      ],
+      "answer": 0,
+      "explanation": "Keep every node as empty as the rules allow. The root has 1 key and 2 children; every other node has ⌈5/2⌉ = 3 children and 2 keys. Levels 2, 3 and 4 then have 2, 6 and 18 nodes, so the tree holds 1 + 2·2 + 6·2 + 18·2 = 53 keys, which matches 2⌈m/2⌉^(L−1) − 1 = 2·27 − 1 = 53. Holding the root to the same minimum gives 80, rounding m/2 down gives 15, and 624 = 5⁴ − 1 is the maximum.",
+      "difficulty": "medium",
+      "topic": "db-indexing.tree-capacity",
+      "origin": "curated",
+      "pages": [
+        578
+      ]
+    },
+    {
+      "id": "db-indexing.q-bplus-insertion-trace",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The keys 10, 20, 30, 40, 50, 60, 70, 80, 90 and 100 are inserted in this order into an empty B+ tree in which every node holds at most 3 keys. A leaf that overflows to 4 keys keeps its 2 smallest, moves the other 2 to a new right leaf and copies the smallest key of the new leaf into the parent. An internal node that overflows to 4 keys keeps its 2 smallest, moves the third up to its parent and puts the largest in a new right node. When the root splits, a new root is created above it. Which describes the final tree?",
+      "options": [
+        "The root holds only 70; its two children hold [30, 50] and [90]",
+        "The root holds only 50; its two children hold [30] and [70, 90]",
+        "The root holds 40, 70 and 100, and the tree has two levels",
+        "The root holds only 90; its two children hold [30, 50, 70] and [100]"
+      ],
+      "answer": 0,
+      "explanation": "Inserting 40 splits [10, 20, 30, 40] into [10, 20] and [30, 40] and copies 30 up. Inserting 60 splits [30, 40, 50, 60] and copies 50 up; inserting 80 splits [50, 60, 70, 80] and copies 70 up, so the root becomes [30, 50, 70]. Inserting 100 splits [70, 80, 90, 100] and copies 90 up, which overflows the root to [30, 50, 70, 90]. It keeps 30 and 50, moves 70 into a new root and puts 90 in a new right node. The leaves are [10, 20], [30, 40], [50, 60], [70, 80] and [90, 100], after four leaf splits and one internal split.",
+      "difficulty": "hard",
+      "topic": "db-indexing.insertion-splits",
+      "origin": "curated",
+      "pages": [
+        578,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.q-clustering-index",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A file is physically sorted on dept_no, which is not a key: many records share each value. An index on dept_no has one entry per distinct dept_no, pointing to the first block that holds it. In the classification into primary, clustering and secondary indexes, what kind of index is this?",
+      "options": [
+        "Primary index",
+        "Clustering index",
+        "Secondary index",
+        "Multilevel secondary index"
+      ],
+      "answer": 1,
+      "explanation": "The file is ordered on the indexed field, so the index is primary or clustering, not secondary. A primary index needs the ordering field to be a key; dept_no repeats, so this is a clustering index. It has one entry per distinct value rather than one per record, and a file can have only one index of this kind.",
+      "difficulty": "easy",
+      "topic": "db-indexing.index-types",
+      "origin": "curated",
+      "pages": [
+        575,
+        579
+      ]
+    },
+    {
+      "id": "db-indexing.q-dense-sparse",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A dense index has an entry for every search-key value in the file; a sparse index has entries for only some of them. Which statements are correct?",
+      "options": [
+        "A sparse index can be built only on the field the data file is sorted on.",
+        "A secondary index must be dense.",
+        "On the same file and field, a dense index never needs more blocks than a sparse one.",
+        "Every index built on a key field is sparse."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "A sparse index finds the last entry not above the search key and scans forward from there, which works only if the file is sorted on that field. A secondary index is on a non-ordering field, so a value can sit in any block and every value needs an entry: it must be dense. A dense index has at least as many entries as a sparse one, so it usually needs more blocks. A secondary index on a candidate key is a dense index on a key field.",
+      "difficulty": "medium",
+      "topic": "db-indexing.dense-sparse",
+      "origin": "source",
+      "pages": [
+        575,
+        579,
+        580,
+        581
+      ]
+    },
+    {
+      "id": "db-indexing.q-btree-vs-bplus",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A B-tree and a B+ tree are built with the same block size, key size and pointer sizes. Which statements are correct?",
+      "options": [
+        "Every search in the B+ tree ends at a leaf.",
+        "B+ tree internal nodes hold no record pointers, so they fit at least as many keys as B-tree nodes.",
+        "The B-tree stores each key twice, once in an internal node and once in a leaf.",
+        "Because B+ tree leaves are linked, a range query needs only one root-to-leaf search."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "In a B+ tree the record pointers live only in the leaves, so every search goes down to a leaf, and internal nodes, free of record pointers, have a higher fan-out. A range query finds its first key once and then follows the leaf links. It is the B+ tree that may hold a key twice, as a routing copy in an internal node; a B-tree stores each key exactly once.",
+      "difficulty": "medium",
+      "topic": "db-indexing.b-plus-tree",
+      "origin": "source",
+      "pages": [
+        576,
+        579,
+        581
+      ]
+    },
+    {
+      "id": "db-indexing.q-range-query-index",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Most queries on a table look like WHERE price BETWEEN 100 AND 200 ORDER BY price, and price has many distinct values. Which index on price suits these queries best?",
+      "options": [
+        "A static hash index",
+        "An extendible hash index",
+        "A bitmap index",
+        "A B+ tree index"
+      ],
+      "answer": 3,
+      "explanation": "A range condition with ordered output needs an index that keeps keys sorted. A B+ tree finds the leaf for 100 with one root-to-leaf search and follows the leaf links up to 200, returning keys in order. Hash indexes scatter neighbouring values across buckets and support only equality, and a bitmap index on a high-cardinality column needs one bit vector per distinct value.",
+      "difficulty": "easy",
+      "topic": "db-indexing.b-plus-tree",
+      "origin": "source",
+      "pages": [
+        576,
+        580
+      ]
+    },
+    {
+      "id": "db-indexing.q-extendible-split",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An extendible hash file has global depth 3. An insertion overflows a bucket whose local depth is 2. The records in that bucket, together with the new one, do not all agree on the next bit of their hash values. What happens?",
+      "options": [
+        "The directory doubles to 16 entries, and then the bucket splits",
+        "The record goes into an overflow chain, and nothing splits",
+        "The bucket splits into two buckets of local depth 3, which take over the 2 directory entries that pointed to it; the directory keeps 8 entries",
+        "Every bucket splits, and the global depth becomes 4"
+      ],
+      "answer": 2,
+      "explanation": "A bucket of local depth 2 under global depth 3 is shared by 2^(3−2) = 2 directory entries. It can split on one more hash bit without new directory entries: the two halves get local depth 3 and one entry each. The directory doubles only when the overflowing bucket's local depth already equals the global depth.",
+      "difficulty": "medium",
+      "topic": "db-indexing.hashing",
+      "origin": "curated",
+      "pages": [
+        576,
+        577
+      ]
+    },
+    {
+      "id": "db-indexing.q-bplus-leaf-split",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a B+ tree, an insertion overflows a leaf, which splits into two leaves. What happens to the separator key, the smallest key of the new right leaf?",
+      "options": [
+        "It moves up to the parent and no longer appears in any leaf",
+        "It stays in the leaf level, and the parent does not change",
+        "It becomes the new root, whatever the height of the tree",
+        "A copy goes up to the parent, and the key stays in the new right leaf"
+      ],
+      "answer": 3,
+      "explanation": "Every key must stay in the leaf level, where the record pointers live, so a leaf split copies the separator up and keeps the original in the right leaf. Only an internal-node split moves its middle key up out of the node. The promotion may cascade, and a new root appears only when the old root splits.",
+      "difficulty": "easy",
+      "topic": "db-indexing.insertion-splits",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — B+ insert",
+      "pages": [
+        580,
+        581
+      ]
+    },
+    {
+      "id": "db-indexing.q-file-organization-costs",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A file occupies b blocks. Which statements about block accesses are correct?",
+      "options": [
+        "Inserting a record into a heap file takes O(1) block accesses.",
+        "Searching a sorted file on its ordering field takes about ⌈log₂ b⌉ block accesses.",
+        "A hashed file answers a range query on its hash key in O(1) block accesses.",
+        "Searching a heap file for a key value takes about log₂ b block accesses on average."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "A heap file appends to its last block, so insertion takes constant time, and a sorted file allows binary search over its blocks. Hashing scatters neighbouring keys across buckets, so a range query must scan the whole file. A heap file has no order, so finding a key reads b/2 blocks on average and b in the worst case.",
+      "difficulty": "easy",
+      "topic": "db-indexing.file-organization",
+      "origin": "source",
+      "pages": [
+        574,
+        579,
+        580
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "A sparse index works only on the field the file is sorted on; an index on any other field must be dense.",
+      "origin": "source",
+      "pages": [
+        575,
+        581
+      ]
+    },
+    {
+      "text": "A B-tree keeps record pointers in its internal nodes too, so its fan-out is lower than a B+ tree's internal fan-out for the same block size.",
+      "origin": "source",
+      "pages": [
+        576,
+        581
+      ]
+    },
+    {
+      "text": "Hash indexes answer only equality searches; a range query or ORDER BY on the hash key still needs a full scan.",
+      "origin": "source",
+      "pages": [
+        575,
+        577,
+        581
+      ]
+    },
+    {
+      "text": "Bitmap indexes suit low-cardinality, read-mostly columns; on a high-cardinality or frequently updated column they are large and slow to maintain.",
+      "origin": "source",
+      "pages": [
+        577,
+        581
+      ]
+    },
+    {
+      "text": "The ⌈m/2⌉ lower bound applies to every node except the root, which may have just 2 children and 1 key.",
+      "origin": "curated",
+      "pages": [
+        575
+      ]
+    },
+    {
+      "text": "Check whether a question's order means the maximum number of children or of keys before using it; the two differ by one.",
+      "origin": "curated",
+      "pages": [
+        576
+      ]
+    },
+    {
+      "text": "Count the final data-block access: an index search costs the index blocks read plus one data block.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A B+ tree leaf split copies its separator up, but an internal split moves its middle key up; mixing the two produces a wrong tree.",
+      "origin": "source",
+      "pages": [
+        580,
+        581
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "File organisation",
+      "lines": [
+        "Heap: insert O(1), key search b/2 blocks on average",
+        "Sorted: binary search ⌈log₂ b⌉; inserts must keep the order",
+        "Hashed: equality about 1 access, no range queries",
+        "bfr = ⌊B/R⌋, b = ⌈r/bfr⌉, fo = ⌊B/(K + P)⌋"
+      ],
+      "origin": "source",
+      "pages": [
+        574,
+        575,
+        582
+      ]
+    },
+    {
+      "heading": "Indexes",
+      "lines": [
+        "Primary: ordering key, sparse, one entry per block",
+        "Clustering: ordering non-key field; secondary: non-ordering field, dense",
+        "Single level: ⌈log₂ bᵢ⌉ + 1; multilevel: levels + 1"
+      ],
+      "origin": "source",
+      "pages": [
+        575,
+        582
+      ]
+    },
+    {
+      "heading": "B-trees and B+ trees",
+      "lines": [
+        "Order m: non-root internal nodes have ⌈m/2⌉ to m children, the root 2 to m",
+        "B+ internal: nK + (n + 1)P ≤ B; leaf: n(K + Pr) + P ≤ B",
+        "B-tree, L levels: at most m^L − 1 keys, at least 2⌈m/2⌉^(L−1) − 1",
+        "Leaf split copies the separator up; internal split moves it up"
+      ],
+      "origin": "source",
+      "pages": [
+        575,
+        576,
+        582
+      ]
+    },
+    {
+      "heading": "Hash and bitmap indexes",
+      "lines": [
+        "Static: fixed buckets, degrades as the file grows",
+        "Extendible: directory doubles only when local depth = global depth",
+        "Linear: splits buckets in a fixed order, no directory",
+        "Bitmap: low cardinality, OLAP, fast AND/OR"
+      ],
+      "origin": "source",
+      "pages": [
+        576,
+        577,
+        582
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 575,
+      "claim": "Every internal node of an order-m B-tree has between ⌈m/2⌉ and m children, and between ⌈m/2⌉ − 1 and m − 1 keys.",
+      "correction": "The lower bounds hold for every node except the root, which may have as few as 2 children and 1 key, or no children at all when it is the only node. Without that exception a tree could never grow from one node to two levels."
+    },
+    {
+      "page": 576,
+      "claim": "A B+ tree of order p holds at most p keys per leaf and p + 1 children per internal node, and an internal node has between ⌈p/2⌉ and p children.",
+      "correction": "The two statements contradict each other. If the order p is the maximum number of keys, a non-root internal node has between ⌈(p + 1)/2⌉ and p + 1 children; if p is the maximum number of children, it has between ⌈p/2⌉ and p children and at most p − 1 keys. A question must fix one convention."
+    },
+    {
+      "page": 575,
+      "claim": "A secondary index is built on a non-key field.",
+      "correction": "A secondary index is built on any field the file is not ordered on, whether or not it is a key. On a candidate key it has one entry per record; on a non-key field it has either one entry per record or one entry per distinct value that leads to all matching records, often through an extra level of record-pointer blocks."
+    },
+    {
+      "page": 579,
+      "claim": "In extendible hashing the directory doubles on overflow.",
+      "correction": "It doubles only when the overflowing bucket's local depth equals the global depth. If the local depth is smaller, the bucket splits, its local depth grows by one and the directory entries that pointed to it are divided between the two halves, with no change in directory size."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "db-file-organization-indexing",
+      "status": "covered",
+      "topics": [
+        "db-indexing.file-organization",
+        "db-indexing.blocking-factor",
+        "db-indexing.index-types",
+        "db-indexing.dense-sparse",
+        "db-indexing.index-access-cost",
+        "db-indexing.multilevel-index",
+        "db-indexing.b-tree",
+        "db-indexing.b-plus-tree",
+        "db-indexing.node-order",
+        "db-indexing.tree-capacity",
+        "db-indexing.insertion-splits",
+        "db-indexing.tree-search-cost",
+        "db-indexing.hashing",
+        "db-indexing.bitmap-index"
+      ]
+    }
+  ]
+}

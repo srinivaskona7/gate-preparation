@@ -1,0 +1,1045 @@
+{
+  "chapter": "algo-design-paradigms",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2024-s2",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "algo-design-paradigms.dp-framework",
+      "difficulty": "medium",
+      "stem": "Consider a table $T$, where the elements $T[i][j]$, $0 \\le i, j \\le n$, represent the cost of the optimal solutions of different subproblems of a problem that is being solved using a dynamic programming algorithm. The recursive formulation to compute the table entries is as follows:\n\n$T[0][k] = T[k][0] = 1$ for $k = 0, 1, 2, \\dots, n$\n\n$T[i][j] = 2T[i-1][j] + 3T[i][j-1]$ for $1 \\le i, j \\le n$\n\nConsider the following two algorithms to compute entries of $T$. Assume that for both the algorithms, for all $0 \\le i, j \\le n$, $T[i][j]$ has been initialized to 1.\n\nAlgorithm $B_1$: For $i = 1, 2, \\dots, n$: For $j = 1, 2, \\dots, n$: $T[i][j] = 2T[i-1][j] + 3T[i][j-1]$\n\nAlgorithm $B_2$: For $s = 2, 3, \\dots, 2n$: For $i = 1, 2, \\dots, n$: For $j = 1, 2, \\dots, n$: If ($i + j == s$) $T[i][j] = 2T[i-1][j] + 3T[i][j-1]$\n\nAlgorithm $B_k$, $k \\in \\{1, 2\\}$ is said to be correct if and only if it calculates the correct values of $T[i][j]$, for all $0 \\le i, j \\le n$, (as per the recursive formulation) at the end of the execution of the algorithm $B_k$.\n\nWhich one of the following statements is true?",
+      "options": [
+        "Both algorithms $B_1$ and $B_2$ are correct",
+        "Algorithm $B_1$ is correct, but algorithm $B_2$ is incorrect",
+        "Algorithm $B_2$ is correct, but algorithm $B_1$ is incorrect",
+        "Both algorithms $B_1$ and $B_2$ are incorrect"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What makes a table-filling order correct",
+            "body": "A dynamic programming table holds the answer to each subproblem. A cell is computed from other cells, its dependencies. A filling order is correct when every dependency already holds its final value at the moment the cell is computed; a cell read too early still has its initial value and gives a wrong result. So the one rule is: for each cell, check that the cells it reads are written before it."
+          },
+          {
+            "title": "Dependencies of the recurrence",
+            "body": "Cell $(i,j)$ with $1 \\le i,j \\le n$ reads $(i-1,j)$, directly above, and $(i,j-1)$, directly left. Row 0 and column 0 are the base cases and keep their initial value 1, which is already correct. Only the inner cells need computing.",
+            "tex": "T[i][j] \\leftarrow T[i-1][j],\\ T[i][j-1]"
+          },
+          {
+            "title": "Check B1, row by row",
+            "body": "B1 visits $i = 1,\\dots,n$ and for each $i$ visits $j = 1,\\dots,n$. When it reaches $(i,j)$, the cell above lies in row $i-1$, which is a base row or a row finished in the previous pass of the outer loop. The cell on the left was written one step earlier in the same row, or is the base column when $j = 1$. Every dependency is final, so B1 is correct."
+          },
+          {
+            "title": "Check B2, diagonal by diagonal",
+            "body": "B2 writes only the cells with $i + j = s$, for $s = 2,\\dots,2n$ in increasing order. The dependencies $(i-1,j)$ and $(i,j-1)$ both have index sum $s-1$. Sum $s-1$ was handled in the previous pass, or is a base cell when $i-1 = 0$ or $j-1 = 0$. So each input is final when it is read. The extra loops only add work (about $2n^3$ tests), not wrong values. B2 is correct.",
+            "tex": "i + j = s \\Rightarrow (i-1)+j = i+(j-1) = s-1 < s"
+          },
+          {
+            "title": "Answer",
+            "body": "Both are correct, which is option (A). A script that fills the table with B1, with B2 and with the plain recursion for $n = 1,\\dots,7$ gave identical tables in all three."
+          }
+        ],
+        "shortcut": {
+          "body": "Look at the direction of the arrows only: every cell depends on the cell above and the cell to the left. Any order that visits rows top to bottom, or anti-diagonals in increasing sum, respects those arrows. Both loops do, so pick (A) without computing a number. The shortcut is unsafe if the recurrence also reads $T[i-1][j-1]$ or a cell to the right; then recheck each order."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Doubting B2 because it looks unusual and wasteful. Its extra loops cost time, but the order of writing is still safe."
+          },
+          {
+            "option": 2,
+            "text": "Believing only the diagonal order is safe. Row-major order is the standard fill and also reads finished cells."
+          },
+          {
+            "option": 3,
+            "text": "Thinking the initialisation of every cell to 1 spoils the result. Only the base row and column keep that 1, which the recurrence wants; the inner cells are overwritten."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.dp-framework",
+          "clues": "The stem gives a recurrence over a two-index table and two loop nests that fill it, and asks which nest is correct. That is a question about dependency order in a DP table, not about the value computed.",
+          "contrast": "Not a complexity question: B2 does extra tests and costs more, but the stem asks only about correct final values. Cost would matter only if the options compared running times."
+        },
+        "check": {
+          "body": "Test the smallest case $n = 2$ by hand. The base cells are all 1, so $T[1][1] = 2 + 3 = 5$, then $T[1][2] = 2 + 15 = 17$ and $T[2][1] = 10 + 3 = 13$, and finally $T[2][2] = 34 + 39 = 73$. Both loop nests write $(1,1)$ first and $(2,2)$ last, and $(1,2)$ and $(2,1)$ before $(2,2)$, so both reach 73."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Two 3 by 3 grids with a shaded base row and column: B1 numbered row by row, B2 labelled by the pass i+j that writes each cell, showing inputs are always final."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, Question 29 (paper Q.39)",
+          "url": "https://gateoverflow.in/523117/gate-cse-2026-set-2-question-29"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Ask what each assignment needs before it can be right. Which cells does the formula read, and have those cells reached their final value when the loop gets to them?"
+        },
+        {
+          "kind": "concept",
+          "text": "In a dynamic programming table every cell is built from other cells, its dependencies. Filling in the wrong order means a cell reads a value that is still the starting 1."
+        },
+        {
+          "kind": "principle",
+          "text": "An order is valid exactly when each cell's inputs are written earlier in that order. Test each algorithm against that one rule, separately, instead of judging them together."
+        },
+        {
+          "kind": "setup",
+          "text": "Mark the two inputs of a cell on a small grid, then walk through the first two or three steps of B1 and of B2 and note, at each step, whether both inputs have already been written."
+        }
+      ],
+      "variation": {
+        "stem": "A table $U$ has entries $U[i][j]$ for $0 \\le i, j \\le n$. The base cells are $U[0][k] = U[k][n] = 1$ for $k = 0, \\dots, n$. For $1 \\le i \\le n$ and $0 \\le j \\le n-1$ the recurrence is $U[i][j] = U[i-1][j] + 2U[i][j+1]$. Every entry starts at 1. Algorithm $C_1$: for $i = 1, \\dots, n$, for $j = 0, 1, \\dots, n-1$ in increasing order, apply the recurrence. Algorithm $C_2$: for $i = 1, \\dots, n$, for $j = n-1, n-2, \\dots, 0$ in decreasing order, apply the recurrence. Which statement is true?",
+        "options": [
+          "Both $C_1$ and $C_2$ are correct",
+          "$C_1$ is correct, but $C_2$ is incorrect",
+          "$C_2$ is correct, but $C_1$ is incorrect",
+          "Both $C_1$ and $C_2$ are incorrect"
+        ],
+        "answer": 2,
+        "explanation": "Cell $(i,j)$ reads the cell above, $(i-1,j)$, and the cell to its right, $(i,j+1)$. In $C_1$ the pass over $j$ is increasing, so $(i,j+1)$ is still at its starting value 1 when $(i,j)$ is computed, and the table comes out wrong. In $C_2$ the right neighbour is written one step earlier and the row above is finished, so every input is final. Only $C_2$ is correct. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q42",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "algo-design-paradigms.dp-framework",
+      "difficulty": "medium",
+      "stem": "Consider an array X that contains n positive integers. A subarray of X is defined to be a sequence of array locations with consecutive indices.\n\nThe C code snippet given below has been written to compute the length of the longest subarray of X that contains at most two distinct integers. The code has two missing expressions labelled (P) and (Q).\n\nWhich one of the following options gives the CORRECT missing expressions?\n\n(Hint: At the end of the i-th iteration, the value of len1 is the length of the longest subarray ending with X[i] that contains all equal values, and len2 is the length of the longest subarray ending with X[i] that contains at most two distinct values.)",
+      "code": {
+        "lang": "c",
+        "text": "int first=0, second=0, len1=0, len2=0, maxlen=0;\nfor (int i=0; i < n; i++) {\n  if (X[i] == first) {\n    len2++; len1++;\n  } else if (X[i] == second) {\n    len2++;\n    len1 = (P);\n    second = first;\n  } else {\n    len2 = (Q);\n    len1 = 1; second = first;\n  }\n  if (len2 > maxlen) {\n    maxlen = len2;\n  }\n  first = X[i];\n}"
+      },
+      "options": [
+        "(P) len1+1    (Q) len2+1",
+        "(P) 1    (Q) len1+1",
+        "(P) 1    (Q) len2+1",
+        "(P) len2+1    (Q) len1+1"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "The two quantities the hint defines",
+            "body": "Fix the end position $i$. len1 is the length of the run of equal values that ends at $X[i]$. len2 is the length of the longest window ending at $X[i]$ with at most two different values. On entering iteration $i$, first holds $X[i-1]$ and second holds the other value that appears in the current window (or 0 if none). The code is dynamic programming over $i$: the pair (len1, len2) for $i$ is built from the pair for $i-1$."
+          },
+          {
+            "title": "Case 1: X[i] equals first",
+            "body": "The new element repeats the previous one. The run of equal values grows by one and so does the two-value window. That is the given branch, len1++ and len2++."
+          },
+          {
+            "title": "Case 2: X[i] equals second, the value that is not the previous one",
+            "body": "Example: ... 5, 7, 5. The window keeps both values, so len2 grows by one. But the new 5 follows a 7, so the run of equal values ending here is just this element. Therefore $P = 1$. Then second takes the old first, since the previous value is now the \"other\" one.",
+            "tex": "\\text{len1} \\leftarrow 1"
+          },
+          {
+            "title": "Case 3: X[i] is a third value",
+            "body": "Only one old value can stay in the window: the previous element, together with its whole run of len1 equal copies. The window is that run plus the new element, so $Q = \\text{len1} + 1$. It is not len2 + 1, because len2 counts a second old value that must be dropped. The run restarts, len1 = 1 (given).",
+            "tex": "\\text{len2} \\leftarrow \\text{len1} + 1"
+          },
+          {
+            "title": "Check every option with a script",
+            "body": "A script ran the code with each option on 3000 random arrays over four values and compared maxlen with a brute-force longest window of at most two distinct values. Only (P) 1, (Q) len1+1 matched every time: option (B). The trace in the picture on X = 5, 5, 7, 5, 9 gives len2 = 1, 2, 3, 4, 2 and maxlen = 4."
+          }
+        ],
+        "shortcut": {
+          "body": "Test two tiny arrays. On 5, 7, 5 the last 5 follows a 7, so the equal-value run is 1: P = 1, which kills (A) and (D). On 5, 7, 9 the window at 9 is 7, 9 of length 2 = len1 + 1, while len2 + 1 would give 3: Q = len1 + 1, which kills (C). Two minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "P = len1+1 treats the equal-to-second case as a continuing run, but the previous element is a different value, so the run restarts at 1."
+          },
+          {
+            "option": 2,
+            "text": "Q = len2+1 keeps both old values and adds a third, giving a window with three distinct integers."
+          },
+          {
+            "option": 3,
+            "text": "P = len2+1 sets the equal-value run to the whole two-value window, which is far too long; only the Q slot of this option is right."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.dp-framework",
+          "clues": "The code carries two counters whose meaning is fixed by the hint, and each iteration updates them from their values at the previous index. Missing expressions in such a loop are found from that meaning.",
+          "contrast": "The look-alike is a sliding-window technique with two pointers. Here there is no left pointer; the length of the window is rebuilt from len1 and len2 of the previous step, which is the DP view."
+        },
+        "check": {
+          "body": "Run the finished code on $X = 5, 7, 5$ by hand. The counters reach len1 = 1 and len2 = 3 at the last element, which is right because the whole array uses two values and the final 5 starts a new run. Then run $5, 7, 9$: the longest window ending at 9 is $7, 9$ with length 2, and the code gives len1 + 1 = 2, not 3."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Trace table of len1 and len2 for X = 5, 5, 7, 5, 9 showing the case taken at each step and the update used."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, Question 32 (paper Q.42)",
+          "url": "https://gateoverflow.in/422865/gate-cse-2024-set-2-question-32"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key, IISc Bengaluru (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The hint in the stem defines what the two counters mean at the end of every iteration. Use that meaning, not guesswork, to decide what each missing expression has to equal."
+        },
+        {
+          "kind": "concept",
+          "text": "This is dynamic programming over the position $i$: the pair of values at $i$ is computed from the pair at $i-1$. The three branches are three ways the new element can relate to the last two distinct values seen."
+        },
+        {
+          "kind": "principle",
+          "text": "For each branch ask two things. What is the length of the equal-value run that ends at the new element? Which old values can stay in a window of at most two distinct values?"
+        },
+        {
+          "kind": "setup",
+          "text": "Take the middle branch with a tiny array where the new element matches the older of the two values, and the last branch with an array where it is a third value. Write the counters by hand for both."
+        },
+        {
+          "kind": "partial",
+          "text": "Trace the last branch on 5, 5, 7, 9. Write len1 and len2 just before the 9 arrives, then list the longest window ending at the 9 that has at most two distinct values, and compare its length with both counters."
+        }
+      ],
+      "variation": {
+        "stem": "The loop below is a flawed version of the one in the question: the expression (P) was filled in as $\\text{len1}+1$, which is wrong. Do not assume it is correct; trace it exactly as written. (Q) is filled in as $\\text{len1}+1$.\n\nint first=0, second=0, len1=0, len2=0, maxlen=0;\nfor (int i=0; i < n; i++) {\n  if (X[i] == first) { len2++; len1++; }\n  else if (X[i] == second) { len2++; len1 = len1+1; second = first; }\n  else { len2 = len1+1; len1 = 1; second = first; }\n  if (len2 > maxlen) maxlen = len2;\n  first = X[i];\n}\n\nWhat value of maxlen does this flawed loop print for $X = [4, 4, 6, 4, 6, 9, 9, 9, 6]$?",
+        "options": [
+          "5",
+          "7",
+          "9",
+          "10"
+        ],
+        "answer": 1,
+        "explanation": "Trace len2 at each index: 1, 2, 3, 4, 5, 4, 5, 6, 7. The flawed middle branch keeps adding to len1 instead of restarting it at 1, so the run length is overstated and len2 reaches 7. The true longest window with at most two distinct values is 5 (the stretch $4, 4, 6, 4, 6$): that is what a correct program prints, and the gap between 5 and 7 shows what P = len1+1 breaks. Values 9 and 10 come from other wrong fillings that use len2+1. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q26",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "algo-design-paradigms.huffman",
+      "difficulty": "medium",
+      "stem": "Consider the string abbccddeee. Each letter in the string must be assigned a binary code satisfying the following properties:\n1. For any two letters, the code assigned to one letter must not be a prefix of the code assigned to the other letter.\n2. For any two letters of the same frequency, the letter which occurs earlier in the dictionary order is assigned a code whose length is at most the length of the code assigned to the other letter.\nAmong the set of all binary code assignments which satisfy the above two properties, what is the minimum length of the encoded string?",
+      "options": [
+        "21",
+        "23",
+        "25",
+        "30"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the deciding rule",
+            "body": "A prefix code gives each letter a bit string so that no code is the start of another; then an encoded string can be read back without separators. Code lengths of a prefix code exist exactly when $\\sum 2^{-\\ell} \\le 1$ (Kraft). The encoded length of a text is the sum over letters of frequency times code length. Huffman coding repeatedly merges the two lightest weights and gives the minimum such sum. Property 2 only orders lengths among letters with the same frequency."
+          },
+          {
+            "title": "Count the letters",
+            "body": "abbccddeee has a once, b, c, d twice each and e three times: 10 letters, weights $a=1, b=2, c=2, d=2, e=3$."
+          },
+          {
+            "title": "Huffman merges",
+            "body": "Merge the two lightest: 1 + 2 = 3 (a with one of b, c, d). Remaining weights 3, 2, 2, 3. Merge 2 + 2 = 4. Remaining 3, 3, 4. Merge 3 + 3 = 6. Remaining 4, 6, merge to 10. The encoded length equals the sum of all merge weights.",
+            "tex": "3 + 4 + 6 + 10 = 23"
+          },
+          {
+            "title": "Does property 2 spoil the minimum 23?",
+            "body": "Merging a with b makes b long and c, d short, so the lengths of b, c, d are (3, 2, 2): property 2 breaks, since b comes first in dictionary order. The ties allow another choice: merge a with d instead. Then a has length 3, d has length 3, and b, c, e have length 2. The lengths of b, c, d are (2, 2, 3), non-decreasing. Codes: b 00, c 01, e 10, a 110, d 111, as in the picture. The cost is unchanged.",
+            "tex": "1\\cdot3 + 2\\cdot2 + 2\\cdot2 + 2\\cdot3 + 3\\cdot2 = 23"
+          },
+          {
+            "title": "Why nothing is shorter, and the answer",
+            "body": "Huffman is optimal over all prefix codes, so no valid assignment beats 23, and the one above satisfies both properties. A script that tried every length vector with Kraft sum at most 1 and the ordering of b, c, d found 23 as the minimum. Option (B)."
+          }
+        ],
+        "shortcut": {
+          "body": "Write the frequencies 1, 2, 2, 2, 3 and add the merge weights: 3, 4, 6, 10 gives 23. Property 2 only chooses which of the tied letters pairs with a, and a legal choice (a with d) exists, so 23 stands. Unsafe if a tie could not be broken, so always test that a valid tie exists."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "21 is below the entropy bound of about 22.5 bits, so no prefix code reaches it."
+          },
+          {
+            "option": 2,
+            "text": "25 comes from demanding lengths non-decreasing in dictionary order across all letters, not only among equal frequencies: the best such code is lengths (2, 2, 2, 3, 3), cost 25."
+          },
+          {
+            "option": 3,
+            "text": "30 is a fixed 3-bit code for each of the 10 letters, which ignores the frequencies."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.huffman",
+          "clues": "The stem asks for the minimum length of an encoded string under a prefix property, which is the Huffman objective. The tie rule among equal-frequency letters is a side condition on which tied letters pair up.",
+          "contrast": "Fixed-length coding would give every letter the same number of bits, and shortest-path style greedy rules ignore frequencies. Here the frequencies decide the lengths, so merge by weight."
+        },
+        "check": {
+          "body": "Check the lengths against the Kraft sum: the codes found have lengths 2, 2, 2, 3, 3 for b, c, e, a, d, and $3\\cdot\\tfrac14 + 2\\cdot\\tfrac18 = 1$, so they form a full prefix code. Recompute the cost as frequency times length: $2\\cdot2 + 2\\cdot2 + 3\\cdot2 + 1\\cdot3 + 2\\cdot3 = 23$, which agrees with the sum of merge weights."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Huffman tree for abbccddeee: b 00, c 01, e 10, a 110, d 111, with internal node weights 3, 4, 6 and 10 summing to 23 bits."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, Question 26",
+          "url": "https://gateoverflow.in/357514/gate-cse-2021-set-2-question-26"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Ask what quantity is being minimised and under which constraint on the codes. Then ask what the second property changes, and whether it can stop the best code from being used."
+        },
+        {
+          "kind": "concept",
+          "text": "A prefix code lets an encoded string be read without separators, and the length of the encoded string is the sum of frequency times code length. Huffman's method gives the minimum of that sum."
+        },
+        {
+          "kind": "principle",
+          "text": "Repeatedly merge the two smallest weights. The encoded length equals the sum of all the merge weights. Then check whether the tie rule among equal frequencies can be satisfied by some choice during the merges."
+        },
+        {
+          "kind": "setup",
+          "text": "Count how many times each letter occurs, listing the weights in increasing order. Note which letters have the same frequency, since only those are touched by the second property."
+        },
+        {
+          "kind": "partial",
+          "text": "After merging the lightest pair, re-sort the weights before the next merge. Write down every merge weight as you go, because the encoded length is built from them."
+        }
+      ],
+      "variation": {
+        "stem": "The string abccdddeeee is to be encoded with a binary prefix code. For two letters of the same frequency, the one earlier in dictionary order must get a code whose length is at most the other's. Among all such assignments, what is the minimum length of the encoded string in bits?",
+        "options": [
+          "13",
+          "22",
+          "24",
+          "33"
+        ],
+        "answer": 2,
+        "explanation": "The letters have counts a 1, b 1, c 2, d 3, e 4. Merge 1+1 = 2, then 2+2 = 4, then 3+4 = 7, then 4+7 = 11. The sum of merge weights is 2 + 4 + 7 + 11 = 24, and the tie between a and b is harmless since they can be given equal lengths. Dropping the last merge gives 13, forgetting the first merge gives 22, and a fixed 3 bits per letter gives 33. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q40",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;C",
+      "topic": "algo-design-paradigms.dp-framework",
+      "difficulty": "medium",
+      "stem": "Define $R_n$ to be the maximum amount earned by cutting a rod of length $n$ meters into one or more pieces of integer length and selling them. For $i > 0$, let p[i] denote the selling price of a rod whose length is i meters. Consider the array of prices:\n\np[1] = 1, p[2] = 5, p[3] = 8, p[4] = 9, p[5] = 10, p[6] = 17, p[7] = 18\n\nWhich of the following statements is/are correct about $R_7$?",
+      "options": [
+        "$R_7 = 18$",
+        "$R_7 = 19$",
+        "$R_7$ is achieved by three different solutions.",
+        "$R_7$ cannot be achieved by a solution consisting of three pieces."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Rod cutting and its recurrence",
+            "body": "A cutting splits a rod of length $n$ into pieces of whole-metre lengths; its worth is the sum of the pieces' prices. $R_n$ is the best worth. Look at the first piece: if it has length $i$, the rest is an independent rod of length $n-i$ solved best by $R_{n-i}$. So the rule is $R_n = \\max_{1 \\le i \\le n}(p[i] + R_{n-i})$ with $R_0 = 0$. This is dynamic programming because the same $R_k$ is needed again and again.",
+            "tex": "R_n = \\max_{1\\le i\\le n}\\bigl(p[i] + R_{n-i}\\bigr)"
+          },
+          {
+            "title": "Fill the table",
+            "body": "$R_1 = 1$. $R_2 = \\max(1+1, 5) = 5$. $R_3 = \\max(1+5, 5+1, 8) = 8$. $R_4 = \\max(1+8, 5+5, 8+1, 9) = 10$. $R_5 = \\max(1+10, 5+8, 8+5, 9+1, 10) = 13$. $R_6 = \\max(1+13, 5+10, 8+8, 9+5, 10+1, 17) = 17$."
+          },
+          {
+            "title": "Compute R7",
+            "body": "$R_7$ tries each first piece: $p[1]+R_6 = 18$, $p[2]+R_5 = 18$, $p[3]+R_4 = 18$, $p[4]+R_3 = 17$, $p[5]+R_2 = 15$, $p[6]+R_1 = 18$, $p[7] = 18$. The maximum is 18, so (A) is true and (B) is false.",
+            "tex": "R_7 = \\max(18, 18, 18, 17, 15, 18, 18) = 18"
+          },
+          {
+            "title": "Count the distinct cuttings worth 18",
+            "body": "Listing the unordered cuttings of 7 that earn 18: the whole rod (7), the pair 6 + 1 (17 + 1), and the triple 3 + 2 + 2 (8 + 5 + 5). That is three different solutions, so (C) is true. The triple 3 + 2 + 2 has three pieces, so (D) is false. A script that enumerated all 15 partitions of 7 confirmed exactly these three. Answer: (A) and (C)."
+          }
+        ],
+        "shortcut": {
+          "body": "Build $R_1,\\dots,R_6$ = 1, 5, 8, 10, 13, 17, then try each first piece for $R_7$: the sums come to 18, 18, 18, 17, 15, 18, 18, so 19 never appears. List the cuttings that reach 18 to count them. Unsafe if you skip a first piece; there are only seven."
+        },
+        "traps": [
+          {
+            "text": "Choosing (B) $R_7 = 19$: no cutting reaches 19; the top value 18 is attained three ways."
+          },
+          {
+            "text": "Counting only the two cuttings 7 and 6+1 and rejecting (C), forgetting that 3+2+2 also earns 18."
+          },
+          {
+            "text": "Accepting (D) because a cutting into many small pieces such as 2+2+2+1 (four pieces, worth 16) looks poor; but 3 + 2 + 2 is a three-piece solution worth 18, so (D) is false."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.dp-framework",
+          "clues": "A price array, an integer length and the phrase maximum amount earned by cutting into pieces describe optimal substructure on the length. The counting statements need the full set of optimal cuttings.",
+          "contrast": "Not the fractional knapsack: a rod cannot be cut into non-integer pieces and the best piece by price per metre is not always the right first piece, so a greedy by ratio is unsafe here."
+        },
+        "check": {
+          "body": "Check each claimed optimal cutting by adding prices: 7 alone is 18, 6 + 1 is 17 + 1 = 18, and 3 + 2 + 2 is 8 + 5 + 5 = 18. Then try a rival with four pieces, 2 + 2 + 2 + 1, which gives 5 + 5 + 5 + 1 = 16, and 4 + 3 gives 17, so nothing beats 18."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Table of R0 to R7 and the three cuttings of a 7 metre rod that earn 18: 7, 6 plus 1, and 3 plus 2 plus 2."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, Question 40",
+          "url": "https://gateoverflow.in/357411/gate-cse-2021-set-1-question-40"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Several statements are tested about one number, so start by finding that number. What does the best use of a rod of length 7 depend on, and which shorter rod lengths feed into it?"
+        },
+        {
+          "kind": "concept",
+          "text": "Rod cutting splits into the same smaller problems again and again, so the best values of the shorter rods are worth storing. Look at the length of the first piece cut off."
+        },
+        {
+          "kind": "principle",
+          "text": "If the first piece has length $i$, the remainder is an independent rod of length $n-i$ that should itself be cut best. Try every $i$ from 1 to $n$ and keep the largest total."
+        },
+        {
+          "kind": "setup",
+          "text": "Build the best value for length 1, then 2, up to 6 in order, using the lengths already built. Only then evaluate length 7, tracking which first pieces reach the top value."
+        },
+        {
+          "kind": "partial",
+          "text": "For the statements about how many solutions there are, list the cuttings of 7 that tie for the maximum as unordered multisets of piece lengths, so that a re-ordering is not counted twice."
+        }
+      ],
+      "variation": {
+        "stem": "Let $S_n$ be the maximum amount earned by cutting a rod of length $n$ metres into one or more pieces of integer length. The price list is p[1] = 2, p[2] = 5, p[3] = 7, p[4] = 8, p[5] = 10, p[6] = 13, p[7] = 14. Which of the following statements about $S_7$ is/are correct?",
+        "options": [
+          "$S_7 = 17$",
+          "$S_7 = 18$",
+          "$S_7$ is achieved by two different solutions.",
+          "$S_7$ cannot be achieved by a solution consisting of four pieces."
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Best values for lengths 1 to 6 are 2, 5, 7, 10, 12, 15. For length 7 the first piece gives $2+15$, $5+12$, $7+10$, $8+7$, $10+5$, $13+2$ and $14$, so the best is 17, reached when the first piece has length 1, 2 or 3. The distinct cuttings worth 17 are 3 + 2 + 2 and 2 + 2 + 2 + 1, two solutions, and the second has four pieces. So A and C are true. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q25",
+      "type": "nat",
+      "marks": 1,
+      "key": "29",
+      "topic": "algo-design-paradigms.dc-template",
+      "difficulty": "medium",
+      "stem": "Consider a sequence of 14 elements: $A = [-5, -10, 6, 3, -1, -2, 13, 4, -9, -1, 4, 12, -3, 0]$. The subsequence sum $S(i,j) = \\sum_{k=i}^{j} A[k]$. Determine the maximum of $S(i,j)$, where $0 \\le i \\le j < 14$. (Divide and conquer approach may be used.)",
+      "answer": 29,
+      "solution": {
+        "steps": [
+          {
+            "title": "The problem and the divide and conquer idea",
+            "body": "$S(i,j)$ is the sum of the consecutive block $A[i..j]$. We want the best block. Divide and conquer splits the array into a left half and a right half. The best block either lies entirely in the left half, entirely in the right half, or crosses the middle. The first two are the same problem on smaller arrays; the crossing block is found directly. The answer is the largest of the three.",
+            "tex": "\\max\\bigl(\\text{best}_L,\\ \\text{best}_R,\\ \\text{cross}\\bigr)"
+          },
+          {
+            "title": "Split at the middle",
+            "body": "Indices 0..6 form the left half: $-5, -10, 6, 3, -1, -2, 13$. Indices 7..13 form the right half: $4, -9, -1, 4, 12, -3, 0$."
+          },
+          {
+            "title": "Crossing block",
+            "body": "A crossing block takes a suffix of the left half (ending at index 6) and a prefix of the right half (starting at index 7). Pick the best of each independently. Left suffix sums from index 6 backwards: 13, 11, 10, 13, 19, 9, 4; the best is 19, starting at index 2. Right prefix sums: 4, -5, -6, -2, 10, 7, 7; the best is 10, ending at index 11.",
+            "tex": "\\text{cross} = 19 + 10 = 29"
+          },
+          {
+            "title": "Compare with the halves",
+            "body": "Best inside the left half is 19 (indices 2..6). Best inside the right half is $4 + 12 = 16$ (indices 10..11, since the 4, -9, -1 before them cost more than they give). So the answer is $\\max(19, 16, 29) = 29$, the block from index 2 to 11. A brute force over all 105 blocks also gave 29."
+          }
+        ],
+        "shortcut": {
+          "body": "Scan once: skip the negative start, take 6, 3, -1, -2, 13, 4 (running 23), dip through -9, -1 (13), then climb with 4, 12 to 29 and stop before -3. A running-total scan (Kadane) restarts the sum when it goes negative; here it never does after index 2. Unsafe on an all-negative array, where the answer is the largest single element."
+        },
+        "traps": [
+          {
+            "text": "Stopping at 23 (block 2..7), before the dip of -9, -1: the dip is repaid by the following 4 + 12."
+          },
+          {
+            "text": "Taking 19 + 16 = 35, adding the best of both halves; they are not adjacent, so the block would include the elements between."
+          },
+          {
+            "text": "Taking the largest single element 13, or the positive sum of all positives, 42, which ignores contiguity."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.dc-template",
+          "clues": "The stem names a divide and conquer approach in brackets and asks for a maximum over all consecutive blocks. The split into halves plus a crossing case is the standard divide, conquer and combine pattern.",
+          "contrast": "A scan that stops once the running sum first falls from its peak of 23 gives 23, not 29, because the dip is repaid later. Divide and conquer avoids this by finding the best block through the split point directly: best suffix of the left half plus best prefix of the right half."
+        },
+        "check": {
+          "body": "Verify the winning block 2 to 11 directly: 6 + 3 - 1 - 2 + 13 + 4 - 9 - 1 + 4 + 12 = 29. Extending it by -3 on the right or by -10 on the left lowers the total, and starting at index 3 loses 6 and ending at index 10 loses 12, so the block is locally best."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "The 14 element array with the left and right halves marked and the best crossing block, indices 2 to 11, bracketed with sum 29."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, Question 25",
+          "url": "https://gateoverflow.in/302823/gate-cse-2019-question-25"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (IIT Madras)",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Think about where the best block can sit relative to the middle of the array. How many different places are there, and which of them is not just a smaller copy of the same problem?"
+        },
+        {
+          "kind": "concept",
+          "text": "Divide and conquer solves the two halves by the same method and then handles what the split hides. Here that hidden case is a block that straddles the split point."
+        },
+        {
+          "kind": "principle",
+          "text": "A block across the middle is a suffix of the left half joined to a prefix of the right half. The two parts do not interact, so the best of each can be chosen separately."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the 14 elements into halves of 7. Compute the running sums leftward from the middle for the left part and rightward from the middle for the right part, and note the largest in each."
+        },
+        {
+          "kind": "partial",
+          "text": "Compare three numbers: the best block wholly inside the left half, the best wholly inside the right half, and the best crossing one. The maximum is what is asked."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the sequence of 14 elements $A = [3, -8, 5, 2, -4, 9, -1, -7, 6, 4, -2, 1, -9, 3]$. The block sum $S(i,j) = \\sum_{k=i}^{j} A[k]$. Determine the maximum of $S(i,j)$ over $0 \\le i \\le j < 14$.",
+        "answer": 14,
+        "explanation": "Split into indices 0 to 6 and 7 to 13. The best left suffix is indices 2 to 6 with sum 11. The right prefix sums are -7, -1, 3, 1, 2, -7, -4, so the best right prefix is 3, ending at index 9. The crossing block is indices 2 to 9 with sum 14. The best block wholly in the left half is 12 (indices 2 to 5, since 5 + 2 - 4 + 9 = 12) and in the right half is 6 + 4 = 10, so the answer is the crossing 14. A brute force over all 105 blocks gives the same value. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q31",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "algo-design-paradigms.interval-dp",
+      "difficulty": "hard",
+      "stem": "Assume that multiplying a matrix G1 of dimension $p \\times q$ with another matrix G2 of dimension $q \\times r$ requires $pqr$ scalar multiplications. Computing the product of $n$ matrices G1G2G3…Gn can be done by parenthesizing in different ways. Define GiGi+1 as an explicitly computed pair for a given paranthesization if they are directly multiplied. For example, in the matrix multiplication chain G1G2G3G4G5G6 using parenthesization (G1(G2G3))(G4(G5G6)), G2G3 and G5G6 are the only explicitly computed pairs.\n\nConsider a matrix multiplication chain F1F2F3F4F5, where matrices F1, F2, F3, F4 and F5 are of dimensions $2 \\times 25$, $25 \\times 3$, $3 \\times 16$, $16 \\times 1$ and $1 \\times 1000$, respectively. In the parenthesization of F1F2F3F4F5 that minimizes the total number of scalar multiplications, the explicitly computed pair(s) is/are",
+      "options": [
+        "F1F2 and F3F4 only",
+        "F2F3 only",
+        "F3F4 only",
+        "F1F2 and F4F5 only"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Matrix-chain terms and the rule",
+            "body": "Matrix multiplication is associative, so the product of a chain can be parenthesised in many ways with very different costs. Multiplying a $p\\times q$ by a $q\\times r$ matrix costs $pqr$ and gives a $p \\times r$ matrix. The chain is described by the dimension list $d_0, d_1, \\dots, d_n$ where matrix $F_k$ is $d_{k-1}\\times d_k$. The best cost of the sub-chain $i..j$ comes from trying every last split $k$ and adding the two best sub-costs and the cost of the final product.",
+            "tex": "m[i][j] = \\min_{i\\le k<j}\\bigl(m[i][k] + m[k+1][j] + d_{i-1}d_kd_j\\bigr)"
+          },
+          {
+            "title": "Dimension list and the one big number",
+            "body": "The dimensions are $d = (2, 25, 3, 16, 1, 1000)$. The dimension 1000 is large, and every product that has F5 as the right operand costs a factor of 1000 times the other two sizes. So we want the left operand of the final product to have as few rows and columns as possible."
+          },
+          {
+            "title": "Fill the table",
+            "body": "Single products: $F_1F_2 = 2\\cdot25\\cdot3 = 150$, $F_2F_3 = 25\\cdot3\\cdot16 = 1200$, $F_3F_4 = 3\\cdot16\\cdot1 = 48$, $F_4F_5 = 16\\cdot1\\cdot1000 = 16000$. Then $F_2..F_4$: split after $F_2$ gives $0 + 48 + 25\\cdot3\\cdot1 = 123$, the other split gives $1200 + 0 + 25\\cdot16\\cdot1 = 1600$, so the best is 123 using $(F_2(F_3F_4))$. Then $F_1..F_4$: $F_1$ times $(F_2..F_4)$ is $123 + 2\\cdot25\\cdot1 = 173$, which beats the others. Finally $(F_1..F_4)F_5$ costs $173 + 2\\cdot1\\cdot1000 = 2173$."
+          },
+          {
+            "title": "Read off the explicit pairs",
+            "body": "The optimal tree is $((F_1(F_2(F_3F_4)))F_5)$. A pair is explicitly computed when two original neighbours are multiplied directly: here only $F_3F_4$, as the picture shows. $F_1$ meets a $25\\times1$ result and $F_2$ meets a $3\\times1$ result. Total $= 48 + 75 + 50 + 2000 = 2173$.",
+            "tex": "48 + 75 + 50 + 2000 = 2173"
+          },
+          {
+            "title": "Compare the options with a script",
+            "body": "The script found the minimum 2173 with the explicit pair F3F4 only. For comparison: $((F_1F_2)(F_3F_4))F_5$ costs $150 + 48 + 6 + 2000 = 2204$, which is option (A)'s tree and is 31 more. Option (C)."
+          }
+        ],
+        "shortcut": {
+          "body": "Make the thin matrix F4 (16x1) absorb its neighbours first, since a width of 1 collapses everything: F3F4 gives a 3x1 column, then F2 times it gives 25x1, then F1 gives 2x1. Only the last product with F5 is expensive, 2x1x1000, and it is unavoidable. Compare with F1F2 first, which wastes 150. Unsafe without checking the costs of the one rival tree."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Computing F1F2 as well as F3F4 gives 2204, which is 31 more than 2173: F1F2 spends 150 where F1 times a 25x1 column spends 50."
+          },
+          {
+            "option": 1,
+            "text": "Choosing F2F3 as the only explicit pair: the best tree that computes only F2F3, ((F1((F2F3)F4))F5), costs 3650, far above the optimum 2173."
+          },
+          {
+            "option": 3,
+            "text": "F4F5 costs 16x1x1000 = 16000 alone, far above the full optimum 2173."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.interval-dp",
+          "clues": "The stem fixes the cost model $pqr$, gives a list of dimensions and asks for the optimal bracketing. The question about explicitly computed pairs needs the shape of the best tree, not just its cost.",
+          "contrast": "Not a greedy choice such as multiplying the cheapest pair first. The cheapest single product is not always inside the best tree, so every split has to be compared."
+        },
+        "check": {
+          "body": "Compute the cost of the bracketing found and one rival. For $(((F_1F_2)F_3)F_4)F_5$ the cost is $150 + 2\\cdot3\\cdot16 + 2\\cdot16\\cdot1 + 2\\cdot1\\cdot1000$, which is 2278, and the claimed optimum 2173 is smaller. The three products of the optimum add up: $48 + 75 + 50 + 2000 = 2173$."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Parenthesization tree ((F1(F2(F3F4)))F5) with the product cost at each internal node: 48, 75, 50 and 2000, total 2173; only F3F4 is an explicit pair."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, Question 31",
+          "url": "https://gateoverflow.in/204105/gate-cse-2018-question-31"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (IIT Guwahati)",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Look at the dimension list for one number that is much smaller or larger than the rest. Which products does it make cheap, and which expensive?"
+        },
+        {
+          "kind": "concept",
+          "text": "The cost of multiplying a chain depends on where the brackets go, because $pqr$ uses the shared dimension $q$. Associativity lets us choose the order freely."
+        },
+        {
+          "kind": "principle",
+          "text": "The best cost of a sub-chain is the best over every last split of the cost of the two parts plus the cost of the final product. A matrix that is thin in the shared dimension makes any product it joins cheap."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the dimensions as one list, with matrix $F_k$ being $d_{k-1}\\times d_k$. Fill the costs of all length-2 sub-chains, then length-3, and so on, remembering which split gave each minimum."
+        },
+        {
+          "kind": "partial",
+          "text": "After you have the final split, expand the two sides in turn to get the full bracketing. A pair is explicit only if the two original neighbours are multiplied with nothing else bracketed inside either."
+        }
+      ],
+      "variation": {
+        "stem": "Assume multiplying a $p \\times q$ matrix by a $q \\times r$ matrix takes $pqr$ scalar multiplications. A pair $F_iF_{i+1}$ is explicitly computed in a bracketing if the two are multiplied directly. The chain $F_1F_2F_3F_4F_5$ has dimensions $3 \\times 40$, $40 \\times 2$, $2 \\times 50$, $50 \\times 4$ and $4 \\times 1$. In the bracketing that minimises the total number of scalar multiplications, the explicitly computed pair(s) is/are",
+        "options": [
+          "$F_1F_2$ and $F_4F_5$ only",
+          "$F_2F_3$ only",
+          "$F_3F_4$ only",
+          "$F_4F_5$ only"
+        ],
+        "answer": 3,
+        "explanation": "With $d = (3, 40, 2, 50, 4, 1)$, the final dimension 1 makes any product that ends with $F_5$ cheap. Bracket from the right: $F_4F_5$ costs 200, $F_3(F_4F_5)$ costs 100, $F_2(\\dots)$ costs 80 and $F_1(\\dots)$ costs 120, total 500. The rival $(F_1F_2)(F_3(F_4F_5))$ costs 546 and also computes $F_1F_2$, which is option A. Only $F_4F_5$ is explicit in the best tree. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q48",
+      "type": "nat",
+      "marks": 2,
+      "key": "16",
+      "topic": "algo-design-paradigms.greedy-principles",
+      "difficulty": "medium",
+      "stem": "Consider the weights and values of items listed below. Note that there is only one unit of each item.\n\nThe task is to pick a subset of these items such that their total weight is no more than 11 Kgs and their total value is maximized. Further, no item may be split. The total value of items picked by an optimal algorithm is denoted by $V_{opt}$. A greedy algorithm sorts the items by their value-to-weight ratios in descending order and packs them greedily, starting from the first item in the ordered list. The total value of items picked by the greedy algorithm is denoted by $V_{greedy}$.\n\nThe value of $V_{opt} - V_{greedy}$ is ____________.",
+      "table": {
+        "headers": [
+          "Item number",
+          "Weight (in Kgs)",
+          "Value (in Rupees)"
+        ],
+        "rows": [
+          [
+            "1",
+            "10",
+            "60"
+          ],
+          [
+            "2",
+            "7",
+            "28"
+          ],
+          [
+            "3",
+            "4",
+            "20"
+          ],
+          [
+            "4",
+            "2",
+            "24"
+          ]
+        ]
+      },
+      "answer": 16,
+      "solution": {
+        "steps": [
+          {
+            "title": "0/1 knapsack and the ratio greedy",
+            "body": "In the 0/1 knapsack each item is taken whole or not at all, and the total weight must stay within the capacity (11 kg). The optimal value $V_{opt}$ is the best over every allowed subset. The ratio greedy sorts by value per kg and takes each item in turn when it still fits. For items that can be split this is optimal; for whole items it is not guaranteed, which is what the question tests."
+          },
+          {
+            "title": "Run the greedy",
+            "body": "Ratios: item 1 is 60/10 = 6, item 2 is 28/7 = 4, item 3 is 20/4 = 5, item 4 is 24/2 = 12. Order: 4, 1, 3, 2. Take item 4 (2 kg, Rs 24), 9 kg left. Item 1 needs 10 kg: skip. Item 3 needs 4 kg: take (Rs 20), 5 kg left. Item 2 needs 7 kg: skip. Weight 6 kg, so $V_{greedy} = 44$.",
+            "tex": "V_{greedy} = 24 + 20 = 44"
+          },
+          {
+            "title": "Find the optimum",
+            "body": "Item 1 alone weighs 10 kg and is worth 60. Any set with item 1 cannot add another item, since the smallest other weight 2 makes 12 kg. Sets without item 1 come from items 2, 3, 4: {2, 4} = 52 (9 kg), {2, 3} = 48 (11 kg), {3, 4} = 44 (6 kg), and {2, 3, 4} weighs 13 kg, too heavy. The maximum is 60.",
+            "tex": "V_{opt} = 60"
+          },
+          {
+            "title": "Difference",
+            "body": "$V_{opt} - V_{greedy} = 60 - 44 = 16$. A script that enumerated all 16 subsets and ran the greedy confirmed both numbers.",
+            "tex": "60 - 44 = 16"
+          }
+        ],
+        "shortcut": {
+          "body": "Spot the trap in the table: item 1 has a modest ratio of 6 but is worth 60 and just fits (10 of 11 kg). Greedy grabs the high-ratio small items and strands 5 kg of capacity. Compute the greedy total 44 and test item 1 alone against it: 60 - 44 = 16. Unsafe if you skip checking all subsets of the remaining items."
+        },
+        "traps": [
+          {
+            "text": "Treating the greedy as optimal (fractional knapsack logic) and answering 0."
+          },
+          {
+            "text": "Using V_opt = 52 (items 2 and 4) and getting 8, missing that item 1 alone is worth 60."
+          },
+          {
+            "text": "Letting greedy split item 1 or item 2 to fill the 5 spare kg, which is only allowed in the fractional problem."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.greedy-principles",
+          "clues": "The phrase no item may be split makes it a 0/1 problem, and the two quantities $V_{opt}$ and $V_{greedy}$ ask us to compare the ratio rule against an exact answer.",
+          "contrast": "The fractional knapsack is the look-alike where the ratio greedy is exactly optimal. Here the stated whole-item rule is what lets greedy fall short."
+        },
+        "check": {
+          "body": "Check the greedy by loading it: items 4 and 3 weigh 2 + 4 = 6 kg, value 24 + 20 = 44, and neither item 1 (10 kg) nor item 2 (7 kg) fits in the remaining 5 kg. For the optimum, the single item 1 gives 60, which beats every pair among items 2, 3 and 4 (at most 52)."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Capacity bar of 11 kg: greedy packs item 4 and item 3 for Rs 44, leaving 5 kg unused, while item 1 alone fills 10 kg for Rs 60."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, Question 48",
+          "url": "https://gateoverflow.in/204123/gate-cse-2018-question-48"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (IIT Guwahati)",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Greedy and optimal are two different procedures. Work out each one separately, and only then subtract. What does each of them look at when picking items?"
+        },
+        {
+          "kind": "concept",
+          "text": "In the 0/1 knapsack an item is taken whole or not at all, so the capacity left over after a choice can be wasted. A ratio-based greedy is exactly right only when pieces can be split."
+        },
+        {
+          "kind": "principle",
+          "text": "The greedy takes items by decreasing value per kilogram and skips an item that no longer fits. The optimum is the best over every subset whose weight stays within the capacity."
+        },
+        {
+          "kind": "setup",
+          "text": "Compute the ratio of each item and sort. Run the greedy through the sorted list, tracking the capacity left after each decision. Then list the subsets of the items you can fit together."
+        },
+        {
+          "kind": "partial",
+          "text": "List every subset of the four items that fits in 11 kg and write its weight and value. Do not start from the items greedy chose."
+        }
+      ],
+      "variation": {
+        "stem": "There is one unit of each item, listed as (weight in kg, value in rupees): $(6, 36)$, $(5, 28)$, $(5, 28)$, $(1, 3)$. A subset of weight at most 10 kg with maximum total value is chosen; its value is $V_{opt}$. A greedy algorithm sorts by value-to-weight ratio in descending order and packs each item that still fits; its value is $V_{greedy}$. The value of $V_{opt} - V_{greedy}$ is ______.",
+        "answer": 17,
+        "explanation": "Ratios are 6, 5.6, 5.6 and 3, so the greedy takes the 6 kg item (36), skips both 5 kg items since only 4 kg remain, and takes the 1 kg item (3): $V_{greedy} = 39$. The optimum takes the two 5 kg items for 56. The difference is 56 - 39 = 17. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q50",
+      "type": "nat",
+      "marks": 2,
+      "key": "225.0",
+      "topic": "algo-design-paradigms.huffman",
+      "difficulty": "medium",
+      "stem": "A message is made up entirely of characters from the set $X = \\{P, Q, R, S, T\\}$. The table of probabilities for each of the characters is shown below:\n\nIf a message of 100 characters over $X$ is encoded using Huffman coding, then the expected length of the encoded message in bits is ________.",
+      "table": {
+        "headers": [
+          "Character",
+          "Probability"
+        ],
+        "rows": [
+          [
+            "P",
+            "0.22"
+          ],
+          [
+            "Q",
+            "0.34"
+          ],
+          [
+            "R",
+            "0.17"
+          ],
+          [
+            "S",
+            "0.19"
+          ],
+          [
+            "T",
+            "0.08"
+          ],
+          [
+            "Total",
+            "1.00"
+          ]
+        ]
+      },
+      "answer": 225,
+      "solution": {
+        "steps": [
+          {
+            "title": "Huffman coding in plain words",
+            "body": "A prefix code gives each character a bit string so that none is the beginning of another. Frequent characters should get short codes. Huffman coding builds the tree that minimises the expected length: repeatedly merge the two smallest probabilities into one node whose weight is their sum, until a single root of weight 1 remains. The expected code length per character equals the sum of the weights of all merged (internal) nodes.",
+            "tex": "E[\\ell] = \\sum_{\\text{internal nodes}} w"
+          },
+          {
+            "title": "Merge step by step",
+            "body": "Weights: P 0.22, Q 0.34, R 0.17, S 0.19, T 0.08. Merge the two smallest, T and R: 0.25. Now 0.22, 0.34, 0.19, 0.25: merge S and P (0.19, 0.22): 0.41. Now 0.34, 0.25, 0.41: merge Q and the 0.25 node: 0.59. Finally merge 0.41 and 0.59: 1.00."
+          },
+          {
+            "title": "Read the lengths",
+            "body": "The tree in the picture gives P 2 bits, S 2, Q 2, R 3, T 3. Expected length per character: $0.22\\cdot2 + 0.19\\cdot2 + 0.34\\cdot2 + 0.17\\cdot3 + 0.08\\cdot3 = 0.44 + 0.38 + 0.68 + 0.51 + 0.24 = 2.25$ bits. The sum of merge weights $0.25 + 0.41 + 0.59 + 1.00$ is also 2.25, a check.",
+            "tex": "2.25 \\times 100 = 225"
+          },
+          {
+            "title": "Answer",
+            "body": "For 100 characters the expected total is $100 \\times 2.25 = 225$ bits. A script running a heap-based Huffman gave 225.0."
+          }
+        ],
+        "shortcut": {
+          "body": "Merge on paper and add the merged weights: 0.25 + 0.41 + 0.59 + 1.00 = 2.25, then multiply by 100. No code lengths are needed. About one minute. Check the merges by confirming that the weights still add to 1."
+        },
+        "traps": [
+          {
+            "text": "Using a fixed 3-bit code for 5 symbols gives 300 bits, ignoring the probabilities."
+          },
+          {
+            "text": "Forgetting to multiply by 100 and answering 2.25."
+          },
+          {
+            "text": "Always adding the next character to one growing node (T+R = 0.25, then S, then P, then Q) instead of merging the two smallest each time: the lengths become Q 1, P 2, S 3, R 4, T 4 and the total is 235 bits, not 225."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.huffman",
+          "clues": "The stem gives a probability table over a small alphabet and asks for the expected encoded length under Huffman coding. Probabilities in place of counts do not change the method.",
+          "contrast": "Do not confuse it with a fixed-length code, which would need 3 bits for five symbols, or with entropy, which is a lower bound that is not always met by an integer-length code."
+        },
+        "check": {
+          "body": "Add the weighted depths as an independent check. The code lengths are 2 for P, S and Q and 3 for R and T, so $0.22\\cdot2 + 0.19\\cdot2 + 0.34\\cdot2 + 0.17\\cdot3 + 0.08\\cdot3 = 2.25$ bits. Now test the code differently. The Kraft sum is $3\\cdot\\frac14 + 2\\cdot\\frac18 = 1$, so the lengths form a complete prefix code. Giving the 3-bit codes to Q and P instead of R and T costs $0.22\\cdot3 + 0.19\\cdot2 + 0.34\\cdot3 + 0.17\\cdot2 + 0.08\\cdot2 = 2.56$ bits, which is worse, so frequent symbols rightly get the short codes."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Huffman tree for P 0.22, Q 0.34, R 0.17, S 0.19, T 0.08 with internal weights 0.25, 0.41, 0.59 and 1.00, expected length 2.25 bits."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, Question 50",
+          "url": "https://gateoverflow.in/118395/gate-cse-2017-set-2-question-50"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (IIT Roorkee)",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does the expected length of the message depend on, per character and then in total? Ask which characters should end up with the shortest codes."
+        },
+        {
+          "kind": "concept",
+          "text": "Huffman coding builds a tree by merging, and the expected code length per character is determined by the shape of that tree. A rarer character sits deeper."
+        },
+        {
+          "kind": "principle",
+          "text": "Always merge the two smallest probabilities into one node. The expected number of bits per character equals the sum of the weights of the nodes created by the merges."
+        },
+        {
+          "kind": "setup",
+          "text": "Sort the five probabilities. Write each merge as a line: the two smallest weights, their sum, and the new sorted list. Keep going until a single weight is left."
+        },
+        {
+          "kind": "partial",
+          "text": "After you have the per-character expectation, scale it by the number of characters in the message, since the expectation adds over independent characters."
+        }
+      ],
+      "variation": {
+        "stem": "A message is made up of characters from $\\{A, B, C, D, E\\}$ with probabilities $0.30, 0.25, 0.20, 0.15, 0.10$ respectively. If a message of 200 characters is encoded using Huffman coding, then the expected length of the encoded message in bits is ______.",
+        "answer": 450,
+        "explanation": "Merge 0.10 and 0.15 into 0.25. The weights are now 0.30, 0.25, 0.20, 0.25: merge 0.20 and 0.25 into 0.45. Then merge 0.25 and 0.30 into 0.55, and finally 0.45 and 0.55 into 1.00. The merge weights add to 0.25 + 0.45 + 0.55 + 1.00 = 2.25 bits per character, so the 200-character message takes 450 bits. Generated for practice, not an exam question."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q5",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "algo-design-paradigms.greedy-principles",
+      "difficulty": "easy",
+      "stem": "Consider the following table:\n\nMatch the algorithms to the design paradigms they are based on.",
+      "table": {
+        "headers": [
+          "Algorithms",
+          "Design Paradigms"
+        ],
+        "rows": [
+          [
+            "(P) Kruskal",
+            "(i) Divide and Conquer"
+          ],
+          [
+            "(Q) Quicksort",
+            "(ii) Greedy"
+          ],
+          [
+            "(R) Floyd-Warshall",
+            "(iii) Dynamic Programming"
+          ]
+        ]
+      },
+      "options": [
+        "(P) $\\leftrightarrow$ (ii), (Q) $\\leftrightarrow$ (iii), (R) $\\leftrightarrow$ (i)",
+        "(P) $\\leftrightarrow$ (iii), (Q) $\\leftrightarrow$ (i), (R) $\\leftrightarrow$ (ii)",
+        "(P) $\\leftrightarrow$ (ii), (Q) $\\leftrightarrow$ (i), (R) $\\leftrightarrow$ (iii)",
+        "(P) $\\leftrightarrow$ (i), (Q) $\\leftrightarrow$ (ii), (R) $\\leftrightarrow$ (iii)"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "The three paradigms",
+            "body": "Divide and conquer splits a problem into independent smaller copies, solves each, and combines. Greedy builds a solution by repeatedly taking the locally best choice and never revisiting it. Dynamic programming solves overlapping subproblems once, stores the answers in a table, and builds larger answers from smaller ones. The rule is to ask what the algorithm does at each step."
+          },
+          {
+            "title": "Kruskal: greedy",
+            "body": "Kruskal sorts edges by weight and adds the lightest edge that creates no cycle, never undoing a choice. That is greedy, (P) to (ii)."
+          },
+          {
+            "title": "Quicksort: divide and conquer",
+            "body": "Quicksort picks a pivot, partitions into smaller and larger parts, sorts the two independent parts recursively and needs no combine step. That is divide and conquer, (Q) to (i)."
+          },
+          {
+            "title": "Floyd-Warshall: dynamic programming",
+            "body": "It computes the shortest distance using only the first $k$ vertices as intermediates, from the table for $k-1$: $d_k[i][j] = \\min(d_{k-1}[i][j], d_{k-1}[i][k] + d_{k-1}[k][j])$. Overlapping subproblems in a table: (R) to (iii). The match P-ii, Q-i, R-iii is option (C).",
+            "tex": "d_k[i][j] = \\min\\bigl(d_{k-1}[i][j],\\ d_{k-1}[i][k] + d_{k-1}[k][j]\\bigr)"
+          }
+        ],
+        "shortcut": {
+          "body": "Settle the two sure ones: Quicksort is divide and conquer and Kruskal is greedy. Only (C) has both. About 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Mapping Quicksort to dynamic programming because it is recursive; its subproblems do not overlap."
+          },
+          {
+            "option": 1,
+            "text": "Calling Kruskal dynamic programming and Floyd-Warshall greedy; Kruskal never fills a table of subproblem answers."
+          },
+          {
+            "option": 3,
+            "text": "Calling Kruskal divide and conquer because it grows a forest in pieces, and Quicksort greedy; both are wrong."
+          }
+        ],
+        "recognize": {
+          "concept": "algo-design-paradigms.greedy-principles",
+          "clues": "The table lists three named algorithms and three paradigm names, so the task is to classify each algorithm by how it builds its answer: sorting edges and accepting the lightest safe one, partitioning around a pivot, and a table indexed by allowed intermediate vertices.",
+          "contrast": "Quicksort is recursive, which tempts a dynamic programming label; the difference is that its two parts are independent and nothing is stored or reused, whereas dynamic programming reuses overlapping subproblem answers."
+        },
+        "check": {
+          "body": "Test each pairing by the paradigm's signature. Kruskal never reconsiders an accepted edge, which is the greedy signature. Quicksort's two recursive calls touch disjoint parts of the array, so nothing overlaps and there is no table. Floyd-Warshall's update reads entries of the previous round's table, so it is table-based. Exactly one option pairs all three this way."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, Question 5",
+          "url": "https://gateoverflow.in/118707/gate-cse-2017-set-1-question-05"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (IIT Roorkee)",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each algorithm, ask what it does at a single step: does it commit to one choice, split into independent pieces, or reuse stored answers to smaller cases?"
+        },
+        {
+          "kind": "concept",
+          "text": "Greedy takes the locally best choice and never undoes it. Divide and conquer splits into independent subproblems. Dynamic programming fills a table of overlapping subproblems."
+        },
+        {
+          "kind": "principle",
+          "text": "The deciding test is whether subproblems overlap and are stored (table), are independent and solved separately (split), or are never revisited (a single committed choice)."
+        },
+        {
+          "kind": "setup",
+          "text": "Settle the two algorithms whose style you are surest of first, then see which option keeps both of those pairings and fixes the third."
+        }
+      ],
+      "variation": {
+        "stem": "Match the algorithms to the design paradigms they are based on. (P) Huffman coding, (Q) Merge sort, (R) Matrix chain multiplication. (i) Divide and Conquer, (ii) Greedy, (iii) Dynamic Programming.",
+        "options": [
+          "(P) $\\leftrightarrow$ (iii), (Q) $\\leftrightarrow$ (i), (R) $\\leftrightarrow$ (ii)",
+          "(P) $\\leftrightarrow$ (ii), (Q) $\\leftrightarrow$ (i), (R) $\\leftrightarrow$ (iii)",
+          "(P) $\\leftrightarrow$ (ii), (Q) $\\leftrightarrow$ (iii), (R) $\\leftrightarrow$ (i)",
+          "(P) $\\leftrightarrow$ (i), (Q) $\\leftrightarrow$ (ii), (R) $\\leftrightarrow$ (iii)"
+        ],
+        "answer": 1,
+        "explanation": "Huffman coding repeatedly merges the two lightest trees and never undoes a merge, so it is greedy. Merge sort sorts two independent halves and then combines them, so it is divide and conquer. Matrix chain multiplication stores the best cost of every sub-chain in a table of overlapping subproblems, so it is dynamic programming. Generated for practice, not an exam question."
+      }
+    }
+  ],
+  "skipped": []
+}

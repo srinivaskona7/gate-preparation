@@ -1,0 +1,2268 @@
+{
+  "chapter": "os-synchronization-deadlock",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q51",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;C",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "hard",
+      "stem": "Consider three processes P1, P2, and P3 running identical code, as shown in the pseudocode below. A and B are two binary semaphores initialized to 1 and 0, respectively. X is a shared variable initialized to 0. Each line in the pseudocode is executed atomically.\n\nPseudocode of P1, P2, and P3\n\nAssume that any of the three processes can start to execute first and context switching can happen between these processes at any arbitrary time and in any arbitrary order.\n\nWhich of the following patterns is/are possible to be generated as an outcome of the execution of these three processes?",
+      "code": {
+        "lang": "c",
+        "text": "Wait(A);\nPrint(*);\nX = X+1;\nIf (X == 2)\n   {\n      Print($);\n      Signal(B);\n   }\nSignal(A);\nWait(B);\nPrint(#);\nSignal(B);"
+      },
+      "options": [
+        "**\\$*###",
+        "**\\$#*##",
+        "**\\$##*#",
+        "***\\$###"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "solutionDiagram": {
+        "alt": "Three lock sections of A run one after another with the dollar sign printed inside the second; below them the three hash prints relayed through the gate B, with the third hash after the third star."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the semaphores do",
+            "body": "A semaphore is an integer $S$ with two operations. $\\text{Wait}(S)$ lets the caller continue and lowers $S$ by 1 if $S > 0$, and otherwise makes the caller sleep until another process raises $S$. $\\text{Signal}(S)$ raises $S$ by 1 and wakes a sleeper if there is one. A binary semaphore only takes the values 0 and 1. Two patterns decide this question. A semaphore that starts at 1 is a lock: the code between its Wait and its Signal runs in one process at a time. A semaphore that starts at 0 is a closed gate: every Wait on it sleeps until someone signals it. Here A (starts at 1) is the lock and B (starts at 0) is the gate."
+          },
+          {
+            "title": "The stars and the dollar sign",
+            "body": "Everything from Wait(A) to Signal(A) is one section: print *, add 1 to X, and if X is 2 print \\$ and signal B. Because A is a lock, the three sections run one after another and never mix. The first section prints * with X = 1. The second prints *, makes X = 2, and prints \\$ before it releases A. The third prints * with X = 3 and prints no \\$. So every possible output starts with exactly two stars and then the dollar sign, and the third star can only come after the dollar sign."
+          },
+          {
+            "title": "The hashes",
+            "body": "The gate B stays closed until the \\$ is printed, so no # appears before it. After the \\$, B is 1. Each process that has left its section runs Wait(B), prints # and runs Signal(B), which passes the open gate to the next sleeper. The first two processes can print their # at any time after the \\$. The third process prints its # only after its own section, so its * comes before its #. After the first three symbols the output is therefore an arrangement of one * and three # in which the * is not last: *###, #*## or ##*#. A script that tries every interleaving of the atomic lines finds exactly these three endings and no deadlock."
+          },
+          {
+            "title": "Check the four options",
+            "body": "(A) is two stars, \\$, then *###: possible. (B) is two stars, \\$, then #*##: possible. (C) is two stars, \\$, then ##*#: possible. (D) has three stars before the \\$, but the \\$ is printed inside the second section, before the third section can start: impossible. The answer is A, B and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Spot the lock and the gate. The lock makes the \\$ come right after the second $*$, so D dies at once. For the rest, the gate is open after the \\$ and only the third star must precede the third hash, so every placement of the star except last works. Three options match that, which is also the key. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 3,
+            "text": "Believing the dollar sign can be delayed until after the third star. The \\$ is printed inside the second critical section, before Signal(A), so exactly two stars precede it."
+          },
+          {
+            "option": 1,
+            "text": "Rejecting **\\$#*## because a hash seems to need all three stars first. The hash gate opens at the \\$, and the first two processes have already finished their sections, so they can print $\\#$ before the third star."
+          },
+          {
+            "option": 2,
+            "text": "Rejecting **\\$##*# for the same reason, or accepting only A. Two hashes can precede the third star; only the third process's own hash must wait for its star."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "Two binary semaphores with different starting values (1 and 0), a shared counter updated between Wait(A) and Signal(A), and a question about which output patterns are possible. The lock and the gate decide every ordering.",
+          "contrast": "This is not a plain critical-section question about lost updates. The increments of X are protected by A, so nothing is lost; the open question is the order of prints, which comes from the gate B."
+        },
+        "check": {
+          "body": "Trace one option by hand against the code. For **\\$#*##: the first two sections print * and * with X = 2, then \\$ and Signal(B); the second process then runs Wait(B), prints #, and signals B; the third section prints * with X = 3; the first and third processes then print their # in turn. Every step is allowed, so the option is possible. For ***\\$###, the third section would print its star before any \\$, and its increment makes X = 3, so the test X == 2 is never true again; no \\$ is printed and B stays closed, which rules this option out."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, question 51 page",
+          "url": "https://gateoverflow.in/523105/gate-cse-2026-set-2-question-41"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-2 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before looking at the options, ask what each print needs. Which lines can run while another process is between Wait(A) and Signal(A), and which cannot?"
+        },
+        {
+          "kind": "concept",
+          "text": "A semaphore that starts at 1 works as a lock around the code between its Wait and its Signal. A semaphore that starts at 0 works as a closed gate until someone signals it."
+        },
+        {
+          "kind": "principle",
+          "text": "Decide which semaphore is the lock and which is the gate. Then ask what the lock does to the order of the three increments of X, and what must happen before the gate opens."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the program into two blocks: the one from Wait(A) to Signal(A), and the one that starts at Wait(B). Name the processes by the order in which they get through the first block, and track X as they go."
+        },
+        {
+          "kind": "partial",
+          "text": "After the first process leaves the first block, X is 1 and the test X == 2 is false. Work out which process first makes that test true, and what it does before it releases A."
+        }
+      ],
+      "variation": {
+        "stem": "Three processes run the same code. A and B are binary semaphores initialized to 1 and 0, and X is a shared variable initialized to 0. Each line is atomic. Each process does, in order: Wait(A); print a star; X = X+1; if X == 1 then (print a dollar sign; Signal(B)); Signal(A); Wait(B); print a hash; Signal(B). Which of the following output patterns is/are possible?",
+        "options": [
+          "*\\$**###",
+          "**\\$*###",
+          "*\\$#*#*#",
+          "*\\$###**"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "A is a lock, so the sections run one after another and the dollar sign is printed in the first section, right after the first star. The gate B opens at that moment, so hashes of finished processes can appear at once, but the hash of each process still comes after its own star. That allows *\\$**### and *\\$#*#*#. **\\$*### puts a second star before the dollar sign, and *\\$###** would need three hashes before the last two stars, which is impossible."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q29",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;C",
+      "topic": "os-synchronization-deadlock.deadlock-conditions",
+      "difficulty": "easy",
+      "stem": "With respect to deadlocks in an operating system, which of the following statements is/are FALSE?",
+      "options": [
+        "Banker’s algorithm is used to prevent deadlocks",
+        "Deadlock formation can be prevented by ensuring that the hold and wait condition is not allowed",
+        "An assignment edge in a resource allocation graph is marked from a process to a resource",
+        "A safe state guarantees that all processes can finish without formation of a deadlock"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms the statements use",
+            "body": "A deadlock is a set of processes each waiting for a resource that only another process in the set can release. It needs four conditions together: mutual exclusion, hold and wait, no preemption and circular wait. Prevention removes at least one of the four by a fixed rule, so deadlock cannot form. Avoidance lets all four hold but grants a request only if the system stays in a safe state, which needs each process's declared maximum in advance. In a resource allocation graph (RAG) a request edge goes from a process to a resource, and an assignment edge goes from a resource to the process that holds it. A state is safe if some order lets every process finish with the resources that are free plus those released along the way."
+          },
+          {
+            "title": "Judge each statement",
+            "body": "(A) The Banker's algorithm checks the safe state before granting each request: that is avoidance, not prevention, so the statement is false. (B) Never letting a process hold one resource while it waits for another removes hold and wait, which is a prevention method, so the statement is true. (C) An assignment edge points from the resource to the process, so the statement is false. (D) By definition a safe state has an order in which every process finishes, so no deadlock forms if the processes follow it: true. The false statements are A and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Check the two facts examiners twist: Banker's means avoidance, and assignment edges run resource to process. Both A and C twist them; B and D are textbook statements. Under 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Treating A as true because the Banker's algorithm stops deadlocks. The question separates prevention (a rule that removes a Coffman condition) from avoidance (a safety test per request), and the algorithm is avoidance."
+          },
+          {
+            "text": "Treating C as true by reading the edge as 'the process uses the resource'. The request edge is process to resource; the assignment edge is resource to process."
+          },
+          {
+            "text": "Marking D false because 'safe' sounds weaker than 'no deadlock'. A safe state guarantees that every process can finish if processes use the safe order, so no deadlock forms."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-conditions",
+          "clues": "The stem asks which statements about deadlocks are FALSE, and the statements name the Banker's algorithm, the hold and wait condition, an assignment edge and a safe state. Each is a definition that must be matched exactly.",
+          "contrast": "Prevention and avoidance sound alike. Prevention removes one of the four conditions by a fixed rule; avoidance keeps all four possible and tests every request for safety. The Banker's algorithm belongs to the second group."
+        },
+        "check": {
+          "body": "Test two statements by what the method needs as input. Prevention rules (for example, request everything at once) need no knowledge of other processes. A method that must know each process's maximum claim in advance, as the Banker's algorithm does, is working with a safety test and not with a fixed rule. For the edge direction, draw one holder: the resource box is the source of its assignment edge."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, question 29 page",
+          "url": "https://gateoverflow.in/523061/gate-cse-2026-set-1-question-19"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "This asks for the FALSE statements, so read each option as a claim and test it alone. More than one option can be false."
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the four conditions for deadlock, and the difference between prevention (break one condition by a fixed rule) and avoidance (grant a request only if a safe order still exists)."
+        },
+        {
+          "kind": "principle",
+          "text": "Each statement leans on one precise term: a named algorithm, a named condition, an edge direction, or the word safe. Compare each with its exact definition and not its everyday meaning."
+        },
+        {
+          "kind": "setup",
+          "text": "Make a small table with one row per option: the term it uses, the definition you remember, and whether the sentence agrees. For the graph edge, ask who holds the resource and who is waiting for it."
+        }
+      ],
+      "variation": {
+        "stem": "With respect to deadlocks in an operating system, which of the following statements is/are FALSE?",
+        "options": [
+          "Requesting resources in one fixed global order removes the circular wait condition.",
+          "Every unsafe state is already a deadlocked state.",
+          "In a resource allocation graph where every resource has one instance, a cycle means the processes on it are deadlocked.",
+          "Deadlock detection grants each request only if the resulting state stays safe, so a deadlock never forms."
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "A fixed request order stops a cycle of waits, so the first statement is true, and a cycle with single-instance resources is a deadlock, so the third is true. An unsafe state only means a deadlock may follow; it has not happened yet, so the second is false. Checking every request for safety is avoidance, while detection runs after the fact and then recovers, so the fourth is false."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q35",
+      "type": "nat",
+      "marks": 1,
+      "key": "6",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "difficulty": "easy",
+      "stem": "Consider a system consisting of $k$ instances of a resource $R$, being shared by 5 processes. Assume that each process requires a maximum of two instances of resource $R$ and a process can request or release only one instance at a time. Further, a process can request the second instance of the resource only after acquiring the first instance.\n\nThe minimum value of $k$ for the system to be deadlock-free is ________. (answer in integer)",
+      "answer": 6,
+      "solutionDiagram": {
+        "alt": "Two rows of five processes: with k = 5 each holds one unit and none is free, a deadlock; with k = 6 one process receives the free unit, holds two, finishes and releases both."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "When identical units deadlock",
+            "body": "A resource has $k$ identical instances. A process asks for one at a time, keeps what it has while it waits (hold and wait), and gives everything back only when it finishes. A deadlock is a state where every unfinished process waits for a unit and none is free, so nobody can finish and release. The rule: find the worst allocation that still leaves a deadlock, and add one unit."
+          },
+          {
+            "title": "Worst case for 5 processes needing 2 each",
+            "body": "A process is stuck only if it holds 1 unit (it holds fewer than its maximum 2 and wants one more). The most units that can be held with every process still stuck is one each: $5 \\times (2-1) = 5$. With $k = 5$ all units are held, all five processes wait for a second unit, and the system deadlocks.",
+            "tex": "5 \\times (2 - 1) = 5 \\text{ units held, } 0 \\text{ free}"
+          },
+          {
+            "title": "One more unit removes every deadlock",
+            "body": "With $k = 6$, even if each process holds 1 unit, 1 unit is free. Whoever gets it holds 2, which is its maximum, so it finishes and releases 2 units. Those 2 units let the next process finish, and so on. No allocation can leave all five stuck, because stuck processes hold at most 5 units in total. So the minimum is $k = 6$.",
+            "tex": "k_{\\min} = \\sum_{i=1}^{5}(2 - 1) + 1 = 6"
+          }
+        ],
+        "shortcut": {
+          "body": "Write $k = n(m-1) + 1$ with $n = 5$ processes and maximum claim $m = 2$: $5 \\times 1 + 1 = 6$. Valid whenever all processes have the same maximum and every claim can be met by the $k$ units. 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Answering 5. That is the largest number of units for which deadlock is still possible. The question asks for the smallest number that makes deadlock impossible, one more."
+          },
+          {
+            "text": "Answering 10, the total of all maximum claims. With 10 units nobody ever waits, which is safe but far more than the minimum."
+          },
+          {
+            "text": "Answering 11 or 4 by using $n \\times m + 1$ or $n - 1$. Only the units a stuck process already holds, $m - 1 = 1$ each, matter."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.min-resources",
+          "clues": "Identical units shared by several processes, each with a stated maximum claim, one unit requested at a time, and the question asks for the smallest number of units that is deadlock-free. This is the worst-case allocation argument.",
+          "contrast": "The Banker's algorithm tests one given state for safety. Here no state is given, so the question is about every reachable state, which is why the worst stuck allocation plus one is the method."
+        },
+        "check": {
+          "body": "Use the pigeonhole argument. If all 6 units are given out among 5 processes, some process holds at least 2, which is its maximum, so it can finish and release. With only 5 units each process can hold exactly 1, so the argument fails there. The two routes agree that 6 is the first safe value."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, question 35 page",
+          "url": "https://gateoverflow.in/523055/gate-cse-2026-set-1-question-25"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "You want the smallest k that makes deadlock impossible, so first ask what a deadlocked state looks like. How many units are free, and what does each process hold?"
+        },
+        {
+          "kind": "concept",
+          "text": "Deadlock here needs hold and wait: every unfinished process holds some units, wants one more, and no unit is free."
+        },
+        {
+          "kind": "principle",
+          "text": "Find the largest number of units that can sit in a stuck state, where every process holds less than its maximum. The system is safe once k is larger than that number."
+        },
+        {
+          "kind": "setup",
+          "text": "A process is still able to be stuck while it holds less than its maximum. Count the most units each of the 5 processes can hold while still short of its maximum, and add over all processes."
+        },
+        {
+          "kind": "partial",
+          "text": "Each process needs at most 2 units, so while stuck it holds at most 1. Build the stuck state that holds the most units, then decide whether it can still be stuck when one more unit exists."
+        }
+      ],
+      "variation": {
+        "stem": "A system has $k$ identical units of a resource shared by 4 processes. Each process needs at most 3 units, requests them one at a time, keeps what it holds while it waits, and may request the next unit only after it holds the previous one. What is the minimum value of $k$ for the system to be deadlock-free?",
+        "answer": 9,
+        "explanation": "A stuck process holds at most 2 units, so 4 stuck processes hold at most $4 \\times 2 = 8$ units, and with $k = 8$ a deadlock is possible. With $k = 9$ at least one unit stays free in every allocation, so some process can reach its maximum of 3, finish and release. The minimum is $n(m-1)+1 = 9$."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q48",
+      "type": "msq",
+      "marks": 2,
+      "key": "C;D",
+      "topic": "os-synchronization-deadlock.resource-allocation-graph",
+      "difficulty": "medium",
+      "stem": "$P = \\{P_1, P_2, P_3, P_4\\}$ consists of all active processes in an operating system. $R = \\{R_1, R_2, R_3, R_4\\}$ consists of single instances of distinct types of resources in the system.\n\nThe resource allocation graph has the following assignment and claim edges.\n\nAssignment edges: $R_1 \\to P_1$, $R_2 \\to P_2$, $R_3 \\to P_3$, $R_4 \\to P_4$ (the assignment edge $R_1 \\to P_1$ means resource $R_1$ is assigned to process $P_1$, and so on for others)\n\nClaim edges: $P_1 \\to R_2$, $P_2 \\to R_3$, $P_3 \\to R_1$, $P_2 \\to R_4$, $P_4 \\to R_2$ (the claim edge $P_1 \\to R_2$ means process $P_1$ is waiting for resource $R_2$, and so on for others)\n\nWhich of the following statement(s) is/are CORRECT?",
+      "options": [
+        "Aborting $P_1$ makes the system deadlock free.",
+        "Aborting $P_3$ makes the system deadlock free.",
+        "Aborting $P_2$ makes the system deadlock free.",
+        "Aborting $P_1$ and $P_4$ makes the system deadlock free."
+      ],
+      "answer": [
+        2,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Resource allocation graph with processes P1 to P4 and resources R1 to R4: solid assignment edges, dashed waiting edges, and the two cycles P1 R2 P2 R3 P3 R1 and P2 R4 P4 R2 that share P2."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Reading a resource allocation graph",
+            "body": "In a resource allocation graph (RAG) a circle is a process and a square is a resource. An edge $R \\to P$ means $P$ holds $R$ (assignment). An edge $P \\to R$ means $P$ is waiting for $R$ (here called a claim edge). When every resource has one instance, there is a deadlock exactly when the graph has a cycle, and the processes on the cycle are the deadlocked ones. Aborting a process releases everything it holds and removes its edges, so the system is deadlock free afterwards exactly when no cycle is left."
+          },
+          {
+            "title": "Find the cycles",
+            "body": "Follow each waiting edge to the holder of that resource. $P_1$ waits for $R_2$, held by $P_2$. $P_2$ waits for $R_3$ (held by $P_3$) and for $R_4$ (held by $P_4$). $P_3$ waits for $R_1$, held by $P_1$. $P_4$ waits for $R_2$, held by $P_2$. This gives two cycles: $P_1 \\to R_2 \\to P_2 \\to R_3 \\to P_3 \\to R_1 \\to P_1$ and $P_2 \\to R_4 \\to P_4 \\to R_2 \\to P_2$. Both pass through $P_2$ and $R_2$.",
+            "tex": "\\text{cycle 1: } P_1 R_2 P_2 R_3 P_3 R_1, \\qquad \\text{cycle 2: } P_2 R_4 P_4 R_2"
+          },
+          {
+            "title": "Test each abort",
+            "body": "Abort $P_1$ (A): cycle 1 breaks, but $P_2$ still waits for $R_4$ held by $P_4$, and $P_4$ waits for $R_2$ held by $P_2$. Cycle 2 remains, so deadlock remains. Abort $P_3$ (B): cycle 1 breaks, cycle 2 remains. Abort $P_2$ (C): $R_2$ and $R_4$ are released and every edge of $P_2$ disappears, so both cycles are gone: $P_1$ takes $R_2$ and finishes, then $P_3$ takes $R_1$, then $P_4$ takes $R_2$. Abort $P_1$ and $P_4$ (D): $P_1$ breaks cycle 1 and $P_4$ breaks cycle 2; $P_3$ now gets $R_1$ and finishes, then $P_2$ gets $R_3$ and $R_4$. The correct statements are C and D. A script that reduces the graph after each abort gives the same result."
+          }
+        ],
+        "shortcut": {
+          "body": "List who waits for whom and spot the common vertex. Cycle 1 is $P_1, P_2, P_3$ and cycle 2 is $P_2, P_4$, so $P_2$ is on both. An abort that removes $P_2$, or one process from each cycle, works: C, and D (which takes $P_1$ from cycle 1 and $P_4$ from cycle 2). Aborting one process of a single cycle fails. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Aborting $P_1$ breaks the larger cycle, which is the one that looks like the deadlock. $P_2$ and $P_4$ still wait for each other through $R_2$ and $R_4$, so the system stays deadlocked."
+          },
+          {
+            "option": 1,
+            "text": "Aborting $P_3$ has the same flaw. It also frees $R_3$ for $P_2$, but $P_2$ still needs $R_4$, which $P_4$ holds while it waits for $R_2$."
+          },
+          {
+            "text": "Stopping after finding one cycle. Here $P_2$ has two outstanding waits ($R_3$ and $R_4$), so there are two cycles, and every cycle must be broken."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.resource-allocation-graph",
+          "clues": "Single-instance resources, assignment edges from resource to process, claim (waiting) edges from process to resource, and a question about which aborts make the system deadlock free. Each abort is tested by whether a cycle remains.",
+          "contrast": "Deadlock recovery by abort looks like deadlock avoidance, but nothing is being granted or refused here. The graph is already deadlocked and the question is which process removals cut every cycle."
+        },
+        "check": {
+          "body": "Use a necessary condition for a single abort. Cycle 1 uses P1, P2 and P3, and cycle 2 uses P2 and P4. A lone abort can clear both only if the process lies on both, and the processes common to the two lists are just P2. Any single abort of P1, P3 or P4 therefore leaves one cycle. Two aborts work when one process comes from each list."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2, question 48 page",
+          "url": "https://gateoverflow.in/460797/gate-cse-2025-set-2-question-38"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-2 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Start by finding who is waiting for whom. For each waiting edge, which process holds the resource that is wanted?"
+        },
+        {
+          "kind": "concept",
+          "text": "With one instance of each resource, a cycle in the resource allocation graph means deadlock. Aborting a process releases what it holds and deletes its edges."
+        },
+        {
+          "kind": "principle",
+          "text": "A set of aborts frees the system only if no cycle is left. So find every cycle first, then ask whether the chosen processes hit every one of them."
+        },
+        {
+          "kind": "setup",
+          "text": "Turn each waiting edge into a process-to-process edge by replacing the resource with its holder. P1 waiting for R2 becomes an edge from P1 to the holder of R2. List all such edges and read off the cycles."
+        },
+        {
+          "kind": "partial",
+          "text": "P2 has two waiting edges, one for R3 and one for R4. Follow each to its holder, and count how many separate cycles come back through P2."
+        }
+      ],
+      "variation": {
+        "stem": "$P = \\{P_1, P_2, P_3, P_4\\}$ are the active processes and $R = \\{R_1, R_2, R_3, R_4\\}$ are single instances of distinct resource types. Assignment edges: $R_1 \\to P_1$, $R_2 \\to P_2$, $R_3 \\to P_3$, $R_4 \\to P_4$. Waiting edges: $P_1 \\to R_2$, $P_2 \\to R_3$, $P_3 \\to R_1$, $P_3 \\to R_4$, $P_4 \\to R_3$. Which of the following statement(s) is/are CORRECT?",
+        "options": [
+          "Aborting $P_2$ and $P_4$ makes the system deadlock free.",
+          "Aborting $P_1$ makes the system deadlock free.",
+          "Aborting $P_3$ makes the system deadlock free.",
+          "Aborting $P_4$ makes the system deadlock free."
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Replace each waiting edge by its holder: $P_1 \\to P_2$, $P_2 \\to P_3$, $P_3 \\to P_1$, $P_3 \\to P_4$, $P_4 \\to P_3$. The cycles are $P_1P_2P_3$ and $P_3P_4$, and both contain $P_3$, so aborting $P_3$ alone clears them. Aborting $P_2$ and $P_4$ takes one process from each cycle. Aborting only $P_1$ or only $P_4$ leaves the other cycle."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q46",
+      "type": "msq",
+      "marks": 2,
+      "key": "B;C",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "medium",
+      "stem": "Consider a multi-threaded program with two threads T1 and T2. The threads share two semaphores: s1 (initialized to 1) and s2 (initialized to 0). The threads also share a global variable x (initialized to 0). The threads execute the code shown below.\n\nWhich of the following outcomes is/are possible when threads T1 and T2 execute concurrently?",
+      "table": {
+        "headers": [
+          "// code of T1",
+          "// code of T2"
+        ],
+        "rows": [
+          [
+            "wait(s1);",
+            "wait(s1);"
+          ],
+          [
+            "x = x+1;",
+            "x = x+1;"
+          ],
+          [
+            "print(x);",
+            "print(x);"
+          ],
+          [
+            "wait(s2);",
+            "signal(s2);"
+          ],
+          [
+            "signal(s1);",
+            "signal(s1);"
+          ]
+        ]
+      },
+      "options": [
+        "T1 runs first and prints 1, T2 runs next and prints 2",
+        "T2 runs first and prints 1, T1 runs next and prints 2",
+        "T1 runs first and prints 1, T2 does not print anything (deadlock)",
+        "T2 runs first and prints 1, T1 does not print anything (deadlock)"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "solutionDiagram": {
+        "alt": "Two schedules in tables: T1 takes s1 first, prints 1, blocks on wait(s2) holding s1 and T2 blocks on s1 (deadlock); T2 takes s1 first, prints 1, signals s2 and s1 and T1 then prints 2 and finishes."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "The two semaphores",
+            "body": "$\\text{wait}(s)$ continues and lowers $s$ by 1 if $s > 0$, and otherwise blocks the caller until another thread signals. $\\text{signal}(s)$ raises $s$ by 1 and wakes a blocked thread. Here $s_1$ starts at 1 and acts as a lock around the increment, the print and the end of each thread. $s_2$ starts at 0, so a $\\text{wait}(s_2)$ blocks until some thread has run $\\text{signal}(s_2)$. Note the trap in T1: it waits on $s_2$ while still holding $s_1$, and only T2 can signal $s_2$."
+          },
+          {
+            "title": "Case 1: T1 gets s1 first",
+            "body": "T1 runs $\\text{wait}(s_1)$, so $s_1 = 0$. It sets $x = 1$ and prints 1. Then $\\text{wait}(s_2)$ finds $s_2 = 0$ and T1 blocks, still holding $s_1$. T2 starts with $\\text{wait}(s_1)$, finds $s_1 = 0$ and blocks. Neither thread can move: deadlock, with exactly one line printed, 1. So option C can happen, and option A (T2 printing 2 after T1 printed 1) cannot, because T2 never gets past its first line in this case."
+          },
+          {
+            "title": "Case 2: T2 gets s1 first",
+            "body": "T2 runs $\\text{wait}(s_1)$, sets $x = 1$, prints 1, runs $\\text{signal}(s_2)$ so $s_2 = 1$, then $\\text{signal}(s_1)$ so $s_1 = 1$. T2 never blocks, so it always finishes. T1 then runs $\\text{wait}(s_1)$, sets $x = 2$, prints 2, passes $\\text{wait}(s_2)$ (which is 1) and signals $s_1$. So option B can happen. Option D (T1 stuck after T2 printed 1) cannot, because $s_2$ was signalled before T1 started. Exhaustive search over every interleaving finds exactly two outcomes: T2 prints 1 and T1 prints 2, or T1 prints 1 and both threads deadlock. The answer is B and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask who takes $s_1$ first. T1 first: it blocks on $s_2$ holding $s_1$, so T2 is locked out and the system deadlocks after printing 1 (C). T2 first: it signals $s_2$ and $s_1$ without blocking, so T1 completes and prints 2 (B). A and D need the opposite of what those two cases force. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Assuming T1 can finish after printing 1. Its wait(s2) needs a signal that only T2 sends, and T2 cannot start while T1 holds s1, so T1 first always ends in deadlock."
+          },
+          {
+            "option": 3,
+            "text": "Thinking T2 first can also deadlock T1. T2 signals s2 before it releases s1, so by the time T1 reaches wait(s2) the semaphore is already 1 and T1 passes."
+          },
+          {
+            "text": "Forgetting that x = x+1 and print are separate lines but sit inside the s1 lock, so no other thread can slip between them. Only the order of the lock holders matters."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "Two threads, a lock semaphore starting at 1 and a signalling semaphore starting at 0, and options that list printed values together with deadlock. A wait on s2 placed while s1 is still held is the feature to spot.",
+          "contrast": "Do not treat this as a race on x. The increment and print sit inside the s1 lock, so the values are decided by who gets the lock first, and the danger is blocking while holding it."
+        },
+        "check": {
+          "body": "Check each case with the rule that a signal must come from somewhere. wait(s2) in T1 can pass only after T2 has run signal(s2). T2 runs signal(s2) before it releases s1, so if T2 held s1 first, s2 is already 1 when T1 arrives. If T1 held s1 first, T2 cannot reach signal(s2) at all. That gives the two possible endings without listing interleavings."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, question 46 page",
+          "url": "https://gateoverflow.in/422861/gate-cse-2024-set-2-question-36"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS2 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Ask who takes s1 first, and what each thread does with s1 while it waits on something else."
+        },
+        {
+          "kind": "concept",
+          "text": "wait(s) blocks while s is 0. Here s1, starting at 1, acts as a lock, and s2, starting at 0, blocks until some thread signals it. A thread that blocks while holding a lock can stall every other thread."
+        },
+        {
+          "kind": "principle",
+          "text": "Treat the two possible orders in which T1 and T2 take s1 as separate cases. In each case follow the semaphore values line by line and see whether any thread blocks forever."
+        },
+        {
+          "kind": "setup",
+          "text": "Make a table with columns for s1, s2, x and the printed output. Start from s1 = 1, s2 = 0, x = 0, give s1 to one thread, and add a row per executed line."
+        },
+        {
+          "kind": "partial",
+          "text": "Take the case where T1 gets s1 first: it increments x and prints 1, then reaches wait(s2). Work out what T1 is still holding there, and whether T2 can make any progress."
+        }
+      ],
+      "variation": {
+        "stem": "Two threads T1 and T2 share semaphores s1 (initialized to 1) and s2 (initialized to 0) and a variable x (initialized to 0). T1 runs: wait(s1); x = x+1; print(x); signal(s2); signal(s1). T2 runs: wait(s1); wait(s2); x = x+1; print(x); signal(s1). Which of the following outcomes is/are possible when they run concurrently?",
+        "options": [
+          "T2 prints 1 and then T1 prints 2.",
+          "T1 prints 1 and then T2 prints 2.",
+          "T1 prints 1 and then T2 blocks forever.",
+          "Neither thread prints anything (deadlock)."
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "If T1 takes s1 first it prints 1, signals s2 and releases s1, so T2 runs to the end and prints 2. If T2 takes s1 first it blocks on wait(s2) while holding s1, and T1 blocks on wait(s1): a deadlock with nothing printed. T2 can never print before T1 because s2 only becomes 1 inside T1, and T2 cannot stay blocked after T1 has printed."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q40",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "os-synchronization-deadlock.critical-section",
+      "difficulty": "medium",
+      "stem": "Consider the following two threads T1 and T2 that update two shared variables a and b. Assume that initially a = b = 1. Though context switching between threads can happen at any time, each statement of T1 or T2 is executed atomically without interruption.\n\nWhich one of the following options lists all the possible combinations of values of a and b after both T1 and T2 finish execution?",
+      "table": {
+        "headers": [
+          "T1",
+          "T2"
+        ],
+        "rows": [
+          [
+            "a = a + 1;",
+            "b = 2 * b;"
+          ],
+          [
+            "b = b + 1;",
+            "a = 2 * a;"
+          ]
+        ]
+      },
+      "options": [
+        "(a = 4, b = 4); (a = 3, b = 3); (a = 4, b = 3)",
+        "(a = 3, b = 4); (a = 4, b = 3); (a = 3, b = 3)",
+        "(a = 4, b = 4); (a = 4, b = 3); (a = 3, b = 4)",
+        "(a = 2, b = 2); (a = 2, b = 3); (a = 3, b = 4)"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "The six interleavings of T1 statements 1 and 2 with T2 statements 3 and 4, each drawn as four boxes with the values of a and b after every step; the final pairs are (4,4), (4,3) four times, and (3,3)."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What interleaving means",
+            "body": "Two threads share variables. Each statement runs as one indivisible step, but the scheduler may switch threads between statements. A possible run is therefore any merge of the two statement lists that keeps each thread's own order: T1's first statement stays before its second, and the same for T2. Number the statements 1: $a = a+1$, 2: $b = b+1$ (T1), and 3: $b = 2b$, 4: $a = 2a$ (T2). The rule is: try every merge that keeps 1 before 2 and 3 before 4."
+          },
+          {
+            "title": "List all merges",
+            "body": "Choose which 2 of the 4 time slots belong to T1: $\\binom{4}{2} = 6$ merges. Start from $a = b = 1$. Order 1 2 3 4: $a = 2$, $b = 2$, $b = 4$, $a = 4$, giving $(4,4)$. Order 1 3 2 4: $a = 2$, $b = 2$, $b = 3$, $a = 4$, giving $(4,3)$. Order 1 3 4 2: $a = 2$, $b = 2$, $a = 4$, $b = 3$, giving $(4,3)$. Order 3 1 2 4: $b = 2$, $a = 2$, $b = 3$, $a = 4$, giving $(4,3)$. Order 3 1 4 2: $b = 2$, $a = 2$, $a = 4$, $b = 3$, giving $(4,3)$. Order 3 4 1 2: $b = 2$, $a = 2$, $a = 3$, $b = 3$, giving $(3,3)$.",
+            "tex": "\\{(4,4),\\ (4,3),\\ (3,3)\\}"
+          },
+          {
+            "title": "Match the option",
+            "body": "The reachable pairs are exactly (4,4), (4,3) and (3,3), which is option A. The pair $(3,4)$ in options B, C and D is impossible: $a = 3$ means T1 added 1 to $a$ after T2 doubled it, so statement 4 is before statement 1; $b = 4$ means T1 added 1 to $b$ before T2 doubled it, so statement 2 is before statement 3. Together 3 < 4 < 1 < 2 < 3 is a cycle, which no merge can give. $(2,2)$ and $(2,3)$ in option D would need a thread to skip a statement."
+          }
+        ],
+        "shortcut": {
+          "body": "Only 6 merges, so enumerate them or reason from the two extremes: all of T1 first gives $(4,4)$, all of T2 first gives $(3,3)$, and the mixed ones give $(4,3)$. $(3,4)$ would need the order cycle 4, 1, 2, 3, 4, so it never appears. Options B, C and D each contain $(3,4)$ or an unreachable pair. About 2 minutes."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Including (3,4) because $a$ and $b$ look symmetric between the threads. The order of statements inside each thread rules it out."
+          },
+          {
+            "option": 2,
+            "text": "Listing (3,4) instead of (3,3). A run that gives $a = 3$ doubles $b$ first, so $b$ becomes 3 and not 4."
+          },
+          {
+            "option": 3,
+            "text": "Reading values from a step that has not finished, such as (2,2) after T1's first statement. Both threads always run to the end, so the final values are never that small."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.critical-section",
+          "clues": "Two threads update shared variables with no lock, each statement is atomic, and the question asks for every possible final combination. That is an interleaving enumeration.",
+          "contrast": "This is not a lost-update question. Each statement is a single atomic step, so no value is read stale; only the order of whole statements varies."
+        },
+        "check": {
+          "body": "Run the two extremes with the numbers: T1 then T2 gives a = 2, b = 2, then b = 4, a = 4. T2 then T1 gives b = 2, a = 2, then a = 3, b = 3. Every mixed order lands between these in the sense that each variable is either added to first or doubled first. A pair where a is doubled first and b is added to first would need statements 4, 1, 2, 3 in that cyclic order, which no merge allows."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, question 40 page",
+          "url": "https://gateoverflow.in/422812/gate-cse-2024-set-1-question-30"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each statement is atomic, so a run is just an order of the four statements. How many orders are allowed, given that each thread keeps its own statement order?"
+        },
+        {
+          "kind": "concept",
+          "text": "An interleaving of two sequences keeps each sequence in its own order. Two sequences of two statements have only a handful of merges, so you can list them all."
+        },
+        {
+          "kind": "principle",
+          "text": "Do not guess outcomes by feel. Take each merge, apply the four statements in that order to a = b = 1, and record the pair. Then compare the set of pairs with the options."
+        },
+        {
+          "kind": "setup",
+          "text": "Label the statements 1 and 2 for T1 and 3 and 4 for T2. The order constraints are 1 before 2 and 3 before 4. Write all merges as strings of these labels."
+        },
+        {
+          "kind": "partial",
+          "text": "Run the two extreme merges first: all of T1 and then all of T2, and all of T2 and then all of T1. Write down both pairs before the mixed ones."
+        }
+      ],
+      "variation": {
+        "stem": "Two threads T1 and T2 update shared variables a and b, with a = b = 1 initially. Each statement is atomic, but the threads may switch between statements. T1 runs: a = a + 1; b = b + 3. T2 runs: b = 2 * b; a = 2 * a. Which one of the following lists all the possible combinations of final values of a and b?",
+        "options": [
+          "(a = 4, b = 8); (a = 3, b = 5)",
+          "(a = 3, b = 5); (a = 4, b = 5); (a = 4, b = 8)",
+          "(a = 3, b = 5); (a = 4, b = 5); (a = 4, b = 8); (a = 3, b = 8)",
+          "(a = 2, b = 4); (a = 3, b = 5); (a = 4, b = 8)"
+        ],
+        "answer": 1,
+        "explanation": "List the 6 merges that keep each thread in order and apply them to a = b = 1. They give (4,8) for T1 entirely first, (3,5) for T2 entirely first, and (4,5) for the mixed orders. The pair (3,8) would need T2's doubling of a before T1's addition to a, and T1's addition to b before T2's doubling of b, which forms a cycle of orders, so it never occurs."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q38",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "hard",
+      "stem": "Consider the two functions incr and decr shown below.\n\nThere are 5 threads each invoking incr once, and 3 threads each invoking decr once, on the same shared variable X. The initial value of X is 10.\n\nSuppose there are two implementations of the semaphore s, as follows:\n\nI-1: s is a binary semaphore initialized to 1.\n\nI-2: s is a counting semaphore initialized to 2.\n\nLet V1, V2 be the values of X at the end of execution of all the threads with implementations I-1, I-2, respectively.\n\nWhich one of the following choices corresponds to the minimum possible values of V1, V2, respectively?",
+      "code": {
+        "lang": "c",
+        "text": "incr(){                    decr(){\n  wait(s);                   wait(s);\n  X = X+1;                   X = X-1;\n  signal(s);                 signal(s);\n}                          }"
+      },
+      "options": [
+        "15, 7",
+        "7, 7",
+        "12, 7",
+        "12, 8"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Timeline with a counting semaphore of value 2: D1 loads 10 and waits, five increments run in the other slot taking X to 15, D1 stores 9, then D2 and D3 store 8 and 7, so the minimum is 7."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Semaphores and lost updates",
+            "body": "A semaphore $s$ is an integer. $\\text{wait}(s)$ lowers it by 1, or blocks while it is 0, and $\\text{signal}(s)$ raises it by 1. A binary semaphore starting at 1 lets one thread into the section at a time (mutual exclusion). A counting semaphore starting at 2 lets two threads in together. The statement $X = X + 1$ is really three machine steps: load $X$ into a register, add 1, store the result. If two threads are inside together, one can load an old value and later store over the other's newer value, so that update is lost. The rule: when more than one thread can be inside, look for the schedule that loses the updates you do not want."
+          },
+          {
+            "title": "I-1: binary semaphore",
+            "body": "Only one thread is ever inside, so the 8 updates happen one after another and none is lost. Every order gives $10 + 5 - 3$, so the value is always 12 and $V_1 = 12$.",
+            "tex": "V_1 = 10 + 5 - 3 = 12"
+          },
+          {
+            "title": "I-2: counting semaphore of 2, a schedule that reaches 7",
+            "body": "Let a decrementing thread D1 enter, load $X = 10$ and stop. In the second slot let the five incr threads run one by one: $X$ becomes 15. D1 now stores $10 - 1 = 9$, wiping out all five increments. Then D2 loads 9 and stores 8, and D3 loads 8 and stores 7. All three decrements count and no increment does, so $X = 10 - 3 = 7$.",
+            "tex": "10 \\xrightarrow{\\text{5 incr}} 15 \\xrightarrow{\\text{D1 stores 9}} 9 \\to 8 \\to 7"
+          },
+          {
+            "title": "Why 7 cannot be beaten",
+            "body": "Let $d$ be the number of decr stores finished so far. Claim: $X \\ge 10 - d$ at all times. An incr store writes (the value it loaded) + 1. When it loaded, $X$ was at least $10 - d_{\text{then}}$, and $d_{\text{then}} \\le d_{\text{now}}$, so the stored value is above $10 - d_{\text{now}}$ and the claim survives. A decr store writes (the value it loaded) $- 1$ and raises $d$ by 1, so the claim survives again. With 3 decrements, $X \\ge 7$. Trying every interleaving of the 8 threads confirms it: with $s = 2$ the final values run from 7 to 15, and with $s = 1$ only 12 occurs. So $V_1 = 12$, $V_2 = 7$: option C."
+          }
+        ],
+        "shortcut": {
+          "body": "A binary semaphore means serial execution, so $V_1 = 10 + 5 - 3 = 12$ at once, which leaves C and D. For the counting semaphore, aim at the lowest value: let all increments be overwritten by one early decrement, then chain the three decrements to get $10 - 3 = 7$. About 3 minutes."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "15 is the largest result a lost-update schedule can give, 10 + 5 with every decrement lost, so it is not a minimum. For the binary semaphore the result is 12 in every order."
+          },
+          {
+            "option": 1,
+            "text": "Applying lost updates to I-1 as well (answer 7, 7). A binary semaphore serialises the threads, so nothing can be lost and V1 is 12."
+          },
+          {
+            "option": 3,
+            "text": "Stopping at 8 for I-2 by letting only two decrements count. A third decrement can read 8, the value stored by the second, and store 7, so 7 is reachable."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "The same increment and decrement code is run under a binary semaphore and under a counting semaphore of 2, and the question asks for minimum values. The count of the semaphore decides whether lost updates are possible.",
+          "contrast": "Mutual exclusion with a binary semaphore looks like the counting case but behaves differently: with one thread inside, the result is fixed, while with two inside the load-add-store steps can overlap."
+        },
+        "check": {
+          "body": "Substitute a smaller case with s = 2: one incr thread and one decr thread, X = 10. Let the decr load 10 and pause, let the incr run to make X = 11, then let the decr store 9. The final value is 9, which is 10 minus the 1 decrement, and the other orders give 10 or 11. The same floor, 10 minus the number of decrements, gives 7 for 3 decrements."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, question 38 page",
+          "url": "https://gateoverflow.in/399283/gate-cse-2023-question-28"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        },
+        {
+          "label": "GATE 2023 CS question paper, Organizing Institute IIT Kanpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks for minimum values under two implementations. Which implementation allows two threads inside the section together, and what can go wrong when they overlap?"
+        },
+        {
+          "kind": "concept",
+          "text": "X = X+1 is really load, add, store. If two threads overlap, one can store over the other's newer value, and that update is lost."
+        },
+        {
+          "kind": "principle",
+          "text": "A binary semaphore keeps one thread inside at a time, so nothing is lost. For a counting semaphore of 2, look for a schedule where the updates you want to remove are overwritten by a stale store."
+        },
+        {
+          "kind": "setup",
+          "text": "For V1 add up all the changes. For V2 decide which kind of thread you want to survive to make X as small as possible, and which threads you want overwritten."
+        },
+        {
+          "kind": "partial",
+          "text": "For the counting semaphore, let one decrementing thread load X and pause inside the section. Think about which threads can run in the free slot meanwhile, and what value the paused thread will store when it resumes."
+        }
+      ],
+      "variation": {
+        "stem": "Consider two functions incr and decr that each do wait(s); X = X+1 (or X = X-1); signal(s). Three threads each call incr once and two threads each call decr once on the same shared variable X, whose initial value is 20. Implementation I-1 uses a binary semaphore s initialized to 1, and I-2 uses a counting semaphore s initialized to 2. Let V1 and V2 be the values of X at the end with I-1 and I-2. Which one of the following gives the minimum possible values of V1 and V2, respectively?",
+        "options": [
+          "18, 18",
+          "21, 19",
+          "21, 18",
+          "23, 18"
+        ],
+        "answer": 2,
+        "explanation": "With the binary semaphore the five updates are serial, so V1 = 20 + 3 - 2 = 21. With the counting semaphore, let one decrement load 20 and wait, let the three increments run to reach 23, then let that decrement store 19 and let the second decrement take it to 18. Both decrements count and no increment does, and X cannot fall below 20 - 2 = 18, so V2 = 18."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q19",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "easy",
+      "stem": "Consider the following threads, T1, T2, and T3 executing on a single processor, synchronized using three binary semaphore variables, S1, S2, and S3, operated upon using standard wait() and signal(). The threads can be context switched in any order and at any time.\n\nWhich initialization of the semaphores would print the sequence BCABCABCA….?",
+      "table": {
+        "headers": [
+          "T1",
+          "T2",
+          "T3"
+        ],
+        "rows": [
+          [
+            "while(true){",
+            "while(true){",
+            "while(true){"
+          ],
+          [
+            "wait(S3);",
+            "wait(S1);",
+            "wait(S2);"
+          ],
+          [
+            "print(“C”);",
+            "print(“B”);",
+            "print(“A”);"
+          ],
+          [
+            "signal(S2); }",
+            "signal(S3); }",
+            "signal(S1); }"
+          ]
+        ]
+      },
+      "options": [
+        "S1 = 1; S2 = 1; S3 = 1",
+        "S1 = 1; S2 = 1; S3 = 0",
+        "S1 = 1; S2 = 0; S3 = 0",
+        "S1 = 0; S2 = 1; S3 = 1"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Ring of three threads: T2 prints B and signals S3, T1 waits on S3, prints C and signals S2, T3 waits on S2, prints A and signals S1, which T2 waits on; only S1 starts at 1 so only T2 can start."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "A semaphore as a token",
+            "body": "A binary semaphore holds 0 or 1. $\\text{wait}(S)$ passes only if $S = 1$ and then sets it to 0, otherwise the thread sleeps. $\\text{signal}(S)$ sets it to 1 and wakes a sleeper. So a semaphore at 1 is a token that one thread can take, and a signal puts a token back. A thread can run its print only while the semaphore it waits on holds a token. The rule: to force a fixed print order, start with a token only at the thread that must print first, and let each thread pass the token to the next one."
+          },
+          {
+            "title": "Who passes the token to whom",
+            "body": "T2 waits on S1 and signals S3. T1 waits on S3 and signals S2. T3 waits on S2 and signals S1. So the token goes T2, then T1, then T3, then back to T2. The wanted output is B (T2), C (T1), A (T3), repeated, so T2 must start: S1 = 1 and the other two 0."
+          },
+          {
+            "title": "Test the options",
+            "body": "Option C has S1 = 1, S2 = 0, S3 = 0. Only T2 can pass its wait, so it prints B and signals S3. Now only T1 can run: it prints C and signals S2. Then only T3 can run: it prints A and signals S1. The cycle repeats and the output is always BCABCA.... In the other options a second thread holds a token at the start. In A (all 1) and B (S2 = 1) T3 can print A first. In D (S2 = S3 = 1) T1 or T3 can print C or A first, so the output does not have to begin with B. Trying every interleaving agrees: only C forces BCABCABCA. The answer is C."
+          }
+        ],
+        "shortcut": {
+          "body": "The first letter is B, printed by T2, so S1 (T2's wait) must start at 1 and no other semaphore may start at 1, because that would let a second thread print first. Only option C fits. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "All three at 1 lets any thread start, so A or C could print first and the order BCA is not forced."
+          },
+          {
+            "option": 1,
+            "text": "S1 = S2 = 1 starts T2 and T3 together, so the first letter may be A instead of B."
+          },
+          {
+            "option": 3,
+            "text": "S2 = S3 = 1 gives the first letter to T1 or T3 (C or A), and T2 cannot start until S1 is signalled."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "Three infinite loops, each doing wait, print, signal on a different binary semaphore, and the question asks for the initial values that force a repeating print pattern. This is semaphores used to enforce an order.",
+          "contrast": "This is not mutual exclusion on a shared section. The semaphores are passed from thread to thread as a baton, so the starting values must give the baton to exactly one thread."
+        },
+        "check": {
+          "body": "Count tokens, including the one a thread is holding between its wait and its signal. Each wait moves a token out of a semaphore into the running thread and each signal puts it back, so that total stays constant. For one fixed repeating order there must be a single token, which means exactly one thread can run at the start. Options with a total of 2 or 3 let more than one thread run at the start, which breaks the order, and the single token must sit at the semaphore T2 waits on."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, question 19 page",
+          "url": "https://gateoverflow.in/371927/gate-cse-2022-question-9"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "GATE 2022 CS question paper, IIT Kharagpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The output starts with B, then C, then A. Which thread prints each letter, and which semaphore does that thread wait on?"
+        },
+        {
+          "kind": "concept",
+          "text": "A binary semaphore at 1 is a token: wait takes it and signal puts it back. A thread can print only while it can take the token of the semaphore it waits on."
+        },
+        {
+          "kind": "principle",
+          "text": "To force a fixed order, only the thread that goes first may start with a token, and each thread must pass it to the next one through its signal."
+        },
+        {
+          "kind": "setup",
+          "text": "Draw each thread as an arrow from the semaphore it waits on to the semaphore it signals. Follow the arrows from the thread that must print first and check they visit B, C, A in order."
+        },
+        {
+          "kind": "partial",
+          "text": "T2 prints B and T1 prints C. Find which semaphore T2 waits on, and say what that semaphore must hold before T2 can print anything."
+        }
+      ],
+      "variation": {
+        "stem": "Threads T1, T2 and T3 run on one processor and use binary semaphores S1, S2 and S3 with standard wait() and signal(). T1 loops forever doing wait(S2); print(\"A\"); signal(S3). T2 loops forever doing wait(S3); print(\"B\"); signal(S1). T3 loops forever doing wait(S1); print(\"C\"); signal(S2). The threads can be switched at any time. Which initialization of the semaphores prints the sequence CABCABCAB... only?",
+        "options": [
+          "S1 = 1; S2 = 0; S3 = 0",
+          "S1 = 1; S2 = 1; S3 = 1",
+          "S1 = 0; S2 = 0; S3 = 1",
+          "S1 = 1; S2 = 1; S3 = 0"
+        ],
+        "answer": 0,
+        "explanation": "T3 prints C and waits on S1, so S1 must hold the only token at the start. The token then goes T3 to T1 (through S2), T1 to T2 (through S3) and T2 back to T3 (through S1), which prints C, A, B in a cycle. Starting S3 at 1 begins with B, and the options with sum above 1 let two threads print at the start."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q26",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;D",
+      "topic": "os-synchronization-deadlock.deadlock-conditions",
+      "difficulty": "medium",
+      "stem": "Which of the following statements is/are TRUE with respect to deadlocks?",
+      "options": [
+        "Circular wait is a necessary condition for the formation of deadlock.",
+        "In a system where each resource has more than one instance, a cycle in its wait-for graph indicates the presence of a deadlock.",
+        "If the current allocation of resources to processes leads the system to unsafe state, then deadlock will necessarily occur.",
+        "In the resource-allocation graph of a system, if every edge is an assignment edge, then the system is not in deadlock state."
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Resource allocation graph with two instances each of R1 and R2 and four processes: a cycle P1, R1, P3, R2 exists, yet P2 and P4 request nothing, finish, and free instances so P1 and P3 finish too, so no deadlock."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms",
+            "body": "A deadlock is a set of processes each waiting for a resource held by another process in the set. It needs four conditions together: mutual exclusion, hold and wait, no preemption and circular wait. A resource allocation graph (RAG) draws a request edge from a process to a resource and an assignment edge from a resource to the process holding it. A wait-for graph draws $P \\to Q$ when $P$ waits for a resource that $Q$ holds. A state is unsafe if no order lets all processes finish when each may ask for its declared maximum. The rules: a cycle proves deadlock only when every resource has a single instance, and unsafe means deadlock is possible, not certain."
+          },
+          {
+            "title": "Judge each statement",
+            "body": "(A) True: deadlock needs all four conditions, so circular wait is necessary. (B) False: with several instances per resource a cycle is not enough. Example: two instances each of $R_1$ and $R_2$. $P_1$ holds one $R_2$ and requests $R_1$. $P_3$ holds one $R_1$ and requests $R_2$. $P_2$ holds the other $R_1$ and $P_4$ holds the other $R_2$, and both request nothing. The cycle $P_1, R_1, P_3, R_2$ exists, yet $P_2$ and $P_4$ finish and free one instance of each, so $P_1$ and $P_3$ finish as well. (C) False: unsafe says only that the worst case, every process asking for its maximum, may deadlock. A process may release resources early or never ask for its maximum, and then no deadlock occurs. (D) True: with only assignment edges nobody is waiting, so no process is blocked, and a deadlock needs blocked processes. The true statements are A and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Keep three facts: circular wait is necessary but not sufficient; a cycle means deadlock only for single-instance resources; unsafe means possible deadlock, not certain. That kills B and C and keeps A, and D is plain because with no request edge nobody waits. 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Accepting B because a cycle always means deadlock. That holds only when each resource has a single instance; with several instances a process outside the cycle may release an instance and break the wait."
+          },
+          {
+            "option": 2,
+            "text": "Accepting C by equating unsafe with deadlocked. An unsafe state may still finish if processes do not claim their full maximum, and deadlock happens only when processes actually block."
+          },
+          {
+            "option": 3,
+            "text": "Rejecting D because many resources are held. A graph with only assignment edges has no waiting process, so it cannot contain a deadlock, however many resources are held."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-conditions",
+          "clues": "The stem gives no numbers, only four claims about circular wait, cycles in a wait-for graph, unsafe states and assignment-only edges. Each claim tests the exact scope of one rule.",
+          "contrast": "A cycle in a resource allocation graph looks like proof of deadlock, but it is proof only with single-instance resources; an unsafe state looks like a deadlock, but it is only a risk."
+        },
+        "check": {
+          "body": "Test the two surprising verdicts on tiny systems. A lone process holding 1 unit with maximum 3 and only 1 unit free is unsafe, yet if it asks for only 1 more it finishes, so unsafe does not force deadlock. A single-instance cycle P1 to R1 to P2 to R2 to P1 blocks both processes, so the cycle rule holds for one instance."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, question 26 page",
+          "url": "https://gateoverflow.in/371920/gate-cse-2022-question-16"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        },
+        {
+          "label": "GATE 2022 CS question paper, IIT Kharagpur, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Four separate claims about deadlock, so judge each one alone. For each, ask what a counterexample would look like."
+        },
+        {
+          "kind": "concept",
+          "text": "Recall the four conditions deadlock needs, and keep apart a resource allocation graph, a wait-for graph and a safe or unsafe state."
+        },
+        {
+          "kind": "principle",
+          "text": "Two of these claims depend on scope. For the cycle claim, ask what must be true of the resource instances. For the unsafe claim, ask whether processes actually reach their declared maximum."
+        },
+        {
+          "kind": "setup",
+          "text": "For the cycle claim, sketch a small graph with a cycle and ask whether every process on it is really stuck. For the last claim, ask what a blocked process would add to the graph."
+        },
+        {
+          "kind": "partial",
+          "text": "Give one resource on the cycle a second instance held by a process off the cycle. If that process finishes and returns it, does a process on the cycle now get what it asked for?"
+        }
+      ],
+      "variation": {
+        "stem": "Which of the following statements is/are TRUE with respect to deadlocks?",
+        "options": [
+          "No preemption is a necessary condition for the formation of deadlock.",
+          "In a system where every resource has exactly one instance, a cycle in the resource-allocation graph indicates a deadlock.",
+          "In a system where resources have several instances, a cycle in the resource-allocation graph always indicates a deadlock.",
+          "If the system is in an unsafe state, a deadlock will certainly occur."
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Deadlock needs all four conditions, so no preemption is necessary, and with single-instance resources a cycle means every process on it waits for another on it. With several instances a process off the cycle may release an instance, so a cycle alone proves nothing. Unsafe means a deadlock is possible in the worst case, not certain."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q43",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;C",
+      "topic": "os-synchronization-deadlock.deadlock-prevention",
+      "difficulty": "hard",
+      "stem": "Consider a computer system with multiple shared resource types, with one instance per resource type. Each instance can be owned by only one process at a time. Owning and freeing of resources are done by holding a global lock (L). The following scheme is used to own a resource instance:\n\nWhich of the following choice(s) about the above scheme is/are correct?",
+      "code": {
+        "lang": "text",
+        "text": "function OwnResource(Resource R)\n    Acquire lock L // a global lock\n    if R is available then\n        Acquire R\n        Release lock L\n    else\n        if R is owned by another process P then\n            Terminate P, after releasing all resources owned by P\n            Acquire R\n            Restart P\n            Release lock L\n        end if\n    end if\nend function"
+      },
+      "options": [
+        "The scheme ensures that deadlocks will not occur.",
+        "The scheme may lead to live-lock.",
+        "The scheme may lead to starvation.",
+        "The scheme violates the mutual exclusion property."
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "solutionDiagram": {
+        "alt": "Live-lock cycle of the preempting scheme: P needs R1 then R2, Q needs R2 then R1, and each keeps terminating the other before it can finish, returning to the starting state with nobody blocked."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms",
+            "body": "Deadlock means processes wait forever for each other, so none can move. Live-lock means processes keep running and changing state but never finish. Starvation means one process is repeatedly denied what it needs. Mutual exclusion means a resource has at most one owner at a time. The scheme is a form of preemption: if someone owns the wanted resource, the requester kills the owner, takes the resource, and restarts the owner. The rule to apply: look for a place where a process waits, and then for a loop where the same events repeat."
+          },
+          {
+            "title": "A: no deadlock",
+            "body": "A deadlock needs a process that waits while holding something. Here no process ever waits for a resource. The caller either finds R free and takes it, or kills the owner and takes it. The lock L is held for a short time and is always released. With no waiting there is no circular wait, so deadlocks cannot occur. A is correct."
+          },
+          {
+            "title": "B and C: a loop of terminations",
+            "body": "Take two resources $R_1, R_2$. Process P needs $R_1$ then $R_2$, and Q needs $R_2$ then $R_1$. Start with P owning both resources and Q owning nothing. Q asks for $R_2$, which P owns, so Q kills P and takes $R_2$. P restarts, asks for $R_1$ (free) and gets it. P now asks for $R_2$, owned by Q, so P kills Q and takes $R_2$. P owns both resources again and Q owns nothing, which is where we started. This repeats, so each process is killed again and again, and neither completes its work although both keep running. A model of the scheme with a finish step for each process finds exactly this cycle. That is live-lock, and it is also starvation, because a process can be cut off forever. B and C are correct."
+          },
+          {
+            "title": "D: mutual exclusion is kept",
+            "body": "At every moment each resource instance has at most one owner, because the old owner is terminated and its resources are released before the new owner acquires R. So mutual exclusion holds, and D is wrong. The correct choices are A, B and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Scan for waiting. None exists, so no deadlock (A). A scheme that kills others to proceed can be killed back in a loop, which gives live-lock and starvation (B, C). Owners are removed before R is taken, so exclusion holds and D is out. 1 minute."
+        },
+        "traps": [
+          {
+            "option": 3,
+            "text": "Reading 'terminate the owner' as breaking mutual exclusion. The owner is removed first, so R still has one owner at a time."
+          },
+          {
+            "option": 0,
+            "text": "Rejecting A because preemption sounds risky. Deadlock needs waiting, and in this scheme nobody waits."
+          },
+          {
+            "option": 2,
+            "text": "Treating live-lock and starvation as needing a blocked process. Both can occur while every process keeps running, which is exactly what happens in the kill-and-restart loop."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-prevention",
+          "clues": "The code makes a requester terminate the current owner and take the resource, so no process ever waits. The choices ask about deadlock, live-lock, starvation and mutual exclusion together.",
+          "contrast": "Waiting-based schemes fail by deadlock; this preempting scheme fails differently, by repeated restarts. Tell them apart by asking whether any process ever blocks."
+        },
+        "check": {
+          "body": "Test the boundary cases. A single process never meets an owner, so it is never terminated and finishes; the repeating loop needs at least two processes competing for the same resource. Two processes that need disjoint resources never terminate each other either. So the trouble in B and C needs overlapping needs, as in the example. Separately, at every request the old owner is removed before the new one is set, so a resource never has two owners, which agrees with D being wrong."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, question 43 page",
+          "url": "https://gateoverflow.in/357497/gate-cse-2021-set-2-question-43"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Where in this scheme can a process wait for another one? And could the same sequence of events repeat forever?"
+        },
+        {
+          "kind": "concept",
+          "text": "Deadlock is waiting forever in a circle. Live-lock is running forever without finishing. Starvation is one process being denied again and again."
+        },
+        {
+          "kind": "principle",
+          "text": "If a requester never waits, which of the three failures can still happen? Ask what could repeat when one process is cut off by another."
+        },
+        {
+          "kind": "setup",
+          "text": "Take two processes that need the same two resources in opposite orders. Write down who owns what after each request and watch for a state that returns."
+        },
+        {
+          "kind": "partial",
+          "text": "Follow the requests for a few rounds and count how often each process is terminated, and whether either one ever reaches the end of its work."
+        }
+      ],
+      "variation": {
+        "stem": "A system has three resource types with one instance each. Every process requests resources in increasing order of resource number, keeps what it holds while it waits for the next one, and a resource is taken away from nobody. Which of the following choice(s) about this scheme is/are correct?",
+        "options": [
+          "Deadlock cannot occur.",
+          "A process may wait while holding a resource.",
+          "The scheme violates mutual exclusion.",
+          "Circular wait can still form between two processes."
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Waiting while holding is allowed, so hold and wait still exists. A cycle of waits would need a process holding a higher-numbered resource to wait for a lower-numbered one, which the ordering forbids, so circular wait and deadlock cannot occur. Each instance still has one owner, so mutual exclusion holds."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q46",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;D",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "hard",
+      "stem": "Consider the following pseudocode, where S is a semaphore initialized to 5 in line#2 and counter is a shared variable initialized to 0 in line#1. Assume that the increment operation in line#7 is not atomic.\n\nIf five threads execute the function parop concurrently, which of the following program behavior(s) is/are possible?",
+      "code": {
+        "lang": "c",
+        "text": " 1. int counter = 0;\n 2. Semaphore S = init(5);\n 3. void parop(void)\n 4. {\n 5.     wait(S);\n 6.     wait(S);\n 7.     counter++;\n 8.     signal(S);\n 9.     signal(S);\n10. }"
+      },
+      "options": [
+        "The value of counter is 5 after all the threads successfully complete the execution of parop.",
+        "The value of counter is 1 after all the threads successfully complete the execution of parop.",
+        "The value of counter is 0 after all the threads successfully complete the execution of parop.",
+        "There is a deadlock involving all the threads."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Left: five threads each pass the first wait so S drops from 5 to 0 and all block on the second wait, a deadlock. Right: a lost update where one thread stores 1 over a count of 4, leaving counter equal to 1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Two things that can go wrong",
+            "body": "$S$ is a counting semaphore starting at 5: each wait lowers it by 1 and blocks at 0, each signal raises it by 1. Each thread does two waits, so it needs 2 units, but the pool holds only 5. Also counter++ is load, add 1, store, so two threads can overlap and one update can be lost. Two questions decide everything: can all five threads get stuck in the middle, and what values can counter end on?"
+          },
+          {
+            "title": "D: a deadlock is possible",
+            "body": "Let every thread run line 5 before any runs line 6. That is five waits and $S = 5 - 5 = 0$. Now each thread stands at line 6 holding 1 unit and needs 1 more, but nothing is free and nobody can signal. All five are blocked for ever, so D is possible.",
+            "tex": "S = 5 - 5 = 0"
+          },
+          {
+            "title": "A: 5 is possible",
+            "body": "Run the threads one at a time: each does both waits, increments, signals twice. No overlap, so no lost update and $\\text{counter} = 5$. A is possible."
+          },
+          {
+            "title": "B: 1 is possible, C: 0 is not",
+            "body": "Thread a loads 0 and is paused. The other four threads then run, taking counter up to 4. Now a stores $0 + 1 = 1$, wiping out their work, and counter ends at 1. B is possible. Every store writes (a value that was read) $+ 1$, and values read are never negative, so the last store writes at least 1. Counter can never end at 0, so C is impossible. Exhaustive search of the interleavings gives counter in $\\{1, 2, 3, 4, 5\\}$ plus the one deadlock outcome. The answer is A, B, D."
+          }
+        ],
+        "shortcut": {
+          "body": "Count the semaphore units: 5 threads each holding one while asking for a second drains $S$ to 0, so deadlock (D). Sequential runs give 5 (A), a lost update gives less, down to 1 (B), and every store writes at least 1, so 0 is out. 1 minute."
+        },
+        "traps": [
+          {
+            "option": 2,
+            "text": "Believing a lost update can erase every increment and give 0. Each store writes the loaded value plus 1, so the final value is never below 1."
+          },
+          {
+            "option": 3,
+            "text": "Assuming 5 units are enough for 5 threads. Each thread needs 2 units at once, so when all five take one unit first, the pool is empty and every thread waits for a unit that can never come back."
+          },
+          {
+            "option": 1,
+            "text": "Thinking the semaphore stops the lost update. S allows up to 2 threads past both waits at once (5 units, 2 per thread), so counter++ can overlap."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "A counting semaphore initialised to a small number, a double wait in each thread, and a non-atomic increment on a shared variable. These give both a blocking question and a lost-update question.",
+          "contrast": "A binary semaphore used as a lock would keep one thread in the section and avoid both problems; here the count of 5 lets several threads in and the double wait can drain it."
+        },
+        "check": {
+          "body": "Vary the thread count. With 4 threads and S = 5, four first waits leave S = 1, so one thread gets its second wait, finishes and returns units; no deadlock. With 5 threads the first waits drain S to exactly 0. So the deadlock needs all five threads, matching the stem. For counter, every store writes a loaded value plus 1, so it is at least 1 and 0 never appears."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, question 46 page",
+          "url": "https://gateoverflow.in/357405/gate-cse-2021-set-1-question-46"
+        },
+        {
+          "label": "GATE 2021 CS-1 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        },
+        {
+          "label": "GATE 2021 CS Set 1 and Set 2 question papers in one PDF, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Two different things can go wrong here: threads getting stuck, and threads overwriting each other. Which line of the code is responsible for each?"
+        },
+        {
+          "kind": "concept",
+          "text": "A counting semaphore starting at 5 hands out 5 units: wait takes one and blocks at zero. The statement counter++ is load, add, store, so overlaps can lose an update."
+        },
+        {
+          "kind": "principle",
+          "text": "For each claimed outcome, look for one schedule that produces it or an argument that none can. Blocking needs all units held by waiting threads; a lost update needs a stale value to be stored."
+        },
+        {
+          "kind": "setup",
+          "text": "Count the units held if every thread runs only its first wait. Separately, ask what is the smallest value any single store can write into counter."
+        },
+        {
+          "kind": "partial",
+          "text": "Let all five threads run line 5 once before any runs line 6. What is S then, and can any thread reach a signal?"
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following pseudocode, where S is a semaphore initialized to 4 and counter is a shared variable initialized to 0. Assume that the increment is not atomic. Each thread runs: wait(S); wait(S); counter++; signal(S); signal(S). If three threads execute this function concurrently, which of the following program behavior(s) is/are possible?",
+        "options": [
+          "The value of counter is 3 after all the threads complete.",
+          "The value of counter is 1 after all the threads complete.",
+          "The value of counter is 0 after all the threads complete.",
+          "There is a deadlock involving all the threads."
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "Three threads can hold at most 3 units after their first waits, so one unit of S stays free and some thread always completes: no deadlock. One at a time gives 3, and a stale store can wipe out earlier updates down to 1. Every store writes at least 1, so 0 is impossible."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q34",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "os-synchronization-deadlock.semaphores",
+      "difficulty": "medium",
+      "stem": "Each of a set of n processes executes the following code using two semaphores a and b initialized to 1 and 0, respectively. Assume that count is a shared variable initialized to 0 and not used in CODE SECTION P.\n\nWhat does the code achieve?",
+      "code": {
+        "lang": "c",
+        "text": "CODE SECTION P\n\nwait(a); count=count+1;\nif (count==n) signal(b);\nsignal(a); wait(b); signal(b);\n\nCODE SECTION Q"
+      },
+      "options": [
+        "It ensures that no process executes CODE SECTION Q before every process has finished CODE SECTION P.",
+        "It ensures that at most two processes are in CODE SECTION Q at any time.",
+        "It ensures that all processes execute CODE SECTION P mutually exclusively.",
+        "It ensures that at most n−1 processes are in CODE SECTION P at any time."
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Barrier with three processes: each does wait(a), count++, signal(a); the third sets count to 3 and signals b, opening the gate b; before that every process is held at wait(b), so none reaches section Q early."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Lock and gate",
+            "body": "A semaphore $a$ starting at 1 is a lock: only one process at a time can be between $\\text{wait}(a)$ and $\\text{signal}(a)$. A semaphore $b$ starting at 0 is a closed gate: $\\text{wait}(b)$ blocks until someone does $\\text{signal}(b)$. The code is a barrier: a place where every process must arrive before any may go on. The rule: find the one event that opens the gate, and ask who can do it."
+          },
+          {
+            "title": "Counting arrivals",
+            "body": "Each process finishes section P and then runs $\\text{wait}(a)$, adds 1 to $\\text{count}$, and signals $a$. The lock makes the additions safe. Only the process that makes $\\text{count} = n$ runs $\\text{signal}(b)$, and this happens only after all $n$ processes have added 1, that is, after all $n$ finished P."
+          },
+          {
+            "title": "Passing the gate",
+            "body": "Before the $n$-th arrival, $b = 0$, so every process that gets to $\\text{wait}(b)$ waits there. Once $b = 1$, a process passes, then runs $\\text{signal}(b)$ at once, which puts the token back for the next one. So the processes pass one after another, and none reaches Q before all have finished P. A is true."
+          },
+          {
+            "title": "The other options",
+            "body": "B is false: after the gate opens, $b$ is restored by every process, so all $n$ may be in Q together, not only two. C is false: P sits before $\\text{wait}(a)$, with no lock, so any number may be in P together. D is false for the same reason: all $n$ can be inside P at once. The answer is A."
+          }
+        ],
+        "shortcut": {
+          "body": "Spot the pattern: a counter under a lock, then the last arrival signals a gate that each process re-signals. That is a one-use barrier, and a barrier means nobody enters Q until all have left P. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Thinking the signal(b) after wait(b) limits Q to two. It does the opposite: it keeps the gate open for everyone."
+          },
+          {
+            "option": 2,
+            "text": "Confusing the lock a with a lock on P. The lock covers only the count update, and section P is outside it."
+          },
+          {
+            "option": 3,
+            "text": "Thinking the gate holds back the last process. The last arrival is the one that opens it, and nothing limits how many are inside P before that."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.semaphores",
+          "clues": "Semaphore b starts at 0, a shared count is raised under the lock a, only the process that makes count equal n signals b, and every process re-signals b after passing. That is a gate opened by the last arrival.",
+          "contrast": "It resembles mutual exclusion because of the lock a, but a only protects the counter; the gate b decides who enters section Q."
+        },
+        "check": {
+          "body": "Run n = 2. First process: wait(a), count = 1, no signal, signal(a), then wait(b) blocks since b = 0. Second process: count = 2, signal(b) makes b = 1, signal(a), wait(b) passes with b = 0, signal(b) makes b = 1, enters Q. The first process now passes wait(b) too. Nobody entered Q before both had finished P."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020, question 34 page",
+          "url": "https://gateoverflow.in/333197/gate-cse-2020-question-34"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        },
+        {
+          "label": "GATE 2020 CS question paper with its answer key, IIT Delhi page print, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What event opens the semaphore b, and which process is allowed to cause it?"
+        },
+        {
+          "kind": "concept",
+          "text": "A semaphore initialised to 0 acts as a closed gate: wait blocks until another process signals. A semaphore initialised to 1 acts as a lock."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask when count first reaches n, and what each process does at wait(b) before that moment and after it."
+        },
+        {
+          "kind": "setup",
+          "text": "Trace n = 2 by hand: the first process arrives, then the second. Record a, b and count after each statement."
+        },
+        {
+          "kind": "partial",
+          "text": "Once the last arrival signals b, the first waiting process passes wait(b). What does its next statement, signal(b), do for the others?"
+        }
+      ],
+      "variation": {
+        "stem": "Each of n processes runs: CODE SECTION P; wait(a); count = count + 1; if (count == n) signal(b); signal(a); wait(b); CODE SECTION Q. The semaphores a and b start at 1 and 0, count starts at 0, and the final signal(b) of the usual barrier is removed. Which one of the following is guaranteed for n = 3?",
+        "options": [
+          "All three processes reach Q, but only after every process has finished P.",
+          "Exactly one process ever reaches Q and the other two stay blocked at wait(b).",
+          "No process ever reaches Q because b never becomes 1.",
+          "At most two processes are in CODE SECTION P at any time."
+        ],
+        "answer": 1,
+        "explanation": "The last arrival makes count equal to 3 and signals b once, giving b = 1. One waiting process passes wait(b) and brings b back to 0, and with no re-signal nobody else can pass. So exactly one process reaches Q and the rest wait forever."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q23",
+      "type": "nat",
+      "marks": 1,
+      "key": "80",
+      "topic": "os-synchronization-deadlock.critical-section",
+      "difficulty": "easy",
+      "stem": "Consider three concurrent processes P1, P2 and P3 as shown below, which access a shared variable D that has been initialized to 100.\n\nThe processes are executed on a uniprocessor system running a time-shared operating system. If the minimum and maximum possible values of D after the three processes have completed execution are X and Y respectively, then the value of Y – X is _____________.",
+      "table": {
+        "headers": [
+          "P1",
+          "P2",
+          "P3"
+        ],
+        "rows": [
+          [
+            "D = D + 20",
+            "D = D – 50",
+            "D = D + 10"
+          ]
+        ]
+      },
+      "answer": 80,
+      "solutionDiagram": {
+        "alt": "Two schedules from D = 100: P2 loads 100, P1 and P3 run to reach 130, then P2 stores 50 giving the minimum; and P1 stores 120, P3 loads 120, P2 stores 50, P3 stores 130 giving the maximum."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Why the answer is not one number",
+            "body": "A time-shared system can switch between processes at any machine instruction. The statement $D = D + 20$ is three instructions: load $D$ into a register, add 20, store the register into $D$. If a switch happens between the load and the store, another process may change $D$ in the meantime, and the store then overwrites that change. This is a lost update. The rule: the final value is whatever the last store wrote, so we choose which stores to lose."
+          },
+          {
+            "title": "Minimum X",
+            "body": "Let P2 load 100 first and wait. Run P1 and P3 completely, which takes $D$ to 130. Then P2 stores $100 - 50 = 50$, overwriting both. Only the decrement counted, so $D = 100 - 50 = 50$. It cannot go lower: P2 can only load a value of at least 100, and P1 and P3 only add. So $X = 50$.",
+            "tex": "X = 100 - 50 = 50"
+          },
+          {
+            "title": "Maximum Y",
+            "body": "Now lose P2's update and keep both increments. P2 loads 100 and waits. P1 runs: $D = 120$. P3 loads 120 and waits. P2 stores 50. P3 stores $120 + 10 = 130$. The value 130 is the top: every store adds at most 20 or 10 to a value that was already at most 130 (induction), and P2 only lowers. So $Y = 130$. The reachable final values, found by trying every interleaving, are 50, 60, 70, 80, 110, 120 and 130.",
+            "tex": "Y = 100 + 20 + 10 = 130"
+          },
+          {
+            "title": "The difference",
+            "body": "$Y - X = 130 - 50 = 80$.",
+            "tex": "Y - X = 130 - 50 = 80"
+          }
+        ],
+        "shortcut": {
+          "body": "Best case for the largest value: the decrement is lost, $100 + 20 + 10 = 130$. Best case for the smallest: both increments are lost, $100 - 50 = 50$. The difference is $80$. 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Taking the sequential result 80 as both X and Y and answering 0. Without synchronisation, the interleavings give different results."
+          },
+          {
+            "text": "Reporting Y alone (130) or X alone (50). The question asks for the difference $Y - X$, which is 80."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.critical-section",
+          "clues": "Three unsynchronised processes update one shared variable on a time-shared uniprocessor, and the question asks for the minimum and maximum possible results. That is a race condition and lost updates.",
+          "contrast": "With a lock around each statement the result would be the single value from serial execution; without it the interleavings give a range, so tell them apart by checking for mutual exclusion."
+        },
+        "check": {
+          "body": "Bound the range by the serial result. Any serial order gives $100 + 20 - 50 + 10 = 80$, which lies between the two extremes. The top is reached by keeping every increase and dropping the decrease, the bottom by keeping only the decrease. So the gap is the sum of the sizes of all three changes: $20 + 10 + 50 = 80$.",
+          "tex": "20 + 10 + 50 = 80"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 23 page",
+          "url": "https://gateoverflow.in/302825/gate-cse-2019-question-23"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Why can the final value of D differ from run to run? Which part of D = D + 20 can be interrupted?"
+        },
+        {
+          "kind": "concept",
+          "text": "A statement like D = D + 20 is load, add, store. If a switch falls between the load and the store, another process's update can be overwritten by a stale value."
+        },
+        {
+          "kind": "principle",
+          "text": "The final value is whatever the last store writes. To push D to an extreme, choose which processes' updates get overwritten."
+        },
+        {
+          "kind": "setup",
+          "text": "For the smallest value decide which update you keep and which you erase; for the largest do the opposite. Write each as a load and store order."
+        },
+        {
+          "kind": "partial",
+          "text": "For one extreme, let P2 load the starting value and pause while the other two run to completion. What does P2 store when it resumes, and what is left of the other updates?"
+        }
+      ],
+      "variation": {
+        "stem": "Three concurrent processes P1, P2 and P3 run on a uniprocessor under time sharing and access a shared variable D initialised to 100. P1 executes D = D + 30, P2 executes D = D - 40, and P3 executes D = D + 5. If the minimum and maximum possible values of D after all three complete are X and Y, the value of Y - X is _____.",
+        "answer": 75,
+        "explanation": "Each statement is load, add, store, so stale stores can erase updates. The maximum keeps both increases and loses the decrease: Y = 100 + 30 + 5 = 135. The minimum keeps only the decrease: X = 100 - 40 = 60. So Y - X = 75, which matches an enumeration of every interleaving."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "difficulty": "medium",
+      "stem": "Consider the following snapshot of a system running n concurrent processes. Process i is holding Xi instances of a resource R, 1 ≤ i ≤ n. Assume that all instances of R are currently in use. Further, for all i, process i can place a request for at most Yi additional instances of R while holding the Xi instances it already has. Of the n processes, there are exactly two processes p and q such that Yp = Yq = 0. Which one of the following conditions guarantees that no other process apart from p and q can complete execution?",
+      "options": [
+        "Xp + Xq < Min {Yk | 1 ≤ k ≤ n, k ≠ p, k ≠ q}",
+        "Xp + Xq < Max {Yk | 1 ≤ k ≤ n, k ≠ p, k ≠ q}",
+        "Min (Xp, Xq) ≥ Min {Yk | 1 ≤ k ≤ n, k ≠ p, k ≠ q}",
+        "Min (Xp, Xq) ≤ Max {Yk | 1 ≤ k ≤ n, k ≠ p, k ≠ q}"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Number line of freed instances: p and q release Xp plus Xq, and another process can finish only if its extra request Yk is at most that sum; the condition puts every Yk to the right of the sum."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What can finish",
+            "body": "A process can finish only if it can obtain all the extra instances it may still ask for, $Y_k$, at the same time. All instances are in use, so nothing is free now. Processes $p$ and $q$ need nothing more ($Y = 0$), so they finish and give back $X_p + X_q$ instances. That is all the free supply there is, until some other process finishes. The rule: a process $k$ can finish only if $Y_k \\le$ the free supply."
+          },
+          {
+            "title": "Turn the rule round",
+            "body": "No other process may finish. The first one to finish would need $Y_k \\le X_p + X_q$. To stop every one of them we need $Y_k > X_p + X_q$ for all other $k$. The smallest $Y_k$ is the easiest to satisfy, so it is enough to check the minimum: $X_p + X_q < \\min Y_k$. Then all $Y_k$ are above the supply and nobody else can finish.",
+            "tex": "X_p + X_q < \\min_{k \\ne p, q} Y_k"
+          },
+          {
+            "title": "Check against the options",
+            "body": "A is exactly this condition. B uses the maximum: it only says the sum is below the largest $Y_k$, but a process with a small $Y_k$ could still finish. C and D compare $\\min(X_p, X_q)$ with other values, but the supply is the sum $X_p + X_q$, so they do not decide who can finish. The answer is A."
+          }
+        ],
+        "shortcut": {
+          "body": "The freed supply is $X_p + X_q$. To block everyone, even the process with the smallest extra need must be blocked, so compare against the minimum: option A. Anything with a Max or a $\\min(X_p, X_q)$ is wrong. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Using the Max. That blocks only the process with the largest request, and one with a small request could still finish."
+          },
+          {
+            "option": 2,
+            "text": "Comparing min(Xp, Xq) with a minimum Y. The supply is the sum of both, not the smaller one, and the inequality points the wrong way for a guarantee."
+          },
+          {
+            "option": 3,
+            "text": "Comparing min(Xp, Xq) with the maximum Y. This does not use the sum, and says nothing that stops a small request from being met."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+          "clues": "All instances are in use, two processes need nothing more, and the question asks which condition stops every other process from completing. This is the safe-sequence test with symbolic numbers.",
+          "contrast": "It looks like a pure resource counting problem, but unlike the minimum-resources question it compares needs against the freed supply, not against the total."
+        },
+        "check": {
+          "body": "Test with numbers. Let $X_p = 2$ and $X_q = 1$, so the supply is 3. With other requests 4 and 5 nobody else can run, and the condition holds since $3 < 4$. Change one request to 3: that process now fits in the supply and finishes, and the condition fails since $3 < 3$ is false. The boundary agrees with the condition."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, question 39 page",
+          "url": "https://gateoverflow.in/302809/gate-cse-2019-question-39"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Nothing is free right now. Which processes can finish first, and how many instances do they hand back?"
+        },
+        {
+          "kind": "concept",
+          "text": "A process can finish only when every instance it may still request is available at the same moment."
+        },
+        {
+          "kind": "principle",
+          "text": "No other process finishes if each needs more than the free supply. The supply grows only when some process finishes."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the free supply after p and q finish in terms of X. Then write the inequality that stops one process k from finishing."
+        },
+        {
+          "kind": "partial",
+          "text": "Suppose p and q hold 3 and 2 instances, and the other requests are 7, 6 and 5. How many instances are free once p and q finish, and can any of the others then run?"
+        }
+      ],
+      "variation": {
+        "stem": "All instances of a resource R are in use. Processes p and q need no more instances and hold 3 and 2 instances respectively. Three other processes each may request additional instances. Which one of the following sets of maximum additional requests guarantees that none of the three can complete?",
+        "options": [
+          "6, 8, 9",
+          "5, 8, 9",
+          "2, 9, 9",
+          "3, 3, 12"
+        ],
+        "answer": 0,
+        "explanation": "When p and q finish they free 3 + 2 = 5 instances. A process can finish only if its additional request is at most 5. The set 6, 8, 9 has every request above 5, so none can run. Each other set contains a request of at most 5, so that process finishes."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q24",
+      "type": "nat",
+      "marks": 1,
+      "key": "2",
+      "topic": "os-synchronization-deadlock.min-resources",
+      "difficulty": "easy",
+      "stem": "Consider a system with 3 processes that share 4 instances of the same resource type. Each process can request a maximum of $K$ instances. Resource instances can be requested and released only one at a time. The largest value of $K$ that will always avoid deadlock is ____.",
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Four unit slots for three processes: with K = 2 each holds one and one unit stays free so a process can reach its maximum and finish; with K = 3 the holding 2, 1, 1 uses all four units and every process still wants one more."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a deadlock needs here",
+            "body": "A resource type has 4 identical instances. A process asks for them one at a time, keeps what it already holds while it waits, and gives everything back only when it has reached its maximum $K$ and finished. A deadlock is a state in which every unfinished process is waiting for an instance and no instance is free, so nobody can finish and release. The rule: a process holding $K$ instances can always finish, so deadlock needs every process to be stuck holding at most $K-1$ while all instances are taken. Deadlock is therefore possible exactly when $n(K-1) \\ge R$ for $n$ processes and $R$ instances, and it is impossible when $n(K-1) < R$, that is $n(K-1)+1 \\le R$."
+          },
+          {
+            "title": "Set up the numbers",
+            "body": "Here $n = 3$ processes and $R = 4$ instances. Deadlock is avoided for every possible order of requests when the three processes together cannot use up all four instances while all of them are still short of $K$. The most they can hold while every one of them is still unfinished is $3(K-1)$ instances.",
+            "tex": "3(K-1) + 1 \\le 4"
+          },
+          {
+            "title": "Solve and check the boundary",
+            "body": "The inequality gives $K - 1 \\le 1$, so $K \\le 2$. Check $K = 2$: every process holds at most 1, so at most 3 of the 4 instances are held and 1 is always free. Whoever receives it reaches its maximum 2, finishes and returns 2 instances, and the others follow. No deadlock. Check $K = 3$: the holding $(2, 1, 1)$ uses all 4 instances, each process holds fewer than 3, each wants one more, and none is free. That is a deadlock. Larger $K$ leaves even more room for it. The largest safe value is 2."
+          }
+        ],
+        "shortcut": {
+          "body": "Use $n(K-1)+1 \\le R$: $3(K-1)+1 \\le 4$ gives $K \\le 2$. 20 seconds. It is safe only when every process has the same maximum $K$, there is one resource type, and each process asks one instance at a time, as here."
+        },
+        "traps": [
+          {
+            "text": "Answering 3. For $K = 3$ the allocation $(2, 1, 1)$ already deadlocks. 3 is the smallest $K$ for which deadlock can happen, not the largest for which it cannot."
+          },
+          {
+            "text": "Answering 1 from $\\lfloor 4/3 \\rfloor$. That divides the instances evenly, which would only be needed if every process had to hold its full maximum at the same time. Processes finish one after another and release, so 2 still works."
+          },
+          {
+            "text": "Answering 4 because the total of 4 instances covers one process's maximum. A single process is never the problem. Deadlock comes from the three processes each holding part of what they need."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.min-resources",
+          "clues": "Identical processes with the same maximum K, one resource type with a fixed count, and requests made one instance at a time. The question asks for the largest K that always avoids deadlock.",
+          "contrast": "The Banker's algorithm tests one given state for safety; here no state is given, so we need the worst case over all states instead."
+        },
+        "check": {
+          "body": "Use a second route, pigeonhole. If all 4 instances are allocated among 3 processes, some process holds at least 2. With maximum 2 that process holds its full need, so it can finish and release. With maximum 3, holding 2 is still short of 3, so that argument fails. The two routes agree on where safety ends."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 24 page",
+          "url": "https://gateoverflow.in/204098/gate-cse-2018-question-24"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Think of the worst way requests could interleave. How many instances can the processes hold while none of them has reached its maximum?"
+        },
+        {
+          "kind": "concept",
+          "text": "Deadlock needs every unfinished process waiting with no instance free. A process holding its full maximum is never stuck, since it can finish."
+        },
+        {
+          "kind": "principle",
+          "text": "To be certain of avoiding deadlock, the processes together must be unable to hold all instances while each is still below its maximum."
+        },
+        {
+          "kind": "setup",
+          "text": "Each stuck process holds at most K minus 1 instances. Write the largest total held by 3 stuck processes in terms of K and compare it with the 4 instances."
+        },
+        {
+          "kind": "partial",
+          "text": "Try K = 3 and split the 4 instances among the three processes as unevenly as you like. Can all 4 be held while everyone is still short of 3?"
+        }
+      ],
+      "variation": {
+        "stem": "A system has 4 processes that share 10 instances of the same resource type. Each process can request a maximum of $K$ instances. Resource instances can be requested and released only one at a time. The largest value of $K$ that will always avoid deadlock is ____.",
+        "answer": 3,
+        "explanation": "A stuck process holds at most $K - 1$, so deadlock is impossible when $4(K-1) + 1 \\le 10$, which gives $K - 1 \\le 2$ and $K \\le 3$. For $K = 4$ the holdings 3, 3, 3, 1 use all 10 instances with everyone still short of 4, which is a deadlock. An exhaustive search of holdings confirms that 3 is the largest safe value."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q39",
+      "type": "mcq",
+      "marks": 2,
+      "key": "A",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "difficulty": "medium",
+      "stem": "In a system, there are three types of resources: E, F and G. Four processes P0, P1, P2 and P3 execute concurrently. At the outset, the processes have declared their maximum resource requirements using a matrix named Max as given below. For example, Max[P2,F] is the maximum number of instances of F that P2 would require. The number of instances of the resources allocated to the various processes at any given state is given by a matrix named Allocation.\n\nConsider a state of the system with the Allocation matrix as shown below, and in which 3 instances of E and 3 instances of F are the only resources available.\n\nFrom the perspective of deadlock avoidance, which one of the following is true?",
+      "table": {
+        "headers": [
+          "Process",
+          "Allocation E",
+          "Allocation F",
+          "Allocation G",
+          "Max E",
+          "Max F",
+          "Max G"
+        ],
+        "rows": [
+          [
+            "P0",
+            "1",
+            "0",
+            "1",
+            "4",
+            "3",
+            "1"
+          ],
+          [
+            "P1",
+            "1",
+            "1",
+            "2",
+            "2",
+            "1",
+            "4"
+          ],
+          [
+            "P2",
+            "1",
+            "0",
+            "3",
+            "1",
+            "3",
+            "3"
+          ],
+          [
+            "P3",
+            "2",
+            "0",
+            "0",
+            "5",
+            "4",
+            "1"
+          ]
+        ]
+      },
+      "options": [
+        "The system is in safe state.",
+        "The system is not in safe state, but would be safe if one more instance of E were available",
+        "The system is not in safe state, but would be safe if one more instance of F were available",
+        "The system is not in safe state, but would be safe if one more instance of G were available"
+      ],
+      "answer": 0,
+      "solutionDiagram": {
+        "alt": "Four boxes in a chain: P0, P2, P1 and P3 each run in turn because their need fits the available vector, and the available vector grows from (3,3,0) to (4,3,1), (5,3,4), (6,4,6) and (8,4,6)."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a safe state is",
+            "body": "Each process has declared a maximum (Max) for every resource type. Allocation is what it holds now. Need is what it may still ask for, $\\text{Need} = \\text{Max} - \\text{Allocation}$. Available is the number of free instances of each type, written as a vector $(E, F, G)$. A process can run to the end if its Need is at most Available in every type. When it ends it returns its whole Allocation, so Available grows. A state is safe if some order of the processes lets every one of them finish this way; deadlock avoidance only grants requests that keep the state safe. The test: repeatedly pick any process whose Need fits in Available, finish it, add its Allocation back, and see whether all four get picked."
+          },
+          {
+            "title": "Compute Need and Available",
+            "body": "Subtract Allocation from Max row by row: P0 $(4,3,1)-(1,0,1) = (3,3,0)$, P1 $(2,1,4)-(1,1,2) = (1,0,2)$, P2 $(1,3,3)-(1,0,3) = (0,3,0)$, P3 $(5,4,1)-(2,0,0) = (3,4,1)$. The stem says only 3 instances of E and 3 of F are available, so no G is free: Available is $(3,3,0)$.",
+            "tex": "\\text{Available} = (3,3,0)"
+          },
+          {
+            "title": "Find a finishing order",
+            "body": "Only P0 and P2 fit now: P1 needs 2 of G and P3 needs 4 of F. Run P0: need $(3,3,0) \\le (3,3,0)$, then Available $= (3,3,0)+(1,0,1) = (4,3,1)$. Run P2: need $(0,3,0) \\le (4,3,1)$, Available becomes $(4,3,1)+(1,0,3) = (5,3,4)$. Run P1: need $(1,0,2) \\le (5,3,4)$, Available becomes $(5,3,4)+(1,1,2) = (6,4,6)$. Run P3: need $(3,4,1) \\le (6,4,6)$, Available becomes $(8,4,6)$. All four finished, so the order P0, P2, P1, P3 is a safe sequence.",
+            "tex": "(3,3,0) \\to (4,3,1) \\to (5,3,4) \\to (6,4,6) \\to (8,4,6)"
+          },
+          {
+            "title": "Match the options",
+            "body": "The state is safe, so option A is true. Options B, C and D all begin with 'the system is not in safe state', which is false, so each is false whatever follows. The answer is A."
+          }
+        ],
+        "shortcut": {
+          "body": "Write Need = Max - Allocation, then run a process whose Need fits, add its Allocation back and repeat. A safe order appears after one pass: P0, P2, P1, P3. A safe state makes B, C and D false at once. About 2 minutes. Always compare Need, not Max, with Available."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Comparing Max with Available instead of Need. P0's Max in E is 4 against 3 available, which looks like one E is missing. P0's Need in E is only 3."
+          },
+          {
+            "option": 2,
+            "text": "Testing every process against the starting Available only. P3 needs 4 of F against 3 free, which looks like one F is missing. P3 runs last, after P0, P2 and P1 have returned their F."
+          },
+          {
+            "option": 3,
+            "text": "The same single-shot test on P1, which needs 2 of G while G is 0. P1 runs after P0 and P2 release G, so no extra G is needed."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+          "clues": "Allocation and Max matrices for four processes and three resource types, plus an Available vector, and the question asks about safety from the viewpoint of deadlock avoidance.",
+          "contrast": "Deadlock detection looks at processes already waiting; avoidance asks whether some order could still finish everyone, using Need rather than current requests."
+        },
+        "check": {
+          "body": "Test a different order. Start from Available $(3,3,0)$. Run P0 (Need $(3,3,0)$ fits), giving $(4,3,1)$. Run P1 (Need $(1,0,2)$ fits), giving $(5,4,3)$. Run P3 (Need $(3,4,1)$ fits), giving $(7,4,3)$. Run P2 (Need $(0,3,0)$ fits), giving $(8,4,6)$. A second safe sequence exists, and it ends at the total the system owns.",
+          "tex": "(3,3,0)\\to(4,3,1)\\to(5,4,3)\\to(7,4,3)\\to(8,4,6)"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 39 page",
+          "url": "https://gateoverflow.in/204113/gate-cse-2018-question-39"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Deadlock avoidance asks whether the current state is safe. What does it mean for a state to be safe?"
+        },
+        {
+          "kind": "concept",
+          "text": "A state is safe when some order lets every process run to completion, each getting its remaining need from what is free plus what earlier processes returned."
+        },
+        {
+          "kind": "principle",
+          "text": "Need is Max minus Allocation. A process may run when its Need is at most Available in every column; when it ends, its Allocation is added back to Available."
+        },
+        {
+          "kind": "setup",
+          "text": "Compute the Need row of every process. Then read Available from the stem: only E and F are free, so decide what the G entry must be."
+        },
+        {
+          "kind": "partial",
+          "text": "Compare each Need row with the Available vector and list the processes that can start right now. Run one, update Available, and look again."
+        }
+      ],
+      "variation": {
+        "stem": "A system has three resource types E, F and G and four processes P0 to P3. Allocation rows (E, F, G): P0 (0,2,0), P1 (0,1,1), P2 (0,1,2), P3 (1,0,0). Max rows: P0 (1,2,0), P1 (2,1,3), P2 (0,3,2), P3 (3,0,0). The only free resource is 1 instance of E. From the perspective of deadlock avoidance, which one of the following is true?",
+        "options": [
+          "The system is in a safe state.",
+          "The system is not in a safe state, but would be safe if one more instance of E were available.",
+          "The system is not in a safe state, but would be safe if one more instance of F were available.",
+          "The system is not in a safe state, but would be safe if one more instance of G were available."
+        ],
+        "answer": 1,
+        "explanation": "Needs are P0 (1,0,0), P1 (2,0,2), P2 (0,2,0), P3 (2,0,0). With Available (1,0,0) only P0 can run, then P2, leaving (1,3,2). P1 needs 2 of E and P3 needs 2 of E, so both are stuck: unsafe. One more E gives Available (2,0,0) and all four can finish. One more F or G still leaves E short at 1."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q40",
+      "type": "mcq",
+      "marks": 2,
+      "key": "C",
+      "topic": "os-synchronization-deadlock.producer-consumer",
+      "difficulty": "medium",
+      "stem": "Consider the following solution to the producer-consumer synchronization problem. The shared buffer size is $N$. Three semaphores empty, full and mutex are defined with respective initial values of 0, $N$ and 1. Semaphore empty denotes the number of available slots in the buffer, for the consumer to read from. Semaphore full denotes the number of available slots in the buffer, for the producer to write to. The placeholder variables, denoted by P, Q, R, and S, in the code below can be assigned either empty or full. The valid semaphore operations are: wait() and signal().\n\nWhich one of the following assignments to P, Q, R and S will yield the correct solution?",
+      "code": {
+        "lang": "c",
+        "text": "Producer:\n\ndo{\n    wait(P);\n    wait(mutex);\n    //Add item to buffer\n    signal(mutex);\n    signal(Q);\n}while(1);\n\nConsumer:\n\ndo{\n    wait(R);\n    wait(mutex);\n    //Consume item from buffer\n    signal(mutex);\n    signal(S);\n}while(1);"
+      },
+      "options": [
+        "P: full, Q: full, R: empty, S: empty",
+        "P: empty, Q: empty, R: full, S: full",
+        "P: full, Q: empty, R: empty, S: full",
+        "P: empty, Q: full, R: full, S: empty"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Producer and consumer boxes with a buffer between them: the producer waits on full (free slots, starts N) and signals empty (items, starts 0), the consumer waits on empty and signals full, shown as two arrows in opposite directions."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Counting semaphores as slot counters",
+            "body": "A semaphore is an integer. $\\text{wait}(S)$ lowers it by 1 when it is above 0 and otherwise puts the caller to sleep. $\\text{signal}(S)$ raises it by 1 and wakes a sleeper. In a bounded buffer of $N$ slots two counters do the work: one counts the free slots and one counts the filled slots. The producer must wait for a free slot and, after adding, announce one more filled slot. The consumer must wait for a filled slot and, after taking, announce one more free slot. The mutex only keeps the two from touching the buffer at the same instant. Read the names from the stem, not from habit: here empty counts the slots the consumer can read from, that is the items, and starts at 0; full counts the slots the producer can write to, that is the free slots, and starts at $N$. The names are the reverse of the usual textbook ones."
+          },
+          {
+            "title": "Fill in the placeholders",
+            "body": "The producer waits for a free slot, so P = full. After adding it announces an item, so Q = empty. The consumer waits for an item, so R = empty. After taking it frees a slot, so S = full. That is option C.",
+            "tex": "P = \\text{full},\\; Q = \\text{empty},\\; R = \\text{empty},\\; S = \\text{full}"
+          },
+          {
+            "title": "Check it behaves",
+            "body": "At the start empty is 0, so a consumer that arrives first sleeps at wait(empty) and cannot read from an empty buffer. The producer can run $N$ times, each time lowering full and raising empty, and the $(N+1)$-th wait(full) sleeps because the buffer is full. Each consumed item raises full and wakes the producer. A script that tries every interleaving for $N = 2$ and all 16 assignments of the four placeholders finds that only P = full, Q = empty, R = empty, S = full gives neither a deadlock nor an overflow or underflow of the buffer."
+          },
+          {
+            "title": "Why the other three fail",
+            "body": "A: the producer waits on full and signals full, so it never sleeps and overfills the buffer, while the consumer waits on empty that nobody raises and sleeps forever. B: the producer waits on empty, which starts at 0, and sleeps forever, while the consumer waits on full, which starts at $N$, and reads from an empty buffer. D: the roles are swapped, the consumer waits on the free-slot counter and reads from an empty buffer at once. Only C is correct."
+          }
+        ],
+        "shortcut": {
+          "body": "The producer needs a free slot, and the free-slot counter is the one that starts at $N$: full. So P = full, which leaves A or C. A has the producer wait on full and signal full, the same semaphore, so it can never block: out. C remains. 1 minute. Take the meaning from the stem's definitions, since the names are the reverse of the textbook."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Choosing a pair where the producer waits and signals the same semaphore. The producer never blocks, so the buffer overflows, and the consumer waits on a counter nobody raises."
+          },
+          {
+            "option": 1,
+            "text": "Choosing a pair where each side waits and signals the same semaphore, the same lure as A. The producer waits on empty, which starts at 0, so it sleeps at once, and the consumer waits on full, which starts at $N$, so it reads from an empty buffer."
+          },
+          {
+            "option": 3,
+            "text": "Using the classic textbook naming, where empty counts free slots: the producer waits on empty and signals full, the consumer waits on full and signals empty. That is P = empty, Q = full, R = full, S = empty. Here empty starts at 0 and means items, so the producer sleeps at once and the consumer reads from an empty buffer."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.producer-consumer",
+          "clues": "Two semaphores with opposite initial values (0 and N) plus a mutex, a bounded shared buffer, and placeholders to fill so that producer and consumer neither overfill nor underflow it.",
+          "contrast": "The textbook version names the free-slot counter empty. Here the stem reverses the names, so the mapping must come from the stem definitions and the initial values, not from the usual labels."
+        },
+        "check": {
+          "body": "Swap test: take P = empty and Q = full. empty starts at 0, so the producer blocks at its very first wait and never adds anything; the buffer stays empty and the system makes no progress. The chosen assignment avoids this. Invariant test: with P = full, Q = empty, R = empty, S = full, empty + full equals N at every moment outside a wait/signal pair. It starts at 0 + N, a producer step lowers full by 1 and raises empty by 1, and a consumer step lowers empty by 1 and raises full by 1. Both counters stay at 0 or above, so items never exceed N and never go below 0."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, question 40 page",
+          "url": "https://gateoverflow.in/204114/gate-cse-2018-question-40"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        },
+        {
+          "label": "GATE 2018 CS question paper, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before looking at the options, ask what the producer must be sure of before it writes, and what it must announce after it writes."
+        },
+        {
+          "kind": "concept",
+          "text": "A counting semaphore holds a number. One counter tracks places a producer can still write into, the other tracks items a consumer can still read. Each side waits on one counter and signals the other."
+        },
+        {
+          "kind": "principle",
+          "text": "Do not trust the names from habit. Take the meaning each name has in this stem and match it to its starting value, then decide which counter the producer must be able to run down first."
+        },
+        {
+          "kind": "setup",
+          "text": "Write two lines. Producer: wait on the counter for writable places, signal the counter for readable items. Consumer: the mirror image. Then translate each line into empty or full using the stem."
+        },
+        {
+          "kind": "partial",
+          "text": "Fix P first: it is the counter the producer waits on. Look for the semaphore that starts at the buffer size, and see which options remain after that choice."
+        }
+      ],
+      "variation": {
+        "stem": "A bounded buffer of size $N$ is shared by one producer and one consumer. Three semaphores are defined: items (initial value 0, the number of filled slots), space (initial value $N$, the number of free slots) and mutex (initial value 1). The placeholders A, B, C and D below can each be items or space.\n\nProducer: wait(A); wait(mutex); add item; signal(mutex); signal(B).\nConsumer: wait(C); wait(mutex); remove item; signal(mutex); signal(D).\n\nWhich assignment makes the solution correct?",
+        "options": [
+          "A: items, B: space, C: space, D: items",
+          "A: space, B: items, C: items, D: space",
+          "A: space, B: space, C: items, D: items",
+          "A: items, B: items, C: space, D: space"
+        ],
+        "answer": 1,
+        "explanation": "The producer must wait for a free slot, so A = space, and then announce a filled slot, so B = items. The consumer waits for a filled slot, so C = items, and frees a slot afterwards, so D = space. Trying all 16 assignments with N = 2 by a script leaves only this one without a deadlock or buffer overflow or underflow."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q33",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+      "difficulty": "medium",
+      "stem": "A system shares 9 tape drives. The current allocation and maximum requirement of tape drives for three processes are shown below:\n\nWhich of the following best describes current state of the system?",
+      "table": {
+        "headers": [
+          "Process",
+          "Current Allocation",
+          "Maximum Requirement"
+        ],
+        "rows": [
+          [
+            "P1",
+            "3",
+            "7"
+          ],
+          [
+            "P2",
+            "1",
+            "6"
+          ],
+          [
+            "P3",
+            "3",
+            "5"
+          ]
+        ]
+      },
+      "options": [
+        "Safe, Deadlocked",
+        "Safe, Not Deadlocked",
+        "Not Safe, Deadlocked",
+        "Not Safe, Not Deadlocked"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Four rows of nine tape-drive cells: at first two are free, then P3 finishes and five are free, then P1 finishes and eight are free, then P2 finishes and all nine are free."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Safe, unsafe and deadlocked",
+            "body": "Each process has a maximum number of drives it may ask for (Maximum Requirement) and holds some now (Current Allocation). Need is what it may still ask for, $\\text{Need} = \\text{Maximum} - \\text{Allocation}$. A state is safe if some order exists in which every process can get its whole Need from the free drives plus the drives returned by processes that finished earlier in the order. A state is unsafe if no such order exists. A deadlock is different: processes are already waiting on one another and can never continue. A safe state can never be deadlocked, because the finishing order is a way out. An unsafe state is only at risk of deadlock, and is not necessarily deadlocked."
+          },
+          {
+            "title": "Free drives and Need",
+            "body": "Allocated: $3 + 1 + 3 = 7$ of the 9 drives, so 2 are free. Need: P1 $7-3 = 4$, P2 $6-1 = 5$, P3 $5-3 = 2$.",
+            "tex": "\\text{Available} = 9 - (3+1+3) = 2"
+          },
+          {
+            "title": "Look for a finishing order",
+            "body": "With 2 free, only P3 can be served (need 2). P3 finishes and returns 3, so 5 are free. Now P1 (need 4) fits; it finishes and returns 3, so 8 are free. P2 (need 5) fits and finishes, so all 9 are free. The order P3, P1, P2 lets every process finish: the state is safe.",
+            "tex": "2 \\xrightarrow{P_3} 5 \\xrightarrow{P_1} 8 \\xrightarrow{P_2} 9"
+          },
+          {
+            "title": "Deadlocked or not",
+            "body": "A safe state is never deadlocked, and no process is waiting on another right now. So the state is safe and not deadlocked: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Free = 9 - 7 = 2. The smallest Need is 2 (P3), so P3 can finish and free 5, which covers the other Needs 4 and 5. Safe. Safe means not deadlocked. B, in about a minute. It is safe to stop after the first step because the 5 freed drives cover both remaining Needs, 4 and 5."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Safe and deadlocked cannot both hold. A safe state has a finishing order, which is exactly the way out of a deadlock."
+          },
+          {
+            "option": 2,
+            "text": "Seeing 2 free drives against Needs of 4 and 5 and concluding that everyone is stuck. P3 needs only 2, finishes, and its drives unblock the rest."
+          },
+          {
+            "option": 3,
+            "text": "The same mistake of judging by the 2 free drives alone, then correctly noting that nobody is waiting yet. The state is safe, so 'not safe' is wrong."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-avoidance-bankers",
+          "clues": "One resource type with a single count of 9, a table of current allocation against maximum requirement, and a question about whether the present state is safe.",
+          "contrast": "This is the safety test, not deadlock detection on a resource allocation graph. Detection uses current requests; the safety test uses the maximum claims to see whether some finishing order exists."
+        },
+        "check": {
+          "body": "Try the order P1, P2, P3 instead. With 2 free drives P1 needs 4 and cannot start, so a wrong first pick gets stuck, which is why the order matters. Now try a second safe order from the start: P3, P2, P1. P3 runs with 2 free and returns 3, so 5 are free; P2 needs 5 and fits, and returns 1, so 6 are free; P1 needs 4 and fits, and returns 3, so all 9 are free. A second order that also ends with the whole pool agrees with the first."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, question 33 page",
+          "url": "https://gateoverflow.in/118375/gate-cse-2017-set-2-question-33"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Is the question asking whether processes are stuck right now, or whether a safe finishing order exists? Those are two different properties."
+        },
+        {
+          "kind": "concept",
+          "text": "Need is what a process may still ask for: maximum minus what it holds. A state is safe when some order lets every process get its whole Need and then give everything back."
+        },
+        {
+          "kind": "principle",
+          "text": "Try to build the order one process at a time: pick any process whose Need fits in the free drives, let it finish, add its holdings to the free pool, and repeat. Also recall how safe and deadlocked relate."
+        },
+        {
+          "kind": "setup",
+          "text": "Add up the current allocations and subtract from 9 to get the free drives. Compute the Need column. Then see which processes can be served with the free count."
+        },
+        {
+          "kind": "partial",
+          "text": "Free drives are fewer than two of the three Needs. Find the one process whose Need fits, and work out how many drives are free after it returns its holdings."
+        }
+      ],
+      "variation": {
+        "stem": "A system shares 10 tape drives. Three processes hold and may need at most the following numbers of drives: P1 holds 4 and needs at most 8, P2 holds 2 and needs at most 5, P3 holds 2 and needs at most 4. Which of the following best describes the current state?",
+        "options": [
+          "Safe, Deadlocked",
+          "Safe, Not Deadlocked",
+          "Not Safe, Deadlocked",
+          "Not Safe, Not Deadlocked"
+        ],
+        "answer": 1,
+        "explanation": "Held drives are 4 + 2 + 2 = 8, so 2 are free. Needs are 4, 3 and 2. P3 fits, finishes and frees 4 drives; P2 (need 3) fits and frees 6; P1 (need 4) fits and frees all 10. A finishing order exists, so the state is safe, and a safe state is never deadlocked. A script running the safety test confirms it."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q27",
+      "type": "mcq",
+      "marks": 2,
+      "key": "D",
+      "topic": "os-synchronization-deadlock.deadlock-conditions",
+      "difficulty": "medium",
+      "stem": "A multithreaded program P executes with $x$ number of threads and uses $y$ number of locks for ensuring mutual exclusion while operating on shared memory locations. All locks in the program are non-reentrant, i.e., if a thread holds a lock $l$, then it cannot re-acquire lock $l$ without releasing it. If a thread is unable to acquire a lock, it blocks until the lock becomes available. The minimum value of $x$ and the minimum value of $y$ together for which execution of P can result in a deadlock are:",
+      "options": [
+        "$x = 1, y = 2$",
+        "$x = 2, y = 1$",
+        "$x = 2, y = 2$",
+        "$x = 1, y = 1$"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "One thread T and one lock l: T locks l, then runs lock(l) a second time, blocks, and waits for l, which only T could release, so it waits forever."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Locks, blocking and deadlock",
+            "body": "A lock gives mutual exclusion: while a thread holds it, no other thread can hold it. $\\text{lock}(l)$ takes the lock if it is free and otherwise blocks the caller until the lock is released. $\\text{unlock}(l)$ releases it. A non-reentrant lock does not recognise its own holder, so a thread that already holds $l$ and calls $\\text{lock}(l)$ again blocks like any other caller. A deadlock is a state in which some threads are blocked forever, each waiting for something that only a blocked thread can do. The rule for the question: find the smallest program that reaches such a state, and compare its $x$ and $y$ with the options."
+          },
+          {
+            "title": "The smallest possible program",
+            "body": "A program that uses locks for mutual exclusion has at least 1 thread and 1 lock, so $x \\ge 1$ and $y \\ge 1$. Can $x = 1$, $y = 1$ deadlock? Yes. Let the single thread T run lock(l) twice. The first call takes the lock. The second call finds l held and blocks. The holder is T itself, and T is now blocked, so the unlock that would free l is never reached. T waits for a release that only T can make: a deadlock with one thread and one lock.",
+            "tex": "x_{\\min} = 1,\\quad y_{\\min} = 1"
+          },
+          {
+            "title": "Pick the option",
+            "body": "The minima are reached together at $(x, y) = (1, 1)$, which is option D. A script that tries every lock and unlock program of up to four operations finds the deadlock at $(1,1)$ at once. The familiar two-thread, two-lock cycle (one thread holds $l_1$ and wants $l_2$, the other holds $l_2$ and wants $l_1$) is a deadlock too, but it is not the smallest."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask for the smallest numbers first: 1 thread and 1 lock. Then ask whether those can deadlock; with a non-reentrant lock, locking twice does it. D, in 30 seconds. The shortcut fails if the locks were reentrant: then (1,1) could not deadlock and the classic (2,2) cycle would be the answer."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing a deadlock needs two locks held in opposite order. With a non-reentrant lock, one lock taken twice already blocks the holder."
+          },
+          {
+            "option": 1,
+            "text": "Believing it needs two threads, one holding the lock and one waiting. The holder eventually releases it, so the waiter proceeds; there is no deadlock unless the holder itself blocks on l."
+          },
+          {
+            "option": 2,
+            "text": "Recalling the textbook cycle of two threads and two locks. It is a sufficient pattern but not the minimum, because the non-reentrant rule makes 1 and 1 enough."
+          }
+        ],
+        "recognize": {
+          "concept": "os-synchronization-deadlock.deadlock-conditions",
+          "clues": "Words such as non-reentrant, blocks until the lock becomes available, and minimum x and minimum y. Together they ask for the smallest configuration that can wait forever.",
+          "contrast": "The classic two-thread, two-lock cycle is circular wait between different threads. Here the wait is on a lock the same thread holds, so the cycle has length one and needs no second thread."
+        },
+        "check": {
+          "body": "Compare with a reentrant lock. If the same one-thread, one-lock program ran on a reentrant lock, the second lock(l) would succeed, unlock(l) would run twice, and the program would finish. Only the non-reentrant rule changes the outcome, so that rule is what causes the deadlock. In the wait-for graph (an arrow from a thread to the thread that holds what it wants) T points at the holder of l, which is T: a self-loop, a cycle of length one."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, question 27 page",
+          "url": "https://gateoverflow.in/118307/gate-cse-2017-set-1-question-27"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        },
+        {
+          "label": "GATE 2017 CS session 1 question paper (11 Feb 2017 Session 1), IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What is the smallest program that could possibly be written under these rules, and could that one already get stuck?"
+        },
+        {
+          "kind": "concept",
+          "text": "A deadlock is a state where a thread is blocked forever, waiting for something that only a blocked thread could supply."
+        },
+        {
+          "kind": "principle",
+          "text": "The stem says the locks are non-reentrant and a thread that cannot acquire a lock blocks. Ask what happens when a thread asks again for a lock it already holds."
+        },
+        {
+          "kind": "setup",
+          "text": "List the smallest configurations in increasing order of threads and locks, and ask which one can first reach a state where no thread can move."
+        }
+      ],
+      "variation": {
+        "stem": "A multithreaded program has $x$ threads and $y$ locks used for mutual exclusion. All locks are reentrant: a thread that holds a lock may acquire it again, and must release it as many times as it acquired it. A thread that cannot get a lock blocks until it is free, and every thread releases all locks it takes. Which values of $x$ and $y$ are the smallest for which execution can result in a deadlock?",
+        "options": [
+          "$x = 2, y = 1$",
+          "$x = 1, y = 2$",
+          "$x = 2, y = 2$",
+          "$x = 1, y = 1$"
+        ],
+        "answer": 2,
+        "explanation": "With reentrant locks a single thread can never block on a lock it holds, so $x = 1$ cannot deadlock for any $y$. With one lock and two threads, whoever holds it eventually releases it, so $y = 1$ cannot deadlock either. Two threads taking two locks in opposite order can wait on each other. A script that tries every balanced lock and unlock program found a deadlock only at $x = 2, y = 2$."
+      }
+    }
+  ],
+  "skipped": []
+}

@@ -1,0 +1,2097 @@
+{
+  "id": "pds-trees",
+  "summary": "Trees are the main non-linear structure in GATE PDS and carry 3–5 marks most years. The questions are mechanical once the rules are exact: node-count identities for binary and k-ary trees, the four traversals and which pairs rebuild a tree, BST insertion and deletion traces, AVL rotations and the minimum-node recurrence N(h), red-black height bounds, and binary heaps stored in arrays, where build-heap is linear and every other update is logarithmic.",
+  "highYield": [
+    "Trace a BST or AVL insertion sequence and report a traversal, the root or the height; AVL questions hinge on picking LL, RR, LR or RL correctly.",
+    "Max-heap array state after build-heap, insert or delete-max: sift-down swaps with the larger child and continues until the heap property holds.",
+    "Build-heap is O(n), not O(n log n); finding the minimum in a max-heap is O(n) because it can be at any of the ⌈n/2⌉ leaves.",
+    "Node counts: n₀ = n₂ + 1 in any binary tree, L = (k − 1)I + 1 in a full k-ary tree, at most 2^(h+1) − 1 nodes at height h.",
+    "Minimum nodes in an AVL tree of height h: N(h) = N(h − 1) + N(h − 2) + 1 with N(0) = 1, N(1) = 2, giving 1, 2, 4, 7, 12, 20, 33.",
+    "Inorder plus preorder, postorder or level order fixes a binary tree; preorder plus postorder does not, and the number of BSTs on n keys is the Catalan number Cₙ."
+  ],
+  "topics": [
+    {
+      "id": "pds-trees.terminology",
+      "title": "Tree terminology: depth, height, level, degree",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        323,
+        328
+      ],
+      "points": [
+        "A tree with n nodes has exactly n − 1 edges; the root has no parent, a leaf has no children, and an internal node has at least one child.",
+        "Depth of a node is its distance in edges from the root (root depth 0); height of a node is the longest downward path to a leaf (leaf height 0).",
+        "The height of the tree is the height of its root, so a single-node tree has height 0 and an empty tree is conventionally −1.",
+        "Some books count levels from 1 (level = depth + 1) and height in nodes; always check which convention a question uses before applying 2^(h+1) − 1.",
+        "The degree of a node is its number of children; the degree of a tree is the maximum node degree."
+      ],
+      "keyTerms": [
+        "depth",
+        "height",
+        "level",
+        "degree",
+        "leaf",
+        "internal node"
+      ],
+      "lesson": {
+        "why": "Almost every tree question uses depth, height, level or degree, and a wrong convention turns a correct formula into a wrong answer. Knowing which word means which measurement is the first step of every later topic in this chapter.",
+        "intro": "A tree is a set of nodes joined by edges, with one special node called the root at the top. Every other node has exactly one parent, the node directly above it. The nodes directly below a node are its children. A node with no children is a leaf, and a node with at least one child is an internal node. Because each non-root node owns exactly one edge to its parent, a tree with $n$ nodes has $n-1$ edges. Depth looks up from a node to the root, and height looks down from a node to its deepest leaf.",
+        "principle": {
+          "text": "Depth of a node is the number of edges on the path from the root to it, so the root has depth 0. Height of a node is the number of edges on the longest downward path to a leaf, so a leaf has height 0. The height of the tree is the height of its root. The degree of a node is its number of children, and the degree of a tree is the largest node degree.",
+          "tex": "\\text{edges}=n-1,\\qquad \\text{height}(\\text{tree})=\\max_{v}\\ \\text{depth}(v)"
+        },
+        "limits": "These are the edge-counting conventions. Some books count levels from 1 (level = depth + 1) and measure height in nodes, which shifts every height by 1 and changes formulas such as $2^{h+1}-1$ into $2^{h}-1$. An empty tree is given height $-1$ in the edge convention. Always read how the question counts before applying a formula.",
+        "example": {
+          "problem": "A tree has root A with children B, C, D. B has children E and F, D has child G, and F has child H. Find the number of edges, the depth of H, the height of B, the height of the tree and the degree of the tree.",
+          "steps": [
+            "There are 8 nodes, so the edges number $8-1=7$.",
+            "H sits under F, F under B, B under A. That is 3 edges from the root, so the depth of H is 3.",
+            "From B the longest downward path is B, F, H, which has 2 edges, so the height of B is 2.",
+            "The deepest leaf is H at depth 3, so the height of the tree is 3.",
+            "A has three children, B has two, D has one, F has one. The largest is 3, so the degree of the tree is 3."
+          ],
+          "result": "7 edges, depth of H is 3, height of B is 2, height of the tree is 3, degree of the tree is 3."
+        },
+        "misconceptions": [
+          "Depth and height are not the same number for a node. Depth counts up to the root, height counts down to a leaf, so a node near the root has small depth but may have large height.",
+          "Counting nodes on a path instead of edges adds 1 to every depth and height, and leaves a single-node tree with height 1 instead of 0.",
+          "The degree of a tree is the maximum number of children of any node, not the number of nodes or the number of leaves."
+        ],
+        "recall": [
+          {
+            "q": "How many edges does a tree with $n$ nodes have?",
+            "a": "Exactly $n-1$, one edge from each non-root node to its parent."
+          },
+          {
+            "q": "What are the depth of the root and the height of a leaf?",
+            "a": "Both are 0 when counted in edges."
+          },
+          {
+            "q": "What is the height of a tree with a single node, and of an empty tree?",
+            "a": "A single node has height 0 and an empty tree is conventionally $-1$."
+          },
+          {
+            "q": "How do the level-based and edge-based conventions differ?",
+            "a": "Level equals depth plus 1, and height in nodes is height in edges plus 1."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A tree has root R with children a, b, c. Node a has children d and e, node c has children f and g, node d has child i, and node i has child j. Using edge counting, what is the height of node a?",
+          "answer": 3,
+          "explanation": "The longest downward path from a is a, d, i, j, which has 3 edges, so the height of a is 3. The answer 4 tempts because it is the depth of j and the height of the whole tree, and the answer 1 tempts by confusing the depth of a with its height."
+        },
+        "summary": "A tree with $n$ nodes has $n-1$ edges. Depth counts edges down from the root, height counts edges down to the deepest leaf, and degree counts children, so check the counting convention first."
+      }
+    },
+    {
+      "id": "pds-trees.binary-tree-types",
+      "title": "Full, complete, perfect and skewed binary trees",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        328
+      ],
+      "points": [
+        "Full (strict) binary tree: every node has 0 or 2 children.",
+        "Complete binary tree: every level is full except possibly the last, which is filled from the left with no gaps; this is exactly the shape a heap array encodes.",
+        "Perfect binary tree: every internal node has 2 children and all leaves sit at the same depth, so height h means exactly 2^(h+1) − 1 nodes.",
+        "Skewed tree: every node has at most one child, so the tree is a linked list of height n − 1 and BST operations degrade to O(n).",
+        "Every perfect tree is both full and complete, but a full tree need not be complete and a complete tree need not be full."
+      ],
+      "keyTerms": [
+        "full",
+        "complete",
+        "perfect",
+        "skewed"
+      ],
+      "lesson": {
+        "why": "Questions on heaps, node counts and BST cost all lean on four shape names, and mixing them up flips the answer to true-or-false statements.",
+        "intro": "A binary tree is a set of nodes where each node has at most two children, called left and right. The shape of the tree depends on which child slots are filled. Four shapes have names. A full tree has no node with exactly one child. A perfect tree is completely filled down to its last level. A complete tree is filled level by level from the left, so only the last level may have gaps and those gaps are at the right end. A skewed tree has one child per node, so it is a chain.",
+        "definitions": [
+          {
+            "term": "Height",
+            "meaning": "The number of edges on the longest path from the root down to a leaf; a single node has height 0."
+          },
+          {
+            "term": "Leaf",
+            "meaning": "A node with no children."
+          }
+        ],
+        "principle": {
+          "text": "The shapes nest: every perfect tree is both full and complete. A perfect tree of height $h$ has every level $0$ to $h$ filled, which fixes its node count.",
+          "tex": "n_{\\text{perfect}}(h)=1+2+4+\\cdots+2^{h}=2^{h+1}-1"
+        },
+        "limits": "Full does not imply complete, and complete does not imply full. Some books use the word full for what is called perfect here, so read the definition the question gives before applying a rule.",
+        "example": {
+          "problem": "Node A has children B and C. B has children D and E. C has only a left child F. Name every shape this tree has.",
+          "steps": [
+            "Check full: C has exactly one child, so the tree is not full.",
+            "Check perfect: the last level holds D, E and F but a perfect tree of height 2 needs 4 nodes there, so it is not perfect.",
+            "Check complete: levels 0 and 1 are full, and the last level holds D, E, F with no gap on the left, so it is complete."
+          ],
+          "result": "The tree is complete only; it is neither full nor perfect."
+        },
+        "misconceptions": [
+          "A complete tree is not always full: with 6 nodes the last parent has just one child and the tree is still complete.",
+          "A skewed tree with $n$ nodes has height $n-1$, not $n$, because height counts edges."
+        ],
+        "recall": [
+          {
+            "q": "Which shape has no node with exactly one child?",
+            "a": "The full binary tree: every node has 0 or 2 children."
+          },
+          {
+            "q": "How many nodes does a perfect binary tree of height $h$ have?",
+            "a": "$2^{h+1}-1$."
+          },
+          {
+            "q": "What is the height of a skewed tree with $n$ nodes?",
+            "a": "$n-1$, since the nodes form a single chain."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about binary tree shapes is correct?",
+          "options": [
+            "Every complete binary tree is full.",
+            "Every perfect binary tree is complete.",
+            "A skewed tree with 5 nodes has height 5.",
+            "A full binary tree can have a node with exactly one child."
+          ],
+          "answer": 1,
+          "explanation": "A perfect tree fills every level, so it has no gaps on the left and is complete. The first option tempts because a heap looks tidy, but a complete tree may have a parent with one child. A chain of 5 nodes has 4 edges, so its height is 4, and a full tree by definition has no single-child node."
+        },
+        "summary": "Full means 0 or 2 children, complete means filled left to right level by level, perfect means all levels filled, skewed means a chain; perfect implies both full and complete."
+      }
+    },
+    {
+      "id": "pds-trees.binary-tree-counts",
+      "title": "Node-count identities for binary trees",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        329,
+        330,
+        331
+      ],
+      "points": [
+        "Level i (root at level 0) holds at most 2ⁱ nodes, so a binary tree of height h has at most 2^(h+1) − 1 nodes and at least h + 1.",
+        "With n nodes the height is at least ⌊log₂ n⌋ (reached by a complete tree) and at most n − 1 (a skewed tree).",
+        "If n₀, n₁ and n₂ count nodes with 0, 1 and 2 children, then n₀ = n₂ + 1 in every non-empty binary tree; n₁ does not affect the leaf count.",
+        "Proof sketch: edges = n − 1 = n₁ + 2n₂ and n = n₀ + n₁ + n₂; subtracting gives n₀ = n₂ + 1.",
+        "A full binary tree with I internal nodes therefore has I + 1 leaves and 2I + 1 nodes in total.",
+        "In the linked form, a binary tree with n nodes has 2n child pointers of which n − 1 are used, leaving n + 1 null pointers."
+      ],
+      "lesson": {
+        "why": "Counting leaves, internal nodes and the possible heights of a binary tree is a recurring short question, and one identity settles most of them.",
+        "intro": "Sort the nodes of a binary tree by how many children they have: $n_0$ nodes have none (the leaves), $n_1$ have one and $n_2$ have two. Every node except the root is the child of exactly one parent, so the number of edges is one less than the number of nodes. Counting the same edges from the parents' side gives a second formula, and comparing the two links the leaf count to the number of two-child nodes.",
+        "prerequisites": [
+          "pds-trees.binary-tree-types"
+        ],
+        "principle": {
+          "text": "In every non-empty binary tree the leaves outnumber the two-child nodes by exactly one, and nodes with one child do not change that. Edges counted by children give $n-1$, and counted by parents give $n_1+2n_2$.",
+          "tex": "n-1=n_1+2n_2,\\quad n=n_0+n_1+n_2\\;\\Rightarrow\\; n_0=n_2+1"
+        },
+        "limits": "The identity holds only for binary trees, where each node has at most two children. For a tree with up to $k$ children the leaf count follows a different formula. The maximum height $n-1$ is for general binary trees; in a full tree ($n_1=0$) every internal node has two children, so $n_2=(n-1)/2$ and the maximum height drops to $(n-1)/2$. The minimum height is $\\lfloor\\log_2 n\\rfloor$.",
+        "example": {
+          "problem": "A binary tree has 6 nodes with two children and 2 nodes with one child. How many leaves and how many nodes does it have?",
+          "steps": [
+            "Apply $n_0=n_2+1$ with $n_2=6$, so $n_0=7$.",
+            "Add all three kinds: $n=n_0+n_1+n_2=7+2+6$.",
+            "Check by edges: $n-1=14$ and $n_1+2n_2=2+12=14$."
+          ],
+          "result": "The tree has 7 leaves and 15 nodes."
+        },
+        "misconceptions": [
+          "Nodes with one child are not leaves and do not enter the leaf formula; $n_0=n_2+1$ holds whatever $n_1$ is.",
+          "The leaf count is not half the nodes in general; that is true only when $n_1=0$ and then $n_0=(n+1)/2$."
+        ],
+        "recall": [
+          {
+            "q": "What relation links leaves and two-child nodes in a binary tree?",
+            "a": "$n_0=n_2+1$."
+          },
+          {
+            "q": "How many edges does a tree with $n$ nodes have?",
+            "a": "$n-1$, one for every node except the root."
+          },
+          {
+            "q": "What are the smallest and largest heights of a binary tree with $n$ nodes?",
+            "a": "The smallest is $\\lfloor\\log_2 n\\rfloor$ for a complete tree and the largest is $n-1$ for a chain."
+          },
+          {
+            "q": "In a full binary tree with $n$ nodes, how many nodes have two children and what is the largest possible height?",
+            "a": "$n_2=(n-1)/2$, and the largest height is also $(n-1)/2$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A binary tree has 20 nodes, of which exactly 5 have one child. How many leaves does it have?",
+          "answer": 8,
+          "explanation": "Let $n_2$ be the two-child count. Then $n_0=n_2+1$ and $20=n_0+5+n_2=2n_2+6$, so $n_2=7$ and $n_0=8$. Answering 7 is tempting because that is $n_2$, and answering 15 comes from forgetting that nodes with one child are not leaves."
+        },
+        "summary": "Leaves equal two-child nodes plus one in any binary tree; one-child nodes are free. The node total follows from edges equal to $n-1$."
+      }
+    },
+    {
+      "id": "pds-trees.kary-trees",
+      "title": "Full k-ary trees",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "In a full k-ary tree every internal node has exactly k children.",
+        "Counting edges two ways gives n − 1 = kI, so n = kI + 1 nodes and L = (k − 1)I + 1 leaves.",
+        "Example: a full ternary tree with 15 internal nodes has 2·15 + 1 = 31 leaves and 46 nodes.",
+        "A k-ary tree of height h has at most (k^(h+1) − 1)/(k − 1) nodes; with k = 2 this is 2^(h+1) − 1."
+      ],
+      "keyTerms": [
+        "k-ary tree",
+        "ternary tree"
+      ],
+      "lesson": {
+        "why": "Questions give the number of internal nodes, leaves or total nodes of a tree in which every internal node has the same number of children, and ask for one of the others. One identity answers all of them in a single step.",
+        "intro": "A k-ary tree lets each node have at most $k$ children. It is full when every internal node has exactly $k$ children, so no node has fewer. A binary tree is the case $k=2$ and a ternary tree is $k=3$. In a full k-ary tree the internal nodes and the leaves are tied together, so knowing either count fixes the other and the total.",
+        "prerequisites": [
+          "pds-trees.terminology"
+        ],
+        "principle": {
+          "text": "Count the edges of a full k-ary tree with $I$ internal nodes in two ways. Each internal node has $k$ children, so there are $kI$ edges. A tree with $n$ nodes has $n-1$ edges, so $n-1=kI$. Subtracting the internal nodes from the total gives the leaves.",
+          "tex": "n=kI+1,\\qquad L=n-I=(k-1)I+1"
+        },
+        "limits": "Both identities need every internal node to have exactly $k$ children. They fail for a tree where some nodes have fewer children, such as a general binary tree with one-child nodes, where only $n_0=n_2+1$ holds. For the number of nodes in a k-ary tree of height $h$ the bound $(k^{h+1}-1)/(k-1)$ is a maximum, reached only when every level is full.",
+        "example": {
+          "problem": "A full ternary tree has 40 nodes in total. How many internal nodes and how many leaves does it have?",
+          "steps": [
+            "For a full ternary tree $n=3I+1$, so $40=3I+1$.",
+            "Solve for $I$: $3I=39$, so $I=13$.",
+            "The leaves are $L=n-I=40-13=27$.",
+            "Check with the leaf formula: $(3-1)\\cdot 13+1=27$."
+          ],
+          "result": "13 internal nodes and 27 leaves."
+        },
+        "misconceptions": [
+          "The identity $n=kI+1$ is for a full tree only. Applying it to a tree where an internal node has fewer than $k$ children gives a count that is too large.",
+          "The $+1$ is easy to drop. Without it the formula would claim a single-node tree with $I=0$ has no nodes.",
+          "The leaves are not $kI$. That is the number of child links, which also counts the internal nodes other than the root."
+        ],
+        "recall": [
+          {
+            "q": "How many nodes does a full k-ary tree with $I$ internal nodes have?",
+            "a": "$n=kI+1$."
+          },
+          {
+            "q": "How many leaves does a full k-ary tree with $I$ internal nodes have?",
+            "a": "$L=(k-1)I+1$."
+          },
+          {
+            "q": "Why does $n-1=kI$ hold?",
+            "a": "Every edge goes from an internal node to one of its $k$ children, and a tree with $n$ nodes has $n-1$ edges."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A full 5-ary tree has 41 leaves. How many nodes does it have in total?",
+          "answer": 51,
+          "explanation": "From $L=(k-1)I+1$ we get $41=4I+1$, so $I=10$. The total is $n=kI+1=5\\cdot 10+1=51$. The answer 50 tempts by forgetting the $+1$ for the root, and 41 tempts by reporting the leaf count that was given."
+        },
+        "summary": "In a full k-ary tree, edges counted two ways give $n=kI+1$ and $L=(k-1)I+1$, so any one of $n$, $I$ and $L$ determines the other two."
+      }
+    },
+    {
+      "id": "pds-trees.traversals",
+      "title": "Inorder, preorder, postorder and level-order traversal",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        324,
+        325,
+        328,
+        333
+      ],
+      "points": [
+        "Inorder visits left, node, right; preorder visits node, left, right; postorder visits left, right, node. Each takes O(n) time.",
+        "Level order visits nodes depth by depth using a queue; recursive DFS traversals use O(h) stack space, and Morris traversal does inorder in O(1) extra space by temporary threads.",
+        "Tree 1(2(4, 5), 3(−, 6)) gives inorder 4 2 5 1 3 6, preorder 1 2 4 5 3 6, postorder 4 5 2 6 3 1 and level order 1 2 3 4 5 6.",
+        "Preorder is used to copy a tree, postorder to free it or evaluate an expression tree (it yields postfix), and inorder of an expression tree gives infix without parentheses.",
+        "In preorder the first element is the root; in postorder the last element is the root."
+      ],
+      "keyTerms": [
+        "inorder",
+        "preorder",
+        "postorder",
+        "level order",
+        "Morris traversal"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "pds-trees.terminology"
+        ],
+        "why": "Reading off a traversal, or tracing code that prints during recursion, is a mechanical exercise, and the three depth-first orders differ only in when the node is visited.",
+        "intro": "A traversal visits every node of a tree exactly once in a fixed order. The three depth-first orders all handle the left subtree before the right subtree and differ in where the node itself comes. Preorder visits the node, then left, then right. Inorder visits left, then the node, then right. Postorder visits left, then right, then the node. Level order is different: it visits nodes depth by depth using a queue.",
+        "principle": {
+          "text": "Recursion decides the order: the traversal of a tree is the traversal of its left subtree and right subtree combined with the root placed first, between or last. For a binary search tree (every key in the left subtree is smaller than the node, every key in the right subtree larger) the inorder output is the sorted key list."
+        },
+        "limits": "The orders above assume left is handled before right. Preorder starts with the root and postorder ends with it, but inorder does not reveal the root without more information. Each traversal costs $O(n)$ time and the recursive ones use $O(h)$ stack, where $h$ is the tree height.",
+        "example": {
+          "problem": "Root 8 has left child 4 and right child 10. Node 4 has leaf children 2 and 6. Node 10 has only a right child 14. Give preorder and postorder.",
+          "steps": [
+            "Preorder writes the node first: 8, then the left subtree 4, 2, 6, then the right subtree 10, 14.",
+            "Postorder writes the node last: left subtree 2, 6, 4, then right subtree 14, 10, then the root 8.",
+            "Check the ends: preorder starts with the root 8 and postorder ends with it."
+          ],
+          "result": "Preorder is 8 4 2 6 10 14 and postorder is 2 6 4 14 10 8."
+        },
+        "misconceptions": [
+          "Postorder is not preorder reversed; reversing preorder gives the postorder of the mirrored tree, which differs from postorder whenever some node has two non-empty subtrees.",
+          "Inorder is sorted only for a binary search tree, not for any binary tree."
+        ],
+        "recall": [
+          {
+            "q": "In which order does inorder visit the node and its subtrees?",
+            "a": "Left subtree, then the node, then the right subtree."
+          },
+          {
+            "q": "Which node is first in preorder and which is last in postorder?",
+            "a": "The root, in both cases."
+          },
+          {
+            "q": "Which data structure drives level-order traversal?",
+            "a": "A queue."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Root 5 has left child 3 and right child 9. Node 3 has only a left child 1. Node 9 has children 7 and 11. What is the position of 9 in the postorder sequence, counting from 1?",
+          "answer": 5,
+          "explanation": "Postorder visits the left subtree 1, 3, then the right subtree 7, 11, 9, then the root 5, giving 1 3 7 11 9 5. Node 9 is fifth. Answering 3 is tempting if you list 9 before its children as preorder would, and 4 comes from counting 9 by its preorder position in 5 3 1 9 7 11."
+        },
+        "summary": "Preorder is node-left-right, inorder is left-node-right and postorder is left-right-node, each in $O(n)$; level order uses a queue."
+      }
+    },
+    {
+      "id": "pds-trees.tree-reconstruction",
+      "title": "Rebuilding a tree from traversals",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        324,
+        329,
+        330,
+        332
+      ],
+      "points": [
+        "Inorder together with preorder, postorder or level order determines a binary tree with distinct keys uniquely.",
+        "Recipe: take the root from preorder (first) or postorder (last), find it in inorder, and split inorder into left and right subtrees; recurse on the matching slices.",
+        "Preorder plus postorder is ambiguous in general: a root with a single child gives the same pair whether the child is left or right. It is unique for full binary trees.",
+        "For a BST the inorder is just the sorted keys, so preorder alone (or postorder alone) fixes the tree."
+      ],
+      "lesson": {
+        "why": "Given two traversals, you are often asked for a third traversal, the height, or a count, and the recipe is mechanical once you know which pairs identify the tree.",
+        "intro": "A single traversal does not fix a tree, but two can. The idea is that preorder tells you the root of any subtree (its first element) and postorder does so with its last element. Inorder then tells you which keys lie to the left of that root and which to the right. Repeat this on the left slice and the right slice until nothing remains.",
+        "prerequisites": [
+          "pds-trees.traversals"
+        ],
+        "principle": {
+          "text": "Take the root from the preorder front or postorder back, locate it in inorder, and split inorder into left and right keys. The left size tells how many preorder entries belong to the left subtree. Recurse on both slices. For a binary search tree the inorder is the sorted key list, so preorder alone is enough."
+        },
+        "limits": "This needs distinct keys and an inorder sequence. Preorder with postorder alone does not fix a tree: a lone child could be left or right and both give the same pair. They work only when every node has 0 or 2 children.",
+        "example": {
+          "problem": "Preorder is A B D E C F and inorder is D B E A C F. Find the postorder.",
+          "steps": [
+            "The first preorder entry A is the root. In inorder, D B E lies left of A and C F lies right.",
+            "Left part: preorder B D E gives root B with D left and E right. Right part: preorder C F gives root C, and F is right of C in inorder.",
+            "Write postorder: left subtree D E B, right subtree F C, then root A."
+          ],
+          "result": "The postorder is D E B F C A."
+        },
+        "misconceptions": [
+          "Preorder plus postorder does not determine a tree in general, because a single child has no side marked.",
+          "Using a nearby position in inorder as the root is wrong; the root always comes from the preorder front or the postorder back, never from the inorder middle."
+        ],
+        "recall": [
+          {
+            "q": "Which pairs of traversals identify a binary tree with distinct keys?",
+            "a": "Inorder together with preorder, postorder or level order."
+          },
+          {
+            "q": "Why is preorder with postorder ambiguous?",
+            "a": "A node with one child gives the same pair whether that child is left or right."
+          },
+          {
+            "q": "How does a binary search tree need only one traversal?",
+            "a": "Its inorder is the sorted keys, so preorder or postorder alone completes the pair."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Preorder is 1 2 4 5 3 6 7 8 and inorder is 4 2 5 1 7 6 8 3. What is the position of 3 in the postorder, counting from 1?",
+          "answer": 7,
+          "explanation": "Root 1 splits inorder into 4 2 5 on the left and 7 6 8 3 on the right. The left subtree gives postorder 4 5 2. On the right, root 3 has the left part 7 6 8 and no right part, and root 6 has leaves 7 and 8, giving 7 8 6 3. The full postorder is 4 5 2 7 8 6 3 1, so 3 is seventh. Answering 8 comes from placing 3 last instead of the root 1."
+        },
+        "summary": "Preorder front or postorder back gives the root, inorder splits the sides, and you recurse; preorder with postorder is ambiguous unless the tree is full."
+      }
+    },
+    {
+      "id": "pds-trees.counting-trees",
+      "title": "Counting binary trees and BSTs",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        331,
+        332
+      ],
+      "points": [
+        "The number of structurally distinct binary trees with n nodes is the Catalan number Cₙ = (2n)! / ((n + 1)! n!): 1, 1, 2, 5, 14, 42, 132 for n = 0…6.",
+        "The number of distinct BSTs on n distinct keys is also Cₙ, because each shape admits exactly one valid labelling by inorder.",
+        "Recurrence: Cₙ = Σ Cᵢ·Cₙ₋₁₋ᵢ over i = 0…n − 1, choosing the root's rank i + 1; BSTs on keys 1…5 with root 3 number C₂·C₂ = 4.",
+        "With n distinct labels placed freely (not as a BST), the count of binary trees is n!·Cₙ."
+      ],
+      "keyTerms": [
+        "Catalan number"
+      ],
+      "lesson": {
+        "why": "Counting questions ask how many different binary trees or binary search trees exist for $n$ nodes, or how many have a given root. All of them use the Catalan numbers.",
+        "intro": "Two binary trees are different shapes if one cannot be made into the other by relabelling, so a node having only a left child differs from a node having only a right child. To count shapes with $n$ nodes, choose how many nodes go in the left subtree of the root. The rest go in the right subtree, and the two subtrees are counted independently. A binary search tree on distinct keys is fixed by its shape, because the key order forces every key into one position, so BSTs and shapes are counted by the same numbers.",
+        "prerequisites": [
+          "pds-trees.bst-operations"
+        ],
+        "principle": {
+          "text": "Let $C_n$ be the number of binary tree shapes with $n$ nodes. If the left subtree has $i$ nodes, the right has $n-1-i$, giving the recurrence below. It solves to the Catalan numbers, which are also the count of BSTs on $n$ distinct keys. If the keys are placed freely rather than as a BST, multiply by $n!$.",
+          "tex": "C_n=\\sum_{i=0}^{n-1}C_i\\,C_{n-1-i}=\\frac{1}{n+1}\\binom{2n}{n},\\qquad C_0\\ldots C_6=1,1,2,5,14,42,132"
+        },
+        "limits": "The count of BSTs assumes distinct keys; repeated keys change it. The formula counts shapes, so it says nothing about heights or balance. If a question fixes the root key, do not use $C_n$ alone: split into the left part and the right part and multiply their counts.",
+        "example": {
+          "problem": "How many different binary search trees can be built on the keys 1 to 6 so that the root is 4?",
+          "steps": [
+            "With root 4, the keys 1, 2, 3 must go in the left subtree and 5, 6 in the right subtree.",
+            "The left subtree has 3 keys, so it can take $C_3=5$ shapes.",
+            "The right subtree has 2 keys, so it can take $C_2=2$ shapes.",
+            "The choices are independent, so multiply: $5\\cdot 2=10$."
+          ],
+          "result": "10 binary search trees."
+        },
+        "misconceptions": [
+          "The count with a fixed root is a product of two Catalan numbers, not $C_{n-1}$. The root key decides the sizes of the two sides.",
+          "Labelled trees where any label may go anywhere number $n!\\,C_n$, not $C_n$. Only a BST has its labels forced by the shape.",
+          "The Catalan recurrence is a sum over all root ranks. Using only the middle term undercounts."
+        ],
+        "recall": [
+          {
+            "q": "What is $C_n$ in closed form?",
+            "a": "$C_n=\\frac{1}{n+1}\\binom{2n}{n}$."
+          },
+          {
+            "q": "How many BSTs exist on $n$ distinct keys?",
+            "a": "$C_n$, the same as the number of binary tree shapes."
+          },
+          {
+            "q": "How many binary trees exist with $n$ nodes and $n$ distinct labels placed freely?",
+            "a": "$n!\\,C_n$."
+          },
+          {
+            "q": "How do you count BSTs with a given root?",
+            "a": "Multiply $C_a\\cdot C_b$, where $a$ keys are smaller than the root and $b$ are larger."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many different binary search trees on the 7 keys 1 to 7 have key 3 at the root?",
+          "answer": 28,
+          "explanation": "Keys 1 and 2 go left, giving $C_2=2$ shapes. Keys 4, 5, 6, 7 go right, giving $C_4=14$ shapes. The product is $2\\cdot 14=28$. The answer 429 tempts because it is $C_7$, the count over all roots, and 14 tempts by counting only the right subtree."
+        },
+        "summary": "Binary tree shapes and BSTs on $n$ distinct keys are both counted by $C_n$. A fixed root key splits the count into $C_a\\cdot C_b$, and free labels multiply by $n!$."
+      }
+    },
+    {
+      "id": "pds-trees.bst-operations",
+      "title": "BST property, search and insertion",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        325,
+        329,
+        330,
+        331
+      ],
+      "points": [
+        "For every node x, all keys in the left subtree are smaller than x and all keys in the right subtree are larger; inorder traversal therefore outputs the keys in sorted order.",
+        "Search and insert follow one root-to-leaf path, so they cost O(h): O(log n) for a balanced tree and O(n) for a skewed one, such as keys inserted in sorted order.",
+        "Insertion always adds the new key as a leaf at the first null pointer on the search path; the first key inserted stays the root.",
+        "Minimum is the leftmost node and maximum the rightmost; building a BST by n insertions costs O(n log n) on average and O(n²) in the worst case."
+      ],
+      "lesson": {
+        "why": "Insertion order, search cost and the tree shape that results are tested constantly, and all three follow from one ordering rule.",
+        "intro": "A binary search tree stores a key in each node so that every key in the left subtree is smaller and every key in the right subtree is larger. To search for a key, compare it with the current node and go left if it is smaller or right if it is larger, stopping at a match or at an empty spot. To insert a key, search for it and attach it as a new leaf at the empty spot where the search ended.",
+        "prerequisites": [
+          "pds-trees.terminology",
+          "pds-trees.traversals"
+        ],
+        "principle": {
+          "text": "Search and insert follow one root-to-leaf path, so each costs at most the height plus one comparisons. The first key inserted is the root. Inorder traversal lists the keys in increasing order, so the minimum is the leftmost node and the maximum the rightmost.",
+          "tex": "T_{\\text{search}},\\,T_{\\text{insert}}=O(h)"
+        },
+        "limits": "The bound $O(\\log n)$ holds only for a balanced tree. Inserting sorted keys makes a chain of height $n-1$ and every operation costs $O(n)$. Duplicate keys need a stated rule, and the cases here assume distinct keys.",
+        "example": {
+          "problem": "Insert 40, 20, 60, 10, 30, 50, 70 into an empty tree, then insert 35. How many edges lie between 35 and the root?",
+          "steps": [
+            "The first key 40 is the root; 20 and 60 go left and right, and 10, 30, 50, 70 fill the next level.",
+            "Insert 35: it is below 40, so go left to 20; above 20, so go right to 30; above 30, so go right to the empty spot.",
+            "The new leaf 35 is the right child of 30, so the path 40, 20, 30, 35 has three edges."
+          ],
+          "result": "35 is at depth 3, so 3 edges separate it from the root."
+        },
+        "misconceptions": [
+          "Inserted keys never replace the root or rotate into place; a new key always becomes a leaf, so the first key stays the root.",
+          "A BST is not necessarily balanced; keys inserted in sorted order give height $n-1$."
+        ],
+        "recall": [
+          {
+            "q": "Where does an inserted key go in a binary search tree?",
+            "a": "Into the empty spot at the end of its search path, as a new leaf."
+          },
+          {
+            "q": "What is the cost of search in a BST of height $h$?",
+            "a": "$O(h)$, which is $O(n)$ in the worst case and $O(\\log n)$ if balanced."
+          },
+          {
+            "q": "What does inorder traversal of a BST produce?",
+            "a": "The keys in increasing order."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Keys 15, 8, 22, 4, 11, 19, 30, 9 are inserted in this order into an empty binary search tree. How many keys are compared with 10 during an unsuccessful search for 10?",
+          "answer": 4,
+          "explanation": "10 is below 15, so go left to 8; above 8, so go right to 11; below 11, so go left to 9; above 9, so reach an empty spot. The keys compared are 15, 8, 11 and 9. Answering 3 tempts if you stop at 11 because 10 lies near it, but the search ends only at an empty spot after 9."
+        },
+        "summary": "A BST keeps smaller keys left and larger right; search and insert walk one path in $O(h)$, new keys become leaves, and inorder is sorted."
+      }
+    },
+    {
+      "id": "pds-trees.bst-deletion",
+      "title": "BST deletion, successor and predecessor",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        25,
+        325,
+        329,
+        330
+      ],
+      "points": [
+        "Deleting a leaf removes it; deleting a node with one child splices that child into its place.",
+        "Deleting a node with two children copies in its inorder successor (leftmost node of the right subtree) or predecessor (rightmost of the left subtree) and then deletes that node, which has at most one child.",
+        "Inorder successor of x: if x has a right subtree, its leftmost node; otherwise the nearest ancestor whose left subtree contains x.",
+        "Deleting root 50 from the BST built by 50, 30, 70, 20, 40, 60, 80 with the successor rule makes 60 the root."
+      ],
+      "keyTerms": [
+        "inorder successor",
+        "inorder predecessor"
+      ],
+      "lesson": {
+        "why": "Deletion is the BST operation exam questions use to test whether you understand the structure, usually by deleting a node with two children and asking for the preorder or the new root. The inorder successor and predecessor also appear on their own.",
+        "intro": "In a binary search tree every key in the left subtree of a node is smaller than the node, and every key in the right subtree is larger. Deleting a key must keep that property. There are three cases, by how many children the node has. The inorder successor of a node is the next larger key in the tree, and the inorder predecessor is the next smaller one. Both are used to fill the hole left by a node with two children.",
+        "prerequisites": [
+          "pds-trees.bst-operations"
+        ],
+        "principle": {
+          "text": "A leaf is simply removed. A node with one child is replaced by that child. A node with two children takes the key of its inorder successor, the leftmost node of its right subtree, and that successor node is then deleted, which is easy because it has no left child. The inorder predecessor, the rightmost node of the left subtree, works symmetrically. Replacing a key by either neighbour in sorted order keeps the BST property.",
+          "tex": "\\text{succ}(x)=\\min(\\text{right}(x)),\\qquad \\text{pred}(x)=\\max(\\text{left}(x))"
+        },
+        "limits": "The successor is the leftmost node of the right subtree only when the right subtree exists. For a node with no right child the successor is the nearest ancestor of which the node lies in the left subtree. The successor and predecessor rules give different trees, so a question must say which one to use. The cost is the height of the tree, which is $O(n)$ for a skewed tree.",
+        "example": {
+          "problem": "Insert 45, 25, 65, 15, 35, 55, 75, 30, 40, 60 into an empty BST in that order. Delete 25 using the inorder successor and give the preorder of the result.",
+          "steps": [
+            "Node 25 has two children, 15 and 35, and 35 has children 30 and 40.",
+            "The successor is the leftmost node of the right subtree. From 35 go left to 30, which has no left child, so the successor is 30.",
+            "Copy 30 into the place of 25, then delete the original node 30, a leaf.",
+            "The tree now has root 45, left child 30 with children 15 and 35, and 35 keeps only the right child 40. The right side of 45 is unchanged.",
+            "Preorder visits root, left, right: 45, 30, 15, 35, 40, then 65, 55, 60, 75."
+          ],
+          "result": "The preorder is 45, 30, 15, 35, 40, 65, 55, 60, 75."
+        },
+        "misconceptions": [
+          "The successor is not simply the right child. It is the leftmost node of the right subtree, which may lie several steps down.",
+          "Deleting a node with two children does not remove the node itself. A neighbouring key is copied in and the neighbour's node is removed.",
+          "Using the predecessor instead of the successor gives a different, equally valid BST, so the preorder answer changes."
+        ],
+        "recall": [
+          {
+            "q": "What are the three deletion cases in a BST?",
+            "a": "A leaf is removed, a node with one child is replaced by that child, and a node with two children takes its successor or predecessor key."
+          },
+          {
+            "q": "Where is the inorder successor when the node has a right subtree?",
+            "a": "At the leftmost node of the right subtree."
+          },
+          {
+            "q": "Where is the inorder predecessor when the node has a left subtree?",
+            "a": "At the rightmost node of the left subtree."
+          },
+          {
+            "q": "Why is removing the successor node easy?",
+            "a": "It is the leftmost node of its subtree, so it has no left child and at most one child."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Insert 8, 4, 12, 2, 6, 10, 14, 5, 7, 9 into an empty BST in that order. The root 8 is deleted using its inorder successor. What is the preorder of the resulting tree?",
+          "options": [
+            "7, 4, 2, 6, 5, 12, 10, 9, 14",
+            "9, 4, 2, 6, 5, 7, 12, 10, 14",
+            "10, 4, 2, 6, 5, 7, 12, 9, 14",
+            "12, 4, 2, 6, 5, 7, 10, 9, 14"
+          ],
+          "answer": 1,
+          "explanation": "The right subtree of 8 is rooted at 12, and going left gives 10 and then 9, so the successor is 9. Copy 9 to the root and remove the leaf 9, then read the preorder 9, 4, 2, 6, 5, 7, 12, 10, 14. Option 0 tempts because it uses the predecessor 7, option 2 because it takes 10, the left child of 12, without going further left, and option 3 because it promotes the right child."
+        },
+        "summary": "Delete a leaf directly, splice out a one-child node, and for two children copy in the inorder successor (or predecessor) and delete that node. The successor is the leftmost node of the right subtree."
+      }
+    },
+    {
+      "id": "pds-trees.avl-height",
+      "title": "AVL balance factor and height bounds",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        25,
+        26,
+        326,
+        330
+      ],
+      "points": [
+        "An AVL tree is a BST in which every node's balance factor height(left) − height(right) is −1, 0 or +1.",
+        "The sparsest AVL tree of height h has a root, one subtree of height h − 1 and one of height h − 2, so N(h) = N(h − 1) + N(h − 2) + 1 with N(0) = 1 and N(1) = 2.",
+        "N(h) = F(h + 3) − 1 in Fibonacci numbers: 1, 2, 4, 7, 12, 20, 33, 54 for h = 0…7, so it grows like φʰ and the height is below about 1.44 log₂(n + 2).",
+        "To find the maximum height of an AVL tree with n nodes, take the largest h with N(h) ≤ n; with 20 nodes it is 5, with 19 it is 4.",
+        "Search, insert and delete are all O(log n) in the worst case."
+      ],
+      "keyTerms": [
+        "balance factor",
+        "N(h)",
+        "Fibonacci tree"
+      ],
+      "lesson": {
+        "why": "Questions ask for the largest height an AVL tree with given nodes can have, or the fewest nodes for a given height, and both reduce to one recurrence.",
+        "intro": "An AVL tree is a binary search tree that keeps itself nearly balanced. For every node, the heights of its left and right subtrees differ by at most 1. This stops the tree from degenerating into a chain, so its height stays small compared with the number of nodes. To bound the height, ask for the thinnest tree of each height, which is the one with the fewest nodes.",
+        "prerequisites": [
+          "pds-trees.bst-operations"
+        ],
+        "principle": {
+          "text": "The thinnest AVL tree of height $h$ has a root, one subtree of height $h-1$ and the thinnest allowed sibling of height $h-2$. Counting nodes gives a Fibonacci-like recurrence, and the height of an AVL tree with $n$ nodes is the largest $h$ with $N(h)\\le n$.",
+          "tex": "N(h)=N(h-1)+N(h-2)+1,\\quad N(0)=1,\\; N(1)=2"
+        },
+        "limits": "The recurrence gives the maximum height for a given node count and the minimum nodes for a given height. The balance condition applies at every node, not only the root. Search, insert and delete stay $O(\\log n)$ because the height is below about $1.44\\log_2(n+2)$.",
+        "example": {
+          "problem": "What is the greatest height of an AVL tree with 15 nodes?",
+          "steps": [
+            "Build the minimum node counts: $N(0)=1$, $N(1)=2$, $N(2)=4$, $N(3)=7$, $N(4)=12$, $N(5)=20$.",
+            "Height 4 needs at least 12 nodes, which is at most 15, so height 4 is possible.",
+            "Height 5 needs at least 20 nodes, more than 15, so it is impossible."
+          ],
+          "result": "The greatest height is 4."
+        },
+        "misconceptions": [
+          "The thinnest AVL tree of height $h$ is not a chain; one subtree has height $h-1$ and the other $h-2$, so it holds far more than $h+1$ nodes.",
+          "Taking $N(h)>n$ as the stopping point gives the wrong height; the answer is the largest $h$ whose minimum $N(h)$ is at most $n$."
+        ],
+        "recall": [
+          {
+            "q": "What is the balance condition of an AVL tree?",
+            "a": "At every node, the left and right subtree heights differ by at most 1."
+          },
+          {
+            "q": "What recurrence gives the fewest nodes in an AVL tree of height $h$?",
+            "a": "$N(h)=N(h-1)+N(h-2)+1$ with $N(0)=1$ and $N(1)=2$."
+          },
+          {
+            "q": "Why do AVL operations cost $O(\\log n)$?",
+            "a": "The height is at most about $1.44\\log_2(n+2)$, and each operation follows one path."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the greatest height an AVL tree with 50 nodes can have, where a single node has height 0?",
+          "answer": 6,
+          "explanation": "The minimum node counts are 1, 2, 4, 7, 12, 20, 33, 54 for heights 0 to 7. Height 6 needs 33 nodes, which fits in 50, while height 7 needs 54, which does not. Answering 7 tempts because 54 is close to 50, and answering 5 comes from stopping before 33."
+        },
+        "summary": "The fewest nodes at height $h$ follow $N(h)=N(h-1)+N(h-2)+1$; the maximum height for $n$ nodes is the largest $h$ with $N(h)\\le n$."
+      }
+    },
+    {
+      "id": "pds-trees.avl-rotations",
+      "title": "AVL rotations: LL, RR, LR, RL",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        26,
+        326,
+        329,
+        330,
+        331,
+        332
+      ],
+      "points": [
+        "After an insertion, walk up from the new leaf to the first node with balance factor ±2; the case is named by the first two steps from that node towards the new key.",
+        "LL (inserted into the left child's left subtree) is fixed by one right rotation; RR by one left rotation.",
+        "LR is fixed by a left rotation on the left child then a right rotation on the unbalanced node; RL by a right rotation on the right child then a left rotation. Each double rotation lifts the grandchild to the top.",
+        "A rotation changes O(1) pointers and preserves inorder order. One single or double rotation fixes any insertion, but a deletion may need rotations at every level up to the root.",
+        "Inserting 1, 2, …, 7 in order triggers four RR rotations and ends in the perfect tree with root 4."
+      ],
+      "keyTerms": [
+        "LL",
+        "RR",
+        "LR",
+        "RL",
+        "single rotation",
+        "double rotation"
+      ],
+      "lesson": {
+        "why": "AVL questions insert a short key sequence and ask for the root, a rotation count or a traversal of the result. They are answered by recognising one of four cases and applying the matching rotation.",
+        "intro": "An AVL tree is a binary search tree where, at every node, the heights of the two subtrees differ by at most 1. The difference, left height minus right height, is the balance factor. After an insertion some node on the path back to the root may reach balance factor $+2$ or $-2$. A rotation is a local rearrangement of a few links that lowers the taller side while keeping the BST order of the keys.",
+        "prerequisites": [
+          "pds-trees.avl-height"
+        ],
+        "principle": {
+          "text": "Find the lowest node with balance factor $\\pm2$. Name the case by the first two steps from it towards the new key. LL needs one right rotation at that node, and RR needs one left rotation. For LR, rotate left at the left child and then right at the node. For RL, rotate right at the right child and then left at the node. In a double rotation the grandchild becomes the top of the subtree.",
+          "tex": "\\text{LL}\\to\\text{rotate right},\\quad \\text{RR}\\to\\text{rotate left},\\quad \\text{LR}\\to\\text{left, right},\\quad \\text{RL}\\to\\text{right, left}"
+        },
+        "limits": "Rotations keep the inorder sequence, so they never change which keys are present. One rotation step (single or double) restores balance after an insertion, but a deletion may require a rotation at every level up to the root. Look for the lowest unbalanced node, because fixing it also repairs the nodes above.",
+        "example": {
+          "problem": "Insert 40, 20, 60, 10, 30, 25 into an empty AVL tree in that order. Which rotation is needed, and what is the final root?",
+          "steps": [
+            "After 40, 20, 60, 10 and 30 the tree is balanced, with 20 having children 10 and 30.",
+            "Inserting 25 puts it left of 30. Node 40 now has a left subtree of height 2 and a right subtree of height 0, so its balance factor is $+2$.",
+            "From 40 the first two steps towards 25 are left (to 20) and then right (to 30), so the case is LR.",
+            "Rotate left at 20, which lifts 30 above it, then rotate right at 40, which lifts 30 to the top.",
+            "The result has root 30, left child 20 with children 10 and 25, and right child 40 with right child 60."
+          ],
+          "result": "An LR double rotation is needed and the final root is 30."
+        },
+        "misconceptions": [
+          "An LR case is not fixed by a single right rotation. Doing only that leaves the tree leaning the other way, with balance factor $-2$ at the new top.",
+          "The case is named by the path to the new key from the unbalanced node, not from the root of the whole tree.",
+          "Rotations do not change the inorder sequence, so a rotation answer that reorders the sorted keys is wrong."
+        ],
+        "recall": [
+          {
+            "q": "Which rotation fixes an LL case?",
+            "a": "A single right rotation at the unbalanced node."
+          },
+          {
+            "q": "How is an RL case fixed?",
+            "a": "Rotate right at the right child, then rotate left at the unbalanced node."
+          },
+          {
+            "q": "Which node is rotated first in a double rotation?",
+            "a": "The child on the unbalanced side, which makes the case look like LL or RR."
+          },
+          {
+            "q": "What property do all rotations preserve?",
+            "a": "The inorder order of the keys, so the tree stays a BST."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Insert 50, 25, 75, 60, 90, 55 into an empty AVL tree in that order. What is the root after the insertions and any rotations?",
+          "options": [
+            "50",
+            "60",
+            "75",
+            "55"
+          ],
+          "answer": 1,
+          "explanation": "Inserting 55 gives node 50 a balance factor of $-2$. From 50 the first two steps towards 55 are right (to 75) and left (to 60), so this is RL. Rotate right at 75, then left at 50, and 60 becomes the root. Answer 75 tempts because a single left rotation would promote it, but that leaves the tree unbalanced, and 55 tempts because it is the key just inserted."
+        },
+        "summary": "Find the lowest node with balance factor $\\pm2$ and read the first two steps towards the new key. LL and RR use one rotation, LR and RL use two, and the inorder order never changes."
+      }
+    },
+    {
+      "id": "pds-trees.red-black-trees",
+      "title": "Red-black trees",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        26,
+        326,
+        327,
+        329,
+        331,
+        332
+      ],
+      "points": [
+        "Rules: every node is red or black, the root and all NIL leaves are black, a red node has only black children, and every path from a node to its NIL leaves has the same number of black nodes (its black-height).",
+        "A subtree with black-height b has at least 2ᵇ − 1 internal nodes, and no path is more than twice as long as another, so the height is at most 2 log₂(n + 1).",
+        "New keys are inserted red and fixed by recolouring and at most two rotations; deletion needs at most three rotations.",
+        "AVL trees are more tightly balanced, so lookups are slightly faster; red-black trees rotate less on updates, which is why library ordered maps use them."
+      ],
+      "keyTerms": [
+        "black-height",
+        "recolouring"
+      ],
+      "lesson": {
+        "why": "Questions ask which rules a red-black tree must satisfy, or bound its height by $2\\log_2(n+1)$ and compare it with an AVL tree. The bound follows from one counting argument about black nodes.",
+        "intro": "A red-black tree is a binary search tree in which every node is coloured red or black. The colours encode balance without storing heights. The NIL leaves, the empty positions below the real keys, count as black nodes. The black-height of a node is the number of black nodes on any path from it down to a NIL leaf, not counting the node itself. The colouring rules force all such paths to agree.",
+        "prerequisites": [
+          "pds-trees.bst-operations"
+        ],
+        "principle": {
+          "text": "The rules are that every node is red or black, the root is black, all NIL leaves are black, a red node has only black children, and every downward path from a node to its NIL leaves has the same number of black nodes. A subtree with black-height $b$ holds at least $2^b-1$ internal nodes, and since red nodes cannot be adjacent, a path is at most twice as long as another. So the height is at most $2\\log_2(n+1)$ for $n$ keys.",
+          "tex": "n\\ge 2^{b}-1,\\quad h\\le 2b\\ \\Longrightarrow\\ h\\le 2\\log_2(n+1)"
+        },
+        "limits": "The bound is an upper limit, not the usual height. A red-black tree is balanced more loosely than an AVL tree, so its lookups can be slightly slower, while it rotates less on updates. Insertion fixes violations by recolouring and at most two rotations, and deletion needs at most three rotations. The bound counts $n$ as the number of real keys, and the convention for counting height in edges or levels shifts the result by 1.",
+        "example": {
+          "problem": "A red-black tree stores 1000 keys. What is the largest height the bound $h\\le 2\\log_2(n+1)$ allows?",
+          "steps": [
+            "Let $b$ be the black-height of the root. The tree has $n=1000$ keys and $n\\ge 2^b-1$.",
+            "So $2^b\\le 1001$, which gives $b\\le\\log_2 1001$.",
+            "Red nodes cannot have red children, so at least half the nodes on any path are black, which gives $h\\le 2b$.",
+            "Therefore $h\\le 2\\log_2 1001\\approx 19.93$, and a whole-number height is at most 19."
+          ],
+          "result": "The height is at most 19."
+        },
+        "misconceptions": [
+          "Red-black trees are not perfectly balanced: the longest root-to-leaf path can be up to twice the shortest, so AVL trees are the more tightly balanced of the two.",
+          "Red nodes may not have red children, yet black nodes may have black children, so a path can legally contain runs of black nodes.",
+          "A new key is inserted red, not black. Inserting black would break the equal black-height rule on one path."
+        ],
+        "recall": [
+          {
+            "q": "What must hold for the children of a red node?",
+            "a": "Both children must be black."
+          },
+          {
+            "q": "What is the black-height of a node?",
+            "a": "The number of black nodes on any path from it down to a NIL leaf, not counting the node itself."
+          },
+          {
+            "q": "What is the height bound of a red-black tree with $n$ keys?",
+            "a": "$h\\le 2\\log_2(n+1)$."
+          },
+          {
+            "q": "Which tree needs fewer rotations on updates, AVL or red-black?",
+            "a": "The red-black tree, which is why library ordered maps use it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A red-black tree stores 255 keys. Using $h\\le 2\\log_2(n+1)$, what is the largest height the bound allows?",
+          "answer": 16,
+          "explanation": "Here $n+1=256=2^8$, so $\\log_2 256=8$ and the bound is $2\\cdot 8=16$. The answer 8 tempts by leaving out the factor of 2: 8 is the black-height of a perfect tree of 255 nodes (8 levels, height 7), and 255 tempts by treating the tree as a chain."
+        },
+        "summary": "A red-black tree is a BST with a black root, no red node with a red child, and equal black counts on all paths. This gives $n\\ge 2^b-1$ and a height of at most $2\\log_2(n+1)$."
+      }
+    },
+    {
+      "id": "pds-trees.heap-structure",
+      "title": "Binary heap property and array layout",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        26,
+        324,
+        327,
+        331,
+        332
+      ],
+      "points": [
+        "A binary heap is a complete binary tree stored in an array with the heap order: in a max-heap every parent ≥ its children, so the maximum is at the root; a min-heap reverses it.",
+        "Array layout: 1-indexed, node i has children 2i and 2i + 1 and parent ⌊i/2⌋; 0-indexed, children 2i + 1 and 2i + 2 and parent ⌊(i − 1)/2⌋. A skewed tree of n nodes would need up to 2ⁿ − 1 slots.",
+        "Heap order is only vertical: siblings are unordered, so an array in descending order is a max-heap but a max-heap is rarely sorted.",
+        "With n elements the height is ⌊log₂ n⌋, and the leaves are exactly positions ⌊n/2⌋ + 1 … n (1-indexed).",
+        "In a max-heap of distinct keys the minimum is at a leaf and the second largest is a child of the root; the k-th largest lies within depth k − 1.",
+        "A d-ary heap (0-indexed) puts the children of i at d·i + 1 … d·i + d and its parent at ⌊(i − 1)/d⌋; height falls to about log_d n but sift-down compares d children per level."
+      ],
+      "keyTerms": [
+        "max-heap",
+        "min-heap",
+        "complete binary tree",
+        "d-ary heap"
+      ],
+      "lesson": {
+        "why": "Heap questions in GATE ask where a key can sit, how many leaves there are and what height results, and all of them reduce to index arithmetic on the array layout.",
+        "intro": "A binary heap is a tree of keys that is kept in a plain array. The tree is complete, meaning every level is full except possibly the last, and the last level is filled from the left with no gaps. Because there are no gaps, the nodes can be written level by level into the array and no pointers are needed. On top of the shape there is one ordering rule: in a max-heap each key is at least as large as its children, so the largest key is at the root. A min-heap flips the rule.",
+        "prerequisites": [
+          "pds-trees.binary-tree-types"
+        ],
+        "definitions": [
+          {
+            "term": "Complete binary tree",
+            "meaning": "A binary tree whose levels are all full except the last, which is filled from the left."
+          },
+          {
+            "term": "Heap order",
+            "meaning": "Every parent compares as larger (max-heap) or smaller (min-heap) than or equal to each of its children."
+          }
+        ],
+        "principle": {
+          "text": "With 1-indexed positions, the children of position $i$ are $2i$ and $2i+1$ and its parent is $\\lfloor i/2 \\rfloor$. Position $i$ is a leaf exactly when $2i > n$, so the leaves are $\\lfloor n/2 \\rfloor + 1, \\dots, n$ and the height is $\\lfloor \\log_2 n \\rfloor$.",
+          "tex": "\\text{leaf}(i) \\iff 2i > n, \\qquad h = \\lfloor \\log_2 n \\rfloor"
+        },
+        "limits": "Heap order runs only from parent to child, so two siblings, or two leaves, have no known order. The index formulas shift by one if the array starts at 0: children are $2i+1$ and $2i+2$ and the parent is $\\lfloor (i-1)/2 \\rfloor$.",
+        "example": {
+          "problem": "A max-heap holds 13 keys in an array indexed from 1. Which positions are leaves, where are the children of position 5, and what is the height?",
+          "steps": [
+            "Position $i$ is a leaf when $2i > 13$, which holds from $i = 7$ onward, so the leaves are positions 7 to 13.",
+            "Position 5 has $2 \\cdot 5 = 10$ and $2 \\cdot 5 + 1 = 11$ as children, and both are at most 13, so both exist.",
+            "The height is $\\lfloor \\log_2 13 \\rfloor = 3$, because levels 0 to 2 hold 7 nodes and the 6 remaining nodes start level 3."
+          ],
+          "result": "Leaves are positions 7 to 13, position 5 has children 10 and 11, and the height is 3."
+        },
+        "misconceptions": [
+          "Heap order does not sort the array: a max-heap only promises parent over child, so a sibling can be larger than its sibling's whole subtree.",
+          "The maximum of a min-heap is not at the root or at a fixed position; it can be at any leaf, so finding it means comparing across all leaves, which is leaves minus 1 comparisons (511 for 1023 keys).",
+          "The height counts edges from the root to the deepest leaf, so a single node has height 0, not 1."
+        ],
+        "recall": [
+          {
+            "q": "In a 1-indexed heap of $n$ keys, which positions are leaves?",
+            "a": "Positions $\\lfloor n/2 \\rfloor + 1$ through $n$, since those satisfy $2i > n$."
+          },
+          {
+            "q": "Where in a max-heap can the smallest key be?",
+            "a": "Only at a leaf, because any internal node has a child that is no larger than it."
+          },
+          {
+            "q": "What is the height of a heap with $n$ keys?",
+            "a": "$\\lfloor \\log_2 n \\rfloor$ edges from the root to the deepest leaf."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A binary max-heap with 45 keys is stored in an array indexed from 1. How many of the positions are leaves?",
+          "answer": 23,
+          "explanation": "The last internal node is at position $\\lfloor 45/2 \\rfloor = 22$, since position 23 would need a child at 46, which is past the end. Positions 23 to 45 are leaves, which is $45 - 22 = 23$. The tempting answer 22 comes from taking $\\lfloor n/2 \\rfloor$ as the leaf count, when it is the internal-node count for a heap of odd size."
+        },
+        "summary": "A heap is a complete tree in an array with children at $2i$ and $2i+1$, leaves at positions above $n/2$ and height $\\lfloor \\log_2 n \\rfloor$; the order rule links only parent and child."
+      }
+    },
+    {
+      "id": "pds-trees.heap-operations",
+      "title": "Heap operations, build-heap and heapsort",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        26,
+        327,
+        328,
+        329,
+        330,
+        331,
+        332
+      ],
+      "points": [
+        "Insert appends at the end and sifts up while the new key beats its parent: O(log n).",
+        "Delete-max moves the last element to the root and sifts down, swapping with the larger child each time, until the heap order holds: O(log n). Find-max is O(1).",
+        "Build-heap (Floyd) sifts down nodes ⌊n/2⌋, …, 1; a node at height h does O(h) work and there are at most ⌈n/2^(h+1)⌉ of them, so the total is O(n).",
+        "Heapsort builds a max-heap, then n − 1 times swaps the root with the last element and sifts down: O(n log n) in every case, in place, not stable.",
+        "Searching for an arbitrary key or the minimum of a max-heap is O(n); deleting an arbitrary known position is O(log n)."
+      ],
+      "keyTerms": [
+        "sift-up",
+        "sift-down",
+        "heapify",
+        "build-heap",
+        "heapsort"
+      ],
+      "lesson": {
+        "why": "GATE asks for the array after a heap operation and for the cost of each one, so both the swap sequence and the O(log n) versus O(n) split must be exact.",
+        "intro": "A heap supports two repair moves. Sift-up takes a key that may be too large for its place and swaps it with its parent until the parent is not smaller. Sift-down takes a key that may be too small and swaps it with its larger child until both children are not larger. Insert puts the new key in the first free slot at the end and sifts it up. Delete-max moves the last key to the root and sifts it down. Each move travels at most the height of the tree.",
+        "prerequisites": [
+          "pds-trees.heap-structure"
+        ],
+        "definitions": [
+          {
+            "term": "Sift-down",
+            "meaning": "Repeatedly swap a key with its larger child until neither child is larger than it."
+          },
+          {
+            "term": "Build-heap",
+            "meaning": "Turn an arbitrary array into a heap by sifting down each internal node, from the last one back to the root."
+          }
+        ],
+        "principle": {
+          "text": "Insert and delete-max take at most one swap per level, so $O(\\log n)$. Build-heap is $O(n)$, not $O(n \\log n)$, because a node at height $h$ moves at most $h$ levels and few nodes are high. Heapsort is $O(n \\log n)$.",
+          "tex": "\\sum_{h=0}^{\\lfloor \\log_2 n \\rfloor} \\left\\lceil \\frac{n}{2^{h+1}} \\right\\rceil h = O(n)"
+        },
+        "limits": "The linear bound holds for build-heap by sift-down; building by $n$ separate inserts costs $O(n \\log n)$ in the worst case. Searching for an arbitrary key is $O(n)$, since heap order gives no direction to follow. Counting the heaps on a fixed key set starts from the forced root: the smallest key for a min-heap, then choose which keys go left, then count the heaps of each side.",
+        "example": {
+          "problem": "Build a max-heap from the array 4, 10, 3, 5, 1, 8, 7 (indexed from 1), then do one delete-max.",
+          "steps": [
+            "There are 7 keys, so the internal nodes are positions 3, 2, 1. Sift down position 3: key 3 has children 8 and 7, so swap with 8, giving 4, 10, 8, 5, 1, 3, 7.",
+            "Position 2 holds 10 and its children 5 and 1 are smaller, so nothing moves.",
+            "Position 1 holds 4. Swap with the larger child 10, then with the larger child 5 at position 4, giving the heap 10, 5, 8, 4, 1, 3, 7.",
+            "Delete-max: move the last key 7 to the root, giving 7, 5, 8, 4, 1, 3. Swap 7 with its larger child 8, and stop, because its only child, 3 at position 6, is smaller."
+          ],
+          "result": "The heap is 10, 5, 8, 4, 1, 3, 7; after delete-max it is 8, 5, 7, 4, 1, 3."
+        },
+        "misconceptions": [
+          "Sift-down swaps with the larger child, not just any larger child; swapping with the smaller one can leave the other child above its parent.",
+          "Build-heap is not $O(n \\log n)$ just because each sift-down is $O(\\log n)$; most nodes are near the bottom and move only a step or two.",
+          "Delete-max does not shift all other keys; it moves only the last key to the root."
+        ],
+        "recall": [
+          {
+            "q": "What are the steps of insert in a max-heap?",
+            "a": "Place the key at the end of the array, then swap it with its parent while it is larger than the parent."
+          },
+          {
+            "q": "Why is build-heap linear?",
+            "a": "A node at height $h$ moves at most $h$ levels and about $n/2^{h+1}$ nodes have that height, and the sum of these costs is $O(n)$."
+          },
+          {
+            "q": "How long does it take to find the minimum of a max-heap?",
+            "a": "$O(n)$, because the minimum is at some leaf and the leaves are in no known order."
+          },
+          {
+            "q": "Can a max-heap be built from a binary search tree in $\\Theta(n)$, and the reverse?",
+            "a": "Heap from BST, yes: read the keys into an array and run build-heap. BST from heap, no: it would sort the keys, which needs $\\Omega(n \\log n)$ comparisons."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "The array 20, 15, 10, 8, 6, 9, 4 (indexed from 1) is a max-heap. The key 12 is inserted. Which array results?",
+          "options": [
+            "20, 15, 10, 8, 6, 9, 4, 12",
+            "20, 15, 12, 8, 6, 9, 4, 10",
+            "20, 15, 10, 12, 6, 9, 4, 8",
+            "20, 15, 10, 8, 12, 9, 4, 6"
+          ],
+          "answer": 2,
+          "explanation": "The key 12 goes to position 8, whose parent is position 4 holding 8. Since 12 is larger, swap them, so 12 moves to position 4 and 8 to position 8. The new parent of position 4 is position 2 holding 15, which is larger, so the sifting stops. The first option is tempting because it only appends, without repairing the order."
+        },
+        "summary": "Insert sifts up and delete-max sifts down, each in $O(\\log n)$; build-heap sifts down from the last internal node to the root in $O(n)$."
+      }
+    },
+    {
+      "id": "pds-trees.multiway-and-tries",
+      "title": "B-trees, B+ trees and tries in brief",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        327,
+        328,
+        329,
+        331
+      ],
+      "points": [
+        "A B-tree of order m keeps all leaves at one depth; each non-root node has between ⌈m/2⌉ and m children and the root between 2 and m. Search and updates are O(log n).",
+        "A B+ tree stores records only in the leaves and links the leaves in key order, which makes range queries cheap; index sizing is done in the DBMS indexing chapter.",
+        "A trie stores strings as root-to-node paths, one character per edge, so insert, search and delete of a key of length L take O(L) regardless of how many keys are stored."
+      ],
+      "keyTerms": [
+        "B-tree",
+        "B+ tree",
+        "trie"
+      ],
+      "lesson": {
+        "why": "GATE asks about B-tree node limits, such as the fewest keys a tree of a given height can hold, and the one-line contrasts between B-tree, B+ tree and trie.",
+        "intro": "A binary search tree node holds one key and has two children. A B-tree node holds several sorted keys, and a node with k keys has k+1 children, one for each gap between keys. The tree is kept short and wide, so a search visits few nodes. The order m is the largest number of children a node may have. Every leaf sits at the same depth. When an insert overfills a node, the node splits and its middle key moves up to the parent. A B+ tree is a variant that keeps all records in the leaves and links the leaves in key order. A trie is different: it stores strings, and each edge carries one character.",
+        "prerequisites": [
+          "pds-trees.terminology"
+        ],
+        "definitions": [
+          {
+            "term": "Order m",
+            "meaning": "The maximum number of children of a B-tree node. A node holds at most m-1 keys."
+          },
+          {
+            "term": "Split",
+            "meaning": "Cutting an overfull node around its middle key, which moves up into the parent."
+          },
+          {
+            "term": "Trie",
+            "meaning": "A tree whose root-to-node paths spell strings, one character per edge."
+          }
+        ],
+        "principle": {
+          "text": "In a B-tree of order $m$ a non-root node has between $\\lceil m/2 \\rceil$ and $m$ children, so between $\\lceil m/2 \\rceil - 1$ and $m-1$ keys. The root has at least 2 children, or 1 key. Search and update are $O(\\log n)$. A trie search for a key of length $L$ costs $O(L)$, whatever the number of stored keys.",
+          "tex": "\\lceil m/2 \\rceil \\le \\text{children} \\le m,\\qquad \\lceil m/2 \\rceil - 1 \\le \\text{keys} \\le m-1"
+        },
+        "limits": "The occupancy bounds apply to non-root nodes only; the root may hold a single key. Conventions for the order differ between books, so use the definition the question states. This topic is only in brief: B+ tree index sizing belongs to the DBMS indexing chapter.",
+        "example": {
+          "problem": "Insert 10, 20, 30, 40, 50 in this order into an empty B-tree of order 3 (at most 2 keys per node). Give the final tree.",
+          "steps": [
+            "Insert 10 and 20. The root leaf holds [10, 20], which is full but not overfull.",
+            "Insert 30. The leaf would hold [10, 20, 30], which is overfull. Split around the middle key 20: it becomes the new root, with leaves [10] and [30].",
+            "Insert 40. It goes right of 20, so that leaf becomes [30, 40].",
+            "Insert 50. The right leaf would be [30, 40, 50], overfull. Split around 40: it moves up, and the root becomes [20, 40] with leaves [10], [30] and [50]."
+          ],
+          "result": "The root is [20, 40] with three leaves [10], [30], [50], all at the same depth."
+        },
+        "misconceptions": [
+          "The minimum of $\\lceil m/2 \\rceil - 1$ keys does not apply to the root; the root may have just one key.",
+          "A B-tree grows at the root, not at the leaves: leaves stay at one depth because only a root split adds a level.",
+          "A trie search time depends on the key length $L$, not on the number of keys stored, so it is not $O(\\log n)$."
+        ],
+        "recall": [
+          {
+            "q": "How many keys can a node of a B-tree of order $m$ hold at most, and why?",
+            "a": "At most $m-1$, since a node with $k$ keys has $k+1$ children and at most $m$ children are allowed."
+          },
+          {
+            "q": "What happens when an insert overfills a B-tree node?",
+            "a": "The node splits around its middle key, which moves up into the parent; the split can repeat up to the root."
+          },
+          {
+            "q": "How does a B+ tree differ from a B-tree?",
+            "a": "A B+ tree keeps records only in the leaves and links the leaves in key order, which makes range queries cheap."
+          },
+          {
+            "q": "What is the cost of searching a trie for a key of length $L$?",
+            "a": "$O(L)$, one edge per character, independent of how many keys the trie stores."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a B-tree of order 5, every non-root node has at least $\\lceil 5/2 \\rceil = 3$ children, and the root has at least 2 children. What is the minimum number of keys in such a tree that has three levels of nodes (a root and two levels below it)?",
+          "answer": 17,
+          "explanation": "The root has 1 key and 2 children. Each of the 2 nodes on level two has at least 3 children and 2 keys, giving 4 keys. Those nodes have at least 6 children, the leaves, each with 2 keys, giving 12. The total is 1 + 4 + 12 = 17. Applying the non-root minimum of 2 keys to the root as well tempts one to answer 2 + 4 + 12 = 18, but the root needs only 1 key."
+        },
+        "summary": "A B-tree of order $m$ is short and wide, with non-root nodes holding between $\\lceil m/2 \\rceil - 1$ and $m-1$ keys and all leaves at one depth. A B+ tree keeps records in linked leaves. A trie costs $O(L)$ per key."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "pds-trees.max-nodes-level",
+      "name": "Maximum nodes on a level",
+      "tex": "\\text{nodes at level } i \\le 2^{i}",
+      "text": "nodes at level i ≤ 2^i",
+      "where": [
+        [
+          "i",
+          "level, with the root at level 0"
+        ]
+      ],
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "source",
+      "pages": [
+        25
+      ]
+    },
+    {
+      "id": "pds-trees.max-nodes-height",
+      "name": "Maximum nodes in a binary tree of height h",
+      "tex": "n \\le 2^{h+1} - 1",
+      "text": "n ≤ 2^(h+1) − 1",
+      "where": [
+        [
+          "h",
+          "height in edges (single node has h = 0)"
+        ]
+      ],
+      "note": "Equality holds only for a perfect tree. If height is counted in levels, the bound becomes 2^h − 1.",
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        329
+      ]
+    },
+    {
+      "id": "pds-trees.min-height",
+      "name": "Minimum height for n nodes",
+      "tex": "h_{\\min} = \\lfloor \\log_2 n \\rfloor = \\lceil \\log_2 (n+1) \\rceil - 1",
+      "text": "h_min = ⌊log₂ n⌋ = ⌈log₂(n + 1)⌉ − 1",
+      "note": "Reached by a complete tree; the maximum height is n − 1, for a skewed tree.",
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.leaves-degree-two",
+      "name": "Leaves versus two-child nodes",
+      "tex": "n_0 = n_2 + 1",
+      "text": "n₀ = n₂ + 1",
+      "where": [
+        [
+          "n_0",
+          "nodes with no children"
+        ],
+        [
+          "n_2",
+          "nodes with two children"
+        ]
+      ],
+      "note": "Holds in every non-empty binary tree; one-child nodes do not change it.",
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "source",
+      "pages": [
+        25
+      ]
+    },
+    {
+      "id": "pds-trees.full-kary-leaves",
+      "name": "Leaves of a full k-ary tree",
+      "tex": "L = (k-1)\\,I + 1, \\qquad n = kI + 1",
+      "text": "L = (k − 1)·I + 1, n = k·I + 1",
+      "where": [
+        [
+          "I",
+          "internal nodes"
+        ],
+        [
+          "k",
+          "children per internal node"
+        ],
+        [
+          "L",
+          "leaves"
+        ]
+      ],
+      "note": "With k = 2 this is the full-binary-tree rule L = I + 1.",
+      "topic": "pds-trees.kary-trees",
+      "origin": "curated",
+      "pages": [
+        323,
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.catalan",
+      "name": "Number of binary tree shapes (and BSTs) on n nodes",
+      "tex": "C_n = \\frac{1}{n+1}\\binom{2n}{n} = \\sum_{i=0}^{n-1} C_i\\, C_{n-1-i}",
+      "text": "Cₙ = (1/(n + 1))·C(2n, n) = Σ Cᵢ·Cₙ₋₁₋ᵢ",
+      "note": "C₀…C₆ = 1, 1, 2, 5, 14, 42, 132. With n distinct labels placed freely, multiply by n!.",
+      "topic": "pds-trees.counting-trees",
+      "origin": "source",
+      "pages": [
+        331,
+        332
+      ]
+    },
+    {
+      "id": "pds-trees.avl-min-nodes",
+      "name": "Minimum nodes in an AVL tree of height h",
+      "tex": "N(h) = N(h-1) + N(h-2) + 1,\\quad N(0)=1,\\ N(1)=2",
+      "text": "N(h) = N(h − 1) + N(h − 2) + 1, N(0) = 1, N(1) = 2",
+      "note": "N(h) = F(h + 3) − 1. If height counts levels (single node = 1), the base cases shift to N(1) = 1, N(2) = 2.",
+      "topic": "pds-trees.avl-height",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.avl-height-bound",
+      "name": "AVL height bound",
+      "tex": "\\log_2(n+1) - 1 \\le h < 1.4405\\,\\log_2(n+2) - 1.3277",
+      "text": "log₂(n + 1) − 1 ≤ h < 1.4405·log₂(n + 2) − 1.3277",
+      "note": "Height in edges. The exact slope is 1/log₂φ = 1.44042, so the options' rounded h < 1.44·log₂(n + 2) is an approximation: it first fails at the sparsest tree of height 4552. In the levels convention add 1: h < 1.4405·log₂(n + 2) − 0.3277.",
+      "topic": "pds-trees.avl-height",
+      "origin": "source",
+      "pages": [
+        26,
+        326,
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.rbt-height",
+      "name": "Red-black tree height bound",
+      "tex": "h \\le 2\\log_2(n+1)",
+      "text": "h ≤ 2·log₂(n + 1)",
+      "where": [
+        [
+          "n",
+          "internal (key-holding) nodes"
+        ]
+      ],
+      "note": "Follows from n ≥ 2^b − 1 and b ≥ h/2, where b is the root's black-height.",
+      "topic": "pds-trees.red-black-trees",
+      "origin": "source",
+      "pages": [
+        26,
+        326,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.heap-index-one",
+      "name": "Heap array indexing, 1-indexed",
+      "tex": "\\text{parent}(i) = \\lfloor i/2 \\rfloor,\\quad \\text{left}(i) = 2i,\\quad \\text{right}(i) = 2i+1",
+      "text": "parent(i) = ⌊i/2⌋, left(i) = 2i, right(i) = 2i + 1",
+      "note": "0-indexed: parent ⌊(i − 1)/2⌋, children 2i + 1 and 2i + 2.",
+      "topic": "pds-trees.heap-structure",
+      "origin": "source",
+      "pages": [
+        26,
+        324,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.dary-index",
+      "name": "d-ary heap indexing, 0-indexed",
+      "tex": "\\text{child}_j(i) = d\\,i + j \\ (1 \\le j \\le d),\\quad \\text{parent}(i) = \\left\\lfloor \\frac{i-1}{d} \\right\\rfloor",
+      "text": "child_j(i) = d·i + j (1 ≤ j ≤ d), parent(i) = ⌊(i − 1)/d⌋",
+      "topic": "pds-trees.heap-structure",
+      "origin": "curated",
+      "pages": [
+        26
+      ]
+    },
+    {
+      "id": "pds-trees.heap-leaves",
+      "name": "Leaf positions of an n-element heap",
+      "tex": "\\text{leaves} = \\{\\lfloor n/2 \\rfloor + 1, \\dots, n\\},\\quad \\#\\text{leaves} = \\lceil n/2 \\rceil",
+      "text": "leaves = positions ⌊n/2⌋ + 1 … n, count ⌈n/2⌉",
+      "note": "The minimum of a max-heap is somewhere in this range, which is why finding it costs Θ(n).",
+      "topic": "pds-trees.heap-structure",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.build-heap-sum",
+      "name": "Build-heap cost",
+      "tex": "\\sum_{h=0}^{\\lfloor \\log_2 n \\rfloor} \\left\\lceil \\frac{n}{2^{h+1}} \\right\\rceil O(h) = O\\!\\left(n \\sum_{h \\ge 0} \\frac{h}{2^{h}}\\right) = O(n)",
+      "text": "Σ ⌈n/2^(h+1)⌉·O(h) = O(n·Σ h/2^h) = O(n)",
+      "note": "Σ h/2^h = 2. Building by n successive inserts is O(n log n) in the worst case.",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        26,
+        328
+      ]
+    },
+    {
+      "id": "pds-trees.btree-occupancy",
+      "name": "B-tree node occupancy (order m)",
+      "tex": "\\lceil m/2 \\rceil \\le \\text{children} \\le m,\\qquad \\lceil m/2 \\rceil - 1 \\le \\text{keys} \\le m - 1",
+      "text": "⌈m/2⌉ ≤ children ≤ m, ⌈m/2⌉ − 1 ≤ keys ≤ m − 1",
+      "note": "Non-root nodes only: the root may hold as few as 1 key (2 children).",
+      "topic": "pds-trees.multiway-and-tries",
+      "origin": "source",
+      "pages": [
+        327
+      ]
+    }
+  ],
+  "complexity": [
+    {
+      "id": "pds-trees.cx-traversal",
+      "name": "Any traversal (in/pre/post/level order)",
+      "worst": "O(n)",
+      "space": "O(h) stack or O(width) queue",
+      "notes": "Morris inorder needs O(1) extra space.",
+      "topic": "pds-trees.traversals",
+      "origin": "source",
+      "pages": [
+        325,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.cx-bst-search",
+      "name": "BST search / insert / delete",
+      "average": "O(log n)",
+      "worst": "O(n)",
+      "notes": "Cost is O(h); the worst case is a skewed tree, for example keys inserted in sorted order.",
+      "topic": "pds-trees.bst-operations",
+      "origin": "source",
+      "pages": [
+        25,
+        325,
+        330,
+        332
+      ]
+    },
+    {
+      "id": "pds-trees.cx-bst-build",
+      "name": "Build a BST by n insertions",
+      "average": "O(n log n)",
+      "worst": "O(n²)",
+      "topic": "pds-trees.bst-operations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.cx-avl",
+      "name": "AVL search / insert / delete",
+      "worst": "O(log n)",
+      "notes": "Insertion needs at most one single or double rotation; deletion can rotate at O(log n) levels.",
+      "topic": "pds-trees.avl-rotations",
+      "origin": "source",
+      "pages": [
+        26,
+        326
+      ]
+    },
+    {
+      "id": "pds-trees.cx-rbt",
+      "name": "Red-black search / insert / delete",
+      "worst": "O(log n)",
+      "notes": "At most 2 rotations per insert and 3 per delete.",
+      "topic": "pds-trees.red-black-trees",
+      "origin": "source",
+      "pages": [
+        26,
+        327
+      ]
+    },
+    {
+      "id": "pds-trees.cx-heap-findmax",
+      "name": "Heap find-max (max-heap)",
+      "worst": "O(1)",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        327,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.cx-heap-insert",
+      "name": "Heap insert / delete-max / change key",
+      "worst": "O(log n)",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        26,
+        327,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.cx-build-heap",
+      "name": "Build-heap from an unsorted array",
+      "worst": "O(n)",
+      "notes": "Bottom-up sift-down; n successive inserts would be O(n log n).",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        26,
+        327,
+        328
+      ]
+    },
+    {
+      "id": "pds-trees.cx-heap-search",
+      "name": "Search an arbitrary key, or the min of a max-heap",
+      "worst": "O(n)",
+      "topic": "pds-trees.heap-structure",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.cx-heapsort",
+      "name": "Heapsort",
+      "best": "O(n log n)",
+      "average": "O(n log n)",
+      "worst": "O(n log n)",
+      "space": "O(1)",
+      "notes": "In place, not stable.",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        328,
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.cx-trie",
+      "name": "Trie insert / search / delete",
+      "worst": "O(L)",
+      "notes": "L is the key length, independent of the number of stored keys.",
+      "topic": "pds-trees.multiway-and-tries",
+      "origin": "source",
+      "pages": [
+        328,
+        331
+      ]
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "pds-trees.pt-bst-insert-trace",
+      "title": "Build a BST from an insertion sequence, then read a traversal or height",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Insert keys one at a time, each as a leaf at the end of its search path; the first key is the root.",
+        "Sketch the tree level by level and mark each node's depth.",
+        "Read off the asked traversal or the longest root-to-leaf path in edges."
+      ],
+      "trap": "Inorder is always the sorted list, so an option showing sorted keys is the inorder distractor when the question asks preorder or postorder.",
+      "topic": "pds-trees.bst-operations",
+      "origin": "source",
+      "pages": [
+        325,
+        330,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.pt-traversal-reconstruction",
+      "title": "Rebuild a tree from two traversals and output the third",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Take the root from the first preorder element or the last postorder element.",
+        "Split the inorder sequence at the root into left and right subtree sets.",
+        "Take the same-sized slices from the other traversal and recurse.",
+        "Write the requested traversal from the rebuilt tree."
+      ],
+      "trap": "Given only preorder and postorder, a one-child node can be a left or right child; check whether the question gives inorder or guarantees a full tree.",
+      "topic": "pds-trees.tree-reconstruction",
+      "origin": "source",
+      "pages": [
+        324,
+        329,
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.pt-avl-insert",
+      "title": "AVL insertion sequence: rotations, final root or traversal",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Insert as in a BST, then recompute balance factors on the path back to the root.",
+        "Stop at the lowest node with balance factor ±2 and name the case from the first two steps towards the new key.",
+        "Apply one rotation for LL or RR, two for LR or RL, then continue with the next key."
+      ],
+      "trap": "Treating an LR case as LL: a single right rotation leaves the tree unbalanced the other way.",
+      "topic": "pds-trees.avl-rotations",
+      "origin": "source",
+      "pages": [
+        326,
+        330,
+        331,
+        332
+      ]
+    },
+    {
+      "id": "pds-trees.pt-heap-array",
+      "title": "Heap array after build-heap, insert or delete-max",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Draw the array as a complete tree: children of i are 2i and 2i + 1 (1-indexed).",
+        "Build-heap: sift down from position ⌊n/2⌋ back to 1. Insert: append and sift up. Delete-max: move the last element to the root and sift down.",
+        "In sift-down always swap with the larger child, and keep going until both children are smaller."
+      ],
+      "trap": "Stopping a sift-down after the first swap, or swapping with the left child by default.",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "pages": [
+        327,
+        328,
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.pt-node-counts",
+      "title": "Node, leaf and height counts from tree identities",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Identify the tree class: arbitrary binary (n₀ = n₂ + 1), full k-ary (L = (k − 1)I + 1), perfect (2^(h+1) − 1) or heap (⌈n/2⌉ leaves).",
+        "Check the height convention: edges or levels.",
+        "Substitute and add up the node classes the question asks for."
+      ],
+      "trap": "Forgetting the one-child nodes when asked for the total node count.",
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        329,
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.pt-avl-min-nodes",
+      "title": "Minimum nodes or maximum height of an AVL tree",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Tabulate N(h) = N(h − 1) + N(h − 2) + 1 from N(0) = 1, N(1) = 2.",
+        "For minimum nodes, read N(h); for maximum height with n nodes, take the largest h with N(h) ≤ n."
+      ],
+      "trap": "Using base cases for the levels convention (single node = height 1) when the question counts edges, or vice versa.",
+      "topic": "pds-trees.avl-height",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.pt-count-trees",
+      "title": "Count binary tree shapes or BSTs",
+      "frequency": "low",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Unlabelled shapes and BSTs on distinct keys: Cₙ.",
+        "Fixed root rank r: multiply C(r − 1)·C(n − r).",
+        "Freely labelled trees: n!·Cₙ."
+      ],
+      "topic": "pds-trees.counting-trees",
+      "origin": "source",
+      "pages": [
+        331,
+        332
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "pds-trees.q-bst-postorder",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The keys 60, 50, 70, 45, 65 are inserted in that order into an empty binary search tree. What is its postorder traversal?",
+      "options": [
+        "45 50 65 70 60",
+        "45 50 60 65 70",
+        "60 50 45 70 65",
+        "45 65 50 70 60"
+      ],
+      "answer": 0,
+      "explanation": "60 is the root; 50 goes left, 70 right, 45 left of 50, 65 left of 70. Postorder visits the left subtree (45, 50), the right subtree (65, 70), then the root: 45 50 65 70 60. The sorted list 45 50 60 65 70 is the inorder, and 60 50 45 70 65 is the preorder.",
+      "difficulty": "easy",
+      "topic": "pds-trees.bst-operations",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — BST insert order",
+      "pages": [
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.q-avl-sequential-rotations",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The keys 1, 2, 3, 4, 5, 6, 7 are inserted in that order into an initially empty AVL tree. How many single rotations are performed in total? (Count a double rotation as two.)",
+      "answer": 4,
+      "explanation": "Inserting 3 unbalances 1 (RR): left rotation, root 2. Inserting 5 unbalances 3 (RR): left rotation, 4 becomes 2's right child. Inserting 6 unbalances the root 2 (RR): left rotation, root 4 with left 2(1, 3) and right 5(−, 6). Inserting 7 unbalances 5 (RR): left rotation, 6(5, 7). Four single rotations; the final tree is perfect with root 4 and preorder 4 2 1 3 6 5 7.",
+      "difficulty": "medium",
+      "topic": "pds-trees.avl-rotations",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2022) — AVL insert",
+      "pages": [
+        332
+      ]
+    },
+    {
+      "id": "pds-trees.q-avl-lr-case",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The keys 50, 20, 60, 10, 30, 25 are inserted in that order into an empty AVL tree. What is the preorder traversal of the tree after the last insertion and any rebalancing?",
+      "options": [
+        "30 20 10 25 50 60",
+        "20 10 50 30 25 60",
+        "30 25 20 10 50 60",
+        "20 10 30 25 50 60"
+      ],
+      "answer": 0,
+      "explanation": "Before 25 the tree is 50(20(10, 30), 60), balanced. 25 goes left of 30; now node 20 has balance −1 and node 50 has left height 2, right height 0, balance +2. The path from 50 goes left then right: an LR case. Left-rotate at 20 then right-rotate at 50, lifting 30 to the root: 30(20(10, 25), 50(−, 60)), preorder 30 20 10 25 50 60. A single right rotation at 50 gives 20(10, 50(30(25), 60)), which is still unbalanced at 20.",
+      "difficulty": "medium",
+      "topic": "pds-trees.avl-rotations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-avl-min-nodes",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Height is measured in edges, so a single-node tree has height 0. What is the minimum number of nodes in an AVL tree of height 5?",
+      "answer": 20,
+      "explanation": "The sparsest AVL tree of height h has subtrees of heights h − 1 and h − 2, so N(h) = N(h − 1) + N(h − 2) + 1 with N(0) = 1, N(1) = 2. Then N(2) = 4, N(3) = 7, N(4) = 12, N(5) = 20.",
+      "difficulty": "medium",
+      "topic": "pds-trees.avl-height",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-build-heap",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The array [3, 5, 1, 8, 2, 7] is turned into a max-heap by the bottom-up build-heap procedure (sift-down from the last internal node back to the root). What is the resulting array?",
+      "options": [
+        "[8, 5, 7, 3, 2, 1]",
+        "[8, 3, 7, 5, 2, 1]",
+        "[8, 7, 5, 3, 2, 1]",
+        "[8, 5, 7, 1, 2, 3]"
+      ],
+      "answer": 0,
+      "explanation": "n = 6, so start at position 3 (1-indexed): 1 swaps with its child 7, giving [3, 5, 7, 8, 2, 1]. Position 2: 5 swaps with the larger child 8, giving [3, 8, 7, 5, 2, 1]. Position 1: 3 swaps with 8, then with 5, giving [8, 5, 7, 3, 2, 1]. Stopping after the first swap leaves [8, 3, 7, 5, 2, 1], which violates 3 ≥ 5. The sorted array is a valid heap but not what the procedure produces.",
+      "difficulty": "medium",
+      "topic": "pds-trees.heap-operations",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Heap",
+      "pages": [
+        331
+      ]
+    },
+    {
+      "id": "pds-trees.q-heap-delete-max",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A max-heap is stored as the array [50, 30, 40, 10, 20, 35, 25]. After one delete-max operation, what is the array?",
+      "options": [
+        "[40, 30, 35, 10, 20, 25]",
+        "[40, 30, 25, 10, 20, 35]",
+        "[30, 25, 40, 10, 20, 35]",
+        "[40, 35, 30, 10, 20, 25]"
+      ],
+      "answer": 0,
+      "explanation": "Remove 50 and move the last element 25 to the root: [25, 30, 40, 10, 20, 35]. Sift down: the larger child of 25 is 40, swap to get [40, 30, 25, 10, 20, 35]. 25 is now at position 3 with the single child 35 at position 6, so swap again: [40, 30, 35, 10, 20, 25]. Option B stops one swap early; option C swaps with the left child instead of the larger one.",
+      "difficulty": "medium",
+      "topic": "pds-trees.heap-operations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-binary-node-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A binary tree has 12 nodes with exactly two children and 7 nodes with exactly one child. How many nodes does the tree have in total?",
+      "answer": 32,
+      "explanation": "In any binary tree n₀ = n₂ + 1, so there are 13 leaves. Total = 13 + 7 + 12 = 32. Check with edges: n − 1 = 31 = n₁ + 2n₂ = 7 + 24.",
+      "difficulty": "easy",
+      "topic": "pds-trees.binary-tree-counts",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-ternary-leaves",
+      "type": "nat",
+      "marks": 1,
+      "stem": "In a rooted tree every internal node has exactly 3 children. If the tree has 15 internal nodes, how many leaves does it have?",
+      "answer": 31,
+      "explanation": "Counting edges two ways: n − 1 = 3I, so n = 46. Leaves = n − I = 31, which matches L = (k − 1)I + 1 = 2·15 + 1.",
+      "difficulty": "easy",
+      "topic": "pds-trees.kary-trees",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-count-bsts",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "How many structurally different binary search trees can store the four distinct keys 1, 2, 3, 4?",
+      "options": [
+        "5",
+        "14",
+        "24",
+        "42"
+      ],
+      "answer": 1,
+      "explanation": "Choosing root r leaves r − 1 keys on the left and 4 − r on the right, so the count is C₀C₃ + C₁C₂ + C₂C₁ + C₃C₀ = 5 + 2 + 2 + 5 = 14, the Catalan number C₄. 24 = 4! counts insertion orders, many of which give the same tree; 5 and 42 are C₃ and C₅.",
+      "difficulty": "easy",
+      "topic": "pds-trees.counting-trees",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Number of BSTs with 4 keys",
+      "pages": [
+        332
+      ]
+    },
+    {
+      "id": "pds-trees.q-reconstruct-postorder",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A binary tree with distinct labels has inorder D B E A F C and preorder A B D E C F. What is its postorder traversal?",
+      "options": [
+        "D E B F C A",
+        "D E B C F A",
+        "E D B F C A",
+        "D B E F C A"
+      ],
+      "answer": 0,
+      "explanation": "Preorder starts with A, so A is the root; inorder splits into {D, B, E} on the left and {F, C} on the right. The next preorder element B roots the left part with D left and E right. In the right part, preorder gives C first, and F precedes C in inorder, so F is C's left child. Tree: A(B(D, E), C(F, −)); postorder D E B F C A.",
+      "difficulty": "medium",
+      "topic": "pds-trees.tree-reconstruction",
+      "origin": "source",
+      "pages": [
+        330
+      ]
+    },
+    {
+      "id": "pds-trees.q-unique-reconstruction",
+      "type": "msq",
+      "marks": 1,
+      "stem": "For an arbitrary binary tree with distinct keys, which of the following pairs of traversals always determine the tree uniquely?",
+      "options": [
+        "Inorder and preorder",
+        "Inorder and postorder",
+        "Preorder and postorder",
+        "Inorder and level order"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Inorder splits the keys into left and right subtrees once the root is known, and preorder, postorder and level order each identify the root of every subtree, so all three pairs with inorder work. Preorder and postorder fail: root A with a single child B gives preorder A B and postorder B A whether B is a left or right child.",
+      "difficulty": "medium",
+      "topic": "pds-trees.tree-reconstruction",
+      "origin": "source",
+      "pages": [
+        25,
+        324,
+        329
+      ]
+    },
+    {
+      "id": "pds-trees.q-heap-facts",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Consider binary max-heaps with n distinct keys. Which of the following statements are true?",
+      "options": [
+        "A max-heap can be built from an unsorted array in O(n) time.",
+        "The minimum key is always stored in a leaf.",
+        "Any given key can be searched for in O(log n) time.",
+        "An array sorted in descending order is a valid max-heap."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Bottom-up build-heap costs Σ ⌈n/2^(h+1)⌉·O(h) = O(n). If the minimum had a child, that child would be smaller, so the minimum is a leaf. Searching is O(n): heap order says nothing about left versus right, so both subtrees may need visiting. A descending array has A[i] ≥ A[j] for every i < j, in particular for each parent and child.",
+      "difficulty": "medium",
+      "topic": "pds-trees.heap-structure",
+      "origin": "source",
+      "pages": [
+        26,
+        327,
+        328
+      ]
+    },
+    {
+      "id": "pds-trees.q-heap-min-candidates",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A max-heap holds 1023 distinct keys in an array. In how many different array positions could the smallest key be located?",
+      "answer": 512,
+      "explanation": "The minimum must be a leaf, and in an n-element heap the leaves are positions ⌊n/2⌋ + 1 … n. With n = 1023 that is 512 … 1023, which is 512 positions; any of them can hold the minimum.",
+      "difficulty": "medium",
+      "topic": "pds-trees.heap-structure",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-bst-delete-root",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The keys 50, 30, 70, 20, 40, 60, 80 are inserted in that order into an empty BST. The root is then deleted, replacing it by its inorder successor. What is the preorder traversal of the result?",
+      "options": [
+        "60 30 20 40 70 80",
+        "40 30 20 70 60 80",
+        "70 30 20 40 60 80",
+        "60 30 20 40 80 70"
+      ],
+      "answer": 0,
+      "explanation": "The root 50 has two children. Its inorder successor is the leftmost node of the right subtree, 60, a leaf. Copy 60 into the root and delete the leaf: 60(30(20, 40), 70(−, 80)), preorder 60 30 20 40 70 80. Option B is the result of using the inorder predecessor 40.",
+      "difficulty": "easy",
+      "topic": "pds-trees.bst-deletion",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-bst-height",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The keys 15, 10, 20, 8, 12, 25, 6, 11, 13, 22, 30, 5, 4 are inserted in that order into an empty binary search tree. What is the height of the tree, in edges (a single node has height 0)?",
+      "answer": 5,
+      "explanation": "15 is the root with children 10 and 20. Under 10: 8 and 12; under 20: right child 25. Then 6 goes left of 8, 11 and 13 under 12, 22 and 30 under 25, 5 left of 6 and 4 left of 5. The longest path is 15 → 10 → 8 → 6 → 5 → 4, which has 5 edges; the right side only reaches 15 → 20 → 25 → 22, 3 edges.",
+      "difficulty": "medium",
+      "topic": "pds-trees.bst-operations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "pds-trees.q-rbt-balance-rule",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which red-black tree rules together guarantee that no root-to-NIL path is more than twice as long as any other?",
+      "options": [
+        "The root is black and every NIL leaf is black",
+        "A red node has only black children, and every root-to-NIL path has the same number of black nodes",
+        "Every newly inserted node is coloured red",
+        "Every node is either red or black"
+      ],
+      "answer": 1,
+      "explanation": "Every root-to-NIL path has the same black count b. Since red nodes cannot be adjacent, a path can at most alternate red and black, giving at most 2b nodes, while the shortest has at least b. This is also the source of h ≤ 2 log₂(n + 1). The other rules fix colours but do not bound path lengths.",
+      "difficulty": "easy",
+      "topic": "pds-trees.red-black-trees",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2021) — RBT",
+      "pages": [
+        26,
+        326,
+        332
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Height conventions differ: with height in edges a perfect tree of height h has 2^(h+1) − 1 nodes and N(0) = 1 for AVL; with height in levels these shift by one. Read the convention before substituting.",
+      "origin": "source",
+      "pages": [
+        323,
+        328
+      ]
+    },
+    {
+      "text": "Build-heap is O(n), not O(n log n); only n successive inserts cost O(n log n).",
+      "origin": "source",
+      "pages": [
+        26,
+        332
+      ]
+    },
+    {
+      "text": "Preorder plus postorder does not fix a binary tree; inorder must be one of the two traversals unless the tree is known to be full or to be a BST.",
+      "origin": "source",
+      "pages": [
+        324,
+        332
+      ]
+    },
+    {
+      "text": "Naming the AVL case from the wrong node: take the lowest unbalanced ancestor of the new key and the first two steps towards that key, then use a double rotation for LR and RL.",
+      "origin": "source",
+      "pages": [
+        326,
+        332
+      ]
+    },
+    {
+      "text": "In sift-down, swap with the larger child (max-heap) and continue until the element settles; swapping with the left child or stopping after one swap gives an invalid heap.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Mixing 0- and 1-indexed heap formulas: parent ⌊i/2⌋ belongs to 1-indexed arrays, ⌊(i − 1)/2⌋ to 0-indexed ones.",
+      "origin": "source",
+      "pages": [
+        26,
+        324,
+        331
+      ]
+    },
+    {
+      "text": "A balanced BST's O(log n) does not carry over to an arbitrary BST: sorted insertions build a chain with O(n) search.",
+      "origin": "source",
+      "pages": [
+        325,
+        332
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Binary tree counts",
+      "lines": [
+        "Level i ≤ 2ⁱ nodes; height h ≤ 2^(h+1) − 1 nodes",
+        "Min height ⌊log₂ n⌋, max n − 1",
+        "n₀ = n₂ + 1; full k-ary: L = (k − 1)I + 1",
+        "Shapes / BSTs on n keys: Cₙ = 1, 1, 2, 5, 14, 42"
+      ],
+      "origin": "source",
+      "pages": [
+        25,
+        323,
+        333
+      ]
+    },
+    {
+      "heading": "Traversals and BST",
+      "lines": [
+        "In LNR, pre NLR, post LRN; BST inorder = sorted",
+        "Unique rebuild: inorder + (pre or post or level)",
+        "BST ops O(h): O(log n) average, O(n) skewed",
+        "Delete two-child node: copy inorder successor, delete it"
+      ],
+      "origin": "source",
+      "pages": [
+        333
+      ]
+    },
+    {
+      "heading": "Balanced BSTs",
+      "lines": [
+        "AVL: BF ∈ {−1, 0, +1}; LL→R, RR→L, LR→L then R, RL→R then L",
+        "N(h) = N(h−1) + N(h−2) + 1: 1, 2, 4, 7, 12, 20, 33",
+        "AVL h < 1.4405 log₂(n + 2) − 1.3277 (≈ 1.44 log₂ n); RBT h ≤ 2 log₂(n + 1)"
+      ],
+      "origin": "source",
+      "pages": [
+        26,
+        333
+      ]
+    },
+    {
+      "heading": "Heaps",
+      "lines": [
+        "1-indexed: parent ⌊i/2⌋, children 2i, 2i + 1",
+        "Find-max O(1); insert, delete-max O(log n); build O(n)",
+        "Heapsort O(n log n), in place; min of max-heap at a leaf, O(n) to find"
+      ],
+      "origin": "source",
+      "pages": [
+        26,
+        327,
+        333
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 327,
+      "claim": "In a B-tree of order m, each node has between ⌈m/2⌉ − 1 and m − 1 keys.",
+      "correction": "The lower bound applies to non-root nodes only. The root may hold as few as 1 key and have 2 children; otherwise a B-tree with fewer than ⌈m/2⌉ − 1 keys could not exist and the root could never split into two."
+    },
+    {
+      "page": 331,
+      "claim": "Build-heap on {3, 5, 1, 8, 2, 7} gives [8, 5, 7, 3, 2, 1] \"or a similar valid\" heap.",
+      "correction": "Bottom-up build-heap is deterministic and gives exactly [8, 5, 7, 3, 2, 1]; other valid max-heaps on these keys, such as [8, 7, 5, 3, 2, 1], are not what the procedure produces, so they would be marked wrong."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "pds-trees-bst",
+      "status": "covered",
+      "topics": [
+        "pds-trees.terminology",
+        "pds-trees.binary-tree-types",
+        "pds-trees.binary-tree-counts",
+        "pds-trees.traversals",
+        "pds-trees.tree-reconstruction",
+        "pds-trees.counting-trees",
+        "pds-trees.bst-operations",
+        "pds-trees.bst-deletion",
+        "pds-trees.avl-height",
+        "pds-trees.avl-rotations",
+        "pds-trees.red-black-trees"
+      ]
+    },
+    {
+      "item": "pds-binary-heaps",
+      "status": "covered",
+      "topics": [
+        "pds-trees.heap-structure",
+        "pds-trees.heap-operations"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2082 @@
+{
+  "id": "cn-layering-switching",
+  "summary": "Layering splits networking into a stack in which each layer offers a service to the layer above and talks to its peer through a protocol; encapsulation adds one header per layer on the way down and strips it on the way up. GATE tests this through OSI and TCP/IP layer facts, PDU names and which device works at which layer. The 2027 syllabus adds switching and performance metrics: circuit vs datagram vs virtual-circuit switching and the delay arithmetic behind them, from L/R and d/v to store-and-forward pipelining over several hops, circuit setup time, throughput and the bandwidth-delay product.",
+  "highYield": [
+    "End-to-end time for P packets over k store-and-forward links: (P + k − 1)·L/R + k·d_prop. Expect a 2-mark NAT that also mixes in per-packet headers or circuit setup time.",
+    "Transmission delay L/R depends on packet size and link rate; propagation delay d/v depends only on distance and signal speed. Know which one changes when length, rate or packet size changes.",
+    "Device-to-layer mapping (hub and repeater 1, bridge and switch 2, router 3, gateway above 3) and the PDU name at each layer (segment, packet, frame, bits).",
+    "Circuit vs virtual circuit vs datagram: which needs setup, which reserves resources, which preserves order and which routes every packet independently.",
+    "Bandwidth-delay product R × RTT as the amount of data a sender must keep outstanding to fill the pipe, and throughput as the minimum link rate on the path."
+  ],
+  "topics": [
+    {
+      "id": "cn-layering-switching.layering-principles",
+      "title": "Principles of layering: services, interfaces and protocols",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [
+        622
+      ],
+      "points": [
+        "A layered architecture splits networking into a stack: layer n uses only the services of layer n − 1 and offers a service to layer n + 1, so one layer's implementation can change without touching its neighbours.",
+        "A service is what a layer does for the layer above, reached through an interface (a service access point). A protocol is the set of rules, message formats and meanings that layer-n entities on different machines use to talk to each other.",
+        "Peer layers communicate only logically: a header written by layer n at the sender is read and removed only by layer n at the receiver, while the bits physically travel down the stack, across the medium and back up.",
+        "Layering costs overhead: every layer adds its own header, and some functions repeat at several layers. Error and flow control run hop by hop in the data link layer and end to end in the transport layer; addressing appears as MAC (2), IP (3) and port (4).",
+        "A service is connection-oriented (set up, use, release) or connectionless (each message carries the full address), and reliable (acknowledged) or unreliable. TCP offers a reliable connection-oriented service; IP and UDP are connectionless."
+      ],
+      "keyTerms": [
+        "service",
+        "interface",
+        "protocol",
+        "peer entities",
+        "service access point"
+      ],
+      "lesson": {
+        "why": "Layer-and-service questions test whether you can tell what a layer offers from how two machines talk, and every later topic in this chapter assumes this vocabulary.",
+        "intro": "A network is too big to build as one block, so it is cut into layers stacked one above another. Each layer does one job and only deals with the layer directly below and the layer directly above. The job a layer does for the layer above is its service, and the point where the upper layer asks for it is the interface. The agreed rules and message formats that the same layer on two different machines follow are the protocol. Because neighbours see only the service, one layer can be rebuilt without changing the rest.",
+        "definitions": [
+          {
+            "term": "Service",
+            "meaning": "What a layer does for the layer above it, reached through an interface."
+          },
+          {
+            "term": "Protocol",
+            "meaning": "The rules and message formats that peer layers on two machines use to talk to each other."
+          },
+          {
+            "term": "Connection-oriented and connectionless",
+            "meaning": "A connection-oriented service sets up a connection, uses it and releases it, as TCP does; a connectionless service sends each message on its own with the full address, as IP and UDP do."
+          },
+          {
+            "term": "Peer entities",
+            "meaning": "The two instances of layer n, one on each machine, that exchange layer-n messages."
+          }
+        ],
+        "principle": {
+          "text": "Layer n uses only the service of layer n - 1 and offers a service to layer n + 1. Layer-n peers talk through a protocol, which is a logical conversation: the real bits go down one stack, across the medium and up the other stack."
+        },
+        "limits": "Layering is a design rule, not a physical fact. Real stacks repeat some functions at several layers, such as error control in the data link and transport layers, and every layer adds header overhead.",
+        "example": {
+          "problem": "Machine A sends a file to machine B. Explain which two things are called a service and a protocol when A's transport layer sends data to B's transport layer.",
+          "steps": [
+            "A's transport layer asks the network layer below it to deliver a packet. That request, reached through the interface, is the network layer's service to transport.",
+            "The network layer is a service provider here and A's transport layer is its user; it does not see inside the data.",
+            "The transport layers on A and B follow transport rules such as segment format and acknowledgement. Those shared rules are the transport protocol, and A and B are its peers.",
+            "The segment still travels down A's stack, over the link and up B's stack. The peer conversation is logical, never direct."
+          ],
+          "result": "The network layer's delivery is a service between neighbours; the transport rules between A and B are a protocol between peers."
+        },
+        "misconceptions": [
+          "A service and a protocol are not the same thing. A service faces the layer above on the same machine; a protocol faces the same layer on another machine.",
+          "Peer layers do not exchange bits directly. Only the physical layer touches the medium, and everything else rides inside the frames it carries.",
+          "A reliable service does not mean every layer below is reliable. TCP is reliable over IP, which is not."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between a service and a protocol?",
+            "a": "A service is what a layer offers to the layer above on the same machine; a protocol is the set of rules peer layers on different machines follow."
+          },
+          {
+            "q": "Which of TCP, UDP and IP are connectionless?",
+            "a": "UDP and IP are connectionless; TCP is connection-oriented and reliable."
+          },
+          {
+            "q": "Why can one layer be replaced without changing the others?",
+            "a": "Neighbouring layers depend only on its service and interface, not on how it is implemented."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about layered network architecture is correct?",
+          "options": [
+            "A layer-n header written by the sender is read and removed only by layer n at the receiver.",
+            "Layer n exchanges bits directly with layer n on the other machine.",
+            "A protocol is the interface through which layer n + 1 requests a service from layer n.",
+            "A layer may skip layer n - 1 and use the service of layer n - 2 directly."
+          ],
+          "answer": 0,
+          "explanation": "Peer layers communicate logically: the header added by layer n is meant for layer n at the other end and is stripped there. The second option tempts because the conversation looks direct, but bits travel through the whole stack. The third swaps the meanings of protocol and interface, and the fourth breaks the rule that a layer uses only the layer below."
+        },
+        "summary": "A layer offers a service upward through an interface and talks to its peer through a protocol; the conversation is logical while the bits travel down and up the stacks."
+      }
+    },
+    {
+      "id": "cn-layering-switching.osi-model",
+      "title": "The OSI reference model",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        54,
+        55,
+        619
+      ],
+      "points": [
+        "The OSI model has seven layers, top to bottom: application, presentation, session, transport, network, data link, physical. Mnemonic: All People Seem To Need Data Processing.",
+        "Physical sends raw bits over the medium; data link builds frames and handles MAC addressing and error detection on one link; network does logical addressing and routing across networks; transport gives end-to-end, process-to-process delivery.",
+        "Session manages dialogs and synchronisation, presentation handles encoding, compression and encryption, and application is the interface for user programs such as HTTP, FTP, SMTP and DNS.",
+        "Only the lower three layers run in every router on a path; transport and above run only in the end hosts, which is why transport is called end-to-end and data link hop-by-hop."
+      ],
+      "keyTerms": [
+        "OSI reference model",
+        "end-to-end",
+        "hop-by-hop"
+      ],
+      "lesson": {
+        "why": "Matching a layer to its job, and knowing which devices run which layers, is a core skill for this chapter, so the seven names and their duties must be automatic.",
+        "intro": "Network software is split into seven layers so that each one solves a single problem and hands the result to the next. From the top they are application, presentation, session, transport, network, data link and physical. The layers near the bottom move bits across one wire and across the network; the layers near the top care about the programs talking to each other. Each layer only talks to the layer directly above and below it on its own machine.",
+        "analogy": {
+          "text": "Posting a parcel: the sender packs the goods, a depot sorts by city, a driver carries it along one road, and the road itself is the physical medium.",
+          "breaksWhen": "A parcel is handled by people who understand the whole journey, while a protocol layer knows only its own header and ignores the rest."
+        },
+        "definitions": [
+          {
+            "term": "Frame",
+            "meaning": "The unit the data link layer sends over one link, with a header and trailer carrying MAC addresses and an error check."
+          },
+          {
+            "term": "End-to-end",
+            "meaning": "Between the two communicating hosts only; routers in the middle do not take part."
+          },
+          {
+            "term": "Hop-by-hop",
+            "meaning": "Repeated on every link along the path, between neighbouring devices."
+          }
+        ],
+        "principle": {
+          "text": "Each layer is defined by the one service it gives the layer above: physical moves bits, data link moves frames over one link, network routes packets across networks hop by hop, and transport delivers end to end, from host to host and process to process."
+        },
+        "limits": "The OSI model is a reference. The Internet uses the four- or five-layer TCP/IP stack, which merges application, presentation and session into one application layer, so real protocols rarely sit in exactly one OSI box.",
+        "example": {
+          "problem": "Two hosts are joined through 3 routers in a row. Counting the hosts and the routers, how many devices read the network-layer header, and how many read the transport-layer header?",
+          "steps": [
+            "The path has 2 hosts and 3 routers, so 5 devices, joined by 4 links.",
+            "Every router must choose a next hop, so each device on the path reads the network header: 5 devices.",
+            "The transport header is meant for the receiving process, so only the 2 end hosts read it.",
+            "The data link header changes on every link, so it is read once per link: 4 times."
+          ],
+          "result": "5 devices read the network header and 2 read the transport header."
+        },
+        "misconceptions": [
+          "Routers do not look at the transport layer: a router stops at the network layer, so ports and TCP state are invisible to it.",
+          "Network and transport are not the same thing: network routes packets hop by hop, while transport is end to end. Exam wording such as 'host to host communication' means the transport layer, and 'packet routing' means the network layer.",
+          "Data link is not end-to-end. Its address and error check cover one link, and the next router rewrites them."
+        ],
+        "recall": [
+          {
+            "q": "Name the seven OSI layers from top to bottom.",
+            "a": "Application, presentation, session, transport, network, data link, physical."
+          },
+          {
+            "q": "Which layer does packet routing, and which layer does end-to-end (host to host, process to process) delivery?",
+            "a": "Network does packet routing across networks; transport does end-to-end delivery between the communicating hosts and their processes."
+          },
+          {
+            "q": "Which layers run in every router on the path?",
+            "a": "Physical, data link and network. Transport and above run only at the end hosts."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A host receives data and must decide which of the several programs running on it should get the data. Which OSI layer makes that decision?",
+          "options": [
+            "Network layer",
+            "Transport layer",
+            "Data link layer",
+            "Session layer"
+          ],
+          "answer": 1,
+          "explanation": "Transport uses port numbers to pick the receiving process. Network tempts because it also addresses data, but it addresses only the host. Data link addresses a device on one link, and session manages the dialog, not the delivery."
+        },
+        "summary": "Seven layers, each with one job: transport is end to end (host to host and process to process), network routes packets hop by hop, data link frames one link, physical sends bits. Routers run the bottom three."
+      }
+    },
+    {
+      "id": "cn-layering-switching.tcp-ip-model",
+      "title": "The TCP/IP model and its mapping to OSI",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        55,
+        620,
+        622
+      ],
+      "points": [
+        "The TCP/IP (Internet) model is usually taught with five layers: application, transport, network (internet), data link and physical. The four-layer version merges data link and physical into one network-access (link) layer.",
+        "Its application layer absorbs OSI's session and presentation layers, so functions such as encryption (TLS) and dialog control live inside applications and libraries.",
+        "TCP/IP is the deployed stack; OSI is the reference used to name layers, so 'layer 3' or 'layer 2' in a question means the OSI numbering.",
+        "Typical protocols: HTTP, DNS and SMTP (application); TCP and UDP (transport); IP (network); Ethernet and PPP (data link)."
+      ],
+      "keyTerms": [
+        "internet layer",
+        "network access layer"
+      ],
+      "lesson": {
+        "why": "Questions name layers by OSI numbers but ask about Internet protocols, so you must map one model onto the other without hesitation.",
+        "intro": "The Internet does not run the seven-layer OSI stack. It runs the TCP/IP stack, usually drawn with five layers from top to bottom: application, transport, network, data link and physical. Some books merge the last two into one network-access layer, giving four. The application layer does the work OSI split into application, presentation and session, so things like encryption and dialog control sit inside programs and libraries.",
+        "definitions": [
+          {
+            "term": "Internet layer",
+            "meaning": "The TCP/IP name for the network layer, where IP forwards packets between networks."
+          },
+          {
+            "term": "Network access layer",
+            "meaning": "The four-layer model's single layer that covers data link and physical."
+          }
+        ],
+        "principle": {
+          "text": "Five-layer TCP/IP maps to OSI as application = layers 7, 6 and 5; transport = 4; network = 3; data link = 2; physical = 1. A phrase like layer 3 always follows the OSI numbers."
+        },
+        "limits": "The mapping is approximate. TCP/IP was not designed in layers matching OSI, and the four-layer version has no separate physical layer to point to.",
+        "example": {
+          "problem": "Place HTTP, TCP, IP and Ethernet in the five-layer TCP/IP stack and give the OSI number of each.",
+          "steps": [
+            "HTTP is a program-level protocol, so it belongs to the application layer, OSI layer 7 in numbering.",
+            "TCP delivers data between processes, so it is in the transport layer, layer 4.",
+            "IP moves packets between networks, so it is in the network layer, layer 3.",
+            "Ethernet frames data over one link, so it is in the data link layer, layer 2, with its signalling in the physical layer, layer 1."
+          ],
+          "result": "HTTP is 7, TCP is 4, IP is 3 and Ethernet is 2."
+        },
+        "misconceptions": [
+          "TCP/IP has no separate presentation or session layer; that does not mean encryption is absent, only that applications handle it.",
+          "TCP/IP is not the OSI model with layers renamed. The two were designed separately and match only roughly.",
+          "Layer 3 in a question means OSI numbering even when the protocols named are Internet ones."
+        ],
+        "recall": [
+          {
+            "q": "How many layers does the usual TCP/IP teaching model have?",
+            "a": "Five: application, transport, network, data link and physical. The four-layer version merges the last two."
+          },
+          {
+            "q": "Which OSI layers does the TCP/IP application layer cover?",
+            "a": "Application, presentation and session."
+          },
+          {
+            "q": "Which protocols belong to the network and transport layers?",
+            "a": "IP is the network-layer protocol; TCP and UDP are the transport-layer protocols."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In the five-layer TCP/IP model, which pair correctly gives a protocol and its layer?",
+          "options": [
+            "DNS, transport layer",
+            "UDP, network layer",
+            "IP, network layer",
+            "Ethernet, application layer"
+          ],
+          "answer": 2,
+          "explanation": "IP forwards packets between networks, so it is the network-layer protocol. UDP tempts as a network protocol because it is connectionless like IP, but it is transport. DNS is an application protocol and Ethernet is data link."
+        },
+        "summary": "TCP/IP has five layers, with its application layer holding OSI layers 5 to 7; questions quote OSI numbers while naming Internet protocols."
+      }
+    },
+    {
+      "id": "cn-layering-switching.encapsulation",
+      "title": "Encapsulation, decapsulation and PDU names",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        620,
+        622,
+        624
+      ],
+      "points": [
+        "On the way down, each layer treats everything handed to it from above as payload and prepends its own header; the data link layer also appends a trailer carrying the frame check sequence.",
+        "PDU names: message at the application layer, segment (TCP) or datagram (UDP) at transport, packet or datagram at network, frame at data link, bits at physical.",
+        "On the way up, decapsulation runs in reverse: each layer reads and strips its own header and passes the payload to the protocol named in that header, for example the IP protocol field saying TCP.",
+        "A router decapsulates only up to the network layer, then builds a fresh frame for the next link; a switch looks only at the frame header.",
+        "Counting layer visits: on a path with r routers, a packet passes the network layer r + 2 times (both hosts and every router) and the data link and physical layers 2r + 2 times (once per host, twice per router), but the transport layer only twice. Two routers give 4 and 6."
+      ],
+      "keyTerms": [
+        "encapsulation",
+        "decapsulation",
+        "PDU",
+        "header",
+        "trailer"
+      ],
+      "lesson": {
+        "why": "Counting how often a layer is visited on a path, and naming the unit at each layer, are the two skills this topic builds.",
+        "intro": "When data is sent, each layer treats whatever the layer above gave it as plain cargo and wraps it with its own header. The data link layer also adds a trailer at the end. The wrapped unit has a name that depends on the layer: segment at transport, packet at network, frame at data link. At the receiver the wrapping is removed layer by layer in the reverse order, which is decapsulation. A router opens the frame only far enough to read the network header, then wraps the packet in a new frame for the next link.",
+        "definitions": [
+          {
+            "term": "Encapsulation",
+            "meaning": "Adding a layer's header, and for the data link layer a trailer, around the data from the layer above."
+          },
+          {
+            "term": "PDU",
+            "meaning": "Protocol data unit: the unit a layer sends, named segment, packet, frame or bits by layer."
+          }
+        ],
+        "principle": {
+          "text": "On a path with r routers, the network layer runs r + 2 times because both hosts and every router use it. Each router receives and resends the frame, so data link and physical layers run 2r + 2 times, while transport runs only at the two hosts.",
+          "tex": "N_{\\text{net}} = r + 2,\\quad N_{\\text{link}} = N_{\\text{phy}} = 2r + 2,\\quad N_{\\text{transport}} = 2"
+        },
+        "limits": "The counts assume routers only, joined by point-to-point links. A switch does not run the network layer, so it changes the link-layer count but not the network-layer count.",
+        "example": {
+          "problem": "A packet goes from host A to host B through 3 routers. How many times do the network layer and the data link layer process it?",
+          "steps": [
+            "The network layer runs at A, at each of the 3 routers and at B, so $3+2$ = 5 times.",
+            "Each of the 3 routers has one incoming and one outgoing link, so it runs the link layer twice.",
+            "The hosts run it once each, so the link layer runs $2\\times3+2$ = 8 times.",
+            "Transport runs only at A and B, which is 2 times."
+          ],
+          "result": "The network layer runs 5 times and the data link layer 8 times."
+        },
+        "misconceptions": [
+          "Routers do not run the transport layer; they never open the segment.",
+          "The data link layer is not 2r times: the two hosts each add one pass, so the count is 2r + 2.",
+          "The frame is not forwarded unchanged. A router strips the old frame and builds a new one, so MAC addresses change at each hop."
+        ],
+        "recall": [
+          {
+            "q": "What does a layer do to data from the layer above?",
+            "a": "It adds its own header (the data link layer adds a trailer too) and treats the received data as payload."
+          },
+          {
+            "q": "What are the PDU names at transport, network and data link?",
+            "a": "Segment (or datagram for UDP), packet, and frame."
+          },
+          {
+            "q": "How far up the stack does a router process a frame?",
+            "a": "Only to the network layer, where it reads the destination IP address."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A packet travels from host A to host B through 4 routers. How many times in total is the data link layer involved in processing it, counting both hosts and every router?",
+          "answer": 10,
+          "explanation": "Each router uses the link layer twice, once to receive and once to send, giving $2\\times4$ = 8, and each host adds one pass, so the total is $2\\times4+2$ = 10. The value 6 tempts if each router is counted once, and it is also what the network-layer count r + 2 gives by mistake."
+        },
+        "summary": "Each layer wraps the data from above in its own header, and a path with r routers visits the network layer r + 2 times and the link layer 2r + 2 times."
+      }
+    },
+    {
+      "id": "cn-layering-switching.header-overhead",
+      "title": "Encapsulation overhead",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "If each of n layers adds an h-byte header to an M-byte message, M + n·h bytes are sent, so the fraction of the link spent on headers is n·h/(M + n·h).",
+        "Example: five layers adding 40 bytes each to an 1800-byte message send 2000 bytes, of which 200 bytes (10%) are headers.",
+        "Small payloads suffer most: 40 bytes of data under 40 bytes of TCP and IP headers waste half the link, which is why senders batch small writes.",
+        "When the link is kept busy, the useful (goodput) rate is the link rate × M/(M + total header bytes)."
+      ],
+      "keyTerms": [
+        "overhead",
+        "goodput"
+      ],
+      "lesson": {
+        "why": "Overhead questions ask what share of the link carries real data, and they reduce to one fraction.",
+        "intro": "Every layer that wraps a message adds a header, and these extra bytes cross the link along with the data. If the message is large, the headers are a small share. If the message is tiny, the headers can be most of what is sent. The useful part of the traffic is called goodput: the rate at which actual message bytes are delivered, which is always lower than the link rate.",
+        "definitions": [
+          {
+            "term": "Overhead",
+            "meaning": "The bytes added by headers and trailers rather than carrying message data."
+          },
+          {
+            "term": "Goodput",
+            "meaning": "The rate of useful message data delivered, excluding all header bytes."
+          }
+        ],
+        "principle": {
+          "text": "If n layers each add h bytes to an M-byte message, the total sent is M + nh bytes, the header fraction is nh / (M + nh), and goodput is the link rate times M / (M + nh).",
+          "tex": "f_{\\text{hdr}} = \\frac{n\\,h}{M + n\\,h},\\qquad \\text{goodput} = R\\cdot\\frac{M}{M + n\\,h}"
+        },
+        "limits": "The formula assumes the link is kept busy and every header has the same size. If the layers add different sizes, add them all instead of using nh, and ignore time spent idle.",
+        "example": {
+          "problem": "A 1200-byte message passes through 4 layers that each add a 25-byte header. What fraction of the transmitted bytes are headers?",
+          "steps": [
+            "The headers total $4\\times25$ = 100 bytes.",
+            "The bytes sent are $1200+100$ = 1300.",
+            "The header fraction is $100/1300$."
+          ],
+          "result": "About 7.7 percent of the bytes sent are headers."
+        },
+        "misconceptions": [
+          "The fraction is headers divided by total bytes sent, not headers divided by the message size.",
+          "Goodput is not the link rate; it is the link rate times the useful fraction.",
+          "Fixed-size headers hurt small messages most. Doubling the message does not double the overhead."
+        ],
+        "recall": [
+          {
+            "q": "What is the header fraction for n headers of h bytes on an M-byte message?",
+            "a": "nh / (M + nh)."
+          },
+          {
+            "q": "What is goodput?",
+            "a": "The rate at which useful message bytes arrive, equal to the link rate times M / (M + total header bytes)."
+          },
+          {
+            "q": "Why do small messages waste more of the link?",
+            "a": "The headers have a fixed size, so they are a larger share of a short message."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 450-byte message gains headers of 20, 20 and 10 bytes from three layers. The link carries 20 Mbps and is always busy. What is the goodput in Mbps?",
+          "answer": 18,
+          "explanation": "The headers total 50 bytes, so 500 bytes are sent and $450/500$ of them are message data. Goodput is $20\\times0.9$ = 18 Mbps. The value 2 tempts if the header fraction is taken instead of the useful fraction, and 20 if overhead is ignored."
+        },
+        "summary": "Total bytes sent are the message plus all headers, and goodput is the link rate times the message share of those bytes."
+      }
+    },
+    {
+      "id": "cn-layering-switching.network-devices",
+      "title": "Network devices and the layer each works at",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        620,
+        621,
+        622
+      ],
+      "points": [
+        "Repeaters and hubs work at layer 1: they regenerate the bit stream, and a hub copies every incoming frame to all other ports, so all hosts on a hub share one collision domain.",
+        "Bridges and switches work at layer 2: they forward frames by MAC address and send a frame only towards the port where its destination lives, so each switch port is a separate collision domain.",
+        "Routers work at layer 3: they forward packets between different networks by destination IP address, and each router interface bounds a broadcast domain.",
+        "A gateway works above layer 3 and translates between different protocol stacks or application protocols."
+      ],
+      "keyTerms": [
+        "repeater",
+        "hub",
+        "bridge",
+        "switch",
+        "router",
+        "gateway",
+        "collision domain",
+        "broadcast domain"
+      ],
+      "lesson": {
+        "why": "Device questions give a small topology and ask for the layer of a device or the number of collision or broadcast domains.",
+        "intro": "Network devices are sorted by the highest header they read. A repeater or hub only copies bits and reads nothing. A bridge or switch reads the frame header and its MAC address. A router reads the packet header and its IP address. A collision domain is a group of ports whose transmissions can clash. A broadcast domain is the set of machines that receive a frame sent to everyone. The device type decides how these domains are split.",
+        "definitions": [
+          {
+            "term": "Collision domain",
+            "meaning": "A set of ports where two simultaneous transmissions collide."
+          },
+          {
+            "term": "Broadcast domain",
+            "meaning": "A set of machines that all receive a frame sent to the broadcast address."
+          }
+        ],
+        "principle": {
+          "text": "Hubs and repeaters (layer 1) split nothing. Switches and bridges (layer 2) give every port its own collision domain but keep one broadcast domain. Routers (layer 3) end both collision and broadcast domains at each interface. A gateway works above layer 3."
+        },
+        "limits": "This counting assumes no VLANs and a plain hub with no filtering. A cable joined to a hub is not a separate collision domain from the other hub ports.",
+        "example": {
+          "problem": "A router has two interfaces. Interface 1 connects by one cable to switch S1, which has 3 hosts on separate cables. Interface 2 connects by one cable to switch S2, which has 2 hosts on separate cables. Count the collision domains and broadcast domains.",
+          "steps": [
+            "With no hub, each cable is its own collision domain.",
+            "The cables are: router to S1, router to S2, 3 hosts on S1 and 2 hosts on S2, so $1+1+3+2$ = 7.",
+            "The router splits broadcast domains, one per interface that has a LAN behind it, which gives 2.",
+            "The switches do not split a broadcast domain."
+          ],
+          "result": "There are 7 collision domains and 2 broadcast domains."
+        },
+        "misconceptions": [
+          "A hub is not a layer-2 device. It does no filtering, so all hosts on it share one collision domain.",
+          "A switch does not split broadcast domains. It forwards broadcasts out of every port.",
+          "Forgetting the cable between a switch and a router undercounts the collision domains by one per such link."
+        ],
+        "recall": [
+          {
+            "q": "At which layers do hubs, switches and routers work?",
+            "a": "Hubs at layer 1, switches at layer 2 and routers at layer 3."
+          },
+          {
+            "q": "What does a switch do to collision and broadcast domains?",
+            "a": "It gives each port its own collision domain but leaves all ports in one broadcast domain."
+          },
+          {
+            "q": "What bounds a broadcast domain?",
+            "a": "Each router interface."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A router connects to two switches by one cable each. Switch S1 has 2 hosts on separate cables plus one cable to a hub that has 3 hosts. Switch S2 has 4 hosts on separate cables. How many collision domains exist?",
+          "answer": 9,
+          "explanation": "Counting cables: router to S1 and router to S2 give 2, S2's hosts give 4, S1's two hosts give 2, and the hub with its 3 hosts and the cable to S1 form a single domain, giving 1. The total is $2+4+2+1$ = 9. The value 11 tempts if the hub's hosts are counted separately."
+        },
+        "summary": "Devices are classed by the highest header they read, and domains are counted by treating a hub segment as one domain and every other cable as its own."
+      }
+    },
+    {
+      "id": "cn-layering-switching.circuit-switching",
+      "title": "Circuit switching",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        621,
+        622
+      ],
+      "points": [
+        "A dedicated end-to-end path (a frequency band or a TDM time slot on every link) is set up before any data flows and held for the whole session, as in the traditional telephone network.",
+        "Advantages: guaranteed bandwidth, constant delay with no jitter and in-order delivery; once the circuit exists, no per-packet headers or routing decisions are needed.",
+        "Disadvantages: a setup delay before the first bit, and reserved capacity sits idle whenever the parties are silent, so bursty data traffic wastes most of it.",
+        "With TDM, a link of rate R split into n slots gives each circuit R/n, so a call's transfer time uses R/n, not R."
+      ],
+      "keyTerms": [
+        "dedicated path",
+        "setup phase",
+        "TDM",
+        "FDM"
+      ],
+      "lesson": {
+        "why": "Circuit switching is the baseline against which packet switching is compared, and its transfer time uses a rate that is a share of the link.",
+        "intro": "In circuit switching, a path from sender to receiver is reserved before any data moves. On every link the path holds a fixed share, either a frequency band (FDM) or a repeating time slot (TDM). The setup takes time, but once it is done the data flows at a fixed rate with no waiting and in order. The price is that the reserved share sits idle when the parties have nothing to send.",
+        "definitions": [
+          {
+            "term": "TDM",
+            "meaning": "Time-division multiplexing: a link's time is cut into repeating slots, one per circuit."
+          },
+          {
+            "term": "FDM",
+            "meaning": "Frequency-division multiplexing: a link's bandwidth is cut into bands, one per circuit."
+          }
+        ],
+        "principle": {
+          "text": "A link of rate R shared by n circuits gives each circuit R/n. The transfer time of a file of F bits is the setup time, plus F divided by the circuit rate, plus propagation.",
+          "tex": "T_{\\text{circuit}} = t_{\\text{setup}} + \\frac{F}{R/n} + d_{\\text{prop}}"
+        },
+        "limits": "The formula applies only when the circuit owns its slot for the whole transfer. It ignores per-packet headers, which circuit switching does not need, and propagation is zero unless given.",
+        "example": {
+          "problem": "A 2 Mbps link is divided by TDM into 8 slots. A circuit owns one slot. Setup takes 0.5 s. How long does it take to send a 500,000-bit file, ignoring propagation?",
+          "steps": [
+            "The circuit rate is $2\\times10^{6}/8$ = 250,000 bit/s.",
+            "The transmission time is $500000/250000$ = 2 s.",
+            "Adding the setup gives $0.5+2$."
+          ],
+          "result": "The transfer takes 2.5 s."
+        },
+        "misconceptions": [
+          "A circuit with one slot does not get the full link rate; using R instead of R/n underestimates the time.",
+          "Reserved capacity is wasted when the sender is silent. The slots are not lent to other users.",
+          "Circuit switching has a setup delay before the first bit, even though it has no queuing after that."
+        ],
+        "recall": [
+          {
+            "q": "What is reserved in circuit switching?",
+            "a": "A dedicated end-to-end path, held as an FDM band or TDM slot on every link for the whole session."
+          },
+          {
+            "q": "What rate does one TDM circuit get on a link of rate R split into n slots?",
+            "a": "Each circuit gets R/n."
+          },
+          {
+            "q": "Name one advantage and one disadvantage of circuit switching.",
+            "a": "Guaranteed bandwidth with constant delay and in-order delivery; but setup delay and idle reserved capacity."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 1.536 Mbps link is divided by TDM into 24 slots, and a circuit owns one slot. Circuit setup takes 400 ms. In milliseconds, how long does it take to send a 192,000-bit file, ignoring propagation?",
+          "answer": 3400,
+          "explanation": "One slot carries $1.536\\times10^{6}/24$ = 64,000 bit/s, so the file needs $192000/64000$ = 3 s = 3000 ms. Adding 400 ms of setup gives 3400 ms. The value 525 tempts if the full link rate is used instead of the slot rate."
+        },
+        "summary": "Circuit switching reserves a dedicated share of every link, which gives steady delivery at rate R/n after a setup delay and wastes idle capacity."
+      }
+    },
+    {
+      "id": "cn-layering-switching.datagram-switching",
+      "title": "Packet switching: the datagram approach",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        621,
+        622
+      ],
+      "points": [
+        "Data is split into packets that each carry the full destination address; every router forwards each packet independently from its forwarding table, with no connection setup. IP works this way.",
+        "Links are shared on demand (statistical multiplexing), so bursty traffic uses bandwidth efficiently and the network can route around failures.",
+        "The price is variable queuing delay (jitter), loss when buffers overflow, and out-of-order arrival, because packets of one flow may take different paths.",
+        "Routers are store-and-forward: a packet must be received completely before it is sent on the next link, which adds one transmission time per hop."
+      ],
+      "keyTerms": [
+        "datagram",
+        "store-and-forward",
+        "statistical multiplexing"
+      ],
+      "lesson": {
+        "why": "IP is a datagram network, so exam questions on routing, reordering, loss and per-hop delay all rest on how datagram switching behaves.",
+        "intro": "In datagram switching the sender cuts data into packets and stamps each one with the full destination address. No path is arranged beforehand. Every router that receives a packet reads that address, looks it up in its forwarding table and sends the packet on its way, independently of the packets before and after it. Because routers may change their tables between two packets, packets of one transfer can take different routes.",
+        "prerequisites": [
+          "cn-layering-switching.store-and-forward"
+        ],
+        "definitions": [
+          {
+            "term": "Datagram",
+            "meaning": "A packet that carries the full destination address and is routed on its own."
+          },
+          {
+            "term": "Statistical multiplexing",
+            "meaning": "Sharing a link on demand among whoever has packets, instead of giving each user a fixed slot."
+          }
+        ],
+        "principle": {
+          "text": "Each packet is forwarded independently using its destination address, looked up in the router's forwarding table (the table mapping destination addresses to outgoing links), so there is no setup time and no per-connection state. A router must receive a whole packet before forwarding it, so each hop adds one transmission time $L/R$. For $P$ packets of $L$ bits over $k$ links of rate $R$, the pipeline gives the total below.",
+          "tex": "T = (P + k - 1)\\,\\frac{L}{R} + \\sum_{i=1}^{k} d_{\\text{prop},i}"
+        },
+        "limits": "The pipeline formula assumes equal link rates, no competing traffic and zero queuing and processing time. With queues, delay varies from packet to packet and packets may be dropped or arrive out of order.",
+        "example": {
+          "problem": "A 3000-bit message is sent as three packets of 1000 bits each, header included, across two routers (three links) of 1 Mbps each. Ignore propagation and queuing. How long until the last bit arrives?",
+          "steps": [
+            "Each packet needs $1000/10^{6}$ = 1 ms to be sent on one link.",
+            "There are $P=3$ packets and $k=3$ links, so the pipeline takes $P+k-1$ = 5 transmission times.",
+            "Total time is $5\\times 1$ ms."
+          ],
+          "result": "The last bit arrives after 5 ms."
+        },
+        "misconceptions": [
+          "Datagram packets are not guaranteed to arrive in order; two packets of the same flow can take different paths.",
+          "Datagram switching has no setup phase, but each packet still pays a transmission time at every hop.",
+          "A router failure does not break the transfer; later packets are simply routed around it, though packets queued in it are lost."
+        ],
+        "recall": [
+          {
+            "q": "What does each datagram carry that a virtual-circuit packet does not?",
+            "a": "The full destination address, because routers have no connection state to look it up."
+          },
+          {
+            "q": "Name two costs of datagram switching.",
+            "a": "Variable queuing delay (jitter) and possible loss or reordering, since packets are routed independently."
+          },
+          {
+            "q": "Why does datagram switching use bandwidth efficiently for bursty traffic?",
+            "a": "Links are shared on demand, so an idle user consumes nothing (statistical multiplexing)."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about a datagram network is correct?",
+          "options": [
+            "Packets of one message always arrive in the order sent.",
+            "A connection must be established before the first packet is sent.",
+            "Each packet is forwarded using its own destination address.",
+            "Each switch stores a table entry for every active connection."
+          ],
+          "answer": 2,
+          "explanation": "Datagram routers look at the destination address of every packet and keep no per-connection state. Options 0 and 1 tempt because they describe virtual circuits and circuit switching, which fix a path first; option 3 is also virtual-circuit state."
+        },
+        "summary": "Datagram switching routes every packet independently by its destination address, with no setup, efficient sharing and the risks of jitter, loss and reordering."
+      }
+    },
+    {
+      "id": "cn-layering-switching.virtual-circuit",
+      "title": "Virtual-circuit switching and the three-way comparison",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        621,
+        622
+      ],
+      "points": [
+        "A logical path is set up first and every switch on it keeps state for the connection; data packets then carry a short virtual-circuit identifier (VCI) instead of the full address and all follow the same path.",
+        "Packets arrive in order, and per-packet routing is replaced by a table lookup on the VCI, which may be rewritten at each switch (label swapping). Examples: ATM, Frame Relay, MPLS.",
+        "Bandwidth is still shared packet by packet unless resources are reserved at setup, so delay can vary, and a switch failure breaks every circuit through it.",
+        "Comparison: circuit and VC switching both need setup and preserve order; only datagram switching routes every packet independently; only circuit switching always reserves resources."
+      ],
+      "keyTerms": [
+        "virtual-circuit identifier",
+        "label swapping",
+        "connection state"
+      ],
+      "lesson": {
+        "why": "The exam asks you to tell circuit, virtual-circuit and datagram switching apart by setup, ordering, addressing and reservation.",
+        "intro": "A virtual circuit sits between the other two styles. Before data moves, a path is chosen and every switch on it records an entry for the connection. Packets then carry only a short label, the virtual-circuit identifier (VCI), instead of a full address. Each switch looks the label up in its table, forwards the packet on the stored outgoing link and usually writes a new label for the next hop. Since all packets follow the same path, they arrive in order.",
+        "prerequisites": [
+          "cn-layering-switching.datagram-switching",
+          "cn-layering-switching.circuit-switching"
+        ],
+        "definitions": [
+          {
+            "term": "VCI",
+            "meaning": "Virtual-circuit identifier: a short label that names the connection on one link."
+          },
+          {
+            "term": "Label swapping",
+            "meaning": "A switch replaces the incoming VCI with the one agreed for the next link."
+          }
+        ],
+        "principle": {
+          "text": "A virtual circuit needs a setup phase and per-connection state in every switch, and in return packets carry a short label and keep their order. Capacity is shared packet by packet unless it is reserved at setup.",
+          "tex": "\\begin{array}{l|ccc} & \\text{setup} & \\text{in order} & \\text{reserves capacity}\\\\ \\hline \\text{circuit} & \\text{yes} & \\text{yes} & \\text{always}\\\\ \\text{virtual circuit} & \\text{yes} & \\text{yes} & \\text{if asked}\\\\ \\text{datagram} & \\text{no} & \\text{no} & \\text{never}\\end{array}"
+        },
+        "limits": "Order is preserved only while the circuit stays up. If a switch on the path fails, every circuit through it is broken and must be set up again. The comparison table assumes a pure form of each scheme.",
+        "example": {
+          "problem": "Classify each of these as circuit, virtual circuit or datagram: (a) every packet carries the full destination address; (b) packets carry a label that changes at each switch; (c) a TDM slot is held for the whole call.",
+          "steps": [
+            "(a) Only a datagram network needs a full address in each packet, since routers hold no connection state.",
+            "(b) A label rewritten hop by hop is label swapping, which belongs to a virtual circuit.",
+            "(c) A slot held for the whole session is a reserved share of the link, which is circuit switching."
+          ],
+          "result": "(a) datagram, (b) virtual circuit, (c) circuit."
+        },
+        "misconceptions": [
+          "A virtual circuit does not reserve bandwidth by default; the path is fixed but packets still queue and share links.",
+          "The label is not a global address; it has meaning only on one link and is rewritten at each switch.",
+          "Do not say virtual circuits route every packet independently. Only datagram switching does that."
+        ],
+        "recall": [
+          {
+            "q": "What does a switch do with the VCI of an arriving packet?",
+            "a": "It looks the VCI up in its table, finds the outgoing link and the new VCI, and forwards the packet."
+          },
+          {
+            "q": "Which switching types need a setup phase?",
+            "a": "Circuit switching and virtual-circuit switching; datagram switching does not."
+          },
+          {
+            "q": "Which types deliver packets in order?",
+            "a": "Circuit and virtual-circuit switching, because all packets follow one path."
+          },
+          {
+            "q": "Name two examples of virtual-circuit networks.",
+            "a": "ATM, Frame Relay and MPLS are examples."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A network sets up a path first, then sends packets that carry a short per-link label. A switch on the path crashes. What is the immediate result?",
+          "options": [
+            "Later packets are rerouted automatically with the same label.",
+            "Every circuit through that switch is broken and must be re-established.",
+            "Only packets already queued in the switch are lost; the circuits survive.",
+            "Nothing changes, because the labels are global."
+          ],
+          "answer": 1,
+          "explanation": "The path state lives in the switches, so losing one switch destroys all connections through it. Option 0 tempts because it describes datagram behaviour, where each packet is routed afresh; option 3 wrongly treats the label as a global address."
+        },
+        "summary": "A virtual circuit fixes a path at setup, keeps state in each switch, forwards by a short rewritten label and preserves order, but reserves capacity only if asked."
+      }
+    },
+    {
+      "id": "cn-layering-switching.delay-components",
+      "title": "Delay components: transmission, propagation, queuing, processing",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        622,
+        623,
+        626
+      ],
+      "points": [
+        "Delay at each hop = processing + queuing + transmission + propagation; GATE problems usually set processing and queuing to zero unless they give values.",
+        "Transmission delay L/R is the time to push all L bits onto a link of rate R. It depends on packet size and link rate, not on distance.",
+        "Propagation delay d/v is the time one bit takes to travel distance d at signal speed v (about 2 × 10⁸ m/s in copper and fibre). It depends on neither packet size nor rate.",
+        "The last bit of a packet reaches the far end of a link L/R + d/v after the first bit starts: 1000 bytes on a 10 Mbps, 200 km link take 0.8 ms + 1 ms = 1.8 ms.",
+        "Queuing delay depends on load and varies from packet to packet; processing (header check, table lookup) usually takes microseconds."
+      ],
+      "keyTerms": [
+        "transmission delay",
+        "propagation delay",
+        "queuing delay",
+        "processing delay"
+      ],
+      "lesson": {
+        "why": "Delay arithmetic combines packet size, rate, distance and signal speed; the whole skill is keeping transmission and propagation apart.",
+        "intro": "A packet takes time to cross a link for two separate reasons. First, the sender must push every bit of the packet onto the wire one after another, and a faster link pushes them faster. Second, once a bit is on the wire it needs time to travel to the other end, and a longer wire takes longer. The first is transmission delay, the second is propagation delay. Waiting in a queue and being checked by a router add two more delays on top.",
+        "analogy": {
+          "text": "A convoy of cars leaving a toll gate: transmission is the time for all cars to pass the gate, propagation is the time one car needs to drive to the next town.",
+          "breaksWhen": "Cars can overtake and stop, while bits travel at one fixed signal speed in the order they were sent."
+        },
+        "definitions": [
+          {
+            "term": "Transmission delay",
+            "meaning": "Packet length divided by link rate; the time to put all bits on the link."
+          },
+          {
+            "term": "Propagation delay",
+            "meaning": "Link length divided by signal speed; the time one bit takes to cross the link."
+          }
+        ],
+        "principle": {
+          "text": "The last bit of a packet arrives at the far end of a link after transmission plus propagation delay. Doubling the packet size doubles only the first term; doubling the distance doubles only the second.",
+          "tex": "t = \\frac{L}{R} + \\frac{d}{v}"
+        },
+        "limits": "Processing and queuing delay are taken as zero unless the question gives them. Convert bytes to bits before dividing by a rate in bits per second, and kilometres to metres before dividing by a speed in metres per second.",
+        "example": {
+          "problem": "A packet of 1500 bytes is sent over a 10 Mbps link that is 300 km long, with signal speed $2\\times10^{8}$ m/s. When does the last bit arrive?",
+          "steps": [
+            "Packet length is $1500\\times8=12000$ bits.",
+            "Transmission delay is $12000/10^{7}$ s = 1.2 ms.",
+            "Distance is $3\\times10^{5}$ m, so propagation delay is $3\\times10^{5}/(2\\times10^{8})$ s = 1.5 ms.",
+            "Add the two: 1.2 + 1.5 = 2.7 ms."
+          ],
+          "result": "The last bit arrives 2.7 ms after the first bit starts."
+        },
+        "misconceptions": [
+          "Propagation delay does not depend on packet size or link rate; making a link faster cannot shorten it.",
+          "Transmission delay does not depend on distance, so a short link with a slow rate can still be slow.",
+          "Using bytes as bits is the usual arithmetic error: a rate in bits per second needs the length in bits."
+        ],
+        "recall": [
+          {
+            "q": "What are the formulas for transmission and propagation delay?",
+            "a": "Transmission is L/R, packet length over link rate. Propagation is d/v, distance over signal speed."
+          },
+          {
+            "q": "When does the receiver hold the complete packet?",
+            "a": "After transmission plus propagation delay, since the last bit must be sent and then travel across."
+          },
+          {
+            "q": "What does a faster link change?",
+            "a": "It shortens transmission delay only. Propagation delay stays the same."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A packet of 500 bytes is sent over a 2 Mbps link of length 600 km. Signal speed is $2\\times10^{8}$ m/s and processing and queuing delays are zero. In milliseconds, how long until the whole packet has been received?",
+          "answer": 5,
+          "explanation": "Transmission is 4000 bits over $2\\times10^{6}$ bit/s = 2 ms; propagation is $6\\times10^{5}/(2\\times10^{8})$ s = 3 ms; the total is 5 ms. Giving 2 ms tempts when only the rate is considered, and 3 ms when only the distance is."
+        },
+        "summary": "Delay per link is L/R plus d/v. Size and rate set the first term, distance and speed set the second, and the two never mix."
+      }
+    },
+    {
+      "id": "cn-layering-switching.store-and-forward",
+      "title": "End-to-end delay over several store-and-forward hops",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "One packet of L bits over k links of rate R takes k·L/R plus the total propagation delay, because every router waits for the whole packet before forwarding it.",
+        "P packets sent back to back pipeline: the first arrives after k·L/R plus propagation and each later one L/R after the previous, so the total is (P + k − 1)·L/R plus the total propagation delay.",
+        "With unequal link rates the slowest link spaces the packets: total = Σ L/Rᵢ + (P − 1)·L/R_min + total propagation.",
+        "Message switching stores the whole M-bit message at every hop (k·M/R); splitting it into packets overlaps the hops and brings the time down towards M/R + (k − 1)·L/R, but every packet carries its own header.",
+        "Smaller packets pipeline better but add header bits. For an M-bit message, h-bit headers and k links, the total time is smallest at payload p = √(M·h/(k − 1))."
+      ],
+      "keyTerms": [
+        "store-and-forward",
+        "pipelining",
+        "message switching"
+      ],
+      "lesson": {
+        "why": "Questions on multi-hop transfer ask for the total time of one packet or of a whole file, and the pipelining formula answers all of them.",
+        "intro": "A router that uses store-and-forward waits until it has received every bit of a packet before it starts sending that packet onward. So a packet crossing several links is fully transmitted once on each link, one after another. When a file is cut into many packets, a router can send packet 1 on the next link while it is still receiving packet 2 on the previous one, so the links work at the same time and the total time shrinks.",
+        "prerequisites": [
+          "cn-layering-switching.delay-components"
+        ],
+        "definitions": [
+          {
+            "term": "Store-and-forward",
+            "meaning": "A router receives a whole packet before forwarding any part of it."
+          },
+          {
+            "term": "Pipelining",
+            "meaning": "Several packets are in transit on different links at the same moment."
+          }
+        ],
+        "principle": {
+          "text": "With k links of equal rate R, P packets of L bits sent back to back and negligible propagation, the first packet needs k transmission times and each later packet adds one more, giving P + k - 1 transmission times in total.",
+          "tex": "T = (P + k - 1)\\,\\frac{L}{R}"
+        },
+        "limits": "The formula assumes equal link rates and no gaps between packets. With unequal rates the slowest link spaces the packets, and propagation delays are added on top as a total.",
+        "example": {
+          "problem": "A file is sent as 3 packets of 1000 bytes each over 2 links of 4 Mbps in series, with no propagation delay. How long until the last packet reaches the destination?",
+          "steps": [
+            "One packet is 8000 bits, so one transmission time is $8000/(4\\times10^{6})$ = 2 ms.",
+            "The first packet needs 2 links, so it arrives at 4 ms.",
+            "Each later packet arrives one transmission time after the previous one, at 6 ms and 8 ms.",
+            "The formula agrees: $(3+2-1)\\times2$ = 8 ms."
+          ],
+          "result": "The last packet arrives at 8 ms."
+        },
+        "misconceptions": [
+          "Total time is not P times k times L/R. That counts every packet crossing every link one at a time and ignores pipelining.",
+          "The k - 1 term counts extra transmission times to fill the pipeline, not packets or routers.",
+          "Pipelining does not shorten a single packet's journey; it only overlaps different packets."
+        ],
+        "recall": [
+          {
+            "q": "Why does a store-and-forward router add delay?",
+            "a": "It must receive the whole packet before it forwards it, so every link repeats the packet's transmission time."
+          },
+          {
+            "q": "What is the total time for P packets over k equal links with no propagation delay?",
+            "a": "(P + k - 1) times L/R."
+          },
+          {
+            "q": "What sets the spacing of packets when link rates differ?",
+            "a": "The slowest link, since packets leave it one transmission time apart."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A file is sent as 5 packets of 500 bytes over 3 links in series, each of rate 2 Mbps. Propagation, processing and queuing delays are zero and packets are sent back to back. In milliseconds, how long until the last packet is received?",
+          "answer": 14,
+          "explanation": "One packet takes 4000 bits over $2\\times10^{6}$ bit/s = 2 ms per link. The total is $(5+3-1)\\times2$ = 14 ms. The value 30 tempts if each packet is wrongly sent through all links before the next starts, and 10 if the extra links are ignored."
+        },
+        "summary": "Store-and-forward makes each link repeat the packet time, and pipelining overlaps packets, so P packets over k equal links take (P + k - 1) transmission times."
+      }
+    },
+    {
+      "id": "cn-layering-switching.circuit-vs-packet-timing",
+      "title": "Circuit vs packet switching: total transfer time",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Circuit switching: total time = setup time + F/R_c + propagation, where R_c is the circuit's own rate. The file is transmitted once, end to end; there is no store-and-forward at the switches.",
+        "Datagram switching: no setup, but each extra hop adds one packet transmission time and every packet carries a header. Virtual circuits pay both a setup phase and the store-and-forward cost.",
+        "Circuit switching wins for long, steady transfers once the setup is amortised; packet switching wins for short or bursty transfers and when many users share a link, since idle users consume nothing.",
+        "Example: a 320 000-bit file on one 64 kbps TDM slot of a 2.048 Mbps link, with 250 ms setup, takes 0.25 + 5 = 5.25 s, whatever the number of switches (propagation ignored)."
+      ],
+      "keyTerms": [
+        "setup time",
+        "circuit rate"
+      ],
+      "lesson": {
+        "why": "Questions ask for the total time of a file transfer under circuit, packet or virtual-circuit switching, and the answer depends on which delays each scheme includes.",
+        "intro": "To compare the schemes, count what each one adds. Circuit switching spends a setup time first, then sends the whole file at the rate of its own slot, and nothing is stored at the switches. Datagram switching has no setup, but it cuts the file into packets, adds a header to each, and every router must receive a packet fully before forwarding it. A virtual circuit pays the setup time and then behaves like packet switching.",
+        "prerequisites": [
+          "cn-layering-switching.circuit-switching",
+          "cn-layering-switching.datagram-switching",
+          "cn-layering-switching.virtual-circuit",
+          "cn-layering-switching.store-and-forward"
+        ],
+        "principle": {
+          "text": "Circuit switching costs setup plus file size over the circuit rate. Packet switching costs the pipeline time with headers included; a virtual circuit adds its setup time to that.",
+          "tex": "T_{\\text{circuit}} = t_{\\text{setup}} + \\frac{F}{R_c}, \\qquad T_{\\text{packet}} = (P + k - 1)\\,\\frac{p+h}{R}"
+        },
+        "limits": "Both formulas ignore propagation, queuing and processing unless the problem supplies them. The packet formula needs equal link rates and $P=F/p$ whole packets. Which scheme wins depends on the numbers, not on a rule.",
+        "example": {
+          "problem": "A 1,000,000-bit file crosses two links of 4 Mbps. Circuit: the link is split into 8 TDM slots and setup takes 0.3 s. Packet: 100 packets of 10,000-bit payload plus a 400-bit header, no setup. Ignore propagation. Compare the times.",
+          "steps": [
+            "The circuit rate is $4\\times10^{6}/8$ = 500,000 bit/s, so the file takes 2 s, and setup adds 0.3 s, giving 2.3 s.",
+            "Each packet is 10,400 bits and takes $10400/(4\\times10^{6})$ = 2.6 ms per link.",
+            "With $P=100$ and $k=2$, the pipeline needs 101 transmission times, so $101\\times2.6$ = 262.6 ms."
+          ],
+          "result": "Circuit takes 2.3 s and packet switching 262.6 ms, so packet switching is faster here because the circuit owns only one eighth of the link."
+        },
+        "misconceptions": [
+          "Using the full link rate for a circuit that owns one slot gives a time that is too small.",
+          "Packet switching pays the header on every packet, so the headers must be added before computing $L/R$.",
+          "Circuit switching has no store-and-forward term; do not multiply its transmission time by the number of hops."
+        ],
+        "recall": [
+          {
+            "q": "What is the circuit-switching transfer time?",
+            "a": "Setup time plus file size divided by the circuit's own rate, plus propagation."
+          },
+          {
+            "q": "How does a virtual circuit's time differ from a datagram's?",
+            "a": "It adds the setup time to the same store-and-forward pipeline time."
+          },
+          {
+            "q": "When does circuit switching suit a transfer better?",
+            "a": "For long steady transfers, once the setup time is amortised; packet switching suits short or bursty ones."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 90,000-bit file is sent across three links of 2 Mbps each. Circuit: 10 TDM slots per link, one slot used, setup 50 ms. Packet: 50 packets, each with a 1800-bit payload and a 200-bit header, no setup. Ignore propagation. By how many milliseconds is packet switching faster?",
+          "answer": 448,
+          "explanation": "The circuit rate is 200,000 bit/s, so the file takes 450 ms; with setup the total is 500 ms. Each 2000-bit packet takes 1 ms per link, and with $P=50$, $k=3$ the pipeline takes 52 ms. The difference is 448 ms. The value 52 tempts if you report only the packet time instead of the difference."
+        },
+        "summary": "Circuit time is setup plus file over the slot rate; packet time is the headered pipeline $(P+k-1)(p+h)/R$, and a virtual circuit adds setup to the packet time."
+      }
+    },
+    {
+      "id": "cn-layering-switching.throughput-bdp",
+      "title": "Throughput and the bandwidth-delay product",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        622,
+        623,
+        626
+      ],
+      "points": [
+        "Throughput is the rate at which bits are actually delivered end to end. For one flow on an otherwise idle path it is set by the slowest link: throughput = min(R₁, …, R_k).",
+        "The bandwidth-delay product R × RTT is the amount of data a sender must have sent but not yet acknowledged to keep the link busy until the first acknowledgement returns; it sizes windows and buffers.",
+        "A link of length d holds only R × d/v bits at any instant (rate × one-way delay), so check which delay a question means. Example: 100 Mbps with a 100 ms RTT gives 10⁷ bits = 1.25 MB.",
+        "A sender limited to a window of W bits per round trip gets throughput ≈ min(R, W/RTT): a 64 KB window over a 100 ms RTT caps throughput near 5.24 Mbps however fast the link is.",
+        "Performance metrics: bandwidth is a link's capacity R; throughput is the rate actually delivered, never above the bandwidth; latency is the end-to-end delay of a packet; jitter is the variation of latency between packets, near zero on a circuit and nonzero wherever packets queue."
+      ],
+      "keyTerms": [
+        "throughput",
+        "bottleneck link",
+        "bandwidth-delay product",
+        "round-trip time",
+        "latency",
+        "jitter"
+      ],
+      "lesson": {
+        "why": "Bottleneck-link and window questions test whether you pick the right rate and the right delay before dividing.",
+        "intro": "Bandwidth is how fast a link can send bits. Throughput is how fast bits actually arrive end to end, and it can never exceed the slowest link on the path, because bits queue in front of that link. A sender also cannot keep a long link busy unless it has enough unacknowledged data in flight: the amount of data that fills the link for one round trip is the bandwidth-delay product, rate times round-trip time.",
+        "prerequisites": [
+          "cn-layering-switching.delay-components"
+        ],
+        "definitions": [
+          {
+            "term": "Bottleneck link",
+            "meaning": "The link with the smallest rate on the path; it limits the whole transfer."
+          },
+          {
+            "term": "Bandwidth-delay product",
+            "meaning": "Link rate times round-trip time: the data in flight needed to keep the link busy."
+          }
+        ],
+        "principle": {
+          "text": "A long transfer is limited by the slowest link, so transfer time is the size in bits divided by the bottleneck rate. A sender with a window of W bits is also limited to W per round trip, and the bandwidth-delay product is how many bits are needed to use the link fully.",
+          "tex": "T \\approx \\frac{\\text{size in bits}}{R_{\\min}},\\qquad \\text{throughput} \\approx \\min\\!\\left(R_{\\min},\\ \\frac{W}{\\mathrm{RTT}}\\right),\\qquad \\mathrm{BDP} = R \\times \\mathrm{RTT}"
+        },
+        "limits": "Time = size over bottleneck rate holds for a long stream with negligible propagation delay. For short messages, propagation and per-hop store-and-forward time matter, and a window smaller than the BDP leaves the link idle.",
+        "example": {
+          "problem": "A 1,500,000-byte file crosses three links in a row with rates 10 Mbps, 800 kbps and 2 Mbps. Ignoring propagation and queuing, how long does the transfer take?",
+          "steps": [
+            "The throughput is set by the slowest link, 800 kbps = $800\\times10^{3}$ bit/s.",
+            "Convert the size to bits: $1{,}500{,}000\\times8 = 12\\times10^{6}$ bits.",
+            "Divide size by the bottleneck rate: $12\\times10^{6}/(800\\times10^{3}) = 15$ s."
+          ],
+          "result": "The transfer takes about 15 seconds."
+        },
+        "misconceptions": [
+          "Throughput is not the sum of the link rates; it is the minimum along the path.",
+          "Bandwidth-delay product uses round-trip time, not one-way delay. A link holds rate times one-way delay at any instant, so read which delay the question means.",
+          "Bytes versus bits is again the usual slip: a file in bytes must be multiplied by 8 before dividing by a rate in bits per second."
+        ],
+        "recall": [
+          {
+            "q": "What limits throughput along a path of several links?",
+            "a": "The slowest link, the bottleneck."
+          },
+          {
+            "q": "What is the bandwidth-delay product?",
+            "a": "The link rate times the round-trip time, the data needed in flight to keep the link busy."
+          },
+          {
+            "q": "What is the throughput cap for a sender with window W?",
+            "a": "W divided by RTT, whichever is lower of that and the link rate."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sender on a 100 Mbps path with a round-trip time of 50 ms may keep at most 125000 bytes unacknowledged. What is the maximum throughput in Mbps?",
+          "answer": 20,
+          "explanation": "The window is $125000\\times8=10^{6}$ bits, and $10^{6}/0.05$ s = 20 Mbps, which is below the 100 Mbps link rate, so the window is the limit. Answering 100 tempts by forgetting the window; the bandwidth-delay product here is 5 Mb, five times the window."
+        },
+        "summary": "Throughput is capped by the slowest link and by window over RTT. The bandwidth-delay product, rate times RTT, is the window needed to fill the link."
+      }
+    },
+    {
+      "id": "cn-layering-switching.utilisation-traffic-intensity",
+      "title": "Utilisation and traffic intensity",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Utilisation is the fraction of time a link spends sending useful bits: U = throughput / R, or useful transmission time divided by the length of one sending cycle.",
+        "If L-bit packets arrive at a link of rate R at an average of a packets per second, the traffic intensity is La/R. Above 1 the queue grows without bound; as it approaches 1 the average queuing delay rises sharply.",
+        "A sender that transmits one L-bit packet and then idles until the acknowledgement returns keeps the link busy (L/R)/(L/R + RTT) of the time, which is the stop-and-wait efficiency 1/(1 + 2a).",
+        "Throughput never exceeds capacity, and adding capacity to a link that is not the bottleneck does not raise end-to-end throughput."
+      ],
+      "keyTerms": [
+        "utilisation",
+        "traffic intensity"
+      ],
+      "lesson": {
+        "why": "Utilisation and traffic intensity connect link capacity to queuing delay and to stop-and-wait efficiency, and they appear as short numeric questions.",
+        "intro": "Two ratios describe how busy a link is. Utilisation is the fraction of time the link spends sending useful bits. Traffic intensity compares the bits arriving per second with the bits the link can send per second. If more arrives than can leave, the queue keeps growing. A sender that sends one packet and then waits for its acknowledgement leaves the link idle for the whole round trip, so its utilisation is low on long links.",
+        "prerequisites": [
+          "cn-layering-switching.delay-components",
+          "cn-layering-switching.throughput-bdp"
+        ],
+        "definitions": [
+          {
+            "term": "Utilisation",
+            "meaning": "Fraction of time a link carries useful bits, equal to throughput divided by link rate."
+          },
+          {
+            "term": "Traffic intensity",
+            "meaning": "The ratio $La/R$ of arriving bit rate to link rate, where $L$ is the packet length in bits, $a$ is the average number of packets arriving per second and $R$ is the link rate in bits per second."
+          }
+        ],
+        "principle": {
+          "text": "Traffic intensity is $\\rho = La/R$, with $L$ the packet length in bits, $a$ the packets arriving per second and $R$ the link rate; the queue is stable only for $\\rho<1$ and delay climbs sharply as it approaches 1. A send-and-wait sender has utilisation equal to its sending time divided by sending time plus the round trip. Write $\\alpha = d_{\\text{prop}}/(L/R)$ for the one-way propagation delay over the transmission time; then the utilisation is $1/(1+2\\alpha)$.",
+          "tex": "\\rho = \\frac{La}{R}, \\qquad U = \\frac{L/R}{L/R + 2\\,d_{\\text{prop}}} = \\frac{1}{1+2\\alpha}"
+        },
+        "limits": "The stop-and-wait form ignores the acknowledgement's transmission time and any processing. The traffic-intensity rule says nothing about exact delay; it only shows where the queue becomes unstable. Throughput can never exceed the capacity of the slowest link.",
+        "example": {
+          "problem": "Packets of 12,000 bits arrive at an average of 60 per second on a 1 Mbps link. Separately, a sender sends 1000-byte packets on a 1 Mbps link with 12 ms one-way propagation and waits for each acknowledgement. Find the traffic intensity and the sender's utilisation.",
+          "steps": [
+            "The traffic intensity is $12000\\times60/10^{6}$ = 0.72, which is below 1, so the queue is stable.",
+            "The transmission time is $8000/10^{6}$ = 8 ms, and the round trip adds $2\\times12$ = 24 ms.",
+            "Utilisation is $8/(8+24)$."
+          ],
+          "result": "Traffic intensity is 0.72 and the sender's utilisation is 0.25."
+        },
+        "misconceptions": [
+          "Intensity just below 1 is not safe; average queuing delay grows very large as it approaches 1.",
+          "A larger link rate does not raise stop-and-wait utilisation; it shortens the sending time and lowers utilisation.",
+          "Raising the capacity of a link that is not the bottleneck does not raise end-to-end throughput."
+        ],
+        "recall": [
+          {
+            "q": "What is the formula for traffic intensity?",
+            "a": "$\\rho = La/R$: packet length times arrival rate over link rate."
+          },
+          {
+            "q": "What happens to the queue when traffic intensity exceeds 1?",
+            "a": "It grows without bound, so delay and loss keep increasing."
+          },
+          {
+            "q": "What is the utilisation of a stop-and-wait sender?",
+            "a": "$1/(1+2\\alpha)$, where $\\alpha$ is propagation delay divided by transmission time."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A sender transmits 4000-bit packets on a 2 Mbps link and waits for an acknowledgement after each one. One-way propagation is 9 ms and acknowledgements are negligible. What is the link utilisation as a percentage?",
+          "answer": 10,
+          "explanation": "The transmission time is $4000/(2\\times10^{6})$ = 2 ms and the round trip adds 18 ms, so utilisation is $2/(2+18)$ = 0.1, or 10 percent. The value 2/(2+9) = 18.2 percent tempts if only one-way propagation is counted."
+        },
+        "summary": "Utilisation is useful sending time over cycle time; traffic intensity $La/R$ must stay below 1 for a stable queue, and stop-and-wait wastes long links."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cn-layering-switching.transmission-delay",
+      "name": "Transmission delay",
+      "tex": "d_{\\text{trans}} = \\frac{L}{R}",
+      "text": "d_trans = L / R",
+      "where": [
+        [
+          "L",
+          "packet length in bits (bytes × 8)"
+        ],
+        [
+          "R",
+          "link rate in bit/s (1 Mbps = 10⁶ bit/s)"
+        ]
+      ],
+      "note": "Rate prefixes are powers of ten. Convert bytes to bits first; a data size in KB means 1024 bytes only when the question says so.",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "source",
+      "pages": [
+        622,
+        626
+      ]
+    },
+    {
+      "id": "cn-layering-switching.propagation-delay",
+      "name": "Propagation delay",
+      "tex": "d_{\\text{prop}} = \\frac{d}{v}",
+      "text": "d_prop = d / v",
+      "where": [
+        [
+          "d",
+          "link length in metres"
+        ],
+        [
+          "v",
+          "signal speed, about 2 × 10⁸ m/s in copper and fibre"
+        ]
+      ],
+      "note": "Independent of packet size and link rate.",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "source",
+      "pages": [
+        622,
+        626
+      ]
+    },
+    {
+      "id": "cn-layering-switching.nodal-delay",
+      "name": "Total delay at one hop",
+      "tex": "d_{\\text{nodal}} = d_{\\text{proc}} + d_{\\text{queue}} + d_{\\text{trans}} + d_{\\text{prop}}",
+      "text": "d_nodal = d_proc + d_queue + d_trans + d_prop",
+      "note": "Charged once per link. Problems usually set processing and queuing to zero unless they give numbers.",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "source",
+      "pages": [
+        622,
+        626
+      ]
+    },
+    {
+      "id": "cn-layering-switching.pipeline-delay",
+      "name": "P packets over k equal-rate store-and-forward links",
+      "tex": "T = (P + k - 1)\\,\\frac{L}{R} + \\sum_{i=1}^{k} d_{\\text{prop},i}",
+      "text": "T = (P + k − 1)·L/R + Σ d_prop,i",
+      "where": [
+        [
+          "P",
+          "packets sent back to back"
+        ],
+        [
+          "k",
+          "number of links (k − 1 routers)"
+        ],
+        [
+          "L",
+          "packet size in bits, header included"
+        ]
+      ],
+      "note": "No competing traffic, processing ignored. P = 1 gives k·L/R plus propagation; k = 1 gives P·L/R + d_prop.",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.bottleneck-pipeline-delay",
+      "name": "P packets over links of unequal rate",
+      "tex": "T = \\sum_{i=1}^{k} \\frac{L}{R_i} + (P - 1)\\,\\frac{L}{\\min_i R_i} + \\sum_{i=1}^{k} d_{\\text{prop},i}",
+      "text": "T = Σ L/R_i + (P − 1)·L/min R_i + Σ d_prop,i",
+      "note": "The slowest link spaces packets L/R_min apart; with equal rates this reduces to (P + k − 1)·L/R plus propagation.",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.message-switching-delay",
+      "name": "Message switching delay",
+      "tex": "T_{\\text{msg}} = k\\,\\frac{M}{R} + \\sum_{i=1}^{k} d_{\\text{prop},i}",
+      "text": "T_msg = k·M/R + Σ d_prop,i",
+      "where": [
+        [
+          "M",
+          "whole message in bits, header included"
+        ]
+      ],
+      "note": "The entire message is stored at every hop; compare with the packet pipeline to see the gain from splitting.",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.optimal-packet-size",
+      "name": "Payload size that minimises store-and-forward delay",
+      "tex": "p^{*} = \\sqrt{\\frac{M\\,h}{k - 1}}",
+      "text": "p* = √(M·h / (k − 1))",
+      "where": [
+        [
+          "M",
+          "message length in bits"
+        ],
+        [
+          "h",
+          "header bits per packet"
+        ],
+        [
+          "k",
+          "number of links, k ≥ 2"
+        ]
+      ],
+      "note": "Minimises (M/p + k − 1)(p + h)/R with propagation ignored. If p* is not a whole divisor of M, compare the neighbouring packet sizes.",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.circuit-switching-time",
+      "name": "Circuit-switched transfer time",
+      "tex": "T_{\\text{circuit}} = t_{\\text{setup}} + \\frac{F}{R_c} + d_{\\text{prop}}",
+      "text": "T_circuit = t_setup + F / R_c + d_prop",
+      "where": [
+        [
+          "F",
+          "file size in bits"
+        ],
+        [
+          "R_c",
+          "circuit rate, e.g. R/n for one of n TDM slots"
+        ]
+      ],
+      "note": "No per-hop store-and-forward: the file is transmitted once, end to end.",
+      "topic": "cn-layering-switching.circuit-vs-packet-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.virtual-circuit-time",
+      "name": "Virtual-circuit transfer time",
+      "tex": "T_{\\text{vc}} = t_{\\text{setup}} + (P + k - 1)\\,\\frac{p + h}{R} + \\sum_{i=1}^{k} d_{\\text{prop},i}",
+      "text": "T_vc = t_setup + (P + k − 1)·(p + h)/R + Σ d_prop,i",
+      "where": [
+        [
+          "P",
+          "packets, F/p for a file of F bits"
+        ],
+        [
+          "p, h",
+          "payload and header (or VC label) bits per packet"
+        ],
+        [
+          "k",
+          "number of links"
+        ]
+      ],
+      "note": "Setup like a circuit, then store-and-forward like datagrams; drop t_setup for the datagram time.",
+      "topic": "cn-layering-switching.circuit-vs-packet-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.bandwidth-delay-product",
+      "name": "Bandwidth-delay product",
+      "tex": "\\text{BDP} = R \\times \\text{RTT}",
+      "text": "BDP = R × RTT",
+      "note": "Data that must be outstanding to keep the pipe full until the first ACK returns. Bits physically on one link at once are R × d_prop. Divide by 8 for bytes.",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "source",
+      "pages": [
+        622,
+        626
+      ]
+    },
+    {
+      "id": "cn-layering-switching.bottleneck-throughput",
+      "name": "End-to-end throughput of one flow",
+      "tex": "\\text{throughput} = \\min(R_1, R_2, \\dots, R_k)",
+      "text": "throughput = min(R1, R2, …, Rk)",
+      "note": "For one flow with no competing traffic; a link shared fairly by n flows gives each about R/n.",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.window-limited-throughput",
+      "name": "Window-limited throughput",
+      "tex": "\\text{throughput} \\approx \\min\\left(R, \\frac{W}{\\text{RTT}}\\right)",
+      "text": "throughput ≈ min(R, W / RTT)",
+      "where": [
+        [
+          "W",
+          "data the sender may have unacknowledged, in bits"
+        ]
+      ],
+      "note": "The window must reach R × RTT before the link can be kept full.",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.header-overhead-fraction",
+      "name": "Fraction of transmitted bytes that are headers",
+      "tex": "f_{\\text{hdr}} = \\frac{n\\,h}{M + n\\,h}",
+      "text": "f_hdr = n·h / (M + n·h)",
+      "where": [
+        [
+          "n",
+          "layers that add a header"
+        ],
+        [
+          "h",
+          "header size per layer"
+        ],
+        [
+          "M",
+          "application message size"
+        ]
+      ],
+      "topic": "cn-layering-switching.header-overhead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.layer-visits",
+      "name": "Layer visits on a path with r routers",
+      "tex": "N_{\\text{net}} = r + 2, \\qquad N_{\\text{link}} = N_{\\text{phy}} = 2r + 2, \\qquad N_{\\text{transport}} = 2",
+      "text": "N_net = r + 2, N_link = N_phy = 2r + 2, N_transport = 2",
+      "where": [
+        [
+          "r",
+          "routers between source and destination"
+        ]
+      ],
+      "note": "Each router receives and resends the frame (two link-layer passes) but runs the network layer once.",
+      "topic": "cn-layering-switching.encapsulation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.traffic-intensity",
+      "name": "Traffic intensity",
+      "tex": "\\rho = \\frac{L\\,a}{R}",
+      "text": "ρ = L·a / R",
+      "where": [
+        [
+          "L",
+          "packet length in bits"
+        ],
+        [
+          "a",
+          "average arrival rate in packets/s"
+        ],
+        [
+          "R",
+          "link rate in bit/s"
+        ]
+      ],
+      "note": "ρ > 1: the queue grows without bound; ρ close to 1: large queuing delay. Links are designed for ρ < 1.",
+      "topic": "cn-layering-switching.utilisation-traffic-intensity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.link-utilisation",
+      "name": "Link utilisation",
+      "tex": "U = \\frac{\\text{throughput}}{R} = \\frac{t_{\\text{useful}}}{t_{\\text{cycle}}}",
+      "text": "U = throughput / R = useful sending time / cycle time",
+      "topic": "cn-layering-switching.utilisation-traffic-intensity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.stop-and-wait-utilisation",
+      "name": "Utilisation of a send-and-wait sender",
+      "tex": "U = \\frac{L/R}{L/R + 2\\,d_{\\text{prop}}} = \\frac{1}{1 + 2a}, \\qquad a = \\frac{d_{\\text{prop}}}{L/R}",
+      "text": "U = (L/R) / (L/R + 2·d_prop) = 1 / (1 + 2a), a = d_prop / (L/R)",
+      "note": "ACK transmission and processing ignored. Long links (large a) leave the link mostly idle.",
+      "topic": "cn-layering-switching.utilisation-traffic-intensity",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cn-layering-switching.layer-device-mapping",
+      "title": "Layer, PDU and device identification",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Fix the numbering first: OSI runs from 7 (application) down to 1 (physical), and five-layer TCP/IP uses the same numbers for layers 1–4.",
+        "Map the function to a layer: routing and logical addresses are 3, framing, MAC addresses and one-hop error detection are 2, ports and end-to-end reliability are 4.",
+        "Map a device by the highest header it reads: hub and repeater 1, bridge and switch 2, router 3, gateway above 3.",
+        "Name the PDU at that layer: frame (2), packet or datagram (3), segment (4).",
+        "For layer visits on a path with r routers: network layer r + 2, data link and physical 2r + 2, transport 2."
+      ],
+      "trap": "A hub does no filtering at all, so it is a layer-1 device even though it connects many hosts.",
+      "topic": "cn-layering-switching.network-devices",
+      "origin": "source",
+      "pages": [
+        620,
+        621,
+        623,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.domain-count",
+      "title": "Counting collision and broadcast domains",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "List every cable. Cables joined through hubs or repeaters alone form one collision domain; every other cable is a domain of its own.",
+        "Every switch, bridge and router port ends a collision domain, so with no hubs the count equals the number of cables, including switch-to-router links.",
+        "Broadcast domains: one per router interface that has a LAN behind it; switches and hubs never split one."
+      ],
+      "trap": "Treating a many-port hub as a switch, or forgetting the cable from a switch to a router.",
+      "topic": "cn-layering-switching.network-devices",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.single-link-delay",
+      "title": "Transmission plus propagation time on one link",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Convert the packet size to bits and the rate to bit/s (1 Mbps = 10⁶ bit/s).",
+        "Compute L/R and d/v separately in the same unit.",
+        "Add them for the time until the last bit arrives; the first bit arrives after d/v alone."
+      ],
+      "trap": "Using 1024 for a rate prefix, or forgetting the factor 8 for bytes.",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "source",
+      "pages": [
+        622,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.multi-hop-pipeline",
+      "title": "End-to-end time for several packets over store-and-forward hops",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Count the links k (routers + 1) and packets P; include header bits in L if each packet carries a header.",
+        "Time for the first packet: k·L/R plus all propagation delays.",
+        "Each further packet adds one transmission time: total = (P + k − 1)·L/R + Σ d_prop when all rates are equal.",
+        "With unequal rates use Σ L/Rᵢ + (P − 1)·L/R_min + Σ d_prop."
+      ],
+      "trap": "Writing P·k·L/R (no pipelining), or adding propagation once per packet instead of once per link.",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.circuit-vs-packet-time",
+      "title": "Circuit vs packet switching: total time for a transfer",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Circuit: setup time, plus the file divided by the circuit's own rate (R/n for one of n TDM slots), plus propagation.",
+        "Packet: no setup; apply the pipeline formula with the header added to every packet.",
+        "Compare or subtract as asked; a virtual circuit adds its setup time to the packet-switched transfer."
+      ],
+      "trap": "Using the full link rate R for a circuit that owns only one TDM slot.",
+      "topic": "cn-layering-switching.circuit-vs-packet-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.bdp-window",
+      "title": "Bandwidth-delay product and window sizing",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Decide whether the question wants bits on the wire (R × one-way delay) or data outstanding before the first ACK (R × RTT).",
+        "Multiply in bits and seconds, then divide by 8 for bytes or by the packet size for a window in packets.",
+        "For throughput with a fixed window W, use min(R, W/RTT)."
+      ],
+      "trap": "Mixing up one-way delay and RTT, or reporting bits when bytes are asked.",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "source",
+      "pages": [
+        622,
+        623,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.switching-properties",
+      "title": "Properties of circuit, virtual-circuit and datagram switching",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Setup phase: circuit and virtual circuit yes, datagram no.",
+        "Ordering: circuit and virtual circuit preserve order; datagram may reorder.",
+        "Per-packet routing: datagram only; virtual-circuit packets carry a short identifier and follow the stored path.",
+        "Reservation: circuit always, virtual circuit only if requested at setup, datagram never."
+      ],
+      "topic": "cn-layering-switching.virtual-circuit",
+      "origin": "source",
+      "pages": [
+        621,
+        624,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.overhead-throughput",
+      "title": "Header overhead and useful throughput",
+      "frequency": "low",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Add every header (and trailer) wrapped around one unit of application data.",
+        "Overhead fraction = header bytes / total bytes; useful fraction = data bytes / total bytes.",
+        "Useful throughput = link rate × useful fraction while the link is kept busy."
+      ],
+      "topic": "cn-layering-switching.header-overhead",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "cn-layering-switching.q-routing-layer",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which OSI layer chooses the route a packet takes from the source host to the destination host across several interconnected networks?",
+      "options": [
+        "Data link layer",
+        "Network layer",
+        "Transport layer",
+        "Session layer"
+      ],
+      "answer": 1,
+      "explanation": "Routing and logical (IP) addressing belong to layer 3, the network layer. The data link layer only moves frames across a single link, and the transport layer runs end to end inside the hosts without choosing paths.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.osi-model",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — OSI",
+      "pages": [
+        619,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-device-layer",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which device is paired with the highest OSI layer whose header it processes?",
+      "options": [
+        "Bridge: data link layer",
+        "Hub: data link layer",
+        "Router: transport layer",
+        "Repeater: network layer"
+      ],
+      "answer": 0,
+      "explanation": "A bridge, like a switch, forwards frames by MAC address, which is a layer-2 function. Hubs and repeaters only regenerate bits at layer 1, and a router forwards on the destination IP address at layer 3 without needing the transport header.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.network-devices",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Devices",
+      "pages": [
+        620,
+        621,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-collision-domains",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A router has two interfaces. Interface 1 connects to a switch; the switch's other ports connect to three hosts and to a hub that carries four hosts. Interface 2 connects to a hub that carries five hosts. How many collision domains does this network have?",
+      "answer": 6,
+      "explanation": "Each switch port ends a collision domain, so on side 1 the three host cables are three domains, the hub with its four hosts is one, and the switch-to-router cable is one: 5. On side 2 the hub joins the router interface and all five hosts into one domain. Total 5 + 1 = 6. The router splits the network into 2 broadcast domains, one per interface.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.network-devices",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-pdu-match",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Match each layer with the name of its protocol data unit. Layers: P transport (TCP), Q network, R data link, S physical. Names: 1 frame, 2 bits, 3 segment, 4 packet.",
+      "options": [
+        "P-4, Q-3, R-1, S-2",
+        "P-3, Q-1, R-4, S-2",
+        "P-1, Q-4, R-3, S-2",
+        "P-3, Q-4, R-1, S-2"
+      ],
+      "answer": 3,
+      "explanation": "TCP hands segments to the network layer, which wraps each in an IP header to form a packet (datagram). The data link layer adds a header and trailer to make a frame, and the physical layer sends bits.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.encapsulation",
+      "origin": "source",
+      "pages": [
+        620,
+        623
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-layer-visits",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Hosts S and D are connected through two intermediate IP routers. How many times does each packet pass through the network layer and through the data link layer on its way from S to D?",
+      "options": [
+        "Network layer 4 times, data link layer 4 times",
+        "Network layer 4 times, data link layer 6 times",
+        "Network layer 2 times, data link layer 4 times",
+        "Network layer 6 times, data link layer 6 times"
+      ],
+      "answer": 1,
+      "explanation": "S runs the network and data link layers once each on the way down, and D once each on the way up. Each router receives the frame (data link), forwards the packet (network) and builds a new frame for the next link (data link again): 1 network and 2 data link passes per router. Totals: network 1 + 2 + 1 = 4, data link 1 + 4 + 1 = 6. Giving each router only one data link pass yields 4 and 4; counting only the end hosts yields 2.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.encapsulation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-layering-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about a layered protocol stack are true?",
+      "options": [
+        "A layer-n protocol fixes the format and meaning of the messages exchanged between layer-n entities on different machines.",
+        "A layer offers its service to the layer directly above through an interface, so it can change its implementation without affecting that layer.",
+        "On the sending host, each layer removes the header added by the layer above before adding its own.",
+        "An IP router on the path reads headers up to the network layer to forward a packet; it does not need the TCP header."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "The first statement defines a protocol and the second a service offered through an interface. The third is false: a sender never removes headers. Each layer treats the whole PDU from above, header included, as payload and puts its own header in front; headers are stripped only on the way up at the receiver. The fourth is true: a router decapsulates up to layer 3, looks up the destination IP address and builds a new frame for the next link.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.layering-principles",
+      "origin": "curated",
+      "pages": [
+        620,
+        622
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-switching-properties",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following are true of circuit, virtual-circuit and datagram switching?",
+      "options": [
+        "Both circuit switching and virtual-circuit switching need a setup phase before data transfer.",
+        "In virtual-circuit switching, every data packet carries the full destination address so that each switch can route it independently.",
+        "In datagram switching, packets of the same flow can take different paths and arrive out of order.",
+        "In circuit switching, capacity reserved for a call stays unused while the parties have nothing to send."
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Circuit and virtual-circuit networks both set up the path first; a datagram network does not. Datagram packets are routed one at a time, so they may take different routes and be reordered. Virtual-circuit packets carry only a short circuit identifier and follow the path fixed at setup, so the statement that they carry the full destination address is false: independent per-packet routing is the datagram property. A circuit holds its slot or band for the whole call, which is why it wastes capacity on bursty traffic.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.virtual-circuit",
+      "origin": "source",
+      "pages": [
+        621,
+        622,
+        624
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-tx-delay",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A host sends a 1000-byte packet on a 10 Mbps link (1 Mbps = 10⁶ bit/s). What is the transmission delay?",
+      "options": [
+        "0.08 ms",
+        "0.8 ms",
+        "8 ms",
+        "0.1 ms"
+      ],
+      "answer": 1,
+      "explanation": "L = 1000 × 8 = 8000 bits, so L/R = 8000 / 10⁷ s = 8 × 10⁻⁴ s = 0.8 ms. Forgetting the factor 8 gives 0.1 ms; 0.08 ms and 8 ms correspond to 100 Mbps and 1 Mbps links.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Tx delay",
+      "pages": [
+        622,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-last-bit-arrival",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A 1000-byte packet is sent over a single 200 km link of rate 10 Mbps, and signals travel at 2 × 10⁸ m/s. Ignoring processing and queuing, how many milliseconds after the sender starts transmitting does the last bit reach the receiver?",
+      "answer": 1.8,
+      "tolerance": 0.01,
+      "explanation": "Transmission delay = 8000 bits / 10⁷ bit/s = 0.8 ms. Propagation delay = 2 × 10⁵ m / (2 × 10⁸ m/s) = 1 ms. The last bit leaves the sender at 0.8 ms and needs another 1 ms to arrive, so 0.8 + 1 = 1.8 ms.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "curated",
+      "pages": [
+        622,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-length-rate-change",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A link is made twice as long and its data rate is also doubled; the packet size is unchanged. How do the transmission delay and the propagation delay of one packet change?",
+      "options": [
+        "Both delays halve",
+        "Transmission delay doubles; propagation delay halves",
+        "Transmission delay halves; propagation delay is unchanged",
+        "Transmission delay halves; propagation delay doubles"
+      ],
+      "answer": 3,
+      "explanation": "Transmission delay L/R depends only on packet size and rate, so doubling R halves it; distance does not appear. Propagation delay d/v depends only on distance and signal speed, so doubling d doubles it; the rate does not appear.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.delay-components",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-bdp-bytes",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A path has a bandwidth of 100 Mbps and a round-trip time of 100 ms. What is its bandwidth-delay product R × RTT in megabytes (1 MB = 10⁶ bytes)?",
+      "answer": 1.25,
+      "tolerance": 0.01,
+      "explanation": "R × RTT = 10⁸ bit/s × 0.1 s = 10⁷ bits, and 10⁷ / 8 = 1.25 × 10⁶ bytes = 1.25 MB. A sender must keep this much data outstanding to keep the path busy until its first acknowledgement returns.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — BDP",
+      "pages": [
+        622,
+        623,
+        625
+      ]
+    },
+    {
+      "id": "cn-layering-switching.q-pipeline-delay",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Host S sends 500 packets of 2000 bits each, back to back, to host D over a path of 4 links with 3 store-and-forward routers between them. Every link runs at 2 Mbps and is 400 km long, and signals travel at 2 × 10⁸ m/s. Ignoring processing delay and any other traffic, how many milliseconds pass from the moment S starts sending the first bit until D receives the last bit?",
+      "answer": 511,
+      "explanation": "Each packet takes 2000 / (2 × 10⁶) s = 1 ms to transmit on a link, and propagation is 4 × 10⁵ / (2 × 10⁸) s = 2 ms per link. The first packet reaches D after 4 × 1 + 4 × 2 = 12 ms. The packets follow one another 1 ms apart, so the last arrives 499 ms later, at 511 ms. Equivalently (P + k − 1)·L/R + k·d_prop = (500 + 3) × 1 + 4 × 2 = 511 ms.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-message-vs-packet",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A 6000-bit message crosses 3 store-and-forward links of 1 Mbps each; ignore propagation and processing. Sent as one message, it carries a single 100-bit header. Sent instead as 6 packets of 1000 data bits, each packet carries its own 100-bit header. What are the end-to-end times in the two cases?",
+      "options": [
+        "18.3 ms as one message; 6.6 ms as packets",
+        "6.1 ms as one message; 8.8 ms as packets",
+        "18.3 ms as one message; 8.8 ms as packets",
+        "18.3 ms as one message; 19.8 ms as packets"
+      ],
+      "answer": 2,
+      "explanation": "One message: 6100 bits take 6.1 ms per link and must be stored completely at each hop, so 3 × 6.1 = 18.3 ms. Packets: each is 1100 bits, so 1.1 ms per link. The first needs 3 × 1.1 = 3.3 ms and the other five follow 1.1 ms apart, giving (6 + 3 − 1) × 1.1 = 8.8 ms. 6.6 ms ignores the time to fill the pipeline, and 19.8 ms sends the packets one at a time with no overlap.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-circuit-switching-time",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A circuit-switched network uses TDM with 32 slots on every 2.048 Mbps link, and each call is given one slot end to end. Setting up a circuit takes 250 ms. How many seconds pass from the start of setup until the last bit of a 320 000-bit file arrives? Ignore propagation delay.",
+      "answer": 5.25,
+      "tolerance": 0.01,
+      "explanation": "One slot gives the circuit 2.048 Mbps / 32 = 64 kbps, so transmission takes 320 000 / 64 000 = 5 s. The file is sent once, end to end, with no store-and-forward at the switches. Adding the 0.25 s setup gives 5.25 s. Using the full 2.048 Mbps (0.156 s + 0.25 s) is the classic mistake.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.circuit-vs-packet-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-vc-transfer-time",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A virtual circuit across 3 store-and-forward links is set up in 20 ms. Each link runs at 1 Mbps and is 200 km long, and signals travel at 2 × 10⁸ m/s. A 96 000-bit file is then sent as packets of 1000 data bits, each carrying a 200-bit header. Ignoring processing and queuing, how many milliseconds pass from the start of setup until the last bit reaches the destination?",
+      "answer": 140.6,
+      "tolerance": 0.1,
+      "explanation": "There are 96 000/1000 = 96 packets of 1200 bits, so L/R = 1.2 ms. Propagation is 2 × 10⁵ / (2 × 10⁸) = 1 ms per link. Store-and-forward time = (P + k − 1)·L/R + k·d_prop = (96 + 2) × 1.2 + 3 × 1 = 117.6 + 3 = 120.6 ms, and the setup adds 20 ms: 140.6 ms. A circuit with the same setup at the full 1 Mbps would take 20 + 96 + 3 = 119 ms, because its switches do not store whole packets and it carries no per-packet headers.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.circuit-vs-packet-timing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-header-overhead",
+      "type": "nat",
+      "marks": 1,
+      "stem": "In a 5-layer protocol stack, each of the five layers adds a 40-byte header to the data it receives from the layer above. An application sends an 1800-byte message. What percentage of the bytes placed on the wire are headers?",
+      "answer": 10,
+      "explanation": "The five headers add 5 × 40 = 200 bytes, so 1800 + 200 = 2000 bytes are sent. Header fraction = n·h/(M + n·h) = 200/2000 = 10%.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.header-overhead",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-bottleneck-throughput",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 4 MB file (4 × 10⁶ bytes) is sent over a path of three links with rates 10 Mbps, 2 Mbps and 5 Mbps, with no other traffic. Ignoring propagation and the short pipeline start-up, about how long does the transfer take?",
+      "options": [
+        "3.2 s",
+        "6.4 s",
+        "16 s",
+        "25.6 s"
+      ],
+      "answer": 2,
+      "explanation": "End-to-end throughput is set by the slowest link, min(10, 2, 5) = 2 Mbps. The file is 32 × 10⁶ bits, so it needs 32 × 10⁶ / (2 × 10⁶) = 16 s. 3.2 s and 6.4 s use the 10 Mbps and 5 Mbps links instead, and 25.6 s adds all three link times as if each link had to carry the whole file before the next could start.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-window-throughput",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A sender may have at most 64 KB (1 KB = 1024 bytes) of unacknowledged data outstanding. The path has a round-trip time of 100 ms and a 1 Gbps bottleneck link. Treating the transmission time of the window as negligible next to the RTT, what is the maximum throughput in Mbps (1 Mbps = 10⁶ bit/s)?",
+      "answer": 5.24,
+      "tolerance": 0.01,
+      "explanation": "The window is 65 536 × 8 = 524 288 bits, and the sender can push it at most once per round trip, so throughput ≈ min(R, W/RTT) = min(10⁹, 524 288 / 0.1) = 5 242 880 bit/s ≈ 5.24 Mbps. The link is busy only about 0.52% of the time; filling it would need a window of R × RTT = 10⁸ bits = 12.5 MB.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.throughput-bdp",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-traffic-intensity",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Packets of 1500 bytes arrive at a router output link of 10 Mbps at an average rate of 1000 packets per second. What happens to the queue for this link over time?",
+      "options": [
+        "It stays nearly empty, because each packet needs only 1.2 ms to transmit",
+        "It keeps growing until the buffer overflows, because the traffic intensity La/R is 1.2",
+        "It settles at a steady length of about 1.2 packets",
+        "It stays bounded, because propagation delay absorbs the excess load"
+      ],
+      "answer": 1,
+      "explanation": "Bits arrive at 1500 × 8 × 1000 = 1.2 × 10⁷ bit/s, so La/R = 1.2 × 10⁷ / 10⁷ = 1.2. Bits arrive faster than the link can send them, so the backlog grows by about 2 × 10⁶ bits every second until the buffer fills and packets are dropped. A stable queue needs La/R < 1, and the delay rises sharply as La/R approaches 1.",
+      "difficulty": "medium",
+      "topic": "cn-layering-switching.utilisation-traffic-intensity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-stop-wait-utilisation",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A sender transmits one 1000-byte packet on a 1 Mbps link and then waits for its acknowledgement before sending the next. The one-way propagation delay is 20 ms; acknowledgement transmission and processing times are negligible. What percentage of the time is the link busy sending data?",
+      "answer": 16.67,
+      "tolerance": 0.05,
+      "explanation": "L/R = 8000 / 10⁶ = 8 ms. One cycle is 8 ms of sending plus 2 × 20 ms for the last bit to arrive and the acknowledgement to return, 48 ms in all. U = 8/48 = 1/6 ≈ 16.67%. Equivalently a = 20/8 = 2.5 and U = 1/(1 + 2a) = 1/6. Forgetting the return trip gives 8/28 ≈ 28.6%.",
+      "difficulty": "easy",
+      "topic": "cn-layering-switching.utilisation-traffic-intensity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-layering-switching.q-optimal-packet-size",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 9000-bit message is split into packets of p data bits, each packet also carrying a 40-bit header, and sent over 5 store-and-forward links of equal rate. Propagation and processing delays are negligible. Which payload size p, in bits, minimises the time until the whole message is delivered?",
+      "answer": 300,
+      "explanation": "There are 9000/p packets of p + 40 bits, so the delay is proportional to (9000/p + 4)(p + 40). Setting the derivative of (M/p + k − 1)(p + h) to zero gives k − 1 = M·h/p², so p = √(M·h/(k − 1)) = √(9000 × 40 / 4) = √90 000 = 300 bits. Check: p = 300 gives 34 × 340 = 11 560, while p = 250 gives 40 × 290 = 11 600 and p = 360 gives 29 × 400 = 11 600.",
+      "difficulty": "hard",
+      "topic": "cn-layering-switching.store-and-forward",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Transmission and propagation delay are different quantities: L/R grows with packet size and shrinks with rate, while d/v depends only on distance. They are added, not merged, to get the time until the last bit arrives.",
+      "origin": "source",
+      "pages": [
+        626
+      ]
+    },
+    {
+      "text": "P packets over k store-and-forward links take (P + k − 1)·L/R, not P·k·L/R, and propagation is added once per link, not once per packet.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A circuit that owns one of n TDM slots runs at R/n; using the full link rate badly underestimates the transfer time.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "OSI has 7 layers and TCP/IP 5 (or 4). Layer numbers in a question follow OSI even when the protocols named are Internet ones.",
+      "origin": "source",
+      "pages": [
+        625
+      ]
+    },
+    {
+      "text": "A hub repeats every bit to every port; a switch learns MAC addresses and forwards selectively. Do not count a hub as a layer-2 device.",
+      "origin": "source",
+      "pages": [
+        625
+      ]
+    },
+    {
+      "text": "Only circuit and virtual-circuit switching guarantee order; datagram packets of one flow may arrive out of order.",
+      "origin": "source",
+      "pages": [
+        626
+      ]
+    },
+    {
+      "text": "Rate prefixes are powers of ten (1 Mbps = 10⁶ bit/s) and byte sizes must be multiplied by 8; mixing 1024 with 1000, or bits with bytes, is the most common slip.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "R × RTT is what a sender must keep outstanding; R × one-way delay is what fits on the wire. Read which one the question asks for.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Layers and devices",
+      "lines": [
+        "OSI 7: application, presentation, session, transport, network, data link, physical",
+        "TCP/IP 5: application, transport, network, data link, physical",
+        "PDUs: segment (4), packet (3), frame (2), bits (1)",
+        "Hub and repeater 1, switch and bridge 2, router 3, gateway above 3"
+      ],
+      "origin": "source",
+      "pages": [
+        620,
+        626
+      ]
+    },
+    {
+      "heading": "Switching",
+      "lines": [
+        "Circuit: setup, reserved path, no jitter, idle capacity wasted",
+        "Virtual circuit: setup, short VCI per packet, in order, bandwidth shared",
+        "Datagram: no setup, per-packet routing, may reorder or drop"
+      ],
+      "origin": "source",
+      "pages": [
+        621,
+        626
+      ]
+    },
+    {
+      "heading": "Delay and throughput",
+      "lines": [
+        "Per hop: processing + queuing + L/R + d/v",
+        "P packets over k links: (P + k − 1)·L/R + k·d_prop",
+        "Circuit: setup + F/R_c + d_prop, with R_c = R/n for one TDM slot",
+        "BDP = R × RTT; throughput = slowest link; keep La/R < 1"
+      ],
+      "origin": "curated",
+      "pages": [
+        626
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 626,
+      "claim": "Pitfall 3: transmission and propagation delays are independent, so they should not be added as one.",
+      "correction": "They are independent quantities (L/R depends on packet size and rate, d/v on distance and signal speed), but they are added: the last bit of a packet reaches the far end of a link L/R + d/v after transmission starts, exactly as the total-latency formula on page 622 (Tx + Prop + Queue + Process) states."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cn-layering",
+      "status": "partial",
+      "topics": [
+        "cn-layering-switching.layering-principles",
+        "cn-layering-switching.osi-model",
+        "cn-layering-switching.tcp-ip-model",
+        "cn-layering-switching.encapsulation",
+        "cn-layering-switching.header-overhead",
+        "cn-layering-switching.network-devices"
+      ]
+    },
+    {
+      "item": "cn-switching-performance",
+      "status": "partial",
+      "topics": [
+        "cn-layering-switching.circuit-switching",
+        "cn-layering-switching.datagram-switching",
+        "cn-layering-switching.virtual-circuit",
+        "cn-layering-switching.delay-components",
+        "cn-layering-switching.store-and-forward",
+        "cn-layering-switching.circuit-vs-packet-timing",
+        "cn-layering-switching.throughput-bdp",
+        "cn-layering-switching.utilisation-traffic-intensity"
+      ]
+    }
+  ]
+}

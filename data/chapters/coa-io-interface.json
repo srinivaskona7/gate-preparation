@@ -1,0 +1,1911 @@
+{
+  "id": "coa-io-interface",
+  "summary": "The I/O interface decides how data moves between peripherals and memory. Programmed I/O makes the CPU poll a status register; interrupt-driven I/O lets the device signal readiness so the CPU can do other work; DMA hands whole blocks to a controller that becomes bus master and interrupts the CPU only at the end. GATE asks the definitions (vectored vs polled, maskable vs NMI, burst vs cycle stealing, memory-mapped vs isolated I/O) and short numericals on CPU overhead and DMA bus acquisitions.",
+  "highYield": [
+    "Fraction of CPU time lost to polling, interrupts or DMA: events per second × cost per event ÷ clock rate, usually a 2-mark NAT.",
+    "Minimum number of DMA bus acquisitions for a file, given the width of the data count register: ⌈file size ÷ 2^c units⌉.",
+    "DMA modes: burst stalls the CPU for the whole block, cycle stealing takes one bus cycle per word, transparent uses only cycles the CPU leaves free.",
+    "Vectored vs polled interrupts and maskable vs non-maskable interrupts: one-line definition questions.",
+    "Daisy-chain priority is fixed by physical position: the device nearest the arbiter or CPU wins."
+  ],
+  "topics": [
+    {
+      "id": "coa-io-interface.io-techniques",
+      "title": "Three ways to move I/O data",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        21,
+        285,
+        287
+      ],
+      "points": [
+        "Programmed I/O: the CPU issues the command, then loops reading the device status register until it reports ready, then moves each word itself.",
+        "Interrupt-driven I/O: the CPU issues the command and continues other work; the device raises an interrupt when it is ready and an ISR moves the word.",
+        "DMA: a DMA controller moves a whole block between device and memory without the CPU; the CPU only programs the transfer and services one completion interrupt.",
+        "CPU involvement falls from every poll, to every word, to once per block, which is why DMA suits high-bandwidth devices such as disks and network adapters."
+      ],
+      "keyTerms": [
+        "programmed I/O",
+        "interrupt-driven I/O",
+        "DMA"
+      ],
+      "lesson": {
+        "why": "Almost every I/O question in the chapter assumes you know which of the three techniques is in use and who does the work per word. Naming the technique correctly settles half the question.",
+        "intro": "A device holds data that must end up in memory. The first technique has the CPU ask the device again and again whether it has a word ready, then copy the word itself; this is programmed I/O. The second lets the CPU do other work and has the device send a signal, an interrupt, when a word is ready; a small routine then copies the word. The third gives the job to a separate helper circuit, the DMA controller (direct memory access), which copies a whole block between device and memory and tells the CPU only when the block is done.",
+        "definitions": [
+          {
+            "term": "Programmed I/O",
+            "meaning": "The CPU commands the device, waits in a loop on its status, and moves every word itself."
+          },
+          {
+            "term": "DMA controller",
+            "meaning": "A circuit that moves a block between a device and memory on its own after the CPU programs it."
+          }
+        ],
+        "principle": {
+          "text": "The techniques differ in how often the CPU is involved for a block of $n$ words: programmed I/O involves it at least $n$ times (every word, plus every poll), interrupt-driven I/O $n$ times (one interrupt per word), and DMA a small constant number of times, one setup and one completion interrupt, independent of $n$.",
+          "tex": "\\text{CPU events per block:}\\quad \\text{polling} \\ge n,\\qquad \\text{interrupts} = n,\\qquad \\text{DMA} = O(1)"
+        },
+        "limits": "For a slow device that sends a few words per second, the setup cost of DMA is not worth paying and the simpler techniques are fine. DMA also needs the bus: while the controller transfers, the CPU may be delayed.",
+        "example": {
+          "problem": "A disk block of 4096 bytes is read into memory over a bus with 4-byte words. Count how many times the CPU must handle a word or an interrupt under interrupt-driven I/O and under DMA.",
+          "steps": [
+            "Words in the block: $4096 / 4 = 1024$.",
+            "Interrupt-driven I/O raises one interrupt per word, so the CPU runs the ISR 1024 times.",
+            "DMA needs one setup by the CPU and one completion interrupt, so 2 CPU events in total."
+          ],
+          "result": "1024 ISR runs with interrupts against 2 CPU events with DMA."
+        },
+        "misconceptions": [
+          "Interrupt-driven I/O is not the same as DMA: with interrupts the CPU still copies every word inside the ISR, only the waiting has gone.",
+          "DMA does not mean the CPU is never involved; it programs the transfer and takes the completion interrupt."
+        ],
+        "recall": [
+          {
+            "q": "Who copies each word in programmed I/O and in interrupt-driven I/O?",
+            "a": "The CPU, in both. They differ only in whether it busy-waits or is told by an interrupt."
+          },
+          {
+            "q": "How many times is the CPU involved in a DMA block transfer?",
+            "a": "Twice in the simple case: once to program the controller and once for the completion interrupt."
+          },
+          {
+            "q": "Which devices is DMA aimed at?",
+            "a": "High-bandwidth devices such as disks and network adapters."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A 16 KB block ($16 \\times 1024$ bytes) is read with 4-byte words using interrupt-driven I/O, one interrupt per word. How many interrupts occur for the block?",
+          "answer": 4096,
+          "explanation": "Words = $16 \\times 1024 / 4 = 4096$, one interrupt each. Answering 1 tempts because DMA raises a single interrupt per block, but that is DMA, not per-word interrupts; answering 16384 comes from counting bytes instead of words."
+        },
+        "summary": "Polling and interrupts make the CPU handle every word; DMA hands over the block and costs the CPU a fixed setup plus one completion interrupt, which is why it suits fast devices."
+      }
+    },
+    {
+      "id": "coa-io-interface.io-module-registers",
+      "title": "The device interface: data, status and control registers",
+      "frequency": "low",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Each device controller exposes a data register (the word being moved), a status register (ready, busy, error bits) and a control register (command, interrupt-enable bit).",
+        "The CPU never drives the device directly: it reads and writes these registers, either through memory addresses or through I/O ports.",
+        "The controller buffers data and converts between the bus protocol and the device's own signalling and speed, so slow devices do not hold the bus."
+      ],
+      "keyTerms": [
+        "status register",
+        "control register",
+        "data buffer register",
+        "device controller"
+      ],
+      "lesson": {
+        "why": "Polling and interrupt questions talk about status flags, control bits and the data buffer. Knowing what each register is for tells you which one the CPU reads and which one it writes.",
+        "intro": "A device is not wired to the CPU directly. A small circuit called the device controller sits between them and shows the CPU a few registers, which are tiny storage cells with addresses. One holds the data being moved, one holds the device's condition, and one accepts commands. The CPU does all its I/O by reading and writing these registers. The controller also buffers the data, so a slow device does not tie up the bus.",
+        "definitions": [
+          {
+            "term": "Status register",
+            "meaning": "Read by the CPU; its bits tell whether the device is ready, busy or in error."
+          },
+          {
+            "term": "Control register",
+            "meaning": "Written by the CPU; its bits carry the command and the interrupt-enable setting."
+          },
+          {
+            "term": "Data register",
+            "meaning": "Holds the word currently being moved between the device and the CPU."
+          }
+        ],
+        "principle": {
+          "text": "Data register: the word. Status register: the CPU reads it to learn the device state. Control register: the CPU writes it to give a command or enable interrupts. A status flag is tested by masking: AND the status value with a mask that has a 1 only in the flag position.",
+          "tex": "\\text{flag} = (\\text{status} \\;\\mathrm{AND}\\; \\text{mask}) \\ne 0"
+        },
+        "limits": "The exact bit positions differ from device to device, so a question must state them. Some controllers combine status and control in one register or add more registers.",
+        "example": {
+          "problem": "A status register uses bit 0 as ready, bit 1 as error and bit 2 as busy. The CPU reads the value 0110 in binary. Is the device ready, and is there an error?",
+          "steps": [
+            "Test ready with the mask 001: $0110 \\mathrm{AND} 001 = 000$, so bit 0 is clear and the device is not ready.",
+            "Test error with the mask 010: $0110 \\mathrm{AND} 010 = 010$, which is nonzero, so the error flag is set.",
+            "Bit 2 is also set, so the device is busy."
+          ],
+          "result": "Not ready, error flag set, device busy."
+        },
+        "misconceptions": [
+          "The CPU does not write the status register to give a command; commands go to the control register, and the status register only reports.",
+          "A controller is not just a wire: it buffers data and converts between the bus protocol and the device's own speed."
+        ],
+        "recall": [
+          {
+            "q": "Which register does a polling loop read?",
+            "a": "The status register, testing the ready flag."
+          },
+          {
+            "q": "Where does the interrupt-enable bit live?",
+            "a": "In the control register, written by the CPU."
+          },
+          {
+            "q": "Why does a controller buffer data?",
+            "a": "So slow devices do not hold the bus and the bus and device speeds can differ."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A driver wants to start a transfer and turn on interrupts for the device. Which register does it write?",
+          "options": [
+            "Data register",
+            "Status register",
+            "Control register",
+            "Program counter"
+          ],
+          "answer": 2,
+          "explanation": "Commands and the interrupt-enable bit are control bits, so the driver writes the control register. The status register tempts because it also holds flags, but it is read by the CPU to learn the device state, not written to command it."
+        },
+        "summary": "Data register carries the word, status register reports the device state to the CPU, control register takes commands and the interrupt enable; the controller sits between bus and device and buffers."
+      }
+    },
+    {
+      "id": "coa-io-interface.programmed-io",
+      "title": "Programmed I/O and polling cost",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        21,
+        285,
+        288
+      ],
+      "points": [
+        "The CPU busy-waits: while it tests the status flag it does no useful work, so a slow device wastes almost all CPU time between words.",
+        "Polling cost per second = polls per second × cycles per poll; divide by the clock rate for the fraction of CPU time lost.",
+        "Example: a disk delivering 4×10⁶ bytes/s in 16-byte units needs 250,000 polls/s; at 400 cycles per poll on a 500 MHz CPU that is 10⁸ cycles, 20% of the CPU.",
+        "Polling is acceptable only for slow-rate devices polled rarely (a mouse at 30 polls/s) or in simple embedded loops where the CPU has nothing else to do."
+      ],
+      "keyTerms": [
+        "busy waiting",
+        "status flag",
+        "polling overhead"
+      ],
+      "lesson": {
+        "why": "Polling cost is a standard calculation: how much of the CPU is burned waiting for a device. It also explains why interrupts and DMA exist.",
+        "intro": "In programmed I/O the CPU repeatedly reads the device status register and checks the ready flag. This repeated check is called polling, and the CPU doing nothing else meanwhile is called busy waiting. The device sets the pace: if it produces a chunk of data every so often, the CPU must check at least that often or data is lost. Each check takes some CPU cycles, so the checks add up to a share of the CPU's time.",
+        "prerequisites": [
+          "coa-io-interface.io-module-registers"
+        ],
+        "definitions": [
+          {
+            "term": "Polling",
+            "meaning": "Reading the device status repeatedly to find out whether it is ready."
+          },
+          {
+            "term": "Busy waiting",
+            "meaning": "Looping on a test while doing no useful work."
+          }
+        ],
+        "principle": {
+          "text": "The poll rate is the data rate divided by the bytes taken per poll. The CPU fraction lost is polls per second times cycles per poll, divided by the clock rate.",
+          "tex": "f_{\\text{poll}} = \\frac{(R / B) \\times C_{\\text{poll}}}{f_{\\text{clk}}}"
+        },
+        "limits": "This counts only the polling cycles. If the CPU has nothing else to do, as in a small embedded loop, the lost time costs nothing, and a very slow device polled rarely loses almost nothing.",
+        "example": {
+          "problem": "A device delivers 2,000,000 bytes per second in 8-byte units. One poll takes 200 cycles on a 1 GHz CPU. What fraction of the CPU does polling use?",
+          "steps": [
+            "Polls per second = $2{,}000{,}000 / 8 = 250{,}000$.",
+            "Cycles per second spent polling = $250{,}000 \\times 200 = 5 \\times 10^{7}$.",
+            "Divide by the clock rate: $5 \\times 10^{7} / 10^{9} = 0.05$."
+          ],
+          "result": "5 percent of the CPU."
+        },
+        "misconceptions": [
+          "The poll rate is not the CPU clock rate; it is set by how fast the device produces data. Polling slower than that loses data.",
+          "Dividing by the bytes per second without the unit size overstates the polls; each poll collects one whole unit."
+        ],
+        "recall": [
+          {
+            "q": "What is busy waiting?",
+            "a": "The CPU loops on a status test and does no useful work until the device is ready."
+          },
+          {
+            "q": "How is the number of polls per second found?",
+            "a": "Divide the device data rate by the bytes moved per poll."
+          },
+          {
+            "q": "When is polling acceptable?",
+            "a": "For slow devices polled rarely, or in simple embedded loops where the CPU has nothing else to do."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A device delivers 1,000,000 bytes per second in 4-byte units. Each poll costs 80 cycles on a 500 MHz CPU. What percentage of the CPU is spent polling?",
+          "answer": 4,
+          "explanation": "Polls per second = $10^6 / 4 = 250{,}000$; cycles = $250{,}000 \\times 80 = 2 \\times 10^{7}$; divided by $5 \\times 10^{8}$ gives 0.04, which is 4 percent. Using 10^6 polls per second (one per byte) tempts and gives 16 percent."
+        },
+        "summary": "Polling wastes CPU time in proportion to polls per second times cycles per poll; compute polls as rate over unit size, then divide by the clock rate."
+      }
+    },
+    {
+      "id": "coa-io-interface.interrupt-driven-io",
+      "title": "Interrupt-driven I/O: the service sequence",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        286,
+        288
+      ],
+      "points": [
+        "The CPU samples the interrupt request line at the end of each instruction cycle, so it always finishes the current instruction before responding.",
+        "On an accepted interrupt the hardware saves at least the PC and status word, disables further maskable interrupts and acknowledges the device.",
+        "The ISR address comes from the interrupt vector table, indexed by the vector number; the ISR saves any registers it uses, moves the data and clears the request.",
+        "A return-from-interrupt instruction restores the PC and status word, and the interrupted program resumes as if nothing happened.",
+        "Each word still costs one interrupt, so for a device delivering R words/s with ISR overhead O seconds per word the CPU loses a fraction R × O.",
+        "The CPU can keep up only while R × O ≤ 1, so the fastest device interrupt I/O can serve is R_max = 1/O: a 3 µs overhead caps it at about 333,333 interrupts per second, and any faster device needs DMA."
+      ],
+      "keyTerms": [
+        "ISR",
+        "interrupt vector table",
+        "context save",
+        "INTR",
+        "INTA"
+      ],
+      "lesson": {
+        "why": "Questions ask for the order of events when a device interrupts, and for how much CPU time interrupts consume. Both follow from one fixed service sequence.",
+        "intro": "In interrupt-driven I/O the CPU does other work and the device raises a signal when it is ready. The CPU does not stop mid-instruction. It finishes the instruction it is on, remembers where it was by saving the program counter (the address of the next instruction), and jumps to a small routine written for that device, called the interrupt service routine (ISR). When the routine ends, the saved state is restored and the program carries on.",
+        "prerequisites": [
+          "coa-io-interface.programmed-io"
+        ],
+        "definitions": [
+          {
+            "term": "ISR",
+            "meaning": "The interrupt service routine: the short program that serves one device's request."
+          },
+          {
+            "term": "Interrupt vector",
+            "meaning": "A number sent by the device or hardware that selects the ISR address from a table."
+          }
+        ],
+        "principle": {
+          "text": "Service order: finish the current instruction, save the return state, load the program counter with the ISR address, run the ISR, restore the state. If a device sends one interrupt per word at rate $R$ words per second and each costs $O$ seconds, the CPU loses a fraction $R \\times O$ of its time.",
+          "tex": "\\text{CPU fraction lost} = R \\times O \\le 1 \\quad\\Rightarrow\\quad R_{\\max} = \\frac{1}{O}"
+        },
+        "limits": "The fraction formula counts only the ISR overhead per event and assumes one interrupt per word. A device that interrupts once per block, as under DMA, pays the cost per block instead.",
+        "example": {
+          "problem": "A device delivers 20,000 words per second and each interrupt costs 15 microseconds of ISR overhead. What fraction of the CPU is lost, and what is the fastest rate this overhead allows?",
+          "steps": [
+            "Convert the overhead to seconds: 15 microseconds is $15 \\times 10^{-6}$ s.",
+            "Fraction lost = $20{,}000 \\times 15 \\times 10^{-6} = 0.3$, so 30 percent of the CPU.",
+            "The limit is reached when the fraction is 1: $R_{\\max} = 1 / (15 \\times 10^{-6}) \\approx 66{,}667$ words per second."
+          ],
+          "result": "30 percent of the CPU is used; the ceiling is about 66,667 interrupts per second."
+        },
+        "misconceptions": [
+          "The CPU does not respond the instant the signal rises; it samples the request only at the end of the instruction cycle and finishes the current instruction first.",
+          "Saving the program counter must come before loading the ISR address; loading first overwrites the return address and the program can never resume."
+        ],
+        "recall": [
+          {
+            "q": "When does the CPU act on an interrupt request?",
+            "a": "At the end of the current instruction, never in the middle of it."
+          },
+          {
+            "q": "Why is the program counter saved before the ISR address is loaded?",
+            "a": "Loading the ISR address overwrites the counter, so the return address would be lost."
+          },
+          {
+            "q": "What does a device interrupting once per word cost the CPU per second?",
+            "a": "The rate in words per second times the ISR overhead per word."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A device delivers 40,000 words per second and each word causes one interrupt costing 5 microseconds. What percentage of the CPU time goes to interrupt handling?",
+          "answer": 20,
+          "explanation": "Fraction lost = $40{,}000 \\times 5 \\times 10^{-6} = 0.2$, which is 20 percent. A common slip is to forget the microsecond conversion and report 200,000; another is to give 0.2 without turning it into a percentage."
+        },
+        "summary": "Finish the instruction, save the state, jump to the ISR, run it, restore. Per-word interrupts cost rate times overhead, so rate can never exceed one over the overhead."
+      }
+    },
+    {
+      "id": "coa-io-interface.interrupt-types",
+      "title": "Maskable vs non-maskable, vectored vs polled",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        286,
+        288,
+        290,
+        291
+      ],
+      "points": [
+        "A maskable interrupt can be disabled by software through the interrupt-enable flag or a mask register; ordinary device interrupts are maskable.",
+        "A non-maskable interrupt (NMI) cannot be disabled by software and is reserved for critical events such as power failure or memory parity errors.",
+        "Vectored: the interrupting device supplies a vector (an ISR address or an index into the vector table) during acknowledge, so the CPU branches straight to its ISR.",
+        "Polled (non-vectored): all devices share one generic handler that reads each device's status in turn; response time grows with the number of devices checked before the source.",
+        "By source: external hardware interrupts arrive asynchronously from devices; exceptions (divide by zero, page fault, illegal opcode) are raised by the instruction itself; software interrupts (INT, system-call traps) are executed on purpose, so the last two are synchronous.",
+        "An external interrupt waits for the instruction to finish, but a fault such as a page fault is taken in the middle of the instruction, which is then restarted from the beginning once the handler returns."
+      ],
+      "keyTerms": [
+        "maskable interrupt",
+        "NMI",
+        "vectored interrupt",
+        "polled interrupt",
+        "interrupt mask",
+        "exception",
+        "trap",
+        "software interrupt"
+      ],
+      "lesson": {
+        "why": "Interrupt classification questions are frequent and are answered by matching a definition to a property. The vocabulary below is the whole syllabus for them.",
+        "intro": "An interrupt makes the CPU leave its program and run a handler. Interrupts differ along three lines. Can software switch them off? A maskable interrupt can be disabled, a non-maskable one cannot. How is the handler found? A vectored interrupt brings an address or table index with it, while a polled one sends the CPU to one common routine that asks each device in turn. Where does it come from? From an outside device at any moment, or from the running instruction itself, such as a divide by zero or a system call.",
+        "prerequisites": [
+          "coa-io-interface.interrupt-driven-io"
+        ],
+        "definitions": [
+          {
+            "term": "Maskable interrupt",
+            "meaning": "An interrupt that software can block with the interrupt-enable flag or a mask register."
+          },
+          {
+            "term": "NMI",
+            "meaning": "A non-maskable interrupt, reserved for critical events such as power failure or memory parity error."
+          },
+          {
+            "term": "Vector",
+            "meaning": "The ISR address, or an index into the vector table, supplied by the device during acknowledge."
+          }
+        ],
+        "principle": {
+          "text": "Maskable versus NMI: whether software can disable it. Vectored versus polled: whether the device supplies the ISR address or the CPU must query devices one by one. By source: external interrupts are asynchronous, while exceptions and software interrupts are synchronous because the instruction causes them."
+        },
+        "limits": "The three classifications are independent of each other, so an interrupt is described by one choice from each. A fault taken mid-instruction, such as a page fault, restarts the instruction; an external interrupt waits for the instruction to finish.",
+        "example": {
+          "problem": "Classify a keyboard key press, a page fault and a power failure. Then, with a polled scheme that checks 4 devices in order at 10 cycles per check, how long does it take to find that device 3 is the source?",
+          "steps": [
+            "A key press is a maskable external interrupt, asynchronous; a power failure is a non-maskable external interrupt, because it is critical.",
+            "A page fault is an exception raised by the instruction itself, so it is synchronous, and the instruction restarts after the handler.",
+            "Polled scheme: devices 1, 2 and 3 are checked before device 3 is found, so $3 \\times 10 = 30$ cycles."
+          ],
+          "result": "Key press: maskable and external. Page fault: exception, synchronous. Power failure: non-maskable. Identification takes 30 cycles."
+        },
+        "misconceptions": [
+          "A software interrupt (INT, system call) is not asynchronous; the program executes it on purpose, so it is synchronous.",
+          "In the polled scheme the response time depends on the device position in the checking order; a vectored scheme jumps straight to the ISR."
+        ],
+        "recall": [
+          {
+            "q": "What can software do to a maskable interrupt that it cannot do to an NMI?",
+            "a": "Disable it through the interrupt-enable flag or a mask register."
+          },
+          {
+            "q": "What does a vectored interrupt supply?",
+            "a": "The ISR address, or an index into the vector table, so the CPU branches directly."
+          },
+          {
+            "q": "Which interrupt sources are synchronous?",
+            "a": "Exceptions and software interrupts, because the running instruction raises them."
+          },
+          {
+            "q": "What happens to an instruction that raised a page fault?",
+            "a": "It is restarted from the beginning after the handler returns."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of these events is the best example of an interrupt that software cannot disable?",
+          "options": [
+            "A keyboard key press",
+            "A disk transfer-complete signal",
+            "A power failure warning",
+            "A timer tick"
+          ],
+          "answer": 2,
+          "explanation": "Power failure is a critical event handled as a non-maskable interrupt. The other three are ordinary device interrupts, which are maskable; the timer tick tempts because it is hardware-generated, but being hardware-generated does not make an interrupt non-maskable."
+        },
+        "summary": "Classify an interrupt by maskability, by how the ISR is found (vectored or polled) and by source (external asynchronous, or exception and software synchronous)."
+      }
+    },
+    {
+      "id": "coa-io-interface.interrupt-priority",
+      "title": "Priority among interrupting devices",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        21,
+        286,
+        289
+      ],
+      "points": [
+        "Daisy chain (serial): the acknowledge signal passes from device to device; the first requesting device in the chain keeps it and places its vector, so priority equals physical position.",
+        "Daisy chaining needs few wires and scales easily, but priority is fixed and a far-end device can starve under heavy load.",
+        "Parallel scheme: each device has its own request line into a priority encoder, whose output is the vector of the highest-priority active request; a mask register can block chosen levels.",
+        "With nesting enabled, an ISR can be interrupted only by a request of higher priority; equal or lower requests wait until it returns."
+      ],
+      "keyTerms": [
+        "daisy chain",
+        "priority encoder",
+        "nested interrupts",
+        "mask register"
+      ],
+      "lesson": {
+        "why": "Statements about daisy chains, vectored interrupts and nesting recur in the exam, and each is decided by who answers the CPU first.",
+        "intro": "Several devices can ask for service together, so the CPU needs a rule for who goes first. In a daisy chain the devices sit on one wire in a line. The CPU sends an acknowledge signal into the line, and the first device that is requesting keeps it and sends its identity; devices behind it never see the signal. In a parallel scheme each device has its own request line, and a circuit called a priority encoder picks the highest active one.",
+        "prerequisites": [
+          "coa-io-interface.interrupt-driven-io",
+          "coa-io-interface.interrupt-types"
+        ],
+        "analogy": {
+          "text": "A daisy chain is a queue at a counter where the person nearest the front is always served first.",
+          "breaksWhen": "Nobody in a real queue is blocked forever by newcomers, but a far device in a busy chain can starve because nearer devices keep winning."
+        },
+        "principle": {
+          "text": "In a daisy chain, priority equals position, closest to the CPU highest. With nesting, a running ISR is interrupted only by a request of strictly higher priority; equal or lower requests wait until it returns."
+        },
+        "limits": "A vectored interrupt names its source, so the CPU does not poll to find it; polling is the software alternative used when there is no vector.",
+        "example": {
+          "problem": "Devices D1, D2, D3 sit in that order along a daisy chain, with D1 nearest the CPU. D2 and D3 request together, and D3 keeps requesting. Which device is served first, and can D1 interrupt D2's ISR?",
+          "steps": [
+            "The acknowledge signal enters the chain at D1, which is not requesting, so it passes on.",
+            "D2 is requesting, so it keeps the signal and sends its vector. D3 never sees the acknowledge.",
+            "D2's ISR starts. D1 has higher priority because it is nearer the CPU, so with nesting enabled its later request can interrupt D2's ISR; D3's cannot."
+          ],
+          "result": "D2 is served first, then D3 after D2 returns; D1 may interrupt D2 but D3 may not."
+        },
+        "misconceptions": [
+          "Daisy chaining does not mean the CPU polls the devices one by one; the acknowledge signal travels through the wires and the device identifies itself.",
+          "Vectored does not mean polling is needed; the vector removes the search for the source, which is why vectored service starts faster."
+        ],
+        "recall": [
+          {
+            "q": "In a daisy chain, what decides a device's priority?",
+            "a": "Its physical position: the device nearest the CPU is served first."
+          },
+          {
+            "q": "When may a running ISR be interrupted under nesting?",
+            "a": "Only by a request of strictly higher priority; equal or lower requests wait."
+          },
+          {
+            "q": "What is the weakness of a daisy chain?",
+            "a": "Priority is fixed, so a device far down the chain can starve under heavy load."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about interrupt handling is correct?",
+          "options": [
+            "In a daisy chain the CPU reads every device's status in turn to find the requester.",
+            "With a vectored interrupt the CPU must poll devices to identify the source.",
+            "In a daisy chain a device's priority is set by its position along the chain.",
+            "With nesting, an ISR is interrupted by any new request, whatever its priority."
+          ],
+          "answer": 2,
+          "explanation": "The acknowledge signal passes from device to device and the first requester keeps it, so position sets priority. The first option confuses this with polling, which tempts because devices are examined in order, but the signal does the examining. The second is wrong because a vector names the source. The fourth is wrong because only higher priority may interrupt."
+        },
+        "summary": "A daisy chain gives priority by position through the acknowledge signal, not by polling. Vectors name the source. Nested ISRs yield only to strictly higher priority."
+      }
+    },
+    {
+      "id": "coa-io-interface.interrupt-latency",
+      "title": "Interrupt latency",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        291
+      ],
+      "points": [
+        "Interrupt latency is the time from the request to the first ISR instruction.",
+        "It adds the remaining cycles of the current instruction, the context save, and the vector fetch and branch; time spent with interrupts disabled adds more.",
+        "Example: 12 cycles left in the instruction, 30 cycles of context save and 8 cycles of vectoring at 100 MHz give 50 × 10 ns = 500 ns."
+      ],
+      "keyTerms": [
+        "interrupt latency",
+        "context switch"
+      ],
+      "lesson": {
+        "why": "A calculation question can ask for the time from an interrupt request to the first instruction of its ISR. It is one addition and one unit conversion.",
+        "intro": "Between a device raising its request and the first instruction of its handler, three things happen. The CPU finishes the instruction already running, it saves the state of the interrupted program (the context), and it fetches the handler address and branches to it. The total delay is the interrupt latency. Any time interrupts are switched off adds to it.",
+        "prerequisites": [
+          "coa-io-interface.interrupt-driven-io"
+        ],
+        "definitions": [
+          {
+            "term": "Interrupt latency",
+            "meaning": "The time from the interrupt request to the first instruction of the ISR."
+          },
+          {
+            "term": "Context save",
+            "meaning": "Storing the registers and program counter of the interrupted program so it can resume."
+          }
+        ],
+        "principle": {
+          "text": "Latency is the sum of the remaining time of the current instruction, the context save, and the vector fetch and branch; time with interrupts disabled is added on top. Convert cycles to time by multiplying by the clock period.",
+          "tex": "t_{\\text{lat}} = t_{\\text{finish instr}} + t_{\\text{save}} + t_{\\text{vector}}"
+        },
+        "limits": "This is the delay before the ISR starts, not the ISR run time. The time to run the ISR itself is separate overhead and is not part of the latency.",
+        "example": {
+          "problem": "At the moment of the request, 9 cycles remain in the current instruction. The context save takes 24 cycles and the vector fetch and branch take 6 cycles. The clock is 200 MHz. Find the latency.",
+          "steps": [
+            "Total cycles = $9 + 24 + 6 = 39$.",
+            "Clock period = $1 / 200\\text{ MHz} = 5$ ns.",
+            "Latency = $39 \\times 5 = 195$ ns."
+          ],
+          "result": "The latency is 195 ns."
+        },
+        "misconceptions": [
+          "Latency does not include the ISR execution time; it ends when the first ISR instruction starts.",
+          "Leaving out the rest of the current instruction undercounts: the CPU responds only at the end of the instruction."
+        ],
+        "recall": [
+          {
+            "q": "Which three terms make up interrupt latency?",
+            "a": "The rest of the current instruction, the context save, and the vector fetch and branch."
+          },
+          {
+            "q": "How does time with interrupts disabled affect latency?",
+            "a": "It adds to it, because the request cannot be served until interrupts are enabled again."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "At the request, 14 cycles of the current instruction remain, the context save takes 26 cycles, and the vector fetch and branch take 10 cycles. The clock is 250 MHz. What is the interrupt latency in nanoseconds?",
+          "answer": 200,
+          "explanation": "Cycles = $14 + 26 + 10 = 50$; the period at 250 MHz is 4 ns, so latency is $50 \\times 4 = 200$ ns. Dropping the 14 remaining cycles gives 144 ns and tempts because the instruction seems irrelevant, but the CPU must finish it first."
+        },
+        "summary": "Interrupt latency is remaining instruction plus context save plus vector fetch, in cycles times the clock period, with any disabled time added."
+      }
+    },
+    {
+      "id": "coa-io-interface.dma-operation",
+      "title": "How a DMA transfer works",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        286,
+        287,
+        288
+      ],
+      "points": [
+        "The CPU programs the DMA controller's address register (memory start), word count register (block length), and control register (direction and mode).",
+        "To transfer, the controller asserts HOLD (bus request); the CPU finishes its current bus cycle, floats the bus and answers HLDA (bus grant), making the controller bus master.",
+        "For each word the controller drives the address, signals the device (DACK), moves the word, increments the address and decrements the count.",
+        "When the count reaches zero the controller releases the bus and raises one interrupt, so the CPU pays only setup plus one completion ISR per block.",
+        "The CPU can be granted the bus back between bursts, and it can keep executing from cache whenever it does not need the bus.",
+        "A DMA request is honoured at the end of the current bus (machine) cycle, even in the middle of an instruction, whereas an interrupt is recognised only at the end of the instruction cycle; that is why DMA responds faster."
+      ],
+      "keyTerms": [
+        "HOLD",
+        "HLDA",
+        "word count register",
+        "address register",
+        "bus master",
+        "DREQ",
+        "DACK"
+      ],
+      "lesson": {
+        "why": "Bulk transfer questions ask which method has the highest throughput and what the CPU does during a DMA transfer. The answer rests on the setup, transfer and completion sequence.",
+        "intro": "Direct memory access (DMA) lets a separate controller move a block of data between a device and memory without the CPU touching each word. The CPU first writes three things into the controller: the memory address where the block starts, the number of words to move, and the direction. The controller then asks the CPU for the bus, moves every word itself, and tells the CPU once, with an interrupt, when the block is done.",
+        "prerequisites": [
+          "coa-io-interface.interrupt-driven-io"
+        ],
+        "definitions": [
+          {
+            "term": "Bus master",
+            "meaning": "The unit currently allowed to drive the address and data lines of the bus. Only one unit is master at a time; the CPU floats the bus while the DMA controller is master."
+          },
+          {
+            "term": "Word count register",
+            "meaning": "Holds the number of words still to move; it falls by one per word and the transfer ends at zero."
+          }
+        ],
+        "principle": {
+          "text": "The CPU pays for setup once and for one completion interrupt per block, while the controller does the per-word work. Per word the controller drives the address, moves the data, adds one to the address register and subtracts one from the count register.",
+          "tex": "\\text{words moved} = \\text{initial count}, \\qquad \\text{interrupts per block} = 1"
+        },
+        "limits": "DMA still uses the memory bus, so the CPU can be stalled when it needs the bus at the same moment. For a very small transfer, setup can cost more than the CPU copying the data.",
+        "example": {
+          "problem": "An 8192-byte block is read from a disk to memory with 4-byte words. How many words does the count register start at, and how many interrupts does the CPU take under DMA and under word-by-word interrupt-driven I/O?",
+          "steps": [
+            "Words in the block = 8192 / 4 = 2048, so the count register starts at 2048.",
+            "Under DMA the controller moves all 2048 words and interrupts once at the end, when the count reaches zero.",
+            "Under interrupt-driven I/O each word raises its own interrupt, so the CPU takes 2048 of them."
+          ],
+          "result": "The count starts at 2048; DMA needs 1 interrupt, interrupt-driven I/O needs 2048."
+        },
+        "misconceptions": [
+          "The CPU is not idle or removed during a transfer; it can keep executing and only waits when it needs a bus the controller holds.",
+          "DMA does not interrupt once per word; that is interrupt-driven I/O. DMA interrupts once at the end of the block."
+        ],
+        "recall": [
+          {
+            "q": "What three things does the CPU load into a DMA controller before a transfer?",
+            "a": "The starting memory address, the word count, and the direction and mode of the transfer."
+          },
+          {
+            "q": "How does the controller obtain the bus?",
+            "a": "It raises a bus request (HOLD) and the CPU grants it (HLDA) at the end of its current bus cycle."
+          },
+          {
+            "q": "When does the CPU hear that a DMA transfer finished?",
+            "a": "By one interrupt, raised when the count register reaches zero."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DMA controller moves a 16384-byte block to memory in 8-byte words. What value must the CPU load into the word count register?",
+          "answer": 2048,
+          "explanation": "The count is in words: $16384 / 8 = 2048$. Answering 16384 is tempting because it is the figure in the stem, but that counts bytes, and the register decrements once per word moved."
+        },
+        "summary": "The CPU programs address, count and mode, the controller takes the bus and moves each word, then one interrupt reports completion. Throughput is high because per-word work leaves the CPU."
+      }
+    },
+    {
+      "id": "coa-io-interface.dma-modes",
+      "title": "Burst, cycle-stealing and transparent DMA",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        21,
+        286,
+        288,
+        290,
+        291
+      ],
+      "points": [
+        "Burst (block) mode: the controller holds the bus until the whole block or count is moved; the CPU cannot use the bus for that time, giving the highest DMA throughput.",
+        "Cycle stealing: the controller takes the bus for one word, then hands it back, so CPU and DMA interleave and the CPU slows slightly but does not stop.",
+        "Transparent (hidden) mode: the controller uses only bus cycles the CPU is not using, such as instruction decode, so the CPU never slows but DMA is slowest.",
+        "If a word is ready every X time units and each bus transfer takes Y, cycle stealing blocks the CPU for a fraction Y/X when preparation overlaps the transfer, or Y/(X + Y) when it does not.",
+        "Burst example: a controller moving a 64-word block at 1 µs per word once every 1,000 µs holds the bus 64 µs per period, blocking the CPU for 64/1,000 = 6.4% of the time in one stretch rather than in 64 separate steals."
+      ],
+      "keyTerms": [
+        "burst mode",
+        "block mode",
+        "cycle stealing",
+        "transparent DMA",
+        "hidden DMA"
+      ],
+      "lesson": {
+        "why": "Cycle-stealing questions ask what fraction of time the CPU is blocked, and the answer changes with whether preparing a word overlaps its transfer. Burst, cycle-stealing and transparent modes are also compared in statements.",
+        "intro": "A DMA controller must share the memory bus with the CPU, and the mode says how. In burst mode it keeps the bus until the whole block has moved. In cycle stealing it takes the bus for one word, hands it back, and takes it again later, so the CPU slows slightly but never stops for long. In transparent mode it uses only cycles the CPU is not using, so the CPU is never slowed.",
+        "prerequisites": [
+          "coa-io-interface.dma-operation"
+        ],
+        "definitions": [
+          {
+            "term": "Stolen cycle",
+            "meaning": "A bus cycle taken by the DMA controller that the CPU would otherwise have used."
+          }
+        ],
+        "principle": {
+          "text": "If a word is ready every $X$ time units and each bus transfer takes $Y$, cycle stealing blocks the CPU for $Y/X$ of the time when preparation overlaps the transfer, and $Y/(X+Y)$ when it does not. In burst mode, moving $k$ words at $Y$ each once per period $P$ blocks the CPU for $kY/P$, in one stretch. Burst gives the highest DMA throughput, transparent the lowest, and cycle stealing sits between.",
+          "tex": "f_{\\text{blocked}} = \\frac{Y}{X}\\ \\text{(overlapped)},\\quad \\frac{Y}{X+Y}\\ \\text{(not overlapped)},\\quad \\frac{kY}{P}\\ \\text{(burst)}"
+        },
+        "limits": "Read the stem for whether preparation overlaps the transfer; the two cycle-stealing answers are close and both appear as options. The $kY/P$ form is for burst mode, where the blocked time comes in one stretch rather than as many single steals. Transparent mode blocks the CPU for none of the time.",
+        "example": {
+          "problem": "A device prepares one word every $X = 8$ microseconds and each bus transfer takes $Y = 2$ microseconds. Find the fraction of time the CPU is blocked by cycle stealing when preparation overlaps the transfer, and when it does not. Then find the fraction blocked in burst mode when a 128-word block moves at 0.5 microseconds per word once every 2,000 microseconds.",
+          "steps": [
+            "Overlapped: $Y/X = 2/8 = 25\\%$.",
+            "Not overlapped: $Y/(X+Y) = 2/10 = 20\\%$.",
+            "Burst: the bus is held $128 \\times 0.5 = 64$ microseconds per period, so the fraction is $64/2000 = 3.2\\%$, all in one stretch."
+          ],
+          "result": "25 percent overlapped, 20 percent not overlapped, and 3.2 percent in burst mode."
+        },
+        "misconceptions": [
+          "Cycle stealing moves one word per steal, not a whole block; the block is moved by many steals spread over time.",
+          "Cycle stealing is not faster than burst mode; it protects the CPU, not the transfer throughput.",
+          "The overlapped and not-overlapped fractions are not interchangeable: $Y/X$ is larger than $Y/(X+Y)$ for the same $X$ and $Y$."
+        ],
+        "recall": [
+          {
+            "q": "What does the DMA controller do in burst mode?",
+            "a": "It holds the bus until the whole block has been moved, so the CPU cannot use the bus meanwhile."
+          },
+          {
+            "q": "Which DMA mode never slows the CPU, and what is its cost?",
+            "a": "Transparent mode, which uses only idle bus cycles, so the transfer is the slowest."
+          },
+          {
+            "q": "What fraction of time does cycle stealing block the CPU?",
+            "a": "$Y/X$ if preparing the next word overlaps the transfer, $Y/(X+Y)$ if it does not."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A device needs 20 microseconds to prepare each word and the bus transfer of a word takes 5 microseconds. Preparation does not overlap the transfer. What percentage of time is the CPU blocked by cycle stealing?",
+          "answer": 20,
+          "explanation": "Not overlapped, so the fraction is $Y/(X+Y) = 5/25 = 20\\%$. Answering 25 comes from using $Y/X = 5/20$, which tempts because it is the simpler formula but applies only when preparation overlaps the transfer."
+        },
+        "summary": "Burst holds the bus for the block, cycle stealing takes it one word at a time, and transparent uses only idle cycles. Cycle stealing blocks the CPU for $Y/X$ if preparation overlaps and $Y/(X+Y)$ if not; burst blocks it for $kY/P$."
+      }
+    },
+    {
+      "id": "coa-io-interface.dma-count-register",
+      "title": "DMA count register and bus acquisitions",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A c-bit word count register can describe at most 2^c units in one programmed transfer, where a unit is the addressable word size.",
+        "A file of S units therefore needs at least ⌈S / 2^c⌉ separate transfers, each needing the controller to take the bus from the CPU once in burst mode.",
+        "Example: a 16-bit count register and a file of 29,154 KB on a byte-addressable machine: 29,154 × 1024 / 65,536 = 455.53, so at least 456 acquisitions.",
+        "In cycle-stealing mode every word is a separate acquisition, so the count equals the number of words instead."
+      ],
+      "keyTerms": [
+        "count register width",
+        "bus acquisition"
+      ],
+      "lesson": {
+        "why": "A numerical question gives the width of the DMA count register and a file size, then asks for the minimum number of times the controller must take the bus. It is a ceiling division.",
+        "intro": "Before a DMA transfer the CPU writes into the controller a count of how many units to move. The count lives in a register with a fixed number of bits, so there is a largest number it can hold. A register of $c$ bits can hold values up to $2^c$ units for one programmed transfer. A file larger than that cannot be moved in one go: the transfer must be programmed several times, and in burst mode each one makes the controller take the bus from the CPU once.",
+        "prerequisites": [
+          "coa-io-interface.dma-operation"
+        ],
+        "definitions": [
+          {
+            "term": "Bus acquisition",
+            "meaning": "One occasion when the DMA controller takes the bus from the CPU to run a transfer."
+          }
+        ],
+        "principle": {
+          "text": "One transfer moves at most $2^c$ units for a $c$-bit count register, so a file of $S$ units needs at least $\\lceil S / 2^c \\rceil$ transfers, each costing one bus acquisition in burst mode.",
+          "tex": "N = \\left\\lceil \\frac{S}{2^{c}} \\right\\rceil"
+        },
+        "limits": "This counts burst-mode acquisitions. In cycle-stealing mode every word is its own acquisition, so the count equals the number of words. Convert the file size to the addressable unit first, using 1 KB = 1024 bytes unless told otherwise.",
+        "example": {
+          "problem": "A DMA controller has a 12-bit count register on a byte-addressable machine. What is the minimum number of bus acquisitions to move a 150 KB file in burst mode?",
+          "steps": [
+            "File size in bytes = $150 \\times 1024 = 153{,}600$.",
+            "One transfer moves at most $2^{12} = 4096$ bytes.",
+            "$153{,}600 / 4096 = 37.5$, which must be rounded up because the half transfer still needs an acquisition."
+          ],
+          "result": "38 acquisitions."
+        },
+        "misconceptions": [
+          "Rounding down gives 37 and leaves part of the file unmoved; a partial transfer still needs its own acquisition.",
+          "Using 1000 bytes per KB shifts the answer; the file size must be in the addressable unit, 1024 bytes per KB."
+        ],
+        "recall": [
+          {
+            "q": "How many units can a c-bit count register describe in one transfer?",
+            "a": "At most $2^c$ units."
+          },
+          {
+            "q": "Why is the number of acquisitions rounded up?",
+            "a": "A leftover part of the file still needs a transfer of its own."
+          },
+          {
+            "q": "How does cycle stealing change the acquisition count?",
+            "a": "Every word is a separate acquisition, so the count equals the number of words."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DMA controller has a 14-bit count register on a byte-addressable machine. What is the minimum number of burst-mode bus acquisitions to move a file of 1000 KB, taking 1 KB as 1024 bytes?",
+          "answer": 63,
+          "explanation": "Bytes = $1000 \\times 1024 = 1{,}024{,}000$; one transfer holds $2^{14} = 16384$ bytes; the quotient is 62.5, rounded up to 63. The answer 62 tempts if the quotient is rounded to the nearest or lower integer, but the last half transfer still needs the bus."
+        },
+        "summary": "Convert the file to addressable units, divide by $2^c$ for a c-bit count register and round up; cycle stealing instead needs one acquisition per word."
+      }
+    },
+    {
+      "id": "coa-io-interface.overhead-comparison",
+      "title": "CPU overhead: polling vs interrupts vs DMA",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        288
+      ],
+      "points": [
+        "Every scheme reduces to one rule: fraction of CPU lost = events per second × CPU time per event.",
+        "Programmed I/O on a device delivering one byte every 100 µs keeps the CPU busy for the whole 100 µs; an interrupt costing 4 µs per byte makes interrupt mode 25 times better.",
+        "With DMA the events are blocks, not words: a 4×10⁶ bytes/s disk with 8,000-byte blocks needs 500 blocks/s; at 1,500 cycles of setup and completion each on a 500 MHz CPU the cost is 0.15%.",
+        "DMA still costs bus bandwidth: the CPU stalls whenever it needs the bus during a DMA cycle, which is the bus-contention price of offloading.",
+        "Per-block variant: a 10 MB/s disk moving 20 KB blocks takes 2 ms per block; 300 setup and 900 completion cycles at 600 MHz cost 2 µs, so the CPU spends 2 µs / 2 ms = 0.1% on the transfer."
+      ],
+      "keyTerms": [
+        "CPU overhead",
+        "performance gain",
+        "bus contention"
+      ],
+      "lesson": {
+        "why": "Questions compare the CPU time spent by polling, interrupts and DMA for the same device, and ask for a ratio or a percentage.",
+        "intro": "Every I/O method can be judged by one number: how much CPU time it uses per second. For any method, multiply the number of times per second the CPU must act by the time each action takes, then divide by one second. Timed polling acts on a fixed timer whether or not the device has anything to say (busy-wait polling is the limiting case, where the timer interval is zero). Interrupts act only when an event happens. DMA acts once per block rather than once per word.",
+        "prerequisites": [
+          "coa-io-interface.programmed-io",
+          "coa-io-interface.interrupt-driven-io",
+          "coa-io-interface.dma-operation"
+        ],
+        "principle": {
+          "text": "For every scheme the fraction of CPU time lost is the number of CPU actions per second times the time per action. Polling counts polls, interrupts count events, and DMA counts blocks.",
+          "tex": "\\text{fraction} = \\frac{\\text{actions}}{\\text{second}} \\times \\frac{\\text{CPU time}}{\\text{action}}"
+        },
+        "limits": "The comparison counts CPU time only. DMA still takes bus cycles away from the CPU, so its true cost is a little higher than the setup and completion time alone.",
+        "example": {
+          "problem": "A device produces 1 event per second. Polling every 20 ms costs 50 microseconds per poll, plus 150 microseconds to process an event. An interrupt design spends 400 microseconds per event in total. Compare the CPU time per second.",
+          "steps": [
+            "Polls per second = 1 s / 20 ms = 50, costing $50 \\times 50 = 2500$ microseconds.",
+            "Add the processing of the one event: $2500 + 150 = 2650$ microseconds per second.",
+            "The interrupt design costs 400 microseconds per second, since there is one event per second.",
+            "Ratio = 2650 / 400 = 6.625."
+          ],
+          "result": "Polling uses 0.265 percent of the CPU and interrupts 0.04 percent, so polling costs 6.625 times more."
+        },
+        "misconceptions": [
+          "Polling cost does not depend on how often the device actually has data; the polls are paid every interval regardless.",
+          "Mixing units is the usual arithmetic error: convert milliseconds and microseconds to one unit before adding.",
+          "Polling is not cheaper just because events are frequent. Busy-wait programmed I/O occupies the CPU for the whole device delay, so interrupt-driven I/O uses less CPU time whenever the ISR overhead is smaller than the time between words. If a word arrives faster than the ISR can run, interrupts cannot keep up and DMA is needed."
+        ],
+        "recall": [
+          {
+            "q": "What single rule gives the CPU overhead of any I/O scheme?",
+            "a": "Actions per second times CPU time per action."
+          },
+          {
+            "q": "Why does polling cost more than interrupts for a rare event?",
+            "a": "It pays for a poll every interval even when nothing has happened."
+          },
+          {
+            "q": "What does DMA count as one action?",
+            "a": "One block, covering setup and the completion interrupt, rather than one word."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A disk transfers a block of 600 words. With interrupt-driven I/O the CPU spends 4 microseconds per word. With DMA the CPU spends 30 microseconds on setup and 30 microseconds on the completion interrupt for the whole block. How many times more CPU time per block does interrupt-driven I/O use than DMA?",
+          "answer": 40,
+          "explanation": "Interrupt-driven I/O costs $600 \\times 4 = 2400$ microseconds. DMA costs $30 + 30 = 60$ microseconds. Ratio = 2400 / 60 = 40. Dividing by the setup alone gives 80, which tempts because the completion interrupt is easy to forget."
+        },
+        "summary": "Overhead is actions per second times time per action. Polling pays on a timer, interrupts pay per event, and DMA pays per block, so DMA wins for bulk data."
+      }
+    },
+    {
+      "id": "coa-io-interface.io-addressing",
+      "title": "Memory-mapped vs isolated (port-mapped) I/O",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        287,
+        288,
+        291
+      ],
+      "points": [
+        "Memory-mapped I/O places device registers at ordinary memory addresses, so every load, store and memory-operand instruction reaches the device; no special opcodes exist.",
+        "Its cost is address space: the addresses given to devices cannot hold memory, and those regions must be marked uncacheable.",
+        "Isolated I/O uses a separate I/O address space selected by a control line, reached only through special IN and OUT instructions, so all memory addresses stay available.",
+        "RISC ISAs are almost always memory-mapped; x86 supports both."
+      ],
+      "keyTerms": [
+        "memory-mapped I/O",
+        "isolated I/O",
+        "port-mapped I/O",
+        "IN/OUT"
+      ],
+      "lesson": {
+        "why": "Properties of memory-mapped and isolated I/O are a recurring true-or-false style question, and the two are easy to swap under time pressure.",
+        "intro": "A device is reached through its registers, so the CPU needs some way to name them. One choice is to give each register an ordinary memory address; the CPU then reads and writes the device with the same load and store instructions it uses for memory. This is memory-mapped I/O. The other choice is a second, separate set of addresses used only for devices, chosen by a dedicated control line and reached with special instructions named IN and OUT. This is isolated I/O, also called port-mapped I/O.",
+        "prerequisites": [
+          "coa-io-interface.io-module-registers"
+        ],
+        "definitions": [
+          {
+            "term": "Memory-mapped I/O",
+            "meaning": "Device registers share the memory address space and are accessed with normal load and store instructions."
+          },
+          {
+            "term": "Isolated I/O",
+            "meaning": "Device registers live in a separate I/O address space, reached only with IN and OUT and a control line that selects I/O instead of memory."
+          }
+        ],
+        "principle": {
+          "text": "Memory-mapped I/O needs no special instructions but removes the addresses given to devices from the memory map, and those regions must not be cached. Isolated I/O needs special instructions but keeps the whole memory address space for memory.",
+          "tex": "\\text{memory addresses left} = 2^{a} - D \\quad(\\text{memory-mapped}), \\qquad 2^{a} \\quad(\\text{isolated})"
+        },
+        "limits": "The count $2^a - D$ is an upper bound on usable memory: it assumes every device address is reserved exactly once and nothing else is lost. Isolated I/O does not shrink memory, but it costs extra opcodes and a control line, and the CPU must support them.",
+        "example": {
+          "problem": "A machine has a 16-bit address bus. Device registers occupy 4096 addresses. How many addresses remain for memory if the machine uses memory-mapped I/O, and how many if it uses isolated I/O?",
+          "steps": [
+            "A 16-bit address bus names $2^{16} = 65{,}536$ addresses.",
+            "Memory-mapped: the device registers take 4096 of them, so $65{,}536 - 4096 = 61{,}440$ remain for memory.",
+            "Isolated: devices use their own I/O space, so all 65,536 addresses stay available for memory."
+          ],
+          "result": "61,440 addresses for memory with memory-mapped I/O; 65,536 with isolated I/O."
+        },
+        "misconceptions": [
+          "Isolated I/O is the one that uses up memory addresses. It is memory-mapped I/O that does; isolated I/O keeps them by moving devices to a separate space.",
+          "Memory-mapped I/O does not need IN and OUT. Those instructions belong to isolated I/O; memory-mapped devices are reached by ordinary loads and stores."
+        ],
+        "recall": [
+          {
+            "q": "Which scheme needs the special IN and OUT instructions?",
+            "a": "Isolated (port-mapped) I/O. Memory-mapped I/O uses ordinary loads and stores."
+          },
+          {
+            "q": "What is the main cost of memory-mapped I/O?",
+            "a": "The addresses given to devices cannot be used for memory, and those regions must be marked uncacheable."
+          },
+          {
+            "q": "Which scheme do RISC instruction sets almost always use?",
+            "a": "Memory-mapped I/O. x86 supports both."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A processor has a 12-bit address bus and uses memory-mapped I/O. The device registers occupy 256 addresses. How many addresses are left for memory?",
+          "answer": 3840,
+          "explanation": "The bus names $2^{12} = 4096$ addresses and the devices take 256, leaving $4096 - 256 = 3840$. The tempting answer is 4096, which is correct only for isolated I/O, where devices do not use memory addresses."
+        },
+        "summary": "Memory-mapped I/O shares the memory address space and uses plain loads and stores; isolated I/O has its own space and IN and OUT, and keeps every memory address."
+      }
+    },
+    {
+      "id": "coa-io-interface.bus-arbitration",
+      "title": "Bus arbitration among several masters",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        21,
+        287,
+        289,
+        290
+      ],
+      "points": [
+        "Daisy chaining: one shared request and busy line, with the grant passed serially from the arbiter through the devices; the device nearest the arbiter has the highest priority.",
+        "Polling: the arbiter puts device numbers on poll lines in turn, so n masters need ⌈log₂ n⌉ poll lines, and the polling order can be changed in software.",
+        "Independent requests: each master has its own request and grant line into a central arbiter, giving the fastest response and flexible priority at the cost of 2n lines.",
+        "Daisy chaining, polling and independent requests all use one arbiter; in distributed arbitration the masters drive their ids onto shared lines and the highest id wins without a central arbiter."
+      ],
+      "keyTerms": [
+        "bus master",
+        "bus arbiter",
+        "bus grant",
+        "bus request",
+        "distributed arbitration"
+      ],
+      "lesson": {
+        "why": "Counting arbitration lines and knowing which scheme gives which priority are standard short questions, and the line counts differ by scheme.",
+        "intro": "A bus can carry one transfer at a time, but several devices may want to start one. A device that starts a transfer is a bus master. When two or more ask together, a decision is needed about who goes first. That decision is called bus arbitration, and the circuit that makes it is the bus arbiter. A master asks with a bus request signal and is told it may proceed by a bus grant signal. The schemes differ in how requests and grants are wired.",
+        "definitions": [
+          {
+            "term": "Bus master",
+            "meaning": "A device that is currently allowed to start transfers on the bus."
+          },
+          {
+            "term": "Bus arbiter",
+            "meaning": "The circuit that decides which requesting master gets the bus next."
+          }
+        ],
+        "principle": {
+          "text": "Daisy chaining passes one grant serially through the devices, so the device nearest the arbiter wins. Polling has the arbiter count through device numbers on poll lines, so $n$ masters need $\\lceil \\log_2 n \\rceil$ lines and the order can be changed in software. Independent requests give every master its own request and grant line, so $2n$ lines, with the fastest response. In distributed arbitration the masters put their ids on shared lines and the highest id wins with no central arbiter.",
+          "tex": "L_{\\text{poll}} = \\lceil \\log_2 n \\rceil, \\qquad L_{\\text{independent}} = 2n"
+        },
+        "limits": "The line counts treat only the arbitration lines; the data and address lines of the bus are separate. Daisy chaining uses a fixed small number of lines but its priority is fixed by wiring, so a device far down the chain can wait indefinitely if nearer devices keep requesting.",
+        "example": {
+          "problem": "A bus has 20 masters. How many lines does polled arbitration need for the poll number, and how many lines does independent request-and-grant arbitration need?",
+          "steps": [
+            "Polling must name 20 masters with a binary number, so it needs $\\lceil \\log_2 20 \\rceil$ lines; $2^4 = 16 < 20 \\le 32 = 2^5$, so 5 lines.",
+            "Independent requests give each master one request line and one grant line: $2 \\times 20 = 40$ lines.",
+            "Daisy chaining would use the same few shared lines whatever the number of masters."
+          ],
+          "result": "5 poll lines for polling; 40 lines for independent requests."
+        },
+        "misconceptions": [
+          "Polling needs one line per master. It needs only enough lines to encode a device number in binary, which is $\\lceil \\log_2 n \\rceil$.",
+          "In a daisy chain the device farthest from the arbiter has the highest priority. It is the nearest device that wins, because the grant reaches it first."
+        ],
+        "recall": [
+          {
+            "q": "Which device has the highest priority in a daisy chain?",
+            "a": "The device nearest the arbiter, since the grant signal reaches it first."
+          },
+          {
+            "q": "How many poll lines do $n$ masters need in polled arbitration?",
+            "a": "$\\lceil \\log_2 n \\rceil$, enough to put a device number on the lines."
+          },
+          {
+            "q": "What does independent request arbitration cost compared with daisy chaining?",
+            "a": "Two lines per master, so $2n$ lines, in return for the fastest response and flexible priority."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A bus uses polled arbitration with 33 bus masters. What is the minimum number of poll lines?",
+          "answer": 6,
+          "explanation": "Naming 33 masters in binary needs $\\lceil \\log_2 33 \\rceil = 6$ lines, since $2^5 = 32 < 33 \\le 64 = 2^6$. The tempting answer is 5, which can name only 32 devices; another slip is to answer 33 by assuming one line per master."
+        },
+        "summary": "Daisy chain: nearest device wins. Polling: $\\lceil \\log_2 n \\rceil$ lines. Independent requests: $2n$ lines and the fastest response. Distributed: highest id wins, no arbiter."
+      }
+    },
+    {
+      "id": "coa-io-interface.bus-timing",
+      "title": "Synchronous vs asynchronous buses and handshaking",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        21
+      ],
+      "points": [
+        "A synchronous bus times every transfer from a shared clock; it is simple and fast, but every device must keep up with the clock and the bus length is limited by clock skew.",
+        "An asynchronous bus has no clock: the master and slave coordinate each transfer with handshake signals, so devices of different speeds share the bus.",
+        "Full (four-phase) handshake for a read: master asserts request with the address; slave puts data and asserts acknowledge; master latches the data and drops request; slave drops acknowledge.",
+        "Each handshake costs two round trips of signal propagation, so asynchronous buses trade speed for flexibility."
+      ],
+      "keyTerms": [
+        "synchronous bus",
+        "asynchronous bus",
+        "handshake",
+        "clock skew"
+      ],
+      "lesson": {
+        "why": "Questions contrast synchronous and asynchronous buses and ask the steps of a handshake, so the reason for each design choice has to be clear.",
+        "intro": "A bus transfer needs the sender and the receiver to agree on when the data is valid. A synchronous bus uses one shared clock for this: every transfer happens on fixed clock ticks, and everyone knows when to look. An asynchronous bus has no clock. Instead the master and the slave exchange signals that say what has happened so far, an exchange called a handshake. The master raises a request, the slave answers with an acknowledge, and each side waits for the other before moving on.",
+        "definitions": [
+          {
+            "term": "Handshake",
+            "meaning": "A sequence of request and acknowledge signals by which two devices confirm each step of a transfer."
+          },
+          {
+            "term": "Clock skew",
+            "meaning": "The difference in the time the clock edge reaches different devices, which limits how long a synchronous bus can be."
+          }
+        ],
+        "principle": {
+          "text": "A synchronous bus is simple and fast but all devices must keep up with the clock and its length is limited by skew. An asynchronous bus lets devices of different speeds share the bus, but each transfer needs a full handshake, which costs two round trips of signal propagation. The four-phase read handshake is: master asserts request with the address; slave puts data on the bus and asserts acknowledge; master latches the data and drops request; slave drops acknowledge.",
+          "tex": "t_{\\text{handshake}} = 2 \\text{ round trips} = 4\\, t_{\\text{prop}}"
+        },
+        "limits": "The $4\\,t_{\\text{prop}}$ figure counts only signal propagation and assumes the same one-way delay for every signal; it leaves out the time the slave needs to fetch the data. A synchronous bus is not always faster in practice, since the clock must be slow enough for its slowest device.",
+        "example": {
+          "problem": "On an asynchronous bus every control signal takes 5 ns to travel between master and slave. How long do the propagation delays of one four-phase handshake take?",
+          "steps": [
+            "The four phases are request, acknowledge, request dropped, acknowledge dropped, and each signal travels once between the devices, so there are 4 one-way trips.",
+            "That is 2 round trips, as a full handshake always costs.",
+            "Total propagation time $= 4 \\times 5 = 20$ ns."
+          ],
+          "result": "20 ns of propagation delay per handshake."
+        },
+        "misconceptions": [
+          "An asynchronous bus is not simply faster because it has no clock. The handshake adds two round trips to every transfer, so it trades speed for the ability to mix fast and slow devices.",
+          "The handshake does not end when the slave puts the data on the bus. The master must latch the data and drop request, and the slave must then drop acknowledge, before the transfer is complete."
+        ],
+        "recall": [
+          {
+            "q": "What coordinates transfers on a synchronous bus?",
+            "a": "A shared clock; every transfer is timed from its ticks."
+          },
+          {
+            "q": "Why can an asynchronous bus mix fast and slow devices?",
+            "a": "Each transfer waits for the slave's acknowledge, so a slow device simply takes longer."
+          },
+          {
+            "q": "What limits the length of a synchronous bus?",
+            "a": "Clock skew: the clock edge must reach every device at nearly the same moment."
+          },
+          {
+            "q": "How many phases are in a full handshake read?",
+            "a": "Four: request, acknowledge, request dropped, acknowledge dropped."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "On an asynchronous bus each control signal needs 3 ns to travel between master and slave. A full four-phase handshake costs two round trips of propagation. How many nanoseconds of propagation delay does one handshake take?",
+          "answer": 12,
+          "explanation": "Two round trips are four one-way trips, so the delay is $4 \\times 3 = 12$ ns. The tempting answer is 6, which counts only one round trip, or 3, which counts only one signal."
+        },
+        "summary": "Synchronous buses time transfers by a shared clock, which is simple but limited by speed and skew. Asynchronous buses use a four-phase handshake, which costs two round trips but tolerates mixed speeds."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "coa-io-interface.polling-fraction",
+      "name": "Fraction of CPU time spent polling",
+      "tex": "f_{\\text{poll}} = \\frac{N_{\\text{poll}} \\times C_{\\text{poll}}}{f_{\\text{clk}}}",
+      "text": "f_poll = (polls per second × cycles per poll) / clock rate",
+      "where": [
+        [
+          "N_poll",
+          "polls per second, at least the transfer rate divided by the bytes moved per poll"
+        ],
+        [
+          "C_poll",
+          "CPU cycles per poll"
+        ],
+        [
+          "f_clk",
+          "clock rate in cycles per second"
+        ]
+      ],
+      "note": "The poll rate is set by the device: polling slower than it produces data loses data, so use rate ÷ transfer unit.",
+      "topic": "coa-io-interface.programmed-io",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.per-word-overhead",
+      "name": "CPU fraction lost to per-word I/O",
+      "tex": "f = R \\times O",
+      "text": "f = R × O",
+      "where": [
+        [
+          "R",
+          "words (or bytes) transferred per second"
+        ],
+        [
+          "O",
+          "CPU time per word, such as the ISR overhead in seconds"
+        ]
+      ],
+      "note": "Applies to interrupt-driven I/O and per-word programmed I/O. Keep units consistent: bytes/s times seconds per byte.",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "source",
+      "pages": [
+        288
+      ]
+    },
+    {
+      "id": "coa-io-interface.max-interrupt-rate",
+      "name": "Fastest device interrupt-driven I/O can serve",
+      "tex": "R_{\\max} = \\frac{1}{t_{\\text{ISR}}}",
+      "text": "R_max = 1 / t_ISR",
+      "where": [
+        [
+          "t_ISR",
+          "CPU time to service one interrupt, in seconds"
+        ],
+        [
+          "R_max",
+          "interrupts (words) per second at 100% CPU"
+        ]
+      ],
+      "note": "At R_max the CPU does nothing but service the device; any faster device loses data and needs DMA.",
+      "topic": "coa-io-interface.interrupt-driven-io",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.interrupt-gain",
+      "name": "Gain of interrupt mode over programmed I/O",
+      "tex": "\\text{gain} = \\frac{t_{\\text{word}}}{t_{\\text{ISR}}} = \\frac{1/R}{t_{\\text{ISR}}}",
+      "text": "gain = time between words / ISR overhead = (1/R) / t_ISR",
+      "where": [
+        [
+          "R",
+          "device data rate in words per second"
+        ],
+        [
+          "t_ISR",
+          "interrupt overhead per word"
+        ]
+      ],
+      "note": "Programmed I/O busy-waits the full gap 1/R per word; interrupt mode spends only t_ISR. Check whether KB means 1000 or 1024 bytes.",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.dma-overhead",
+      "name": "CPU fraction lost to DMA",
+      "tex": "f_{\\text{DMA}} = \\frac{R}{B} \\times \\frac{C_{\\text{setup}} + C_{\\text{done}}}{f_{\\text{clk}}}",
+      "text": "f_DMA = (R / B) × (setup cycles + completion-ISR cycles) / clock rate",
+      "where": [
+        [
+          "R",
+          "transfer rate in bytes per second"
+        ],
+        [
+          "B",
+          "block size in bytes"
+        ],
+        [
+          "C_setup",
+          "cycles to program the controller"
+        ],
+        [
+          "C_done",
+          "cycles for the completion interrupt"
+        ]
+      ],
+      "note": "Ignores bus contention; if the question gives stolen cycles, add their fraction separately.",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.cycle-steal-fraction",
+      "name": "CPU blocked fraction under cycle stealing",
+      "tex": "f_{\\text{blocked}} = \\frac{Y}{X} \\;\\text{(overlapped)}, \\qquad f_{\\text{blocked}} = \\frac{Y}{X + Y} \\;\\text{(not overlapped)}",
+      "text": "f_blocked = Y / X if the next word is prepared during the transfer, else Y / (X + Y)",
+      "where": [
+        [
+          "X",
+          "time for the device to prepare one word"
+        ],
+        [
+          "Y",
+          "bus time to transfer one word"
+        ]
+      ],
+      "note": "Read the stem for whether preparation overlaps the transfer; the two answers are close and both appear as options.",
+      "topic": "coa-io-interface.dma-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.burst-blocked-fraction",
+      "name": "CPU blocked fraction under burst DMA",
+      "tex": "f_{\\text{blocked}} = \\frac{k \\, Y}{P}",
+      "text": "f_blocked = k × Y / P",
+      "where": [
+        [
+          "k",
+          "words moved in one burst"
+        ],
+        [
+          "Y",
+          "bus time per word"
+        ],
+        [
+          "P",
+          "time between successive bursts"
+        ]
+      ],
+      "note": "The CPU is shut out for the whole burst k × Y in one stretch; transparent DMA gives 0, cycle stealing spreads the same k × Y as k single steals.",
+      "topic": "coa-io-interface.dma-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.dma-acquisitions",
+      "name": "Minimum DMA bus acquisitions",
+      "tex": "N = \\left\\lceil \\frac{S}{2^{c}} \\right\\rceil",
+      "text": "N = ⌈S / 2^c⌉",
+      "where": [
+        [
+          "S",
+          "file size in addressable units (bytes on a byte-addressable machine)"
+        ],
+        [
+          "c",
+          "width of the DMA word count register in bits"
+        ]
+      ],
+      "note": "Convert the file size to units first: 1 KB = 1024 bytes unless the question says otherwise.",
+      "topic": "coa-io-interface.dma-count-register",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.interrupt-latency-sum",
+      "name": "Interrupt latency",
+      "tex": "t_{\\text{lat}} = t_{\\text{finish instr}} + t_{\\text{save}} + t_{\\text{vector}}",
+      "text": "t_lat = remaining instruction time + context save time + vector fetch and branch time",
+      "note": "Add any interval during which interrupts are disabled, and convert cycles to time with the clock period.",
+      "topic": "coa-io-interface.interrupt-latency",
+      "origin": "source",
+      "pages": [
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.poll-lines",
+      "name": "Poll lines for polled bus arbitration",
+      "tex": "L = \\lceil \\log_2 n \\rceil",
+      "text": "L = ⌈log₂ n⌉",
+      "where": [
+        [
+          "n",
+          "number of bus masters"
+        ]
+      ],
+      "note": "Daisy chaining needs a fixed handful of lines regardless of n; independent requests need a request and a grant line per master (2n).",
+      "topic": "coa-io-interface.bus-arbitration",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "coa-io-interface.pt-cpu-overhead",
+      "title": "Percentage of CPU time spent on I/O under polling, interrupts or DMA",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Identify the event: one poll, one interrupt per word, or one setup plus completion per DMA block.",
+        "Events per second = data rate ÷ bytes per event; convert KB and MB the way the question defines them.",
+        "Multiply by the cycles (or time) per event to get CPU cycles per second.",
+        "Divide by the clock rate and multiply by 100 for the percentage."
+      ],
+      "trap": "Using bits instead of bytes, or 1024 where the question meant 1000, shifts the answer by a factor the options are built around.",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "source",
+      "pages": [
+        288
+      ]
+    },
+    {
+      "id": "coa-io-interface.pt-dma-acquisitions",
+      "title": "Minimum DMA bus acquisitions from the count register width",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Convert the file size to addressable units (bytes for byte-addressable memory).",
+        "One transfer moves at most 2^c units for a c-bit count register.",
+        "Divide and round up: N = ⌈S / 2^c⌉."
+      ],
+      "trap": "Rounding down, or forgetting that KB here means 1024 bytes, gives an off-by-one or off-by-a-factor answer.",
+      "topic": "coa-io-interface.dma-count-register",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.pt-cycle-steal",
+      "title": "CPU blocked fraction in cycle-stealing or burst DMA",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find the time X between successive ready words and the bus time Y per transfer.",
+        "Decide from the stem whether preparation of the next word overlaps the transfer.",
+        "Blocked fraction is Y/X with overlap, Y/(X + Y) without; for burst mode it is block bus time over the whole period."
+      ],
+      "trap": "Mixing the overlapped and non-overlapped formulas; both values usually appear among the options.",
+      "topic": "coa-io-interface.dma-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.pt-interrupt-concepts",
+      "title": "Interrupt and DMA concept questions",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Match the term to its defining property: vectored supplies the ISR address, polled makes the CPU query each device, NMI cannot be masked.",
+        "For DMA modes ask who holds the bus and for how long: block, one word, or idle cycles only.",
+        "For priority schemes ask what fixes the order: physical position in a daisy chain, encoder wiring in the parallel scheme."
+      ],
+      "trap": "Calling cycle stealing the mode with zero CPU slowdown; that is transparent DMA.",
+      "topic": "coa-io-interface.interrupt-types",
+      "origin": "source",
+      "pages": [
+        289,
+        290,
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.pt-io-addressing",
+      "title": "Memory-mapped vs isolated I/O properties",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Memory-mapped: ordinary load and store reach devices, device addresses are lost to memory.",
+        "Isolated: separate I/O space, special IN and OUT instructions, full memory space kept.",
+        "Test each option against those two pairs of facts."
+      ],
+      "trap": "Thinking isolated I/O consumes memory addresses; it is memory-mapped I/O that does.",
+      "topic": "coa-io-interface.io-addressing",
+      "origin": "source",
+      "pages": [
+        287,
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.pt-interrupt-handling",
+      "title": "Interrupt latency, priority and nesting",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Latency: add the remaining cycles of the current instruction, the context save and the vector fetch, then multiply by the clock period.",
+        "Nesting: an ISR at priority p can be preempted only by a request above p; equal and lower requests wait for the return.",
+        "Type: external interrupts are asynchronous and wait for the instruction to end; exceptions and software interrupts are synchronous, and a fault restarts its instruction."
+      ],
+      "trap": "Leaving out the instruction-completion term, or letting a lower-priority request preempt a running ISR.",
+      "topic": "coa-io-interface.interrupt-priority",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "coa-io-interface.q-vectored-interrupt",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "In a vectored interrupt scheme, what does the interrupting device supply to the CPU during the interrupt acknowledge cycle?",
+      "options": [
+        "The address of its interrupt service routine, or an index into the vector table that locates it",
+        "The contents of its data register, so no ISR needs to run",
+        "Its position in the daisy chain, which the CPU compares against every other device",
+        "The saved program counter of the interrupted program"
+      ],
+      "answer": 0,
+      "explanation": "Vectoring means the device identifies itself by placing a vector on the bus: either the ISR address or an index into the interrupt vector table. The CPU branches directly to the ISR without polling. The PC is saved by the CPU, not supplied by the device, and the data word is moved later by the ISR.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.interrupt-types",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2014) — Interrupt",
+      "pages": [
+        286,
+        290
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-daisy-chain-priority",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Four devices share a daisy-chained grant line. Devices D1, D2, D3 and D4 sit in that order, D1 nearest the arbiter. D2 and D4 request at the same instant. Which device gets the bus, and why?",
+      "options": [
+        "D4, because the last device in the chain has the highest priority",
+        "D2, because the grant reaches it before D4 and a requesting device does not pass it on",
+        "Whichever requested first by a few nanoseconds, because the chain is first-come first-served",
+        "Neither; the arbiter must poll both devices to break the tie"
+      ],
+      "answer": 1,
+      "explanation": "The grant enters at D1, which is not requesting and passes it on. D2 is requesting, so it keeps the grant and blocks it from going further. Priority in a daisy chain is fixed by physical position: the nearer the arbiter, the higher the priority.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.bus-arbitration",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2017) — Bus arbitration",
+      "pages": [
+        287,
+        289,
+        290
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-dma-modes-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about DMA transfer modes are correct?",
+      "options": [
+        "In burst mode the CPU cannot use the system bus until the whole block has been transferred.",
+        "In cycle-stealing mode the DMA controller takes the bus for one word transfer and then returns it to the CPU.",
+        "Transparent mode slows the CPU more than cycle stealing because it waits for idle bus cycles.",
+        "In every DMA mode the CPU is interrupted once after each word is transferred."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Burst mode holds the bus for the full block, so the CPU stalls on any bus access. Cycle stealing interleaves: one word per bus acquisition. Transparent mode uses only cycles the CPU leaves free, so it causes no CPU slowdown at all (the opposite of option 3). DMA interrupts the CPU once, at the end of the block, not per word.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.dma-modes",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — DMA burst",
+      "pages": [
+        286,
+        288,
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-interrupt-facts-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about interrupts are correct?",
+      "options": [
+        "A non-maskable interrupt can be disabled by clearing the interrupt-enable flag.",
+        "With polled (non-vectored) interrupts, the time to find the source grows with the number of devices checked before it.",
+        "A CPU normally tests for a pending interrupt only after completing the current instruction.",
+        "A power-failure warning is normally wired to a maskable interrupt so that software can postpone it."
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "An NMI by definition ignores the interrupt-enable flag, so option 1 is false. A polled handler reads device status registers in a fixed order, so a device late in the order waits longer: option 2 is true. Interrupts are sampled at the end of the instruction cycle, which is why latency includes finishing the current instruction: option 3 is true. Power failure is the classic NMI use, because it must never be postponed: option 4 is false.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.interrupt-types",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2020) — NMI",
+      "pages": [
+        286,
+        288,
+        290,
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-memory-mapped-drawback",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which is a drawback of memory-mapped I/O compared with isolated (port-mapped) I/O?",
+      "options": [
+        "Device registers can be accessed only through special IN and OUT instructions",
+        "Addresses assigned to device registers are no longer available for memory",
+        "Arithmetic instructions with memory operands cannot touch device registers",
+        "The CPU needs an extra control line to select between memory and I/O spaces"
+      ],
+      "answer": 1,
+      "explanation": "Memory-mapped I/O carves device registers out of the memory address space, so those addresses cannot hold RAM. Options 1 and 4 describe isolated I/O. Option 3 is backwards: memory-mapped I/O lets every memory-referencing instruction reach a device register.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.io-addressing",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Memory-mapped I/O",
+      "pages": [
+        287,
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-addressing-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about I/O addressing are correct?",
+      "options": [
+        "Under memory-mapped I/O, any instruction that can reference memory can also read or write a device register.",
+        "Isolated I/O uses an address space separate from memory, reached through dedicated IN and OUT instructions.",
+        "Under memory-mapped I/O, status registers must still be read with IN instructions.",
+        "Isolated I/O reduces the memory address space available to programs."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Memory-mapped I/O treats device registers as memory locations, so loads, stores and memory-operand instructions all reach them, and no IN instruction is involved: options 1 true, 3 false. Isolated I/O keeps a separate port space with its own instructions and therefore leaves the entire memory space free: option 2 true, option 4 false.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.io-addressing",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Memory-mapped vs isolated",
+      "pages": [
+        287,
+        288,
+        290
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-interrupt-vs-programmed-gain",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A device transfers 10,000 bytes per second to the CPU, one byte at a time. Under interrupt-driven I/O the overhead of servicing each byte is 4 µs. Under programmed I/O the CPU busy-waits for the whole interval between bytes. Transfer time between the interface register and the CPU is negligible. By what factor is the CPU time spent on this device reduced when it is run under interrupt mode instead of programmed I/O?",
+      "answer": 25,
+      "explanation": "At 10,000 bytes/s a byte arrives every 1/10,000 s = 100 µs. Programmed I/O spends all 100 µs polling for each byte. Interrupt mode spends only the 4 µs ISR overhead per byte. The ratio is 100 / 4 = 25.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-dma-count-register",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The data count register of a DMA controller is 16 bits wide. A file of 29,154 KB (1 KB = 1024 bytes) is transferred from disk to a byte-addressable main memory, with the controller holding the bus for up to one full count each time it takes control. What is the minimum number of times the DMA controller must get control of the system bus from the processor?",
+      "answer": 456,
+      "explanation": "A 16-bit count moves at most 2¹⁶ = 65,536 bytes per acquisition. The file is 29,154 × 1024 = 29,853,696 bytes. 29,853,696 / 65,536 = 455.53, and a fraction of a block still needs its own acquisition, so the minimum is ⌈455.53⌉ = 456.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.dma-count-register",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-polling-percentage",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 500 MHz processor polls a disk that delivers data in 16-byte units at 4 × 10⁶ bytes per second. Each poll costs 400 clock cycles, and the disk must be polled once per unit so that no data is lost. What percentage of the processor's time is spent polling?",
+      "answer": 20,
+      "explanation": "Units per second = 4 × 10⁶ / 16 = 250,000, so 250,000 polls/s. Cycles spent = 250,000 × 400 = 10⁸ cycles/s. Fraction = 10⁸ / (5 × 10⁸) = 0.2, which is 20%.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.programmed-io",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-dma-overhead-percentage",
+      "type": "nat",
+      "marks": 2,
+      "stem": "The disk of a 500 MHz processor delivers 4 × 10⁶ bytes per second and is now driven by DMA in blocks of 8,000 bytes. Programming the controller costs 1,000 cycles and the completion interrupt costs 500 cycles per block. Ignoring bus contention, what percentage of the processor's time is spent on the disk? (2 decimals)",
+      "answer": 0.15,
+      "tolerance": 0.01,
+      "explanation": "Blocks per second = 4 × 10⁶ / 8,000 = 500. CPU cycles per block = 1,000 + 500 = 1,500, so 500 × 1,500 = 750,000 cycles/s. Fraction = 750,000 / (5 × 10⁸) = 0.0015, which is 0.15%. Polling the same disk in 16-byte units at 400 cycles per poll would cost 20%.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-dma-block-share",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A disk transfers continuously by DMA at 10 MB/s (1 MB = 10⁶ bytes) in blocks of 20 KB (1 KB = 10³ bytes). The 600 MHz processor spends 300 clock cycles to initiate each transfer and 900 cycles to complete it. What percentage of processor time does the transfer consume?",
+      "options": [
+        "0.1%",
+        "0.075%",
+        "1%",
+        "0.025%"
+      ],
+      "answer": 0,
+      "explanation": "One block takes 20 × 10³ / 10 × 10⁶ = 2 ms to move. The CPU spends 300 + 900 = 1,200 cycles per block, which at 600 MHz is 2 µs. The fraction is 2 µs / 2 ms = 0.001 = 0.1% (counting the 2 µs inside the period gives 0.0999%, the same to two places). 0.075% counts only the completion cycles, 0.025% only the initiation, and 1% slips a power of ten.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.overhead-comparison",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-interrupt-cpu-fraction",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A device produces 80,000 bytes per second and is serviced by interrupt-driven I/O, one interrupt per byte. Each interrupt costs the CPU 3 µs in total. What fraction of CPU time does this device consume?",
+      "options": [
+        "2.4%",
+        "24%",
+        "0.24%",
+        "3.75%"
+      ],
+      "answer": 1,
+      "explanation": "Fraction = rate × overhead = 80,000 bytes/s × 3 × 10⁻⁶ s = 0.24, which is 24%. 2.4% and 0.24% come from slipping a power of ten in the microsecond conversion; 3.75% divides 3 µs by 80 (thousand bytes/s) instead of multiplying them.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.interrupt-driven-io",
+      "origin": "source",
+      "pages": [
+        288
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-cycle-steal-blocked",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A device under cycle-stealing DMA prepares the next word in its buffer while the current word is being transferred, so one word becomes ready every 40 µs. Each transfer steals one 1 µs bus cycle, during which the CPU is blocked. What percentage of time is the CPU blocked?",
+      "options": [
+        "2.44%",
+        "2.5%",
+        "97.5%",
+        "40%"
+      ],
+      "answer": 1,
+      "explanation": "Because preparation overlaps the transfer, the cycle repeats every 40 µs and the CPU loses 1 µs of it: 1/40 = 2.5%. The value 2.44% = 1/41 applies only when preparation waits for the previous transfer to finish. 97.5% is the fraction the CPU keeps.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.dma-modes",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-interrupt-latency",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A 100 MHz processor receives an interrupt when the current instruction still needs 12 clock cycles. Saving the context takes 30 cycles and fetching the vector and branching to the ISR takes 8 cycles. Interrupts are enabled throughout. What is the interrupt latency?",
+      "options": [
+        "300 ns",
+        "380 ns",
+        "420 ns",
+        "500 ns"
+      ],
+      "answer": 3,
+      "explanation": "The CPU first completes the current instruction (12 cycles), then saves the context (30) and vectors to the ISR (8): 12 + 30 + 8 = 50 cycles. At 100 MHz one cycle is 10 ns, so the latency is 500 ns. 380 ns forgets the instruction completion, 420 ns forgets vectoring and 300 ns counts only the context save.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.interrupt-latency",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2013) — Interrupt latency",
+      "pages": [
+        291
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-nested-priority-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "A CPU uses a priority encoder with nested interrupts enabled; a larger level number means higher priority. The ISR for a level-3 device is running when requests arrive at level 5 and at level 2. Which statements are correct?",
+      "options": [
+        "The level-5 request can preempt the level-3 ISR once the current instruction completes.",
+        "The level-2 request is serviced before the level-3 ISR returns, because it arrived during the ISR.",
+        "A page fault is raised during the faulting instruction, and that instruction is restarted after the handler returns.",
+        "A software interrupt (INT instruction) is asynchronous to the program that executes it."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "While a level-3 ISR runs, levels 3 and below are masked, so only level 5 gets through, at the next instruction boundary: option 1 true, option 2 false (level 2 stays pending until the return restores the old mask). A page fault is a fault taken mid-instruction, and the instruction re-executes once the page is loaded: option 3 true. A software interrupt is executed deliberately at a fixed point in the program, so it is synchronous: option 4 false.",
+      "difficulty": "medium",
+      "topic": "coa-io-interface.interrupt-priority",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-dma-cpu-involvement",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "During a DMA block transfer from a disk to memory, at which points is the CPU necessarily involved?",
+      "options": [
+        "At every byte, to copy it from the controller to memory",
+        "Only when programming the controller at the start and when servicing the completion interrupt at the end",
+        "At every word, to acknowledge a per-word interrupt from the controller",
+        "Never; the controller also starts the transfer on its own"
+      ],
+      "answer": 1,
+      "explanation": "The CPU loads the controller's address, count and control registers, then leaves the transfer to the controller, which signals the end with a single interrupt. Per-byte copying is programmed I/O and per-word interrupts are interrupt-driven I/O. Someone has to tell the controller what to move, so the CPU is not absent either.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.dma-operation",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2018) — DMA",
+      "pages": [
+        286,
+        288,
+        290
+      ]
+    },
+    {
+      "id": "coa-io-interface.q-poll-lines",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A system uses centralized polling for bus arbitration among 32 bus masters, with the arbiter placing a device number on the poll lines. How many poll lines are needed?",
+      "options": [
+        "1",
+        "5",
+        "6",
+        "32"
+      ],
+      "answer": 1,
+      "explanation": "The poll lines carry a binary device number, so 32 masters need ⌈log₂ 32⌉ = 5 lines. 32 lines would be one per device, which is the independent-request scheme; 1 line describes the daisy-chain grant; 6 would cover 64 devices.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.bus-arbitration",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-io-interface.q-async-bus",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the main advantage of an asynchronous bus with full handshaking over a synchronous bus?",
+      "options": [
+        "Each transfer needs fewer signal round trips, so it is always faster",
+        "Devices of widely different speeds can share the bus without a common clock",
+        "It removes the need for bus arbitration when there are several masters",
+        "It lets the CPU and a DMA controller drive the bus at the same time"
+      ],
+      "answer": 1,
+      "explanation": "With handshaking, each transfer completes when the slave acknowledges, so a slow device simply takes longer to answer and no shared clock has to suit everyone. The cost is extra round trips per transfer, so option 1 is backwards. Arbitration is still needed with several masters, and only one master drives the bus at a time.",
+      "difficulty": "easy",
+      "topic": "coa-io-interface.bus-timing",
+      "origin": "source",
+      "pages": [
+        21
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Burst-mode DMA stops the CPU from using the bus for the whole block; it is cycle stealing that only slows it, and transparent mode that leaves it untouched.",
+      "origin": "source",
+      "pages": [
+        286,
+        291
+      ]
+    },
+    {
+      "text": "Cycle stealing takes the bus per word, not per block: count one bus acquisition per word in cycle-stealing questions and one per block in burst questions.",
+      "origin": "source",
+      "pages": [
+        291
+      ]
+    },
+    {
+      "text": "A non-maskable interrupt cannot be disabled by software; clearing the interrupt-enable flag masks only ordinary interrupts.",
+      "origin": "source",
+      "pages": [
+        291
+      ]
+    },
+    {
+      "text": "Interrupt latency includes finishing the current instruction, since interrupts are sampled only at the end of the instruction cycle.",
+      "origin": "source",
+      "pages": [
+        291
+      ]
+    },
+    {
+      "text": "Rounding down the DMA acquisition count: a partial final block still needs its own bus acquisition, so always take the ceiling.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Mixing 1 KB = 1000 and 1 KB = 1024 bytes, or bits and bytes, in overhead questions; fix the units before computing a rate.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "I/O techniques",
+      "lines": [
+        "Programmed: CPU polls status register, wastes the gap between words",
+        "Interrupt: CPU works until the device interrupts, one ISR per word",
+        "DMA: controller moves the block, one setup and one interrupt per block"
+      ],
+      "origin": "source",
+      "pages": [
+        292
+      ]
+    },
+    {
+      "heading": "DMA",
+      "lines": [
+        "HOLD (request) then HLDA (grant); controller becomes bus master",
+        "Burst: CPU stalls. Cycle steal: slight slowdown. Transparent: none",
+        "Acquisitions = ⌈file size / 2^c⌉ for a c-bit count register"
+      ],
+      "origin": "source",
+      "pages": [
+        287,
+        292
+      ]
+    },
+    {
+      "heading": "Interrupts and buses",
+      "lines": [
+        "Vectored: device gives ISR address. Polled: CPU queries each device",
+        "NMI cannot be masked; latency = finish instruction + save + vector",
+        "Daisy chain: priority by position. Polling: ⌈log₂ n⌉ lines. Independent: 2n"
+      ],
+      "origin": "source",
+      "pages": [
+        286,
+        287,
+        291
+      ]
+    },
+    {
+      "heading": "Overhead and addressing",
+      "lines": [
+        "CPU fraction = events per second × cost per event",
+        "Memory-mapped: load/store, uses address space. Isolated: IN/OUT"
+      ],
+      "origin": "source",
+      "pages": [
+        288,
+        292
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 21,
+      "claim": "Cycle stealing: DMA uses the bus when the CPU does not need it.",
+      "correction": "That describes transparent (hidden) DMA. In cycle stealing the controller takes the bus for one word transfer whether or not the CPU wants it, so the CPU can be delayed by a cycle per word; pages 286 and 288 give the correct split."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "coa-io-interrupt-dma",
+      "status": "partial",
+      "topics": [
+        "coa-io-interface.io-techniques",
+        "coa-io-interface.programmed-io",
+        "coa-io-interface.interrupt-driven-io",
+        "coa-io-interface.interrupt-types",
+        "coa-io-interface.interrupt-priority",
+        "coa-io-interface.interrupt-latency",
+        "coa-io-interface.dma-operation",
+        "coa-io-interface.dma-modes",
+        "coa-io-interface.dma-count-register",
+        "coa-io-interface.overhead-comparison",
+        "coa-io-interface.io-module-registers"
+      ]
+    }
+  ]
+}

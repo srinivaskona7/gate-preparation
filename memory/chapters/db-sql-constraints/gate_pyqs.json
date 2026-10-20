@@ -1,0 +1,1465 @@
+{
+  "chapter": "db-sql-constraints",
+  "papers": [
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2020",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2025-s2-q54",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;C;D",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "difficulty": "medium",
+      "stem": "Consider the following relational schema:\n\nStudents (rollno: integer, name: string, age: integer, cgpa: real)\n\nCourses (courseno: integer, cname: string, credits: integer)\n\nEnrolled (rollno: integer, courseno: integer, grade: string)\n\nWhich of the following options is/are correct SQL query/queries to retrieve the names of the students enrolled in course number (i.e., courseno) 1470?",
+      "options": [
+        "SELECT S.name\nFROM Students S\nWHERE EXISTS (SELECT * FROM Enrolled E\n              WHERE E.courseno = 1470\n                    AND E.rollno = S.rollno);",
+        "SELECT S.name\nFROM Students S\nWHERE SIZEOF (SELECT * FROM Enrolled E\n              WHERE E.courseno = 1470\n                    AND E.rollno = S.rollno) > 0;",
+        "SELECT S.name\nFROM Students S\nWHERE 0 < (SELECT COUNT(*)\n           FROM Enrolled E\n           WHERE E.courseno = 1470\n                 AND E.rollno = S.rollno);",
+        "SELECT S.name\nFROM Students S NATURAL JOIN Enrolled E\nWHERE E.courseno = 1470;"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "What a correlated subquery and EXISTS mean",
+            "body": "A subquery is a SELECT written inside another query. It is correlated when it uses a column of the outer row, here `S.rollno`: the database then re-evaluates it once for every outer row, with that row's value plugged in. `EXISTS (subquery)` is TRUE when the subquery returns at least one row and FALSE otherwise; it ignores what the rows contain. A query is correct for this question only if it is valid SQL and returns exactly the names of students who have an Enrolled row with courseno 1470."
+          },
+          {
+            "title": "Option A",
+            "body": "For a student S, the subquery returns the Enrolled rows with courseno 1470 and the same rollno as S. EXISTS is TRUE exactly when S is enrolled in 1470. So A returns the right names. A is correct."
+          },
+          {
+            "title": "Option B",
+            "body": "`SIZEOF` is not an SQL function. Standard SQL has no operator that returns the number of rows of a subquery, and a database rejects the query with a syntax or unknown-function error. A query that cannot run is not a correct query. B is wrong."
+          },
+          {
+            "title": "Option C",
+            "body": "`COUNT(*)` of the same correlated rows is the number of 1470 enrolments of S. The test `0 < count` holds exactly when that number is at least 1, the same condition as EXISTS. C is correct."
+          },
+          {
+            "title": "Option D",
+            "body": "A natural join pairs rows of the two tables on all columns that have the same name. Students and Enrolled share only `rollno`, so the join matches each student with their enrolments. The WHERE then keeps the rows with courseno 1470, and `S.name` is selected. D is correct (a student appears once, because (rollno, courseno) identifies an enrolment). The answer is A, C and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Read each option for validity first. SIZEOF does not exist in SQL, so B is out in seconds. EXISTS, count above zero, and a join with a filter are three standard ways to say the same thing, so A, C and D stand. Unsafe only if the common column names of a NATURAL JOIN included more than rollno; check the schema."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Choosing B because it reads like English: SIZEOF is a C operator, not SQL. The logic is right but the query does not run."
+          },
+          {
+            "text": "Dropping D because the join looks different from the subquery style. A natural join on the single shared column rollno is an ordinary correct way to answer this."
+          },
+          {
+            "text": "Dropping C because it counts all rows instead of testing existence. Comparing the count with 0 is equivalent to EXISTS."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.in-exists-any-all",
+          "clues": "The query asks for names of students with a matching row in Enrolled, and the options phrase that matching as EXISTS, a count compared with 0, a made-up SIZEOF test and a natural join.",
+          "contrast": "This is not a \"for all courses\" question, which needs NOT EXISTS with a set difference. Here one matching row is enough, so every test only has to detect at least one row."
+        },
+        "check": {
+          "body": "Build a tiny instance: student 1 enrolled in 1470 and 1500, student 2 enrolled only in 1500, student 3 with no enrolment. Every valid option should return exactly student 1, and any option that also returns students 2 or 3, or fails to run, is out."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2 question 54",
+          "url": "https://gateoverflow.in/460849/gate-cse-2025-set-2-question-44"
+        },
+        {
+          "label": "GATE 2025 CS-2 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS2_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each option must do two things: run at all, and return exactly the students who have a 1470 enrolment. Test validity before logic."
+        },
+        {
+          "kind": "concept",
+          "text": "A correlated subquery reuses a column of the outer row, so it is re-evaluated for each student. EXISTS is true when that subquery returns at least one row."
+        },
+        {
+          "kind": "principle",
+          "text": "Two things decide each option: how the inner query is tied to the outer student, and whether the test is true exactly for enrolled students."
+        },
+        {
+          "kind": "setup",
+          "text": "Take one student enrolled in 1470 and one enrolled only in other courses. Run each option mentally on both: the first must be returned and the second must not."
+        }
+      ],
+      "variation": {
+        "stem": "Schema: Employees(empid, ename, sal), Assigned(empid, projno, hours). Which of the following queries correctly retrieve the names of the employees assigned to project 77? (Select all that apply.)",
+        "options": [
+          "SELECT E.ename FROM Employees E WHERE EXISTS (SELECT * FROM Assigned A WHERE A.projno = 77 AND A.empid = E.empid);",
+          "SELECT E.ename FROM Employees E WHERE EXISTS (SELECT * FROM Assigned A WHERE A.projno = 77);",
+          "SELECT E.ename FROM Employees E WHERE E.empid IN (SELECT A.empid FROM Assigned A WHERE A.projno = 77);",
+          "SELECT E.ename FROM Employees E, Assigned A WHERE E.empid = A.empid AND A.projno <> 77;"
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "Option A ties the inner query to the outer employee, so EXISTS is true only for employees assigned to 77. Option C collects the ids on project 77 and tests membership, which is the same condition. Option B has no link to the outer row, so it returns every employee whenever anyone is on project 77. Option D keeps assignments to other projects."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q55",
+      "type": "nat",
+      "marks": 2,
+      "key": "26",
+      "topic": "db-sql-constraints.subqueries",
+      "difficulty": "medium",
+      "stem": "Consider the following database tables of a sports league.\n\nplayer(pid,pname,age)  team(tid,tname,city,cid)\ncoach(cid,cname)  members(pid,tid)\n\nAn instance of the table and an SQL query are given.\n\nSELECT MIN(P.age)\nFROM player P\nWHERE P.pid IN (\n    SELECT M.pid\n    FROM team T, coach C, members M\n    WHERE C.cname = 'Mark'\n          AND T.cid = C.cid\n          AND M.tid = T.tid\n)\n\nThe value returned by the given SQL query is ______ . (Answer in integer)",
+      "table": {
+        "headers": [
+          "table",
+          "rows (columns in the order of the schema)"
+        ],
+        "rows": [
+          [
+            "player",
+            "(1, Jasprit, 31), (2, Atharva, 24), (3, Ishan, 26), (4, Axar, 30)"
+          ],
+          [
+            "coach",
+            "(101, Ricky), (102, Mark), (103, Trevor)"
+          ],
+          [
+            "team",
+            "(10, MI, Mumbai, 102), (20, DC, Delhi, 101), (30, PK, Mohali, 103)"
+          ],
+          [
+            "members",
+            "(1, 10), (2, 30), (3, 10), (4, 20)"
+          ]
+        ]
+      },
+      "answer": 26,
+      "solution": {
+        "steps": [
+          {
+            "title": "What IN with a subquery does",
+            "body": "`x IN (subquery)` is TRUE when the value x equals some value returned by the subquery. Here the subquery does not depend on the outer row, so it is evaluated once to a list of player ids, and the outer query keeps the players whose pid is in that list. `MIN(P.age)` then takes the smallest age among the kept players. The rule: find the list first, filter second, aggregate last."
+          },
+          {
+            "title": "Evaluate the inner query",
+            "body": "The three tables T, C, M are joined by the conditions `T.cid = C.cid` and `M.tid = T.tid`, and C is restricted to the coach named Mark. Mark has cid 102. The team with cid 102 is tid 10 (MI). The members rows with tid 10 are (1, 10) and (3, 10), so the inner query returns the pids {1, 3}."
+          },
+          {
+            "title": "Filter players and take the minimum",
+            "body": "Players 1 and 3 are Jasprit, age 31, and Ishan, age 26. The minimum of 31 and 26 is 26. The query returns 26.",
+            "tex": "\\min(31, 26) = 26"
+          }
+        ],
+        "shortcut": {
+          "body": "Follow the chain from the single constant: Mark gives cid 102, which gives team 10, which gives members 1 and 3. Read their ages from the player table and take the smaller. About 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Returning 24, the minimum over all players, by forgetting the IN filter."
+          },
+          {
+            "text": "Returning 30 or 31 by following the wrong coach or team: Axar (4) belongs to team 20, whose coach is Ricky, not Mark."
+          },
+          {
+            "text": "Returning 57 or another sum: MIN picks one age, it does not add."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.subqueries",
+          "clues": "A SELECT with MIN on the outside and a SELECT inside the IN list that joins three tables on a fixed coach name and uses no column of the outer row.",
+          "contrast": "A correlated subquery would use a column of the outer player row and be re-run per row. Here the inner query is self-contained, so it yields one fixed list of ids."
+        },
+        "check": {
+          "body": "Work backwards: take each player of the other teams and confirm none is reachable from the named coach through the join conditions. Then list all players whose ids are in the found list and confirm the smallest age there is the one the query returns."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1 question 55",
+          "url": "https://gateoverflow.in/460035/gate-cse-2025-set-1-question-45"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which rows does the outer query keep, and which part of the query decides that? Find that list before touching the aggregate."
+        },
+        {
+          "kind": "concept",
+          "text": "`x IN (subquery)` is true when x equals one of the values the subquery returns. A subquery that mentions no outer column can be worked out once, on its own."
+        },
+        {
+          "kind": "principle",
+          "text": "Evaluate in layers: inner joins and their conditions first, then the IN filter on the player table, and MIN last, over only the rows that survived."
+        },
+        {
+          "kind": "setup",
+          "text": "Start from the one constant in the query, the coach name, and follow the join conditions link by link until you reach a list of player ids."
+        },
+        {
+          "kind": "partial",
+          "text": "The coach table gives the id of the named coach, and the team table turns that id into the team id or ids. Stop once you hold the list of team ids."
+        }
+      ],
+      "variation": {
+        "stem": "Tables: emp(eid, ename, sal), mgr(mid, mname), proj(pid, pname, mid), works(eid, pid). Instance: emp = (1, Asha, 42), (2, Bala, 38), (3, Chitra, 55), (4, Dev, 47), (5, Esha, 51); mgr = (7, Neha), (8, Omar), (9, Pooja); proj = (P1, Alpha, 8), (P2, Beta, 7), (P3, Gamma, 9), (P4, Delta, 7); works = (1, P2), (2, P1), (3, P3), (4, P4), (5, P1), (2, P3). The query SELECT MAX(E.sal) FROM emp E WHERE E.eid IN (SELECT W.eid FROM proj P, mgr M, works W WHERE M.mname = 'Neha' AND P.mid = M.mid AND W.pid = P.pid) returns ______ . (Answer in integer)",
+        "answer": 47,
+        "explanation": "Neha has mid 7, which owns projects P2 and P4. The works rows for those projects give employees 1, 4, with salaries 42, 47. Employees on other projects are not in the list. MAX of those salaries is 47."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q61",
+      "type": "nat",
+      "marks": 2,
+      "key": "2",
+      "topic": "db-sql-constraints.select-evaluation",
+      "difficulty": "easy",
+      "stem": "Consider the following table named Student in a relational database. The primary key of this table is rollNum.\n\nThe SQL query below is executed on this database.\n\nSELECT *\nFROM Student\nWHERE gender = 'F' AND\n      marks > 65;\n\nThe number of rows returned by the query is ______ .",
+      "table": {
+        "headers": [
+          "rollNum",
+          "name",
+          "gender",
+          "marks"
+        ],
+        "rows": [
+          [
+            "1",
+            "Naman",
+            "M",
+            "62"
+          ],
+          [
+            "2",
+            "Aliya",
+            "F",
+            "70"
+          ],
+          [
+            "3",
+            "Aliya",
+            "F",
+            "80"
+          ],
+          [
+            "4",
+            "James",
+            "M",
+            "82"
+          ],
+          [
+            "5",
+            "Swati",
+            "F",
+            "65"
+          ]
+        ]
+      },
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "What WHERE does",
+            "body": "A SELECT without grouping reads every row of the table and keeps the row only when the WHERE condition is TRUE for it. A condition with AND is TRUE only when both parts are TRUE. Rows are never merged: two rows with the same name are still two rows, because the primary key rollNum keeps them distinct."
+          },
+          {
+            "title": "Test each row against both parts",
+            "body": "Row 1: gender M, fails. Row 2: gender F and 70 > 65, kept. Row 3: gender F and 80 > 65, kept. Row 4: gender M, fails. Row 5: gender F but 65 > 65 is FALSE (the comparison is strict), fails.",
+            "tex": "\\{2, 3\\} \\Rightarrow 2 \\text{ rows}"
+          },
+          {
+            "title": "Answer",
+            "body": "Two rows, the two Aliya rows, are returned. The answer is 2."
+          }
+        ],
+        "shortcut": {
+          "body": "Scan the gender column for F (rows 2, 3, 5), then check marks above 65 strictly: 70 and 80 pass, 65 does not. About 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Answering 3 by reading marks > 65 as marks >= 65 and counting Swati."
+          },
+          {
+            "text": "Answering 1 by treating the two Aliya rows as duplicates. SELECT * keeps whole rows and rollNum differs, so both stay; only DISTINCT on name would merge them."
+          },
+          {
+            "text": "Answering 4 by using OR instead of AND."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.select-evaluation",
+          "clues": "A single table, a SELECT star, and a WHERE with AND over a text column and a numeric comparison, asking only for the number of rows returned.",
+          "contrast": "With GROUP BY or DISTINCT, rows that share values would merge into one. Neither is present, so repeated names stay as separate rows."
+        },
+        "check": {
+          "body": "Count the opposite way: the rows that fail at least one test are the rows with the other gender plus the female rows whose marks do not exceed 65. Add that count to the number returned and the total must equal the number of rows in the table."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023 question 61",
+          "url": "https://gateoverflow.in/399260/gate-cse-2023-question-51"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur (organising institute, PDF author IITK_GATE), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2023/CS_ANS_GATE2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How many rows pass the WHERE test? Think about what happens to a row sitting exactly on the number in the comparison."
+        },
+        {
+          "kind": "concept",
+          "text": "A plain SELECT without grouping or DISTINCT tests each row on its own and returns every row for which the condition is true, even when two rows look alike in some columns."
+        },
+        {
+          "kind": "principle",
+          "text": "An AND condition is true only when both sides are true, and a strict inequality is false when the two values are equal. The primary key keeps same-named rows apart."
+        },
+        {
+          "kind": "setup",
+          "text": "Go down the table one row at a time and write a pass or fail mark for the gender test and a separate one for the marks test. Count the rows with two passes."
+        }
+      ],
+      "variation": {
+        "stem": "Table Book(bookId, title, genre, price) has rows (1, Atlas, T, 40), (2, Basics, S, 55), (3, Circuits, T, 60), (4, Basics, T, 45), (5, Dune, T, 59), (6, Basics, T, 40). The query SELECT * FROM Book WHERE genre = 'T' AND price < 60; returns ______ rows.",
+        "answer": 4,
+        "explanation": "Test each row on both parts. Rows 1, 4, 5 and 6 have genre T and a price below 60. Row 3 has genre T but price 60, and a strict comparison is false at equality. Row 2 has genre S. Rows with the same title stay separate, so the count is 4."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q56",
+      "type": "nat",
+      "marks": 2,
+      "key": "2",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "difficulty": "hard",
+      "stem": "Consider the relational database with the following four schemas and their respective instances.\n\nStudent(sNo, sName, dNo)  Dept(dNo, dName)\nCourse(cNo, cName, dNo)  Register(sNo, cNo)\n\nSQL Query:\n\nSELECT * FROM Student AS S WHERE NOT EXIST\n (SELECT cNo FROM Course WHERE dNo = \"D01\"\n     EXCEPT\n  SELECT cNo FROM Register WHERE sNo = S.sNo)\n\nThe number of rows returned by the above SQL query is ______ .",
+      "table": {
+        "headers": [
+          "table",
+          "rows"
+        ],
+        "rows": [
+          [
+            "Student",
+            "(S01, James, D01), (S02, Rocky, D01), (S03, Jackson, D02), (S04, Jane, D01), (S05, Milli, D02)"
+          ],
+          [
+            "Dept",
+            "(D01, CSE), (D02, EEE)"
+          ],
+          [
+            "Course",
+            "(C11, DS, D01), (C12, OS, D01), (C21, DE, D02), (C22, PT, D02), (C23, CV, D03)"
+          ],
+          [
+            "Register",
+            "(S01, C11), (S01, C12), (S02, C11), (S03, C21), (S03, C22), (S03, C23), (S04, C11), (S04, C12), (S05, C11), (S05, C21)"
+          ]
+        ]
+      },
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "What EXCEPT and NOT EXISTS mean together",
+            "body": "`A EXCEPT B` returns the rows of A that are not in B. `NOT EXISTS (subquery)` is TRUE when the subquery returns no row. So the condition says: the set of D01 courses, minus the courses student S registered for, is empty. A set minus another is empty exactly when the first set is contained in the second. Therefore the query returns every student who registered for every course of department D01. This is the relational-division pattern: 'for all' written as 'not exists a counter-example'. (The query writes NOT EXIST; the intended keyword is NOT EXISTS.)"
+          },
+          {
+            "title": "The required set",
+            "body": "The courses with dNo = D01 are C11 and C12. A student qualifies when both C11 and C12 appear among their registrations. The other courses (C21, C22, C23) belong to other departments and do not matter."
+          },
+          {
+            "title": "Check each student",
+            "body": "S01 registered C11, C12, so the difference {C11, C12} minus {C11, C12} is empty: returned. S02 has only C11, so C12 is left over: not returned. S03 has C21, C22, C23, so both D01 courses are left: not returned. S04 has C11, C12: returned. S05 has C11 and C21 but not C12: not returned.",
+            "tex": "\\{C11, C12\\} \\subseteq \\mathrm{Reg}(S) \\iff S \\in \\{S01, S04\\}"
+          },
+          {
+            "title": "Answer",
+            "body": "Two students, S01 and S04, so 2 rows. Whether a student's department is D01 is irrelevant: S02 belongs to D01 and still fails."
+          }
+        ],
+        "shortcut": {
+          "body": "Translate to 'students registered for all D01 courses'. List the D01 courses (C11, C12) and scan the Register table for students with both: S01 and S04. About 2 minutes. Unsafe only if the intermediate course list is misread; the Course table has a D03 row that is a distractor."
+        },
+        "traps": [
+          {
+            "text": "Answering 3 by counting the D01 students (S01, S02, S04) instead of those who took all D01 courses."
+          },
+          {
+            "text": "Answering 3 by inverting NOT EXISTS: the students for whom the difference is non-empty are S02, S03 and S05, also 3 rows, but those are the rows the query excludes."
+          },
+          {
+            "text": "Answering 4 by reading the query as some instead of all and keeping every student who took C11 (S01, S02, S04, S05)."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.in-exists-any-all",
+          "clues": "NOT EXISTS wrapped around an EXCEPT of two course lists, one fixed by a department and one fixed by the current student through S.sNo.",
+          "contrast": "A plain EXISTS over the registrations would find students with at least one such course. NOT EXISTS over the leftover finds students with all of them, so check which of the two you are reading."
+        },
+        "check": {
+          "body": "Verify with the complement: a student who fails is missing at least one required course. List the missing course for each rejected student, and confirm each accepted student has no missing course. The accepted plus rejected students must add up to the whole student table."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Matrix of the five students against the two D01 courses C11 and C12 with a mark where the student registered, showing only S01 and S04 have both."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022 question 56",
+          "url": "https://gateoverflow.in/371890/gate-cse-2022-question-46"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur (organising institute, named in the page banner), IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Read the whole condition as a sentence about one student. What must be true of the course set for NOT EXISTS to hold?"
+        },
+        {
+          "kind": "concept",
+          "text": "`A EXCEPT B` keeps the rows of A that are missing from B. `NOT EXISTS` is true only when that leftover is empty."
+        },
+        {
+          "kind": "principle",
+          "text": "A set minus another set is empty exactly when the first is contained in the second. So the pattern expresses a \"for all\" condition through the absence of a counter-example."
+        },
+        {
+          "kind": "setup",
+          "text": "Write down the list of course ids the first SELECT produces. Then, for each student, list what they registered for and see whether that list covers it."
+        },
+        {
+          "kind": "partial",
+          "text": "Only the department named in the inner WHERE contributes to the required list, so rows of the other departments in the course table can be ignored."
+        }
+      ],
+      "variation": {
+        "stem": "Student(sNo, sName, dNo) holds students S1 to S5. Course(cNo, dNo) = (C11, D01), (C12, D01), (C21, D02), (C22, D02), (C31, D03). Register(sNo, cNo) = (S1, C21), (S1, C22), (S1, C11), (S2, C21), (S3, C22), (S3, C21), (S3, C31), (S4, C11), (S4, C12), (S5, C21), (S5, C22), (S5, C12). The query SELECT * FROM Student AS S WHERE NOT EXISTS (SELECT cNo FROM Course WHERE dNo = 'D02' EXCEPT SELECT cNo FROM Register WHERE sNo = S.sNo) returns ______ rows.",
+        "answer": 3,
+        "explanation": "The query returns students registered for every course of D02, which are C21 and C22. S1, S3 and S5 have both. S2 lacks C22 and S4 lacks both. Courses of other departments, such as C31 for S3, do not matter, so the count is 3."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q6",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "db-sql-constraints.integrity-constraints",
+      "difficulty": "easy",
+      "stem": "Consider the following statements S1 and S2 about the relational data model:\n\nS1: A relation scheme can have at most one foreign key.\nS2: A foreign key in a relation scheme R cannot be used to refer to tuples of R.\n\nWhich one of the following choices is correct?",
+      "options": [
+        "Both S1 and S2 are true.",
+        "S1 is true and S2 is false.",
+        "S1 is false and S2 is true.",
+        "Both S1 and S2 are false."
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "What a foreign key is",
+            "body": "A foreign key is a column (or set of columns) of a table whose values must match a candidate key value in some table, called the referenced table, or else be NULL. It is declared with `FOREIGN KEY (col) REFERENCES T(key)`. The rule has no limit on how many such declarations a table has, and it does not say the referenced table must differ from the declaring table."
+          },
+          {
+            "title": "Test S1",
+            "body": "Register(sNo, cNo) has two foreign keys: sNo referencing Student and cNo referencing Course. So a relation may have many foreign keys. S1 is false."
+          },
+          {
+            "title": "Test S2",
+            "body": "Employee(empId, mgrId) with `mgrId REFERENCES Employee(empId)` is a self-referencing foreign key: the manager column points at a row of the same table. SQL allows it. So S2 is false.",
+            "tex": "\\text{S1 false},\\; \\text{S2 false} \\Rightarrow \\text{option D}"
+          },
+          {
+            "title": "Answer",
+            "body": "Both statements are false, which is option (D)."
+          }
+        ],
+        "shortcut": {
+          "body": "Think of the two standard examples: a junction table with two foreign keys kills S1, and an employee-manager table kills S2. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing a table has one foreign key because examples usually show one."
+          },
+          {
+            "option": 1,
+            "text": "Accepting S1 while rejecting S2: S1 is the false one for any junction table."
+          },
+          {
+            "option": 2,
+            "text": "Accepting S2 because referencing your own table sounds circular. It is legal and common (hierarchies)."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.integrity-constraints",
+          "clues": "Two universal claims about foreign keys, one about how many a relation can have and one about whether it can refer back to its own tuples, each answered by a single example.",
+          "contrast": "Do not mix a foreign key with a primary key: a relation has one primary key, but the limit of one does not carry over to foreign keys."
+        },
+        "check": {
+          "body": "Write the CREATE TABLE for each counter-example and see that a standard database accepts it: a linking table with two REFERENCES clauses, and a table whose own column references its own key. If both are accepted, neither claim can be universally true."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2 question 6",
+          "url": "https://gateoverflow.in/357534/gate-cse-2021-set-2-question-6"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Each statement makes a sweeping claim about every relation scheme. For each one, decide whether a single small table could contradict it, or whether the rule really enforces it."
+        },
+        {
+          "kind": "concept",
+          "text": "A foreign key is a column or column set whose non-null values must match a key value in a referenced table. It is declared with a REFERENCES clause."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask what a REFERENCES clause itself checks, and what it leaves unchecked. A claim that something is impossible holds only if the rule forbids it."
+        },
+        {
+          "kind": "setup",
+          "text": "For each statement, try to invent your own small schema that obeys the foreign-key rule and still matches the claim's restriction, or argue that the rule forbids one. Write the table names and the REFERENCES clauses."
+        }
+      ],
+      "variation": {
+        "stem": "Consider two statements about the relational model. S1: A relation scheme can have at most one candidate key. S2: A foreign key column may hold NULL, unless it is also part of the primary key or declared NOT NULL. Which one of the following is correct?",
+        "options": [
+          "Both S1 and S2 are true.",
+          "S1 is true and S2 is false.",
+          "S1 is false and S2 is true.",
+          "Both S1 and S2 are false."
+        ],
+        "answer": 2,
+        "explanation": "A table Student(rollNo, email, name) can have rollNo and email both as candidate keys, so S1 is false. A foreign key is checked only when it is non-null, so a missing reference is allowed unless the column is forced to be non-null, which makes S2 true."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q31",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "db-sql-constraints.subqueries",
+      "difficulty": "medium",
+      "stem": "The relation scheme given below is used to store information about the employees of a company, where empId is the key and deptId indicates the department to which the employee is assigned. Each employee is assigned to exactly one department.\n\nemp(empId, name, gender, salary, deptId)\n\nConsider the following SQL query:\n\nselect deptId, count(*)\nfrom emp\nwhere gender = \"female\" and salary > (select avg(salary) from emp)\ngroup by deptId;\n\nThe above query gives, for each department in the company, the number of female employees whose salary is greater than the average salary of",
+      "options": [
+        "employees in the department.",
+        "employees in the company.",
+        "female employees in the department.",
+        "female employees in the company."
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Uncorrelated subquery and scope",
+            "body": "A subquery that mentions none of the outer query's columns is uncorrelated: it is evaluated once, over its own FROM clause, and yields one constant. Its scope is its own FROM and WHERE, not the outer GROUP BY. GROUP BY partitions only the rows that survive the outer WHERE; it cannot reach inside a scalar subquery."
+          },
+          {
+            "title": "What the subquery computes",
+            "body": "`(select avg(salary) from emp)` has no WHERE and no reference to the outer row. It averages salary over every row of emp, that is, over all employees of the company, any gender, any department. It is one number, the company-wide average."
+          },
+          {
+            "title": "How the outer query uses it",
+            "body": "The outer WHERE keeps the rows that are female and have salary above that number. GROUP BY deptId then counts the surviving rows per department. So each count is the number of female employees in that department whose salary beats the company-wide average of all employees.",
+            "tex": "\\text{count} = \\bigl|\\{e : \\text{female},\\; \\text{dept}(e) = d,\\; \\text{sal}(e) > \\text{avg}_{\\text{all}}\\}\\bigr|"
+          },
+          {
+            "title": "Answer",
+            "body": "The comparison is with the employees in the company, option (B). To compare with the department average the subquery would need a correlation such as `where e2.deptId = emp.deptId`, and to use female employees only it would need `where gender = 'female'` inside."
+          }
+        ],
+        "shortcut": {
+          "body": "Look at the subquery alone: no WHERE, no outer column, so it is the average over the whole table, which is 'employees in the company'. 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Thinking GROUP BY makes the average per department. The subquery is independent of the grouping."
+          },
+          {
+            "option": 2,
+            "text": "Combining both mistakes: assuming the outer filters apply inside the subquery and the grouping applies too."
+          },
+          {
+            "option": 3,
+            "text": "Assuming the outer gender filter applies inside the subquery. Each query block has its own WHERE."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.subqueries",
+          "clues": "A scalar subquery with its own FROM clause and no WHERE sits inside a WHERE comparison, while the grouping column appears only in the outer query.",
+          "contrast": "A correlated subquery would name a column of the outer row, such as a department match, and would then compare each row with its own department. Check whether any outer column appears inside."
+        },
+        "check": {
+          "body": "Test with a two-department table where the department averages and the company average differ, for example departments with salaries 10 and 30, and 50 and 70. Compute the counts by hand under the company-average reading and under the department-average reading. Only one reading matches the query as written."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2 question 31",
+          "url": "https://gateoverflow.in/357509/gate-cse-2021-set-2-question-31"
+        },
+        {
+          "label": "GATE 2021 CS-2 answer key, IIT Bombay (organising institute), IIT Guwahati archive copy of the CS-1/CS-2 PDF",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Look only at the bracketed query first. What does it read from, and does it mention anything from the outer query?"
+        },
+        {
+          "kind": "concept",
+          "text": "A scalar subquery returns one value. When it uses no column of the outer row, the database computes it once."
+        },
+        {
+          "kind": "principle",
+          "text": "Decide which rows the bracketed query leaves in play, using only its own FROM and WHERE. Whatever it averages over, the outer query then compares every row to that one number."
+        },
+        {
+          "kind": "setup",
+          "text": "Split the sentence into two parts: who is being counted (set by the outer WHERE) and what they are compared against (set by the subquery). Match each to the option wording."
+        }
+      ],
+      "variation": {
+        "stem": "emp(empId, name, gender, salary, deptId) stores employees, empId is the key. Consider: select deptId, count(*) from emp where salary > (select avg(salary) from emp e2 where e2.deptId = emp.deptId) group by deptId; For each department, the count is the number of employees whose salary is greater than the average salary of",
+        "options": [
+          "all employees in the company.",
+          "the employees in the same department.",
+          "the other employees in the same department, excluding the employee himself.",
+          "all employees in the company with a lower deptId."
+        ],
+        "answer": 1,
+        "explanation": "The inner query has the condition e2.deptId = emp.deptId, so it is correlated and recomputes the average of the current employee's own department, including the employee. The outer query then counts, per department, the rows above that average. The company-wide reading would need no condition inside."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q13",
+      "type": "mcq",
+      "marks": 1,
+      "key": "A",
+      "topic": "db-sql-constraints.subqueries",
+      "difficulty": "medium",
+      "stem": "Consider a relational database containing the following schemas.\n\nThe primary key of each table is indicated by underlining the constituent fields.\n\nSELECT s.sno, s.sname\nFROM Suppliers s, Catalogue c\nWHERE s.sno = c.sno AND\n      cost > (SELECT AVG (cost)\n              FROM Catalogue\n              WHERE pno = 'P4'\n              GROUP BY pno);\n\nThe number of rows returned by the above SQL query is",
+      "table": {
+        "headers": [
+          "table",
+          "rows"
+        ],
+        "rows": [
+          [
+            "Catalogue (sno, pno, cost)",
+            "(S1,P1,150), (S1,P2,50), (S1,P3,100), (S2,P4,200), (S2,P5,250), (S3,P1,250), (S3,P2,150), (S3,P5,300), (S3,P4,250)"
+          ],
+          [
+            "Suppliers (sno, sname, location)",
+            "(S1, M/s Royal furniture, Delhi), (S2, M/s Balaji furniture, Bangalore), (S3, M/s Premium furniture, Chennai)"
+          ],
+          [
+            "Parts (pno, pname, part_spec)",
+            "(P1, Table, Wood), (P2, Chair, Wood), (P3, Table, Steel), (P4, Almirah, Steel), (P5, Almirah, Wood)"
+          ]
+        ]
+      },
+      "options": [
+        "4",
+        "5",
+        "0",
+        "2"
+      ],
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What the pieces mean",
+            "body": "`FROM Suppliers s, Catalogue c WHERE s.sno = c.sno` is a join: each Catalogue row is paired with its supplier, so the output has one row per Catalogue row that passes the remaining conditions, not one per supplier. The scalar subquery returns a single number (a single group, since it filters one pno), and `cost > number` is applied to each Catalogue row. Output rows are not de-duplicated, because there is no DISTINCT."
+          },
+          {
+            "title": "The subquery value",
+            "body": "Catalogue rows with pno P4 are (S2, P4, 200) and (S3, P4, 250). GROUP BY pno gives one group, and AVG is (200 + 250) / 2 = 225.",
+            "tex": "\\frac{200 + 250}{2} = 225"
+          },
+          {
+            "title": "Filter the Catalogue rows",
+            "body": "Costs above 225 are (S2, P5, 250), (S3, P1, 250), (S3, P5, 300) and (S3, P4, 250). The rows with costs 150, 50, 100, 200 and 150 fail. Each surviving row has a supplier in Suppliers, so each yields an output row."
+          },
+          {
+            "title": "Answer",
+            "body": "Four rows: one for S2 and three for S3 (S3 appears three times, because the query does not use DISTINCT). Option (A), 4."
+          }
+        ],
+        "shortcut": {
+          "body": "Average of the two P4 costs is 225. Count the Catalogue costs above 225: 250, 250, 300, 250 gives 4. Every one of those rows has a supplier, so no loss in the join. About 1 minute."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Counting 5 by including the P4 row with cost 200, which is below the average 225, or by miscounting the join."
+          },
+          {
+            "option": 2,
+            "text": "Answering 0 by believing GROUP BY inside a scalar subquery makes it invalid or empty. With one pno there is one group and one value."
+          },
+          {
+            "option": 3,
+            "text": "Answering 2 by counting distinct suppliers (S2, S3). Without DISTINCT, S3 is listed once per qualifying Catalogue row."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.subqueries",
+          "clues": "A scalar subquery with AVG and a GROUP BY over one fixed part number sits in a WHERE comparison, next to a comma join between suppliers and catalogue rows.",
+          "contrast": "Counting suppliers instead of rows would need DISTINCT. The query has none, so a supplier with several qualifying catalogue rows appears several times."
+        },
+        "check": {
+          "body": "Recount from the supplier side: for each supplier, count the catalogue rows whose cost exceeds the cut-off, then add those counts. The total must match the count taken row by row. Also confirm that every catalogue row has a matching supplier, so the join loses nothing."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020 question 13",
+          "url": "https://gateoverflow.in/333218/gate-cse-2020-question-13"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi (organising institute), print of its paper-and-key web page, IIT Guwahati archive",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The output has one row per what? Decide the unit being counted before you compute anything."
+        },
+        {
+          "kind": "concept",
+          "text": "A comma in FROM with a link condition in WHERE is a join. Without DISTINCT, every pair of joined rows that passes the filters becomes one output row."
+        },
+        {
+          "kind": "principle",
+          "text": "A scalar subquery that is not tied to the outer row gives a single number, and the outer comparison then tests every candidate row against that same number."
+        },
+        {
+          "kind": "setup",
+          "text": "Work out the subquery value first, using only the rows of the one named part. Then run through the catalogue rows and compare each cost with it."
+        },
+        {
+          "kind": "partial",
+          "text": "The subquery averages the costs of the two rows for the named part, which is a small sum you can finish. Use it as the cut-off for the other rows."
+        }
+      ],
+      "variation": {
+        "stem": "Suppliers(sno, sname) has S1, S2, S3, S4. Catalogue(sno, pno, cost) = (S1, P1, 120), (S1, P2, 80), (S2, P2, 160), (S2, P3, 90), (S3, P2, 150), (S3, P1, 200), (S3, P3, 150), (S4, P1, 110). The query SELECT s.sname FROM Suppliers s, Catalogue c WHERE s.sno = c.sno AND cost > (SELECT AVG(cost) FROM Catalogue WHERE pno = 'P2') returns how many rows?",
+        "options": [
+          "2",
+          "8",
+          "4",
+          "1"
+        ],
+        "answer": 2,
+        "explanation": "The three P2 costs are 80, 160 and 150, so the average is 130. The catalogue rows above it are those with costs 160, 150, 200, 150, which is 4 rows, and each has a supplier. There is no DISTINCT, so S3 is counted once for each of its rows rather than once in total."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q51",
+      "type": "nat",
+      "marks": 2,
+      "key": "5",
+      "topic": "db-sql-constraints.group-by-having",
+      "difficulty": "hard",
+      "stem": "A relational database contains two tables Student and Performance as shown below:\n\nThe primary key of the Student table is Roll_no. For the Performance table, the columns Roll_no. and Subject_code together form the primary key. Consider the SQL query given below:\n\nSELECT S.Student_name, sum(P.Marks)\nFROM Student S, Performance P\nWHERE P.Marks > 84\nGROUP BY S.Student_name;\n\nThe number of rows returned by the above SQL query is ________ .",
+      "table": {
+        "headers": [
+          "table",
+          "rows"
+        ],
+        "rows": [
+          [
+            "Student (Roll_no., Student_name)",
+            "(1, Amit), (2, Priya), (3, Vinit), (4, Rohan), (5, Smita)"
+          ],
+          [
+            "Performance (Roll_no., Subject_code, Marks)",
+            "(1, A, 86), (1, B, 95), (1, C, 90), (2, A, 89), (2, C, 92), (3, C, 80)"
+          ]
+        ]
+      },
+      "answer": 5,
+      "solution": {
+        "steps": [
+          {
+            "title": "Cross product and grouping",
+            "body": "A FROM clause with two tables and a comma is a cross product: every Student row is paired with every Performance row, so the number of pairs is 5 x 6 = 30. Only a WHERE condition that links the tables, such as `S.Roll_no = P.Roll_no`, would reduce this to a join. Then GROUP BY puts the surviving pairs into one group per distinct value of Student_name, and the query returns one row per group."
+          },
+          {
+            "title": "This query has no join condition",
+            "body": "The only condition is `P.Marks > 84`. It tests Performance alone. It keeps the Performance rows with marks 86, 95, 90, 89 and 92, which is 5 rows, and drops the row with 80. Each kept Performance row is still paired with all 5 students, giving 5 x 5 = 25 pairs.",
+            "tex": "5 \\times 5 = 25 \\text{ pairs}"
+          },
+          {
+            "title": "Count the groups",
+            "body": "The 25 pairs contain every student, since every student is paired with each of the 5 kept rows. The five names Amit, Priya, Vinit, Rohan and Smita are distinct, so there are 5 groups, each with sum 86 + 95 + 90 + 89 + 92 = 452. The query returns 5 rows."
+          }
+        ],
+        "shortcut": {
+          "body": "Spot the missing join condition. Marks > 84 keeps at least one Performance row, so every student pairs with it, and the number of groups equals the number of distinct student names: 5. Unsafe if no Performance row passed the filter, which would give 0 rows."
+        },
+        "traps": [
+          {
+            "text": "Answering 2 by assuming a join on Roll_no: only Amit and Priya have marks above 84, but the query has no join condition."
+          },
+          {
+            "text": "Answering 3 by joining on Roll_no and counting students 1, 2, 3 who appear in Performance; the row of student 3 fails Marks > 84 anyway."
+          },
+          {
+            "text": "Answering 25 or 30 by counting pairs, not groups."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.group-by-having",
+          "clues": "A comma join with no link condition, a WHERE that tests only one table, and a GROUP BY on a column of the other table, with the number of result rows asked.",
+          "contrast": "With a proper join condition the students without qualifying marks would drop out. Here the filter touches only Performance, so it never removes a student."
+        },
+        "check": {
+          "body": "Check the boundary: if the filter removed every Performance row, the cross product would be empty and no groups would form. Since at least one row passes, each student is paired with it, and each distinct name forms exactly one group. Also confirm the number of groups cannot exceed the number of distinct names."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Every one of the five students is paired with the five Performance rows whose marks exceed 84, so the five name groups each have sum 452, giving 5 rows."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019 question 51",
+          "url": "https://gateoverflow.in/302797/gate-cse-2019-question-51"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Look at what links the two tables in this query. Does anything?"
+        },
+        {
+          "kind": "concept",
+          "text": "Listing two tables in FROM with only a comma forms their cross product: every row of one is paired with every row of the other."
+        },
+        {
+          "kind": "principle",
+          "text": "GROUP BY gives one output row per distinct value of the grouping column among the rows that pass WHERE. Count groups, not rows."
+        },
+        {
+          "kind": "setup",
+          "text": "First see which Performance rows pass the marks filter. Then ask which students appear in the pairs built from those rows, and how many distinct names they carry."
+        }
+      ],
+      "variation": {
+        "stem": "Student(Roll_no, Student_name) = (1, Amit), (2, Priya), (3, Amit), (4, Rohan), (5, Priya), (6, Meena). Performance(Roll_no, Subject_code, Marks) = (1, A, 74), (1, B, 90), (2, A, 68), (3, C, 82), (5, A, 60). The query SELECT S.Student_name, MIN(P.Marks) FROM Student S, Performance P WHERE P.Marks > 70 GROUP BY S.Student_name; returns ______ rows.",
+        "answer": 4,
+        "explanation": "There is no join condition, so each of the 6 students is paired with each of the 3 Performance rows that have marks above 70. Every student appears in the pairs. The names Amit and Priya each occur twice, so the 6 students give 4 distinct names, and GROUP BY returns one row for each."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q12",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "db-sql-constraints.sql-joins",
+      "difficulty": "medium",
+      "stem": "Consider the following two tables and four queries in SQL.\n\nBook (isbn, bname), Stock (isbn, copies)\n\nQuery 1: SELECT B.isbn, S.copies\n         FROM Book B INNER JOIN Stock S\n         ON B.isbn = S.isbn;\n\nQuery 2: SELECT B.isbn, S.copies\n         FROM Book B LEFT OUTER JOIN Stock S\n         ON B.isbn = S.isbn;\n\nQuery 3: SELECT B.isbn, S.copies\n         FROM Book B RIGHT OUTER JOIN Stock S\n         ON B.isbn = S.isbn;\n\nQuery 4: SELECT B.isbn, S.copies\n         FROM Book B FULL OUTER JOIN Stock S\n         ON B.isbn = S.isbn;\n\nWhich one of the queries above is certain to have an output that is a superset of the outputs of the other three queries?",
+      "options": [
+        "Query 1",
+        "Query 2",
+        "Query 3",
+        "Query 4"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "The four join types",
+            "body": "Every join first forms the pairs of a Book row and a Stock row that satisfy the ON condition (the matches). An INNER JOIN returns only the matches. A LEFT OUTER JOIN returns the matches plus each unmatched Book row, with NULL in the Stock columns. A RIGHT OUTER JOIN returns the matches plus each unmatched Stock row, with NULL in the Book columns. A FULL OUTER JOIN returns the matches plus both kinds of unmatched rows."
+          },
+          {
+            "title": "Write each result as sets",
+            "body": "Let M be the matched rows, LB the unmatched Book rows padded with NULL, and RS the unmatched Stock rows padded with NULL. Query 1 = M. Query 2 = M + LB. Query 3 = M + RS. Query 4 = M + LB + RS.",
+            "tex": "Q_1 = M \\subseteq Q_2 = M \\cup LB,\\; Q_3 = M \\cup RS \\subseteq Q_4 = M \\cup LB \\cup RS"
+          },
+          {
+            "title": "Compare",
+            "body": "Query 4 contains every row of the other three, whatever the data. Query 2 lacks RS and Query 3 lacks LB whenever those unmatched sets are not empty, and Query 1 lacks both. Only the full outer join is certain to contain all of them. The answer is (D) Query 4. The output column pair (isbn, copies) is taken from B.isbn and S.copies, and the padded NULL rows still appear in Query 4 as in the others, so the containment holds."
+          }
+        ],
+        "shortcut": {
+          "body": "Outer joins add rows; the full outer join adds both kinds, so it contains inner, left and right results. 20 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Picking the inner join because it is the 'basic' join. It is the smallest of the four."
+          },
+          {
+            "option": 1,
+            "text": "Picking LEFT because books are the main table; it misses stock rows with no book."
+          },
+          {
+            "option": 2,
+            "text": "Picking RIGHT by the same reasoning; it misses books with no stock row."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.sql-joins",
+          "clues": "Four queries differ only in the join keyword between Book and Stock, and the wording asks for a superset that holds for any data, so the comparison must work on the kinds of rows each join keeps.",
+          "contrast": "Do not confuse this with a natural join, which also merges the shared isbn column. Here every query has the same ON condition and the same select list, so only the choice of which unmatched rows survive differs."
+        },
+        "check": {
+          "body": "Take Book = {1, 2} and Stock = {2, 3}. Inner gives isbn 2 only, left adds 1 with NULL copies, right adds a row for the Stock-only isbn, and the fourth query's output holds all of these. A data set where both unmatched pools are non-empty shows that no query with fewer pools can contain the larger one."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Nested regions: matched rows M in the middle, unmatched Book rows on the left, unmatched Stock rows on the right, with brackets showing inner, left, right and full outer joins."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018 question 12",
+          "url": "https://gateoverflow.in/204086/gate-cse-2018-question-12"
+        },
+        {
+          "label": "GATE 2018 CS final answer key (organised by IIT Guwahati), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "The question asks which output is certain to contain the other three. Ask what each join keeps beyond the pairs that satisfy the ON condition."
+        },
+        {
+          "kind": "concept",
+          "text": "An outer join keeps rows of one or both tables even when no row of the other table matches, padding the missing side with NULL."
+        },
+        {
+          "kind": "principle",
+          "text": "Split every result into three pools: matched pairs, unmatched Book rows and unmatched Stock rows. A query contains another for every possible data set only if its pools include all the other's pools."
+        },
+        {
+          "kind": "setup",
+          "text": "Write each of the four queries as a union of those pools, then check which one can never be missing a pool that another query has."
+        }
+      ],
+      "variation": {
+        "stem": "Consider Course (cid, cname) and Offering (cid, seats), and four queries that differ only in the join between Course C and Offering O on C.cid = O.cid: Query 1 INNER JOIN, Query 2 LEFT OUTER JOIN, Query 3 RIGHT OUTER JOIN, Query 4 FULL OUTER JOIN. Each selects C.cid, O.seats. Which one query is certain to have an output that is a subset of the outputs of the other three?",
+        "options": [
+          "Query 1",
+          "Query 2",
+          "Query 3",
+          "Query 4"
+        ],
+        "answer": 0,
+        "explanation": "Write the outputs as pools: matched rows M, unmatched Course rows, unmatched Offering rows. Query 1 is M, Query 2 is M plus the first extra pool, Query 3 is M plus the second, and Query 4 is M plus both. Query 1 is inside all the others, so it is the certain subset. The other three each contain a pool that at least one query lacks."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q19",
+      "type": "nat",
+      "marks": 1,
+      "key": "0.0",
+      "topic": "db-sql-constraints.referential-actions",
+      "difficulty": "hard",
+      "stem": "Consider the following tables T1 and T2.\n\nIn table T1, P is the primary key and Q is the foreign key referencing R in table T2 with on-delete cascade and on-update cascade. In table T2, R is the primary key and S is the foreign key referencing P in table T1 with on-delete set NULL and on-update cascade. In order to delete record $\\langle 3, 8 \\rangle$ from table T1, the number of additional records that need to be deleted from table T1 is ______ .",
+      "table": {
+        "headers": [
+          "T1.P",
+          "T1.Q",
+          "T2.R",
+          "T2.S"
+        ],
+        "rows": [
+          [
+            "2",
+            "2",
+            "2",
+            "2"
+          ],
+          [
+            "3",
+            "8",
+            "8",
+            "3"
+          ],
+          [
+            "7",
+            "3",
+            "3",
+            "2"
+          ],
+          [
+            "5",
+            "8",
+            "9",
+            "7"
+          ],
+          [
+            "6",
+            "9",
+            "5",
+            "7"
+          ],
+          [
+            "8",
+            "5",
+            "7",
+            "2"
+          ],
+          [
+            "9",
+            "8",
+            "",
+            ""
+          ]
+        ]
+      },
+      "answer": 0,
+      "solution": {
+        "steps": [
+          {
+            "title": "What the referential actions do",
+            "body": "A foreign key in a child table points at the key of a parent table. When a parent row is deleted, the declared action decides what happens to the child rows that point at it. CASCADE deletes those child rows too (and the rule repeats for rows pointing at them). SET NULL keeps the child row and replaces its foreign key value with NULL. Deleting a child row never affects its parent. So a delete spreads only along the arrows from parent to child, and only CASCADE keeps it spreading."
+          },
+          {
+            "title": "Who is parent and who is child here",
+            "body": "T1.Q references T2.R with cascade: T2 is the parent and T1 the child. T2.S references T1.P with set NULL: T1 is the parent and T2 the child. We delete the T1 row (3, 8), so T1 acts as the parent in the second relation."
+          },
+          {
+            "title": "Follow the deletion",
+            "body": "The T2 rows whose S equals the deleted P = 3 are found: (8, 3) only. The action is SET NULL, so that row stays in T2 with S changed to NULL. No T2 row is deleted. The cascade from T2 to T1 fires only when a T2 row is deleted, and none is. So no T1 row is deleted besides (3, 8).",
+            "tex": "\\text{extra T1 rows deleted} = 0"
+          },
+          {
+            "title": "Answer",
+            "body": "Zero additional records are deleted from T1. (T2 row (8, 3) becomes (8, NULL).)"
+          }
+        ],
+        "shortcut": {
+          "body": "Draw the two arrows. The only delete that can reach T1 is a cascade from a deleted T2 row, but the T1 delete reaches T2 through SET NULL, which deletes nothing. So the chain stops: 0. 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Answering 2 or 3 by treating the T2 row (8, 3) as deleted, then cascading to the T1 rows with Q = 8 (P = 3 and 5 and 9). SET NULL does not delete."
+          },
+          {
+            "text": "Answering 1 by counting the T1 row (5, 8) or (9, 8) as a cascade victim without a deleted T2 row."
+          },
+          {
+            "text": "Reading the arrow backwards: the T1 row (7, 3) refers to T2 row 3, but deleting the child T1 row never touches its parent."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.referential-actions",
+          "clues": "Two tables reference each other, each foreign key names a different on-delete action, and the question counts extra deleted rows, so the chain of actions must be followed arrow by arrow.",
+          "contrast": "Not a plain cascade chain: with CASCADE on both arrows the deletion would bounce between the tables. One SET NULL arrow changes a row instead of deleting it, which is what ends the chain."
+        },
+        "check": {
+          "body": "Count by the two possible actions on the T2 side. If the arrow from T1.P to T2.S cascaded, the T2 row with S = 3 would be removed and could pull in T1 rows with Q = 8. With SET NULL, row (8, 3) only becomes (8, NULL). A T1 row is deleted by cascade only after a T2 row it references is deleted, and none was, so the count stays at zero."
+        }
+      },
+      "solutionDiagram": {
+        "alt": "Two tables T1 and T2 with arrows for the two foreign keys. Deleting T1 row 3 sets S to NULL in T2 row 8 and stops, so no further T1 rows are deleted."
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2 question 19",
+          "url": "https://gateoverflow.in/118236/gate-cse-2017-set-2-question-19"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which table is the parent and which is the child in each foreign key, and in which direction can a delete travel?"
+        },
+        {
+          "kind": "concept",
+          "text": "A delete on a parent row triggers the declared action on the child rows that refer to it. CASCADE deletes them, SET NULL keeps them and blanks the reference."
+        },
+        {
+          "kind": "principle",
+          "text": "A cascade continues only through rows that actually get deleted. A row that is merely updated, as with SET NULL, starts no further deletion."
+        },
+        {
+          "kind": "setup",
+          "text": "Delete the given T1 row, list the T2 rows whose S equals its P, apply that foreign key's action, and then ask whether any T2 row was removed that could cascade back into T1."
+        }
+      ],
+      "variation": {
+        "stem": "T1 (P, Q) holds (1,2), (2,3), (3,2), (4,5). T2 (R, S) holds (2,1), (3,4), (5,3), (6,2). P is the key of T1 and R the key of T2. Q in T1 is a foreign key to R in T2, and S in T2 is a foreign key to P in T1, both with on-delete cascade. After deleting the record (1,2) from T1, how many additional records are deleted from T1?",
+        "answer": 3,
+        "explanation": "Follow the cascade as a chain. Deleting T1 (1,2) removes T2 (2,1), whose S is 1. Deleting T2 row R = 2 removes T1 (3,2), the first extra record. That removes T2 (5,3), which removes T1 (4,5). That removes T2 (3,4), which removes T1 (2,3). That removes T2 (6,2), and no T1 row has Q = 6, so the chain stops. Three extra T1 records were deleted."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q46",
+      "type": "nat",
+      "marks": 2,
+      "key": "7.0",
+      "topic": "db-sql-constraints.in-exists-any-all",
+      "difficulty": "hard",
+      "stem": "Consider the following database table named top_scorer.\n\nConsider the following SQL query:\n\nSELECT ta.player FROM top_scorer AS ta\nWHERE ta.goals >ALL (SELECT tb.goals\n                     FROM top_scorer AS tb\n                     WHERE tb.country = 'Spain')\nAND ta.goals >ANY (SELECT tc.goals\n                   FROM top_scorer AS tc\n                   WHERE tc.country = 'Germany')\n\nThe number of tuples returned by the above SQL query is ______ .",
+      "table": {
+        "headers": [
+          "player",
+          "country",
+          "goals"
+        ],
+        "rows": [
+          [
+            "Klose",
+            "Germany",
+            "16"
+          ],
+          [
+            "Ronaldo",
+            "Brazil",
+            "15"
+          ],
+          [
+            "G Müller",
+            "Germany",
+            "14"
+          ],
+          [
+            "Fontaine",
+            "France",
+            "13"
+          ],
+          [
+            "Pelé",
+            "Brazil",
+            "12"
+          ],
+          [
+            "Klinsmann",
+            "Germany",
+            "11"
+          ],
+          [
+            "Kocsis",
+            "Hungary",
+            "11"
+          ],
+          [
+            "Batistuta",
+            "Argentina",
+            "10"
+          ],
+          [
+            "Cubillas",
+            "Peru",
+            "10"
+          ],
+          [
+            "Lato",
+            "Poland",
+            "10"
+          ],
+          [
+            "Lineker",
+            "England",
+            "10"
+          ],
+          [
+            "T Müller",
+            "Germany",
+            "10"
+          ],
+          [
+            "Rahn",
+            "Germany",
+            "10"
+          ]
+        ]
+      },
+      "answer": 7,
+      "solution": {
+        "steps": [
+          {
+            "title": "ALL and ANY",
+            "body": "`x > ALL (subquery)` is TRUE when x is greater than every value the subquery returns; `x > ANY (subquery)` is TRUE when x is greater than at least one value. Two edge cases decide this question. If the subquery returns no rows, ALL is TRUE for every x (nothing can contradict it), and ANY is FALSE (there is nothing to be greater than). A row is returned only when both conditions are TRUE."
+          },
+          {
+            "title": "The ALL part",
+            "body": "No row has country 'Spain', so the subquery is empty. `goals > ALL (empty)` is TRUE for every row. This condition removes nothing."
+          },
+          {
+            "title": "The ANY part",
+            "body": "The Germany goals are 16, 14, 11, 10, 10. `goals > ANY` of these means goals greater than the smallest, 10. So the rows kept have goals of at least 11.",
+            "tex": "\\text{goals} > \\min\\{16, 14, 11, 10, 10\\} = 10"
+          },
+          {
+            "title": "Count",
+            "body": "Rows with goals above 10: Klose 16, Ronaldo 15, G Müller 14, Fontaine 13, Pelé 12, Klinsmann 11, Kocsis 11. That is 7 rows. The six players with 10 goals fail. The answer is 7."
+          }
+        ],
+        "shortcut": {
+          "body": "Empty Spain set means the ALL test always passes. ANY over Germany reduces to 'greater than the minimum German goals', 10. Count the rows with more than 10 goals: 7. About 1.5 minutes."
+        },
+        "traps": [
+          {
+            "text": "Answering 0 by treating `> ALL` over an empty set as FALSE. It is vacuously TRUE."
+          },
+          {
+            "text": "Answering 13 by reading the ANY as always true, or 6 by dropping a player with exactly 11 goals; 11 is above 10 so both 11-goal players stay."
+          },
+          {
+            "text": "Answering 0 by reading the ANY as ALL: no player has more than the maximum German score 16, so nothing qualifies. Answering 4 by wrongly excluding Germans (Klose, G Müller and Klinsmann are German and are still returned)."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.in-exists-any-all",
+          "clues": "Two quantified comparisons (> ALL and > ANY) over subqueries filtered by country, joined by AND, and the Spain filter looks like it matches nothing in the table.",
+          "contrast": "> ANY looks like > ALL but reduces to the smallest member instead of the largest. An empty subquery flips them: ALL passes everything, ANY passes nothing."
+        },
+        "check": {
+          "body": "Check the ANY by brute force: for each of the German goal values, list the players beating it and take the union. Beating the smallest value (10) already includes everyone who beats any larger German value, so the union equals the players with more than 10 goals, which matches the minimum shortcut. Separately confirm that no row has country Spain."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2 question 46",
+          "url": "https://gateoverflow.in/118391/gate-cse-2017-set-2-question-46"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Before testing any row, find out what each subquery returns. Does either come back empty?"
+        },
+        {
+          "kind": "concept",
+          "text": "x > ALL (set) means x beats every member of the set. x > ANY (set) means x beats at least one member. The AND of both tests keeps a row only when both hold."
+        },
+        {
+          "kind": "principle",
+          "text": "Think about how ALL and ANY behave when the subquery has no rows at all. One of them is satisfied with nothing to compare, and the other cannot be."
+        },
+        {
+          "kind": "setup",
+          "text": "Filter the inner tables by their country, write down the goal values that remain, reduce ANY to a comparison with a single extreme value, and then count the outer rows passing it."
+        }
+      ],
+      "variation": {
+        "stem": "Table scorer (player, country, goals) has rows (A, India, 30), (B, India, 25), (C, Chile, 25), (D, Peru, 20), (E, Chile, 18), (F, Peru, 18), (G, Peru, 10). The query SELECT s.player FROM scorer s WHERE s.goals > ALL (SELECT t.goals FROM scorer t WHERE t.country = 'Brazil') AND s.goals > ANY (SELECT u.goals FROM scorer u WHERE u.country = 'Peru') returns how many tuples?",
+        "answer": 6,
+        "explanation": "No row has country Brazil, so the ALL subquery is empty and the ALL test passes for every row. The Peru goals are 20, 18, 10, and beating at least one of them means goals greater than 10. Players A, B, C, D, E, F qualify and G with exactly 10 does not, giving 6."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q23",
+      "type": "nat",
+      "marks": 1,
+      "key": "2.6",
+      "topic": "db-sql-constraints.group-by-having",
+      "difficulty": "medium",
+      "stem": "Consider a database that has the relation schema EMP (EmpId, EmpName, and DeptName). An instance of the schema EMP and a SQL query on it are given below.\n\nSELECT AVG(EC.Num)\nFROM EC\nWHERE (DeptName, Num) IN\n      (SELECT DeptName, COUNT(EmpId) AS EC(DeptName, Num)\n       FROM EMP\n       GROUP BY DeptName)\n\nThe output of executing the SQL query is ______ .",
+      "table": {
+        "headers": [
+          "EmpId",
+          "EmpName",
+          "DeptName"
+        ],
+        "rows": [
+          [
+            "1",
+            "XYA",
+            "AA"
+          ],
+          [
+            "2",
+            "XYB",
+            "AA"
+          ],
+          [
+            "3",
+            "XYC",
+            "AA"
+          ],
+          [
+            "4",
+            "XYD",
+            "AA"
+          ],
+          [
+            "5",
+            "XYE",
+            "AB"
+          ],
+          [
+            "6",
+            "XYF",
+            "AB"
+          ],
+          [
+            "7",
+            "XYG",
+            "AB"
+          ],
+          [
+            "8",
+            "XYH",
+            "AC"
+          ],
+          [
+            "9",
+            "XYI",
+            "AC"
+          ],
+          [
+            "10",
+            "XYJ",
+            "AC"
+          ],
+          [
+            "11",
+            "XYK",
+            "AD"
+          ],
+          [
+            "12",
+            "XYL",
+            "AD"
+          ],
+          [
+            "13",
+            "XYM",
+            "AE"
+          ]
+        ]
+      },
+      "answer": 2.6,
+      "solution": {
+        "steps": [
+          {
+            "title": "GROUP BY with COUNT, and IN on a pair",
+            "body": "GROUP BY DeptName splits the rows into one group per distinct department, and COUNT(EmpId) gives the group's size. The subquery therefore returns one row (DeptName, Num) per department. The notation `AS EC(DeptName, Num)` names that result table EC and its columns. The condition `(DeptName, Num) IN (subquery)` is TRUE when the pair equals some row of the subquery. AVG then averages the Num column of the rows that pass."
+          },
+          {
+            "title": "The grouped table EC",
+            "body": "Counting the rows of each department: AA has 4, AB has 3, AC has 3, AD has 2, AE has 1. So EC = {(AA,4), (AB,3), (AC,3), (AD,2), (AE,1)}."
+          },
+          {
+            "title": "The IN filter keeps everything",
+            "body": "The outer query reads rows of EC and tests whether each pair is in the result of grouping EMP. That result is EC itself, so every pair passes. All 5 rows are kept."
+          },
+          {
+            "title": "Average",
+            "body": "The average of the Num values is the total employees divided by the number of departments.",
+            "tex": "\\frac{4 + 3 + 3 + 2 + 1}{5} = \\frac{13}{5} = 2.6"
+          }
+        ],
+        "shortcut": {
+          "body": "The IN test compares EC with itself, so it filters nothing. The answer is the average group size: 13 employees over 5 departments = 2.6. 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Answering 2.5 or 3 by averaging over EMP rows or by rounding. AVG is over the 5 department rows, not the 13 employees."
+          },
+          {
+            "text": "Answering 13 by taking SUM or COUNT instead of AVG."
+          },
+          {
+            "text": "Answering 4 by taking MAX or by assuming the IN removes departments with fewer than 3 employees."
+          }
+        ],
+        "recognize": {
+          "concept": "db-sql-constraints.group-by-having",
+          "clues": "COUNT with GROUP BY DeptName builds a derived table, then the outer AVG runs over the counts, not over employees, and the filter compares a (DeptName, Num) pair with the same grouped result.",
+          "contrast": "Do not average over the EMP rows: AVG here sees one value per department. HAVING would filter groups inside the grouped query, whereas this IN filters rows of the derived table afterwards."
+        },
+        "check": {
+          "body": "The answer must equal total employees divided by the number of departments, since each employee is counted in exactly one group. That is 13 employees over 5 departments, so the group sizes 4, 3, 3, 2, 1 must sum to 13, and they do. Recomputing the mean from the sum gives the same value."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1 question 23",
+          "url": "https://gateoverflow.in/118303/gate-cse-2017-set-1-question-23"
+        },
+        {
+          "label": "GATE 2017 CS session 1 final answer key (CS-1, IIT Roorkee, 16 Mar 2017), gatecse.in Google Drive copy",
+          "url": "https://drive.google.com/file/d/1XNwOUEbRa-IdQOTfnBJOrqN7XmtCGVrh/view"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Work out what table the inner GROUP BY produces, one row per what?"
+        },
+        {
+          "kind": "concept",
+          "text": "GROUP BY forms one group for each distinct DeptName, and COUNT(EmpId) returns the size of each group."
+        },
+        {
+          "kind": "principle",
+          "text": "A row passes a tuple IN test when the pair equals some row of the subquery. Ask which rows of the outer table could fail when the subquery builds the same table."
+        },
+        {
+          "kind": "setup",
+          "text": "Count the employees of each department to get the grouped table, apply the IN filter to see which rows survive, and then average the Num column over the rows that remain."
+        }
+      ],
+      "variation": {
+        "stem": "EMP (EmpId, EmpName, DeptName) has 14 rows: 5 in department P, 4 in Q, 3 in R and 2 in S. EC is defined by the subquery SELECT DeptName, COUNT(EmpId) FROM EMP GROUP BY DeptName with columns (DeptName, Num). What does SELECT AVG(Num) FROM EC WHERE (DeptName, Num) IN (SELECT DeptName, COUNT(EmpId) FROM EMP GROUP BY DeptName) output?",
+        "answer": 3.5,
+        "explanation": "The grouped table is (P,5), (Q,4), (R,3), (S,2). The IN test compares the table with itself, so all four rows stay. The average of 5, 4, 3 and 2 is 14 / 4 = 3.5."
+      }
+    }
+  ],
+  "skipped": []
+}

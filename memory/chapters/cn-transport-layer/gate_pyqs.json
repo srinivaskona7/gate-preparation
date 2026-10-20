@@ -1,0 +1,1682 @@
+{
+  "chapter": "cn-transport-layer",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2023",
+    "gate-cse-2022",
+    "gate-cse-2021-s2",
+    "gate-cse-2021-s1",
+    "gate-cse-2020",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2017-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q58",
+      "type": "nat",
+      "marks": 2,
+      "key": "4",
+      "topic": "cn-transport-layer.slow-start-ca",
+      "difficulty": "medium",
+      "stem": "Consider a new TCP connection between a sender and a receiver. The receiver advertised window is constant at 48 KB, the maximum segment size (MSS) is 2 KB, and the slow start threshold for TCP congestion control is 16 KB. Assume that there are no timeouts or duplicate acknowledgements. The number of rounds of transmission required for the congestion control algorithm of the TCP connection to reach the congestion avoidance phase is ___________. (answer in integer)\n\nNote: 1K=$2^{10}$",
+      "answer": 4,
+      "solutionDiagram": {
+        "alt": "Bar chart of cwnd in MSS for rounds 1 to 4 (1, 2, 4, 8), reaching the dashed ssthresh line at 8."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the single rule",
+            "body": "The congestion window (cwnd) is the number of bytes the sender may have unacknowledged in the network. A round is one round-trip time: the sender sends a full window, then receives all its acknowledgements. The slow-start threshold (ssthresh) is the window size at which growth changes from fast to slow. In slow start, every acknowledgement adds one MSS, so cwnd doubles each round. When cwnd reaches ssthresh the sender is in congestion avoidance, where cwnd grows by only 1 MSS per round. A new connection starts with cwnd = 1 MSS."
+          },
+          {
+            "title": "Convert the threshold to MSS",
+            "body": "ssthresh is 16 KB and MSS is 2 KB, so ssthresh is $16/2 = 8$ MSS. The receiver window of 48 KB is 24 MSS, which is above the threshold and is never the limit here.",
+            "tex": "\\text{ssthresh}=\\dfrac{16\\text{ KB}}{2\\text{ KB}}=8\\text{ MSS}"
+          },
+          {
+            "title": "Double each round until the threshold",
+            "body": "Round 1 sends 1 MSS, round 2 sends 2, round 3 sends 4 and round 4 sends 8 MSS. After round 3 the window doubles to 8, which equals ssthresh, so growth stops being exponential. The sender therefore needs 4 rounds of transmission (1, 2, 4, 8) before it enters the linear phase, which begins with the increase to 9 MSS in round 5.",
+            "tex": "1\\to2\\to4\\to8=\\text{ssthresh}"
+          },
+          {
+            "title": "Answer",
+            "body": "Four rounds are transmitted in slow start, and the answer is 4, as the official key says. The drawing shows the window per round with the threshold dashed."
+          }
+        ],
+        "shortcut": {
+          "body": "Count doublings from 1 MSS up to ssthresh in MSS: $1,2,4,8$ is four terms. Take the threshold in MSS first (16/2 = 8); about 40 seconds. Unsafe if the question counts rounds spent inside congestion avoidance."
+        },
+        "traps": [
+          {
+            "text": "Answering 3 by counting the doublings (1 to 2 to 4 to 8) instead of the rounds sent: round 1 already sends the first window of 1 MSS."
+          },
+          {
+            "text": "Answering 5 by also counting the first congestion-avoidance round (9 MSS); the question asks for the rounds needed to reach that phase."
+          },
+          {
+            "text": "Comparing 16 KB with MSS counts without converting units, which gives thresholds of 16 or 4 MSS and answers of 5 or 3."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.slow-start-ca",
+          "clues": "A new connection, a slow start threshold, an MSS and the phrase rounds of transmission to reach congestion avoidance all point to counting doublings of cwnd.",
+          "contrast": "Fast retransmit and fast recovery (loss-reaction) start from a timeout or duplicate ACKs; here the question says there are none, so only the clean doubling from 1 MSS applies."
+        },
+        "check": {
+          "body": "Work back from the threshold: 8 MSS is $2^3$, and the window before it was 4, then 2, then 1. That is four windows in total, which matches counting rounds forward. The receiver window of 24 MSS is never reached.",
+          "tex": "2^{k-1}=8\\Rightarrow k=4"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, Question 48 (paper Q.58)",
+          "url": "https://gateoverflow.in/523098/gate-cse-2026-set-2-question-48"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does a new connection start with, and what must happen to the window before the sender stops growing it fast?"
+        },
+        {
+          "kind": "concept",
+          "text": "In slow start the window grows by one segment for every acknowledgement, so it grows geometrically, not by a fixed step."
+        },
+        {
+          "kind": "principle",
+          "text": "The fast phase ends when the window reaches the slow-start threshold, and the window is counted in MSS, not in bytes."
+        },
+        {
+          "kind": "setup",
+          "text": "Change the threshold and the receiver window into MSS units, then list the window size sent in each round starting from the first."
+        },
+        {
+          "kind": "partial",
+          "text": "Listing the windows by round begins 1, 2, 4. Keep doubling and stop at the first round whose window equals the threshold in MSS."
+        }
+      ],
+      "variation": {
+        "stem": "A new TCP connection has a constant receiver advertised window of 96 KB, an MSS of 4 KB and a slow start threshold of 64 KB. There are no timeouts or duplicate acknowledgements. How many rounds of transmission are needed for the sender to reach the congestion avoidance phase? (answer in integer)",
+        "answer": 5,
+        "explanation": "The threshold is $64/4=16$ MSS and the receiver window is 24 MSS, so the threshold limits first. The windows per round are 1, 2, 4, 8, 16 MSS, and 16 equals the threshold in the fifth round, so 5 rounds are needed."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q18",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "cn-transport-layer.termination",
+      "difficulty": "easy",
+      "stem": "With respect to a TCP connection between a client and a server, which one of the following statements is true?",
+      "options": [
+        "The client and server use a two-way handshake mechanism before the start of data transmission",
+        "The server cannot initiate closing of the connection before the client initiates closing of the connection",
+        "The TCP connection is half-duplex",
+        "The client and server can initiate closing of the connection at the same time"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A TCP connection is full duplex: two independent byte streams, one in each direction. Each direction is closed by its own FIN (finish) segment, which the other side acknowledges. The rule: either end may send its FIN at any time, with no permission from the other. Opening needs a three-way handshake (SYN, SYN+ACK, ACK), and the client/server roles describe who opened the connection, not who may close it."
+          },
+          {
+            "title": "Test each option",
+            "body": "(A) False: opening uses three segments, a three-way handshake. (B) False: the server can close first, as an HTTP server does when it ends a connection. (C) False: data flows both ways at once, so the connection is full duplex. (D) True: if both send FIN before seeing the other's FIN, this is a simultaneous close, which RFC 793 allows."
+          },
+          {
+            "title": "Answer",
+            "body": "Only (D) is true, which is option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Eliminate by keywords: 'two-way handshake' and 'half-duplex' are wrong at once, and 'server cannot close first' is false because close is symmetric. One minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Believing TCP opens with SYN and ACK only; there are three segments, because the SYN+ACK carries the server's own announcement."
+          },
+          {
+            "option": 1,
+            "text": "Assuming the client must close first because it opened the connection; roles in opening do not restrict closing."
+          },
+          {
+            "option": 2,
+            "text": "Confusing byte-stream ordering with half-duplex; TCP carries data in both directions simultaneously."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.termination",
+          "clues": "Every option is a claim about connection roles: handshake length, who may close first, duplex mode and simultaneous close. These are the connection-termination and state rules.",
+          "contrast": "Connection setup (handshake topic) fixes who the client is, which tempts you to say the client must also close first; closing is symmetric, so roles do not order it."
+        },
+        "check": {
+          "body": "Trace a simultaneous close through the TCP states: both ends in ESTABLISHED send FIN and enter FIN_WAIT_1; each receives the other's FIN before its own is acknowledged and moves to CLOSING; once the ACKs arrive, both enter TIME_WAIT. The state diagram contains this path, which confirms the statement about simultaneous closing without testing the other options."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, Question 8 (paper Q.18)",
+          "url": "https://gateoverflow.in/523072/gate-cse-2026-set-1-question-8"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Does a TCP connection carry data one way at a time or both ways, and what follows for how many separate streams there are to shut down?"
+        },
+        {
+          "kind": "concept",
+          "text": "A TCP connection carries two independent byte streams, one each way, and each stream is shut down by its own FIN segment."
+        },
+        {
+          "kind": "principle",
+          "text": "Opening and closing are separate procedures with separate rules, so do not carry an assumption from one into the other."
+        },
+        {
+          "kind": "setup",
+          "text": "Read each statement and decide what it claims about roles, order or direction, then test that claim against what you know of opening, data flow and closing."
+        }
+      ],
+      "variation": {
+        "stem": "Which one of the following statements about closing a TCP connection is true?",
+        "options": [
+          "After a host sends its FIN, it can no longer receive data from the other host.",
+          "After a host sends its FIN, the other host may still send data until it sends its own FIN.",
+          "A FIN segment does not use up a sequence number.",
+          "Only the host that sent the first SYN may send a FIN."
+        ],
+        "answer": 1,
+        "explanation": "Each direction closes separately, so a FIN only ends the sender's stream (half-close) and the other side may keep sending. A FIN occupies one sequence number and either host may send it, which rules out the other three."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q44",
+      "type": "mcq",
+      "marks": 2,
+      "key": "B",
+      "topic": "cn-transport-layer.slow-start-ca",
+      "difficulty": "medium",
+      "stem": "A TCP sender successfully establishes a connection with a TCP receiver and starts the transmission of segments. The TCP congestion control mechanism's slow-start threshold is set to 10000 segments. Assume that the round-trip time is fixed at 1 millisecond. Assume that the sender always has data to send, the segments are numbered from 1, and no segment is lost. Let $t$ denote the time (in milliseconds) at which the transmission of segment number 2000 starts.\n\nWhich one of the following options is correct?",
+      "options": [
+        "$9 \\le t < 10$",
+        "$10 \\le t < 11$",
+        "$11 \\le t < 12$",
+        "$12 \\le t < 13$"
+      ],
+      "answer": 1,
+      "solutionDiagram": {
+        "alt": "Bar chart on a log axis of segments sent per round for rounds 1 to 11 (1, 2, 4, up to 1024); a dot marks segment 2000 inside round 11."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "cwnd is the number of segments the sender may send before it must wait for acknowledgements. In slow start, cwnd starts at 1 segment and doubles every round-trip time (RTT), because every acknowledgement adds one segment. A round is the batch of segments sent in one RTT. So round $k$ (counting from 1, starting at time $k-1$ ms here) holds $2^{k-1}$ segments, as long as cwnd is below the threshold."
+          },
+          {
+            "title": "Count the segments sent by the end of each round",
+            "body": "After $n$ complete rounds the sender has sent $1+2+\\dots+2^{n-1}=2^n-1$ segments. After 10 rounds: 1023. After 11 rounds: 2047.",
+            "tex": "S_n=2^n-1,\\quad S_{10}=1023,\\ S_{11}=2047"
+          },
+          {
+            "title": "Place segment 2000",
+            "body": "Since $1023<2000\\le 2047$, segment 2000 belongs to round 11. Round 11 begins at $t=10$ ms (10 RTTs of 1 ms have elapsed) and its 1024 segments leave before the next round starts at 11 ms. Window growth never reaches 10000 here (the largest window is 1024), so the threshold plays no part."
+          },
+          {
+            "title": "Answer",
+            "body": "Segment 2000 starts in round 11, so $10\\le t<11$, which is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Cumulative segments after $n$ rounds are $2^n-1$; find $n$ with $2^n-1\\ge2000$, that is $n=11$, so the segment is in the 11th round, which starts at 10 ms. About 1.5 minutes. Unsafe if the threshold were below 1024."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Thinking in 'ms = log2 of segment number', so 9 to 10 ms: this places segment 2000 one round early because 2^10 = 1024 segments are only done after round 10 ends."
+          },
+          {
+            "option": 2,
+            "text": "Counting round 1 as starting at 1 ms, or adding a wait for the first ACK; this shifts every round start by 1 ms."
+          },
+          {
+            "option": 3,
+            "text": "Applying both one-round shifts of option C together: waiting one RTT for the first ACK and also numbering rounds from 1 ms. Each adds 1 ms to the correct 10 ms, giving 12 ms."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.slow-start-ca",
+          "clues": "A fixed RTT of 1 ms, a segment number asked in time, no loss and a large threshold mean pure doubling of cwnd each round; the time follows from counting rounds.",
+          "contrast": "Congestion avoidance adds a single segment per round and would give a linear count; it applies only after cwnd passes the threshold, which here is far above the largest window used."
+        },
+        "check": {
+          "body": "Round 11 has 1024 segments and starts after 1023 were sent, so it holds segments 1024 to 2047, which includes 2000. The previous round held only up to 1023, so the segment cannot come earlier, and the round after starts at 2048.",
+          "tex": "2^{10}-1=1023<2000\\le 2^{11}-1=2047"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, Question 34 (paper Q.44)",
+          "url": "https://gateoverflow.in/523046/gate-cse-2026-set-1-question-34"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Segment 2000 does not leave at a single instant. Which round of sending does it belong to, and when does that round begin?"
+        },
+        {
+          "kind": "concept",
+          "text": "In slow start one round trip sends a batch, and each batch is twice as large as the one before while the window is below the threshold."
+        },
+        {
+          "kind": "principle",
+          "text": "Segments sent up to the end of round $n$ form a geometric sum, and the start time of a round is the number of earlier round trips times the RTT."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the first round $n$ whose cumulative total reaches 2000, then compute the time at which that round starts, and check the threshold is not hit first."
+        },
+        {
+          "kind": "partial",
+          "text": "Cumulative totals are 1, 3, 7, 15, and so on, each one less than a power of 2. Compare 2000 against the powers near it."
+        }
+      ],
+      "variation": {
+        "stem": "A TCP sender starts a connection with a slow start threshold of 10000 segments and a fixed round trip time of 1 ms. It always has data, there is no loss, and segments are numbered from 1. Let $t$ be the time in ms at which transmission of segment number 3000 starts. Which option is correct?",
+        "options": [
+          "$10 \\le t < 11$",
+          "$11 \\le t < 12$",
+          "$12 \\le t < 13$",
+          "$13 \\le t < 14$"
+        ],
+        "answer": 1,
+        "explanation": "After $n$ rounds the sender has sent $2^n-1$ segments. $2^{11}-1=2047<3000\\le 2^{12}-1=4095$, so segment 3000 is in round 12, which starts at 11 ms. The largest window used is 2048, below the threshold."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s2-q16",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cn-transport-layer.tcp-header",
+      "difficulty": "easy",
+      "stem": "Consider the following statements:\n\n(i) Address Resolution Protocol (ARP) provides a mapping from an IP address to the corresponding hardware (link-layer) address.\n(ii) A single TCP segment from a sender S to a receiver R cannot carry both data from S to R and acknowledgement for a segment from R to S.\n\nWhich ONE of the following is CORRECT?",
+      "options": [
+        "Both (i) and (ii) are TRUE",
+        "(i) is TRUE and (ii) is FALSE",
+        "(i) is FALSE and (ii) is TRUE",
+        "Both (i) and (ii) are FALSE"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "ARP (Address Resolution Protocol) finds the link-layer (MAC) address for a known IP address on the same network. A TCP segment has a header with an ACK flag and an acknowledgement-number field, followed by an optional data part. The rule for (ii): the header's acknowledgement field and the data part are independent, so one segment may carry data forward and an acknowledgement backward. This is called piggybacking."
+          },
+          {
+            "title": "Judge each statement",
+            "body": "(i) is true: ARP maps IP to MAC. (ii) is false: a segment from S with data and the ACK flag set acknowledges R's earlier segment while carrying new data. Every segment after the handshake normally has ACK set."
+          },
+          {
+            "title": "Answer",
+            "body": "(i) true and (ii) false is option B."
+          }
+        ],
+        "shortcut": {
+          "body": "Statement (ii) uses 'cannot': one counterexample (piggybacking) kills it. ARP is IP to MAC, standard. Under 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Accepting (ii) because acknowledgements feel like separate segments; the ACK flag rides on data segments in a two-way transfer."
+          },
+          {
+            "option": 2,
+            "text": "Reversing ARP's direction (MAC to IP is RARP) and also accepting (ii)."
+          },
+          {
+            "option": 3,
+            "text": "Reading ARP as mapping MAC to IP, which is RARP, and then marking (i) false."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.tcp-header",
+          "clues": "Statement (ii) asks what one TCP segment can carry, which is a question about the header fields (ACK flag, acknowledgement number) and the optional data part.",
+          "contrast": "ARP in statement (i) belongs to the link layer; do not mix it with TCP, which works only with port numbers and sequence numbers."
+        },
+        "check": {
+          "body": "Trace a request and reply: the server's response segment carries data and sets ACK to confirm the request, so a single segment with both exists in every ordinary exchange. That is a direct counterexample to a statement using \"cannot\"."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 2, Question 6 (paper Q.16)",
+          "url": "https://gateoverflow.in/460829/gate-cse-2025-set-2-question-6"
+        },
+        {
+          "label": "GATE 2025 CS-2 answer key, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Statement (ii) says a segment can never do two jobs at once. What would one counterexample need to show?"
+        },
+        {
+          "kind": "concept",
+          "text": "The TCP header has its own acknowledgement field and ACK flag, separate from the data part that follows it."
+        },
+        {
+          "kind": "principle",
+          "text": "Ask whether an ordinary two-way exchange, such as a request and its reply, ever puts both kinds of content into a single segment."
+        },
+        {
+          "kind": "setup",
+          "text": "Judge (i) and (ii) separately: decide what ARP resolves from what to what, then decide whether (ii) can ever fail, and match the pair to an option."
+        }
+      ],
+      "variation": {
+        "stem": "Consider two statements. (i) The Address Resolution Protocol maps a hardware address to the corresponding IP address. (ii) A single TCP segment from a host S to a host R can carry data from S to R and also acknowledge a segment sent earlier by R. Which ONE of the following is CORRECT?",
+        "options": [
+          "Both (i) and (ii) are TRUE",
+          "(i) is TRUE and (ii) is FALSE",
+          "(i) is FALSE and (ii) is TRUE",
+          "Both (i) and (ii) are FALSE"
+        ],
+        "answer": 2,
+        "explanation": "ARP goes from IP address to hardware address, so (i) is false. A TCP segment carries an ACK flag and acknowledgement number next to its data (piggybacking), so (ii) is true. That is option C."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q22",
+      "type": "msq",
+      "marks": 1,
+      "key": "B;D",
+      "topic": "cn-transport-layer.handshake",
+      "difficulty": "easy",
+      "stem": "Consider the 3-way handshaking protocol for TCP connection establishment. Let the three packets exchanged during the connection establishment be denoted as P1, P2, and P3, in order. Which of the following option(s) is/are TRUE with respect to TCP header flags that are set in the packets?",
+      "options": [
+        "P3: SYN = 1, ACK = 1",
+        "P2: SYN = 1, ACK = 1",
+        "P2: SYN = 0, ACK = 1",
+        "P1: SYN = 1"
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Three-way handshake: P1 SYN from client, P2 SYN+ACK from server, P3 ACK from client."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A TCP connection is opened by a three-way handshake. SYN is a flag bit that means 'I am announcing my starting sequence number'. ACK is a flag bit that means 'the acknowledgement-number field is valid and tells you the next byte I expect'. The rule that decides the question: the first segment (P1) from the client carries SYN only, because nothing has been received yet and so there is nothing to acknowledge. The second (P2) from the server carries SYN and ACK together, since the server announces its own starting number and acknowledges the client's SYN. The third (P3) from the client carries ACK only, because both starting numbers have already been announced. A SYN consumes one sequence number, so an acknowledgement of a SYN with number $x$ carries $x+1$."
+          },
+          {
+            "title": "Flags of each packet",
+            "body": "P1 (client to server): SYN = 1, ACK = 0. P2 (server to client): SYN = 1, ACK = 1. P3 (client to server): SYN = 0, ACK = 1.",
+            "tex": "\\text{P1: SYN}\\rightarrow \\text{P2: SYN+ACK} \\rightarrow \\text{P3: ACK}"
+          },
+          {
+            "title": "Check the options",
+            "body": "(A) P3 with SYN = 1, ACK = 1 is false: P3 carries no SYN. (B) P2 with SYN = 1, ACK = 1 is true. (C) P2 with SYN = 0, ACK = 1 is false: the server's own SYN is in P2. (D) P1 with SYN = 1 is true. The true options are B and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Memorise SYN, SYN+ACK, ACK. Only the second segment has both flags. 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Marking (A) true because 'the last segment acknowledges, so it also synchronises'; P3 only acknowledges the server's SYN."
+          },
+          {
+            "text": "Marking (C) true: a pure ACK is what the client sends third. The server's reply must also carry SYN, which is why there are three segments instead of four."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.handshake",
+          "clues": "The question names a 3-way handshake, packets in order P1 to P3, and asks about SYN and ACK flag values, which is the flag pattern of connection setup.",
+          "contrast": "Connection termination uses FIN, not SYN; if the options mentioned FIN the topic would be termination."
+        },
+        "check": {
+          "body": "Count the flags over all three packets: SYN must appear exactly twice (one per direction) and ACK in every packet except the first. Your assignment of flags to P1, P2 and P3 has to satisfy both counts, which each wrong option breaks."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1, Question 12 (paper Q.22)",
+          "url": "https://gateoverflow.in/460068/gate-cse-2025-set-1-question-12"
+        },
+        {
+          "label": "GATE 2025 CS-1 answer key, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Who speaks in each of the three packets, and what has that speaker already received at that moment?"
+        },
+        {
+          "kind": "concept",
+          "text": "SYN announces a starting sequence number, and ACK says that the acknowledgement-number field is valid."
+        },
+        {
+          "kind": "principle",
+          "text": "A flag is set only when its meaning applies: SYN once for each side, ACK as soon as there is something received to confirm."
+        },
+        {
+          "kind": "setup",
+          "text": "For P1, P2 and P3 in turn, ask whether the sender is announcing its own number and whether it has received anything yet."
+        }
+      ],
+      "variation": {
+        "stem": "In a TCP three-way handshake the client sends a SYN with sequence number 500, the server replies with a SYN+ACK with sequence number 2000, and the client sends the third segment. Which of the following statements is/are TRUE?",
+        "options": [
+          "The server's SYN+ACK has acknowledgement number 501.",
+          "The server's SYN+ACK has acknowledgement number 500.",
+          "The third segment has sequence number 501 and acknowledgement number 2001.",
+          "The third segment has acknowledgement number 2000."
+        ],
+        "answer": [
+          0,
+          2
+        ],
+        "explanation": "A SYN uses one sequence number, so the server acknowledges 500 with 501. The client then sends sequence number 501 and acknowledges the server's SYN (2000) with 2001. Options A and C are true."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q54",
+      "type": "nat",
+      "marks": 2,
+      "key": "4",
+      "topic": "cn-transport-layer.loss-reaction",
+      "difficulty": "medium",
+      "stem": "Consider a TCP connection operating at a point of time with the congestion window of size 12 MSS (Maximum Segment Size), when a timeout occurs due to packet loss. Assuming that all the segments transmitted in the next two RTTs (Round Trip Time) are acknowledged correctly, the congestion window size (in MSS) during the third RTT will be _________",
+      "answer": 4,
+      "solutionDiagram": {
+        "alt": "Bar chart of cwnd per RTT after the timeout: 1, 2, 4, with ssthresh 6 dashed."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "cwnd is the sender's window in MSS units. ssthresh is the slow-start threshold. A timeout means the network is badly congested, so TCP reacts in two steps: it sets ssthresh to half of the current cwnd, and it resets cwnd to 1 MSS and restarts slow start. In slow start cwnd doubles each RTT until it reaches ssthresh, then grows by 1 MSS per RTT."
+          },
+          {
+            "title": "Apply the timeout",
+            "body": "cwnd was 12, so ssthresh = $12/2=6$ MSS, and cwnd = 1 MSS.",
+            "tex": "\\text{ssthresh}=\\dfrac{12}{2}=6,\\quad \\text{cwnd}=1"
+          },
+          {
+            "title": "Follow the RTTs",
+            "body": "RTT 1 sends 1 MSS (acknowledged, so cwnd becomes 2). RTT 2 sends 2 MSS (cwnd becomes 4). RTT 3 therefore has cwnd = 4 MSS. 4 is below ssthresh 6, so it is still slow start.",
+            "tex": "1\\to2\\to4"
+          },
+          {
+            "title": "Answer",
+            "body": "The window during the third RTT is 4 MSS."
+          }
+        ],
+        "shortcut": {
+          "body": "Timeout: ssthresh = half, cwnd = 1. Then 1, 2, 4 for RTT 1, 2, 3. Check 4 is below ssthresh 6. 1 minute."
+        },
+        "traps": [
+          {
+            "text": "Answering 6 by setting cwnd to ssthresh after the timeout; that is fast recovery after three duplicate ACKs, not a timeout."
+          },
+          {
+            "text": "Answering 8 by counting the third doubling (1, 2, 4, 8): the window in the third RTT is 4, and 8 is the window of the fourth."
+          },
+          {
+            "text": "Answering 2 or 3 by counting one RTT too few, or by growing linearly from the start."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.loss-reaction",
+          "clues": "The window starts at 12 MSS, a timeout occurs, and the question asks for the window two RTTs later, which is a restart from cwnd = 1 with a halved threshold.",
+          "contrast": "Three duplicate ACKs (fast retransmit and recovery) halve the window without dropping to 1 MSS; a timeout, as here, drops to 1 MSS."
+        },
+        "check": {
+          "body": "Check that the window never passed the threshold: ssthresh is 6, and 4 is below it, so the doubling rule was valid for all three RTTs. A second route is the formula $2^{k-1}$ for RTT $k$, which gives $2^2=4$ at RTT 3.",
+          "tex": "2^{3-1}=4<6"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, Question 44 (paper Q.54)",
+          "url": "https://gateoverflow.in/422853/gate-cse-2024-set-2-question-44"
+        },
+        {
+          "label": "GATE 2024 CS2 answer key, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "A timeout changes two values at once. Which two, and what do they become?"
+        },
+        {
+          "kind": "concept",
+          "text": "On a timeout TCP treats the network as badly congested: it halves the threshold and restarts the window from the smallest size."
+        },
+        {
+          "kind": "principle",
+          "text": "After the restart, slow start doubles the window each round trip until it meets the threshold, then grows by one MSS per round."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the new threshold from the old window, then list the window for RTT 1, RTT 2 and RTT 3, checking each against the threshold."
+        },
+        {
+          "kind": "partial",
+          "text": "The threshold becomes 6 MSS and the window restarts at 1, so RTT 1 sends 1 MSS. Apply the doubling rule once more for RTT 2, then RTT 3."
+        }
+      ],
+      "variation": {
+        "stem": "A TCP connection has a congestion window of 24 MSS when a timeout occurs. All segments sent in the following three RTTs are acknowledged correctly. What is the congestion window size, in MSS, during the fourth RTT? (answer in integer)",
+        "answer": 8,
+        "explanation": "On the timeout ssthresh becomes $24/2=12$ MSS and cwnd restarts at 1. The windows in RTT 1 to 4 are 1, 2, 4, 8 MSS. The value 8 is below ssthresh 12, so it is still slow start."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q29",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;D",
+      "topic": "cn-transport-layer.handshake",
+      "difficulty": "easy",
+      "stem": "TCP client P successfully establishes a connection to TCP server Q. Let $N_P$ denote the sequence number in the SYN sent from P to Q. Let $N_Q$ denote the acknowledgement number in the SYN ACK from Q to P. Which of the following statements is/are CORRECT?",
+      "options": [
+        "The sequence number $N_P$ is chosen randomly by P",
+        "The sequence number $N_P$ is always 0 for a new connection",
+        "The acknowledgement number $N_Q$ is equal to $N_P$",
+        "The acknowledgement number $N_Q$ is equal to $N_P+1$"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "solutionDiagram": {
+        "alt": "Handshake with sequence numbers: SYN seq N_P, SYN+ACK seq S_Q and ack N_Q = N_P+1, ACK ack S_Q+1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A sequence number names a byte position in the stream. Before data flows, each side picks an initial sequence number (ISN), and the SYN segment announces it. A SYN occupies one sequence number, so the acknowledgement of a SYN with number $N$ is $N+1$ (the next number expected). ISNs are chosen unpredictably so that old stray segments and spoofing do not corrupt a new connection."
+          },
+          {
+            "title": "Apply to the two numbers",
+            "body": "P's ISN $N_P$ is chosen randomly (not fixed at 0). Q's SYN+ACK acknowledges P's SYN, so $N_Q=N_P+1$.",
+            "tex": "N_Q=N_P+1"
+          },
+          {
+            "title": "Check options",
+            "body": "(A) true: random ISN. (B) false: not always 0. (C) false: $N_Q=N_P$ would claim the SYN was not received. (D) true: $N_Q=N_P+1$. The correct options are A and D."
+          }
+        ],
+        "shortcut": {
+          "body": "Remember: SYN costs one number and the ISN is random. A and D. 30 seconds."
+        },
+        "traps": [
+          {
+            "text": "Choosing B because textbook diagrams show 'seq = 0' for simplicity; real ISNs are random."
+          },
+          {
+            "text": "Choosing C by treating the acknowledgement as the last byte received; the ACK names the next byte expected, and SYN counts as one byte."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.handshake",
+          "clues": "The question compares the sequence number of a SYN with the acknowledgement number of the SYN ACK, which is how the handshake exchanges initial sequence numbers.",
+          "contrast": "Sequence and acknowledgment numbers during data transfer (seq-ack topic) advance by the number of bytes; a SYN advances them by exactly one although it carries no data."
+        },
+        "check": {
+          "body": "Substitute numbers: if $N_P=1000$ then the server expects byte 1001 next, so it acknowledges 1001. Acknowledging 1000 would tell the client that its SYN had not arrived, which contradicts a successful connection."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, Question 19 (paper Q.29)",
+          "url": "https://gateoverflow.in/422823/gate-cse-2024-set-1-question-19"
+        },
+        {
+          "label": "GATE 2024 CS1 answer key, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Is the first sequence number of a connection fixed in advance, or chosen by each side? What does the server do with it in its reply?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each side picks an initial sequence number and announces it in its SYN; a SYN counts as one position in the number space."
+        },
+        {
+          "kind": "principle",
+          "text": "An acknowledgement number names the next sequence number the receiver expects."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the client SYN as sequence number $N_P$, then decide what the server's acknowledgement number must be, and compare it with each option."
+        }
+      ],
+      "variation": {
+        "stem": "TCP client P connects to server Q. P sends a SYN with sequence number $N_P$ and Q replies with a SYN ACK with sequence number $M$. P then sends a third segment with sequence number $S$ and acknowledgement number $A$. Which of the following is/are CORRECT?",
+        "options": [
+          "$A = M$",
+          "$A = M+1$",
+          "$S = N_P$",
+          "$S = N_P+1$"
+        ],
+        "answer": [
+          1,
+          3
+        ],
+        "explanation": "Q's SYN uses sequence number $M$, so P acknowledges the next number expected, $M+1$. P's own SYN used $N_P$, so the next byte position P sends is $N_P+1$. Options B and D are correct."
+      }
+    },
+    {
+      "id": "gate-cse-2023-q50",
+      "type": "msq",
+      "marks": 2,
+      "key": "B;C;D",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "difficulty": "hard",
+      "stem": "Suppose you are asked to design a new reliable byte-stream transport protocol like TCP. This protocol, named myTCP, runs over a 100 Mbps network with Round Trip Time of 150 milliseconds and the maximum segment lifetime of 2 minutes.\n\nWhich of the following is/are valid lengths of the Sequence Number field in the myTCP header?",
+      "options": [
+        "30 bits",
+        "32 bits",
+        "34 bits",
+        "36 bits"
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A byte-stream protocol numbers every byte. The sequence number field has $n$ bits, so numbers repeat after $2^n$ bytes (wraparound). The maximum segment lifetime (MSL) is the longest time a segment can survive in the network. To keep a stale duplicate from being mistaken for new data, the number space must not wrap within one MSL: $2^n$ must be at least the bytes sendable in one MSL."
+          },
+          {
+            "title": "Bytes sent in one MSL",
+            "body": "At 100 Mbps the sender sends $100\\times10^6/8=12.5\\times10^6$ bytes per second. In MSL = 120 s: $12.5\\times10^6\\times120=1.5\\times10^9$ bytes. The RTT does not matter for this condition.",
+            "tex": "B=\\dfrac{100\\times10^6}{8}\\times120=1.5\\times10^{9}"
+          },
+          {
+            "title": "Smallest n",
+            "body": "$\\log_2(1.5\\times10^9)\\approx30.48$, so $n\\ge31$. Valid lengths are all those at least 31: 32, 34, 36. 30 bits gives $2^{30}\\approx1.07\\times10^9<1.5\\times10^9$, so it wraps within an MSL and is invalid.",
+            "tex": "2^n\\ge1.5\\times10^9\\Rightarrow n\\ge31"
+          },
+          {
+            "title": "Answer",
+            "body": "Options B, C and D (32, 34, 36 bits) are valid."
+          }
+        ],
+        "shortcut": {
+          "body": "Compute bytes per MSL (bits/s divided by 8, times MSL seconds), then take $\\log_2$ and round up. Everything at or above is valid. 2 minutes."
+        },
+        "traps": [
+          {
+            "text": "Using bits instead of bytes: 100 Mbps times 120 s is $1.2\\times10^{10}$, giving 34 bits and wrongly rejecting 32 (sequence numbers count bytes)."
+          },
+          {
+            "text": "Using the RTT of 150 ms (or window size) in the bound; only the MSL decides wraparound."
+          },
+          {
+            "text": "Marking only the smallest length valid; the condition is a lower bound, so every larger field also satisfies it."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.seq-wraparound",
+          "clues": "A byte-stream protocol with a given link rate, an RTT and a maximum segment lifetime, asking which sequence number field lengths are valid, is the wraparound condition.",
+          "contrast": "The RTT is a distractor here: it matters for the window-size limit in throughput questions, not for avoiding reuse of a number within one segment lifetime."
+        },
+        "check": {
+          "body": "Test the boundary lengths directly: $2^{30}\\approx1.07\\times10^9$ is less than $1.5\\times10^9$, so 30 bits fails, while $2^{32}\\approx4.29\\times10^9$ exceeds it. The condition is monotone, so every longer field also works.",
+          "tex": "2^{30}<1.5\\times10^{9}<2^{32}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2023, Question 40 (paper Q.50)",
+          "url": "https://gateoverflow.in/399271/gate-cse-2023-question-40"
+        },
+        {
+          "label": "GATE 2023 CS answer key, IIT Kanpur",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2023/cs_2023.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What goes wrong if two different bytes can carry the same sequence number while a stale copy is still travelling in the network?"
+        },
+        {
+          "kind": "concept",
+          "text": "The sequence field wraps after $2^n$ numbers, and a segment may live in the network for up to the maximum segment lifetime."
+        },
+        {
+          "kind": "principle",
+          "text": "No number may be reused within one lifetime, so the number space must cover at least all the bytes the sender can put out in that time."
+        },
+        {
+          "kind": "setup",
+          "text": "List the quantities you need: the link rate, the segment lifetime and the candidate field sizes. Decide which of the given values the condition actually uses."
+        },
+        {
+          "kind": "partial",
+          "text": "Start by converting the link rate: 100 Mbps is $12.5\\times10^6$ bytes per second."
+        }
+      ],
+      "variation": {
+        "stem": "A new byte-stream protocol runs over an 800 Mbps link with a round trip time of 40 ms and a maximum segment lifetime of 90 seconds. Which of the following is/are valid lengths of the sequence number field?",
+        "options": [
+          "32 bits",
+          "33 bits",
+          "34 bits",
+          "40 bits"
+        ],
+        "answer": [
+          2,
+          3
+        ],
+        "explanation": "The link sends $800\\times10^6/8=100\\times10^6$ bytes per second, so in 90 s it sends $9\\times10^9$ bytes. Since $2^{33}\\approx8.59\\times10^9<9\\times10^9\\le2^{34}$, the field needs at least 34 bits. So 34 and 40 are valid; 32 and 33 wrap within one lifetime."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q60",
+      "type": "nat",
+      "marks": 2,
+      "key": "33",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "difficulty": "medium",
+      "stem": "Consider the data transfer using TCP over a 1 Gbps link. Assuming that the maximum segment lifetime (MSL) is set to 60 seconds, the minimum number of bits required for the sequence number field of the TCP header, to prevent the sequence number space from wrapping around during the MSL is____________.",
+      "answer": 33,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "TCP numbers every byte. With an $n$-bit sequence field, the numbers repeat after $2^n$ bytes. MSL is the longest a segment can live in the network. To avoid an old segment being confused with a new one, the sender must not use up all $2^n$ numbers inside one MSL: $2^n\\ge$ bytes sent in one MSL."
+          },
+          {
+            "title": "Bytes in one MSL",
+            "body": "1 Gbps is $10^9/8=1.25\\times10^8$ bytes per second. In 60 s: $7.5\\times10^9$ bytes.",
+            "tex": "1.25\\times10^8\\times60=7.5\\times10^9"
+          },
+          {
+            "title": "Bits needed",
+            "body": "$2^{32}=4.29\\times10^9<7.5\\times10^9\\le2^{33}=8.59\\times10^9$, so $n=33$ ($\\log_2 7.5\\times10^9=32.8$, rounded up).",
+            "tex": "n=\\lceil\\log_2(7.5\\times10^9)\\rceil=33"
+          }
+        ],
+        "shortcut": {
+          "body": "Link rate in bytes per second times MSL, then $\\log_2$ rounded up; remember $2^{30}\\approx10^9$, so $7.5\\times10^9\\approx2^{32.9}$. 1.5 minutes."
+        },
+        "traps": [
+          {
+            "text": "Forgetting the divide by 8 (using bits): $6\\times10^{10}$ gives 36 bits."
+          },
+          {
+            "text": "Rounding $\\log_2$ down to 32; 32 bits wrap in 34 seconds, inside the 60 s lifetime."
+          },
+          {
+            "text": "Using 2 MSL (120 s), which gives 34 bits."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.seq-wraparound",
+          "clues": "The question gives a link rate, a maximum segment lifetime and asks for the minimum number of sequence-number bits that avoid wrap-around, so bytes sent per lifetime must fit in the sequence space.",
+          "contrast": "Flow control and the receiver window limit how much is in flight, but they do not size the field; here only the link rate and the lifetime decide the bit count."
+        },
+        "check": {
+          "body": "Test the neighbouring widths. With 32 bits the space of $2^{32}$ bytes is used up at 1 Gbps in about 34 s, shorter than 60 s, so it wraps inside the lifetime. With 33 bits the space lasts about 69 s, longer than 60 s, so it does not.",
+          "tex": "\\dfrac{2^{32}\\cdot8}{10^9}\\approx34\\text{ s}<60\\text{ s}<\\dfrac{2^{33}\\cdot8}{10^9}\\approx69\\text{ s}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, Question 50 (paper Q.60)",
+          "url": "https://gateoverflow.in/371886/gate-cse-2022-question-50"
+        },
+        {
+          "label": "GATE 2022 CS answer key, IIT Kharagpur",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2022/cs_2022.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What must be true about the sequence numbers a sender uses during one maximum segment lifetime, so that an old copy cannot be mistaken for a new one?"
+        },
+        {
+          "kind": "concept",
+          "text": "TCP gives a number to every byte it sends, so the numbers are consumed at the speed of the link, counted in bytes per second."
+        },
+        {
+          "kind": "principle",
+          "text": "The sequence space of $n$ bits holds $2^n$ numbers, and it must be at least as large as the number of bytes that can be sent within one lifetime of a segment."
+        },
+        {
+          "kind": "setup",
+          "text": "Change the link rate from bits to bytes per second, multiply by the lifetime in seconds, then ask for the smallest $n$ with $2^n$ not below that count."
+        },
+        {
+          "kind": "partial",
+          "text": "One gigabit per second is $10^9/8$ bytes per second; multiply that by the lifetime to get the byte count you must fit under $2^n$."
+        }
+      ],
+      "variation": {
+        "stem": "Consider a TCP connection over a 2 Gbps link. The maximum segment lifetime is 120 seconds. What is the minimum number of bits needed in the sequence number field so that the sequence number space does not wrap around within one lifetime? (answer in integer)",
+        "answer": 35,
+        "explanation": "The link carries $2\\times10^9/8=2.5\\times10^8$ bytes per second, so in 120 s it carries $3\\times10^{10}$ bytes. Since $2^{34}=1.72\\times10^{10}$ is too small and $2^{35}=3.44\\times10^{10}$ is enough, the field needs 35 bits."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s2-q7",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cn-transport-layer.handshake",
+      "difficulty": "easy",
+      "stem": "Consider the three-way handshake mechanism followed during TCP connection establishment between hosts P and Q. Let X and Y be two random 32-bit starting sequence numbers chosen by P and Q respectively. Suppose P sends a TCP connection request message to Q with a TCP segment having SYN bit = 1, SEQ number = X, and ACK bit = 0. Suppose Q accepts the connection request. Which one of the following choices represents the information present in the TCP segment header that is sent by Q to P?",
+      "options": [
+        "SYN bit = 1, SEQ number = X+1, ACK bit = 0, ACK number = Y, FIN bit = 0",
+        "SYN bit = 0, SEQ number = X+1, ACK bit = 0, ACK number = Y, FIN bit = 1",
+        "SYN bit = 1, SEQ number = Y, ACK bit = 1, ACK number = X+1, FIN bit = 0",
+        "SYN bit = 1, SEQ number = Y, ACK bit = 1, ACK number = X, FIN bit = 0"
+      ],
+      "answer": 2,
+      "solutionDiagram": {
+        "alt": "Handshake between P and Q: SYN seq X, then SYN+ACK seq Y ack X+1, then ACK ack Y+1."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A TCP connection is opened by a three-way handshake. SYN is a flag bit that means 'I am announcing my starting sequence number'. ACK is a flag bit that means 'the acknowledgement-number field is valid and tells you the next byte I expect'. The rule that decides the question: the first segment (P1) from the client carries SYN only, because nothing has been received yet and so there is nothing to acknowledge. The second (P2) from the server carries SYN and ACK together, since the server announces its own starting number and acknowledges the client's SYN. The third (P3) from the client carries ACK only, because both starting numbers have already been announced. A SYN consumes one sequence number, so an acknowledgement of a SYN with number $x$ carries $x+1$."
+          },
+          {
+            "title": "Fill Q's reply",
+            "body": "Q's segment is P2. It announces Q's own number, so SYN = 1 and SEQ = Y. It acknowledges P's SYN, so ACK = 1 and the acknowledgement number is $X+1$. It is not closing, so FIN = 0.",
+            "tex": "\\text{SYN}=1,\\ \\text{SEQ}=Y,\\ \\text{ACK}=1,\\ \\text{ack}=X+1,\\ \\text{FIN}=0"
+          },
+          {
+            "title": "Answer",
+            "body": "Q replies with SYN, ACK, its own number Y and acknowledgement X+1, which is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Reply = SYN+ACK, seq = own number, ack = peer's number plus 1. Pick the option with SYN=1, ACK=1, ack=X+1. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Putting Q's seq as X+1 and ACK bit 0; the reply must acknowledge, and seq is Q's own Y."
+          },
+          {
+            "option": 1,
+            "text": "Setting FIN = 1 and SYN = 0; a FIN belongs to connection teardown."
+          },
+          {
+            "option": 3,
+            "text": "Writing ack = X; a SYN consumes one number, so the acknowledgement is X + 1."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.handshake",
+          "clues": "The question names SYN, SEQ, ACK and starting numbers X and Y and asks for the header of the second segment of connection set-up, which is the three-way handshake.",
+          "contrast": "Teardown also uses flags, but it uses FIN; here FIN is not involved because the connection is being opened, not closed."
+        },
+        "check": {
+          "body": "Run the whole exchange: P sends SYN with $X$, Q answers SYN+ACK with $Y$ and ack $X+1$, P sends ACK with ack $Y+1$. Each side has announced its number and had it acknowledged, which is only possible if the reply carries both SYN and ACK."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 2, Question 7",
+          "url": "https://gateoverflow.in/357533/gate-cse-2021-set-2-question-7"
+        },
+        {
+          "label": "GATE 2021 CS answer key, IIT Bombay",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "In the second message of a handshake, what does the replying host have to announce, and what does it have to confirm about the first message?"
+        },
+        {
+          "kind": "concept",
+          "text": "The SYN flag announces a starting sequence number, and the ACK flag says the acknowledgement-number field is valid."
+        },
+        {
+          "kind": "principle",
+          "text": "A SYN uses up one sequence number, so confirming a SYN that carried number $x$ means giving the next number expected, one more than $x$."
+        },
+        {
+          "kind": "setup",
+          "text": "For the reply, decide the SYN flag, the ACK flag and the FIN flag, then the sequence number it carries and the acknowledgement number it carries, and compare with each option."
+        }
+      ],
+      "variation": {
+        "stem": "Hosts A and B set up a TCP connection by the three-way handshake. A picks starting sequence number $a$ and B picks $b$. After A sends SYN with SEQ = $a$ and B replies, A sends the third segment of the handshake carrying no data. Which choice gives the header of that third segment?",
+        "options": [
+          "SYN = 1, ACK = 1, SEQ = $b$, ACK number = $a+1$",
+          "SYN = 0, ACK = 1, SEQ = $a+1$, ACK number = $b+1$",
+          "SYN = 0, ACK = 1, SEQ = $a$, ACK number = $b$",
+          "SYN = 1, ACK = 0, SEQ = $a+1$, ACK number = $b+1$"
+        ],
+        "answer": 1,
+        "explanation": "Both starting numbers are already announced, so the third segment needs only ACK, with SYN = 0. Its sequence number is $a+1$ because the SYN used one number, and it acknowledges B's SYN by carrying $b+1$."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q44",
+      "type": "msq",
+      "marks": 2,
+      "key": "A;B;C",
+      "topic": "cn-transport-layer.termination",
+      "difficulty": "hard",
+      "stem": "A TCP server application is programmed to listen on port number P on host S. A TCP client is connected to the TCP server over the network.\n\nConsider that while the TCP connection was active, the server machine S crashed and rebooted. Assume that the client does not use the TCP keepalive timer. Which of the following behaviors is/are possible?",
+      "options": [
+        "If the client was waiting to receive a packet, it may wait indefinitely",
+        "The TCP server application on S can listen on P after reboot",
+        "If the client sends a packet after the server reboot, it will receive a RST segment",
+        "If the client sends a packet after the server reboot, it will receive a FIN segment"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "TCP connection state (sequence numbers, window, buffers) lives only in the memory of each end. A reboot erases the server's state, but the client still believes the connection exists. A RST (reset) segment is the reply a host sends to a segment that matches no connection it knows. A keepalive is a periodic probe; without it an idle client sends nothing. The rule: ask what each end remembers and what it does when a segment arrives for an unknown connection."
+          },
+          {
+            "title": "Test the four behaviours",
+            "body": "(1) A client only waiting to receive sends nothing, so it never learns of the crash and may wait forever: possible. (2) The reboot frees port P; the server application, once started again, can listen on P: possible. (3) A segment the client sends after the reboot matches no connection, so the rebooted server answers with RST: possible. (4) A FIN is sent only to close a connection that exists, and the server has none, so FIN does not occur."
+          },
+          {
+            "title": "Answer",
+            "body": "Behaviours 1, 2 and 3 are possible: options A, B, C."
+          }
+        ],
+        "shortcut": {
+          "body": "Think 'server forgot everything': it can only reset (RST), never FIN; waiting client hangs; the port is free again. 1.5 minutes."
+        },
+        "traps": [
+          {
+            "option": 3,
+            "text": "Choosing D by assuming the server sends FIN to tell the client; a rebooted server has no connection to close and replies with RST."
+          },
+          {
+            "text": "Rejecting B because the old connection might still hold the port; after a reboot nothing holds it, so a fresh listen succeeds."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.termination",
+          "clues": "A host crashes and reboots while a connection is open and the client has no keepalive, so the question is about what each end believes and how a connection with lost state is cleared.",
+          "contrast": "A normal close exchanges FIN segments between two hosts that both still have state; a crash leaves one side with none, and it answers with a reset instead."
+        },
+        "check": {
+          "body": "Check each accepted behaviour by asking who would have to send what. A waiting client sends nothing, so it can hang. A client segment reaches a host with no matching connection, which triggers the reset reply. A FIN would require the rebooted host to start closing a connection it does not have."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, Question 44",
+          "url": "https://gateoverflow.in/357407/gate-cse-2021-set-1-question-44"
+        },
+        {
+          "label": "GATE 2021 CS answer key, IIT Bombay",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2021/cs_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "After a reboot, which end still holds the connection state, and which end has lost it?"
+        },
+        {
+          "kind": "concept",
+          "text": "Connection state lives only in the memory of each end, not in the network between them."
+        },
+        {
+          "kind": "principle",
+          "text": "Without a keepalive probe, an end that only waits for data sends nothing, so it has no way to detect that the other end is gone."
+        },
+        {
+          "kind": "setup",
+          "text": "Take the four statements one at a time and ask for each whether some sequence of events after the reboot can make it happen, since the question asks what is possible."
+        }
+      ],
+      "variation": {
+        "stem": "A TCP client C is connected to a TCP server over the network. While the connection was active, the client machine C crashed and rebooted. Assume the server does not use the TCP keepalive timer. Which of the following behaviors is/are possible?",
+        "options": [
+          "If the server was waiting to receive data, it may wait indefinitely",
+          "If the server sends data after the client reboot, it will receive a RST segment",
+          "If the server sends data after the client reboot, it will receive a FIN segment from the client",
+          "The rebooted client machine automatically resumes the old connection with the same sequence numbers"
+        ],
+        "answer": [
+          0,
+          1
+        ],
+        "explanation": "A server that only waits sends nothing, so without keepalive it cannot notice the crash and may wait forever. Data sent to the rebooted client matches no connection there, so the client replies with RST. A FIN needs an existing connection, and the connection state is lost on reboot, so options 3 and 4 do not occur."
+      }
+    },
+    {
+      "id": "gate-cse-2020-q55",
+      "type": "nat",
+      "marks": 2,
+      "key": "44",
+      "topic": "cn-transport-layer.slow-start-ca",
+      "difficulty": "medium",
+      "stem": "Consider a TCP connection between a client and a server with the following specifications; the round trip time is 6 ms, the size of the receiver advertised window is 50 KB, slow-start threshold at the client is 32 KB, and the maximum segment size is 2 KB. The connection is established at time $t=0$. Assume that there are no timeouts and errors during transmission. Then the size of the congestion window (in KB) at time $t+60$ ms after all acknowledgements are processed is _______",
+      "answer": 44,
+      "solutionDiagram": {
+        "alt": "Bar chart of cwnd in KB after 0 to 10 RTTs: 2, 4, 8, 16, 32, 34, 36, 38, 40, 42, 44, with ssthresh 32 KB dashed."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "The congestion window (cwnd) limits unacknowledged data. In slow start it doubles each round trip (RTT); once cwnd reaches the slow-start threshold, congestion avoidance adds one MSS per RTT. The sender is also limited by the receiver's advertised window, so the effective window is the smaller of the two. The connection starts with cwnd = 1 MSS = 2 KB."
+          },
+          {
+            "title": "Count rounds",
+            "body": "60 ms / 6 ms = 10 RTTs have elapsed at $t+60$, so apply 10 window updates (one per RTT of acknowledgements)."
+          },
+          {
+            "title": "Slow start",
+            "body": "cwnd after each RTT: 2 (start), 4, 8, 16, 32. That is 4 doublings, reaching the threshold of 32 KB after 4 RTTs.",
+            "tex": "2\\to4\\to8\\to16\\to32"
+          },
+          {
+            "title": "Congestion avoidance",
+            "body": "Six RTTs are left (10 minus 4), adding 2 KB each: 34, 36, 38, 40, 42, 44. The result of 44 KB is below the advertised window of 50 KB, so the receiver is not the limit.",
+            "tex": "32+6\\times2=44"
+          },
+          {
+            "title": "Answer",
+            "body": "The window is 44 KB, matching the official key."
+          }
+        ],
+        "shortcut": {
+          "body": "Ten RTTs: four doublings to 32 KB, then six steps of 2 KB, 32 + 12 = 44. Check against 50 KB. 1.5 minutes."
+        },
+        "traps": [
+          {
+            "text": "Answering 42: counting only 9 window updates, so ending a round early."
+          },
+          {
+            "text": "Answering 50 by letting the window jump to the receiver window; the window grows only 2 KB per RTT after the threshold."
+          },
+          {
+            "text": "Answering 46: counting 11 window updates instead of 10 (4 doublings, then 7 steps of 2 KB, $32+7\\times2=46$), for example by counting the initial 2 KB window as the result of an update."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.slow-start-ca",
+          "clues": "A round trip time, a slow-start threshold, an MSS, an advertised window and a total elapsed time with no losses point to counting slow-start doublings and then linear growth.",
+          "contrast": "Loss reaction (timeout or triple duplicate ACK) halves the threshold and restarts the window; the question says there are no timeouts or errors, so that does not apply."
+        },
+        "check": {
+          "body": "Second route by time: the window reaches 32 KB after 4 round trips, which is 24 ms. The remaining 36 ms is 6 round trips of 2 KB each, so the window is $2\\cdot2^4+2\\cdot6=44$ KB, under the 50 KB advertised window.",
+          "tex": "2\\cdot2^4+2\\,(10-4)=32+12=44"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2020, Question 55",
+          "url": "https://gateoverflow.in/333176/gate-cse-2020-question-55"
+        },
+        {
+          "label": "GATE 2020 CS answer key, IIT Delhi",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2020/cs_2020.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "How many round trips fit in the given time, and what does the window do in each one?"
+        },
+        {
+          "kind": "concept",
+          "text": "A new connection starts with a one-segment window, which doubles each round trip until it reaches the slow-start threshold."
+        },
+        {
+          "kind": "principle",
+          "text": "Past the threshold the window grows by one segment per round trip, and it can never exceed the receiver advertised window."
+        },
+        {
+          "kind": "setup",
+          "text": "Divide the elapsed time by the round trip time to get the number of window updates, then split them into doubling rounds up to the threshold and linear rounds after it."
+        },
+        {
+          "kind": "partial",
+          "text": "Starting from the one-segment window, the doublings go 2, 4, 8 and so on in KB; count how many are needed to reach the threshold before the linear rounds begin."
+        }
+      ],
+      "variation": {
+        "stem": "A TCP connection has a round trip time of 8 ms, a receiver advertised window of 40 KB, a slow-start threshold of 16 KB and a maximum segment size of 2 KB. The connection is established at time $t=0$ with a congestion window of 1 MSS. Assume no timeouts and no errors. What is the congestion window size (in KB) at time $t+72$ ms after all acknowledgements are processed? (answer in integer)",
+        "answer": 28,
+        "explanation": "72 ms is 9 round trips. Slow start gives 2, 4, 8, 16 KB in 3 round trips, which reaches the threshold of 16 KB. The remaining 6 round trips add 2 KB each, giving $16+12=28$ KB, below the 40 KB advertised window."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q13",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cn-transport-layer.tcp-header",
+      "difficulty": "easy",
+      "stem": "Match the following:\n\nField / Length in bits\nP. UDP Header's Port Number / I. 48\nQ. Ethernet MAC Address / II. 8\nR. IPv6 Next Header / III. 32\nS. TCP Header's Sequence Number / IV. 16",
+      "options": [
+        "P-III, Q-IV, R-II, S-I",
+        "P-II, Q-I, R-IV, S-III",
+        "P-IV, Q-I, R-II, S-III",
+        "P-IV, Q-I, R-III, S-II"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "Each protocol field has a fixed width. The rule is to recall the width of each: ports are 16-bit fields (so ports run 0 to 65535), a MAC address is 6 bytes, the IPv6 Next Header names the next protocol in a single byte, and a TCP sequence number numbers bytes in a 32-bit field."
+          },
+          {
+            "title": "Match",
+            "body": "P: UDP port number, 16 bits, IV. Q: Ethernet MAC address, $6\\times8=48$ bits, I. R: IPv6 Next Header, 8 bits, II. S: TCP sequence number, 32 bits, III.",
+            "tex": "P\\!-\\!16,\\ Q\\!-\\!48,\\ R\\!-\\!8,\\ S\\!-\\!32"
+          },
+          {
+            "title": "Answer",
+            "body": "P-IV, Q-I, R-II, S-III is option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Only two facts are needed to cut to one option: ports are 16 bits (P-IV) and MAC is 48 bits (Q-I), which leaves C. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Giving the port 32 bits, the MAC address 16 and the sequence number 48, as if the 16, 32 and 48 labels were dealt out in the wrong order; only R (Next Header, 8 bits) is right."
+          },
+          {
+            "option": 1,
+            "text": "Giving the port 8 bits and the Next Header 16; ports use 16 bits and the Next Header is one byte. Q and S are right."
+          },
+          {
+            "option": 3,
+            "text": "Matching the Next Header to 32 bits and the sequence number to 8; the Next Header is a one-byte code like the IPv4 protocol field."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.tcp-header",
+          "clues": "The question asks for the bit widths of header fields such as the UDP port, TCP sequence number and IPv6 Next Header, which is a recall of header layouts.",
+          "contrast": "Do not confuse the field width with the value range: an $n$-bit field holds $2^n$ values, so the width is the base-2 logarithm of the count, not the count itself."
+        },
+        "check": {
+          "body": "Recompute two widths from their definitions rather than from the list: a MAC address of 6 bytes is $6\\times8=48$ bits, and a 16-bit port gives $2^{16}=65536$ port values. Both agree with the matching, which also fixes the remaining two by elimination.",
+          "tex": "6\\times8=48,\\quad 2^{16}=65536"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, Question 13",
+          "url": "https://gateoverflow.in/204087/gate-cse-2018-question-13"
+        },
+        {
+          "label": "GATE 2018 CS answer key",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which of the four fields can you size with certainty, and what does that leave for the others?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each protocol field has a fixed width: addresses and numbers are sized so that the values they must hold fit."
+        },
+        {
+          "kind": "principle",
+          "text": "A field's width is set by how many distinct values it must be able to hold, and a byte is eight bits."
+        },
+        {
+          "kind": "setup",
+          "text": "Convert each width to bits, then match the list; a single sure pairing already removes most of the options."
+        }
+      ],
+      "variation": {
+        "stem": "Match the following:\n\nField / Length in bits\nP. UDP checksum / I. 4\nQ. TCP acknowledgement number / II. 16\nR. TCP data offset / III. 32\nS. IPv4 time to live / IV. 8",
+        "options": [
+          "P-II, Q-III, R-IV, S-I",
+          "P-II, Q-III, R-I, S-IV",
+          "P-III, Q-II, R-I, S-IV",
+          "P-I, Q-III, R-II, S-IV"
+        ],
+        "answer": 1,
+        "explanation": "The UDP checksum is 16 bits (II). The acknowledgement number is 32 bits like the sequence number (III). The TCP data offset counts 32-bit words in 4 bits (I). The IPv4 time to live is one byte, 8 bits (IV)."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q14",
+      "type": "mcq",
+      "marks": 1,
+      "key": "C",
+      "topic": "cn-transport-layer.slow-start-ca",
+      "difficulty": "easy",
+      "stem": "Consider the following statements regarding the slow start phase of the TCP congestion control algorithm. Note that cwnd stands for the TCP congestion window and MSS denotes the Maximum Segment Size.\n\n(i) The cwnd increases by 2 MSS on every successful acknowledgment.\n(ii) The cwnd approximately doubles on every successful acknowledgement.\n(iii) The cwnd increases by 1 MSS every round trip time.\n(iv) The cwnd approximately doubles every round trip time.\n\nWhich one of the following is correct?",
+      "options": [
+        "Only (ii) and (iii) are true",
+        "Only (i) and (iii) are true",
+        "Only (iv) is true",
+        "Only (i) and (iv) are true"
+      ],
+      "answer": 2,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "cwnd is the sender's window. An acknowledgement (ACK) confirms received data; a round trip time (RTT) is the time to send a window and get its ACKs back. In slow start, each ACK adds exactly 1 MSS to cwnd. A window of $w$ segments produces $w$ ACKs in one RTT, so cwnd grows by $w$ and doubles per RTT."
+          },
+          {
+            "title": "Check each statement",
+            "body": "(i) False: the increase per ACK is 1 MSS, not 2. (ii) False: a single ACK adds 1 MSS, it does not double the window. (iii) False: 1 MSS per RTT is congestion avoidance. (iv) True: $w$ ACKs each add 1 MSS, giving $2w$."
+          },
+          {
+            "title": "Answer",
+            "body": "Only (iv) is true: option C."
+          }
+        ],
+        "shortcut": {
+          "body": "Slow start is exponential in rounds, linear in ACKs. Only the statement about doubling per RTT survives. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Choosing A by mixing up per-ACK and per-RTT: (ii) is wrong because one ACK adds 1 MSS, and (iii) describes congestion avoidance."
+          },
+          {
+            "option": 1,
+            "text": "Choosing B: increasing 2 MSS per ACK is not slow start and 1 MSS per RTT is the later linear phase."
+          },
+          {
+            "option": 3,
+            "text": "Choosing D: it takes (i) as true; the per-ACK step is 1 MSS."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.slow-start-ca",
+          "clues": "The statements compare growth per acknowledgement with growth per round trip during slow start, which is the core rule of the slow start phase.",
+          "contrast": "Congestion avoidance adds about one MSS per round trip, which is the statement that looks like slow start but belongs to the later phase."
+        },
+        "check": {
+          "body": "Test with a window of 4 MSS: four acknowledgements arrive in one round trip, each adding 1 MSS, so the window becomes 8 MSS after one round trip. That fits doubling per round trip and does not fit a rise of 1 MSS per round trip.",
+          "tex": "4\\text{ ACKs}\\times1\\text{ MSS}=4\\text{ MSS},\\quad 4+4=8"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, Question 14",
+          "url": "https://gateoverflow.in/204088/gate-cse-2018-question-14"
+        },
+        {
+          "label": "GATE 2018 CS answer key",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "In slow start, what does one acknowledgement do to the window, and what does a whole round trip of acknowledgements do?"
+        },
+        {
+          "kind": "concept",
+          "text": "Slow start grows the window by a fixed amount per acknowledgement received."
+        },
+        {
+          "kind": "principle",
+          "text": "A window of $w$ segments produces about $w$ acknowledgements in one round trip, so a per-acknowledgement step turns into a per-round-trip growth of a different shape."
+        },
+        {
+          "kind": "setup",
+          "text": "Judge each statement separately: is it about a single acknowledgement or a whole round trip, and does it describe slow start or the later linear phase?"
+        }
+      ],
+      "variation": {
+        "stem": "Consider the following statements about the congestion avoidance phase of TCP congestion control, where cwnd is the congestion window and MSS the maximum segment size.\n\n(i) The cwnd increases by about 1 MSS every round trip time.\n(ii) The cwnd approximately doubles every round trip time.\n(iii) The cwnd increases by 1 MSS on every acknowledgement.\n(iv) The cwnd increases by about $\\text{MSS}^2/\\text{cwnd}$ on every acknowledgement.\n\nWhich one of the following is correct?",
+        "options": [
+          "Only (i) and (iv) are true",
+          "Only (ii) and (iii) are true",
+          "Only (i) and (iii) are true",
+          "Only (ii) and (iv) are true"
+        ],
+        "answer": 0,
+        "explanation": "In congestion avoidance each acknowledgement adds $\\text{MSS}^2/\\text{cwnd}$, and a window of cwnd/MSS segments gives that many acknowledgements per round trip, so the total gain is about 1 MSS per round trip. Doubling and 1 MSS per acknowledgement belong to slow start."
+      }
+    },
+    {
+      "id": "gate-cse-2018-q25",
+      "type": "nat",
+      "marks": 1,
+      "key": "34:35",
+      "topic": "cn-transport-layer.seq-wraparound",
+      "difficulty": "medium",
+      "stem": "Consider a long-lived TCP session with an end-to-end bandwidth of 1 Gbps (= $10^9$ bits-per-second). The session starts with a sequence number of 1234. The minimum time (in seconds, rounded to the closest integer) before this sequence number can be used again is _______.",
+      "answer": 34,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "TCP's sequence number is a 32-bit field that numbers each byte. A number can be reused only after all $2^{32}$ values have been used, since the numbers wrap around. The fastest a sender can use numbers is the link rate, so the minimum time is the number of bytes in the space divided by bytes per second."
+          },
+          {
+            "title": "Compute",
+            "body": "The space is $2^{32}=4294967296$ bytes, which is $2^{32}\\times8$ bits at 1 Gbps. The time is $2^{32}\\times8/10^9=34.36$ s, which rounds to 34.",
+            "tex": "t=\\dfrac{2^{32}\\times8}{10^{9}}\\approx34.36\\text{ s}"
+          }
+        ],
+        "shortcut": {
+          "body": "$2^{32}\\approx4.3\\times10^9$ bytes, times 8 gives $3.4\\times10^{10}$ bits, divided by $10^9$, about 34 s. 1 minute. Accepted range 34 to 35."
+        },
+        "traps": [
+          {
+            "text": "Forgetting to multiply by 8 and answering 4.3 seconds."
+          },
+          {
+            "text": "Dividing by 8 instead of multiplying (about 0.54 s)."
+          },
+          {
+            "text": "Using $2^{31}$ or $2^{33}$, giving 17 or 69 seconds."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.seq-wraparound",
+          "clues": "A link bandwidth and a question about the minimum time before a sequence number is reused point to the time for the whole sequence space to be consumed at line rate.",
+          "contrast": "The previous style of question fixes a segment lifetime and asks for bits; here the number of bits is fixed at 32 and the time is the unknown."
+        },
+        "check": {
+          "body": "Run it backwards: in 34.36 seconds at $10^9$ bits per second the link carries $3.436\\times10^{10}$ bits, which is $4.295\\times10^9$ bytes, equal to $2^{32}$. A time of exactly 34 seconds is within the stated rounding to the nearest integer.",
+          "tex": "34.36\\times10^9\\div8\\approx4.295\\times10^9=2^{32}"
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2018, Question 25",
+          "url": "https://gateoverflow.in/204099/gate-cse-2018-question-25"
+        },
+        {
+          "label": "GATE 2018 CS answer key",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2018.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What has to happen before a sequence number can appear again on the same connection?"
+        },
+        {
+          "kind": "concept",
+          "text": "TCP numbers bytes, and the numbers wrap after the whole sequence space has been used once."
+        },
+        {
+          "kind": "principle",
+          "text": "The fastest possible use of the space is at the full link rate, so the least time to reuse a number is the space size divided by the rate, in matching units."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the size of the space in bytes, change it to bits to match the rate in bits per second, then divide."
+        }
+      ],
+      "variation": {
+        "stem": "Consider a long-lived TCP session with an end-to-end bandwidth of 400 Mbps (= $4\\times10^8$ bits per second). What is the minimum time, in seconds and rounded to the closest integer, before a sequence number can be used again? (answer in integer)",
+        "answer": 86,
+        "explanation": "The sequence space is $2^{32}$ bytes, which is $2^{32}\\times8$ bits. At $4\\times10^8$ bits per second the time is $2^{32}\\times8/(4\\times10^8)=85.9$ s, which rounds to 86."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q18",
+      "type": "mcq",
+      "marks": 1,
+      "key": "B",
+      "topic": "cn-transport-layer.socket-api",
+      "difficulty": "medium",
+      "stem": "Consider socket API on a Linux machine that supports connected UDP sockets. A connected UDP socket is a UDP socket on which connect function has already been called. Which of the following statements is/are CORRECT?\n\nI. A connected UDP socket can be used to communicate with multiple peers simultaneously.\nII. A process can successfully call connect function again for an already connected UDP socket.",
+      "options": [
+        "I only",
+        "II only",
+        "Both I and II",
+        "Neither I nor II"
+      ],
+      "answer": 1,
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "A UDP socket by default accepts datagrams from, and sends to, any peer. Calling connect on a UDP socket sends nothing; it only stores a default peer address in the kernel. After that, the socket sends only to that peer and the kernel delivers only datagrams from that peer. Because there is no handshake, the stored address can simply be replaced by calling connect again."
+          },
+          {
+            "title": "Judge the statements",
+            "body": "I is false: once connected, the socket is tied to one peer at a time, so it cannot talk to many peers simultaneously. II is true: calling connect again changes the peer (or, with an unspecified address family, removes it). For TCP the second call would fail; UDP allows it."
+          },
+          {
+            "title": "Answer",
+            "body": "Only II is correct: option B."
+          }
+        ],
+        "shortcut": {
+          "body": "UDP connect just sets a filter, not a connection: one peer at a time (I false), and it can be redone (II true). 1 minute."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Choosing A: believing a UDP socket stays free to talk to many peers after connect (I true) and that connect can be called only once, as for TCP (II false). Both halves are wrong."
+          },
+          {
+            "option": 2,
+            "text": "Choosing C: believing a connected UDP socket can still serve several peers at once (I true). It filters to the one stored peer; only the repeat call in II is valid."
+          },
+          {
+            "option": 3,
+            "text": "Choosing D by copying the TCP rule that connect can be called once; UDP permits repeated calls."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.socket-semantics",
+          "clues": "The question speaks of connected UDP sockets and a repeated connect call, so it is about what connect means when the protocol has no connection.",
+          "contrast": "For TCP, connect performs the three-way handshake and can succeed only once on a socket; for UDP it only stores an address, which is why the rules differ."
+        },
+        "check": {
+          "body": "Check the stated rule from the other side: a socket tied to one stored peer cannot also be talking to several peers at once, so I fails, while replacing a stored address needs no network exchange, so nothing stops a second connect call."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, Question 18",
+          "url": "https://gateoverflow.in/118209/gate-cse-2017-set-2-question-18"
+        },
+        {
+          "label": "GATE 2017 CS Set 2 answer key",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does connect actually do on a UDP socket, given that UDP has no connection to set up?"
+        },
+        {
+          "kind": "concept",
+          "text": "For UDP, connect only records a default peer address in the operating system; no packet is sent."
+        },
+        {
+          "kind": "principle",
+          "text": "Once a peer is recorded, the socket is restricted to that peer. Ask whether recording or changing that peer needs any exchange with the other host."
+        },
+        {
+          "kind": "setup",
+          "text": "For statement I, ask whether one recorded peer can serve many peers at once; for statement II, ask whether anything prevents recording a new peer."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the socket API on a Linux machine that supports connected UDP sockets. Which of the following statements is/are CORRECT?\n\nI. Calling connect on a UDP socket sends a handshake segment to the peer before the call returns.\nII. After connect, a connected UDP socket receives only datagrams that come from the connected peer.",
+        "options": [
+          "Neither I nor II",
+          "Both I and II",
+          "II only",
+          "I only"
+        ],
+        "answer": 2,
+        "explanation": "For UDP, connect only stores the peer address in the kernel and sends nothing, so I is false. The stored address then filters incoming datagrams, so only the connected peer's datagrams are delivered, and II is true."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s1-q14",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "cn-transport-layer.termination",
+      "difficulty": "easy",
+      "stem": "Consider a TCP client and a TCP server running on two different machines. After completing data transfer, the TCP client calls close to terminate the connection and a FIN segment is sent to the TCP server. Server-side TCP responds by sending an ACK, which is received by the client-side TCP. As per the TCP connection state diagram (RFC 793), in which state does the client-side TCP connection wait for the FIN from the server-side TCP?",
+      "options": [
+        "LAST-ACK",
+        "TIME-WAIT",
+        "FIN-WAIT-1",
+        "FIN-WAIT-2"
+      ],
+      "answer": 3,
+      "solutionDiagram": {
+        "alt": "Close sequence: client FIN, server ACK, server FIN, client ACK, with client states FIN-WAIT-1, FIN-WAIT-2, TIME-WAIT."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Terms and the rule",
+            "body": "Each direction of a TCP connection is closed by its own FIN, acknowledged separately. The side that closes first (active close) moves through states: ESTABLISHED, then FIN-WAIT-1 after sending FIN (waiting for the ACK), then FIN-WAIT-2 after that ACK arrives (waiting for the peer's FIN), then TIME-WAIT after the peer's FIN is acknowledged. The rule: a state's name tells what has been done, and the state in which the client has its FIN acknowledged but has not yet received the server's FIN is FIN-WAIT-2."
+          },
+          {
+            "title": "Place the client",
+            "body": "The client sent FIN, so FIN-WAIT-1. The server's ACK arrives, so the client moves to FIN-WAIT-2 and waits there for the server's FIN."
+          },
+          {
+            "title": "Answer",
+            "body": "The state is FIN-WAIT-2: option D."
+          }
+        ],
+        "shortcut": {
+          "body": "Remember the order FIN-WAIT-1 (waiting for ACK), FIN-WAIT-2 (waiting for FIN), TIME-WAIT (2 MSL). The ACK is already in, so 2. 30 seconds."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "Choosing LAST-ACK: that state belongs to the passive closer waiting for the ACK of its own FIN."
+          },
+          {
+            "option": 1,
+            "text": "Choosing TIME-WAIT: it comes after the server's FIN has arrived and been acknowledged."
+          },
+          {
+            "option": 2,
+            "text": "Choosing FIN-WAIT-1: the client has already received the ACK, which ends that state."
+          }
+        ],
+        "recognize": {
+          "concept": "cn-transport-layer.termination",
+          "clues": "The client closes first, the server ACK has already arrived, and the question asks which state waits for the server FIN. These point to the active-close path of the RFC 793 state diagram.",
+          "contrast": "LAST-ACK and CLOSE-WAIT belong to the passive closer (the server), and TIME-WAIT follows the arrival of the peer FIN; tell them apart by who sent the first FIN and whether the peer FIN has arrived."
+        },
+        "check": {
+          "body": "Second route, by counting. The active-close path has three states, FIN-WAIT-1, FIN-WAIT-2 and TIME-WAIT, one for each gap between events: FIN sent to FIN acknowledged, acknowledged to peer FIN received, and peer FIN received to the timer expiring. The question describes the middle gap, so exactly one state fits. LAST-ACK is reached only from CLOSE-WAIT on the passive path, so a client that closed first never visits it."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 1, Question 14",
+          "url": "https://gateoverflow.in/118194/gate-cse-2017-set-1-question-14"
+        },
+        {
+          "label": "GATE 2017 CS Set 1 answer key",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which side closes second, and what has that side already received and already sent at the moment the question asks about?"
+        },
+        {
+          "kind": "concept",
+          "text": "Each direction of a TCP connection is shut by its own FIN, and each FIN is acknowledged separately, so the closing sides pass through different states."
+        },
+        {
+          "kind": "principle",
+          "text": "A state name records the last event that happened, so match each candidate state to the event just completed and the event still awaited."
+        },
+        {
+          "kind": "setup",
+          "text": "Write the four segments of a normal close in order and mark which one the client has already seen after its own FIN and the ACK."
+        },
+        {
+          "kind": "partial",
+          "text": "Of the two segments the client has dealt with, its own FIN and the server's reply, ask whether the wait that the FIN started is still open."
+        }
+      ],
+      "variation": {
+        "stem": "In a normal TCP close, the client sends the first FIN and the server ACKs it. The server application then calls close and the server TCP sends its own FIN. As per the RFC 793 state diagram, in which state does the server-side TCP wait for the final ACK from the client?",
+        "options": [
+          "LAST-ACK",
+          "CLOSE-WAIT",
+          "TIME-WAIT",
+          "FIN-WAIT-2"
+        ],
+        "answer": 0,
+        "explanation": "The server received the first FIN and ACKed it, so it sits in CLOSE-WAIT until its application closes. Sending its own FIN moves it to LAST-ACK, where it waits for the client ACK of that FIN. CLOSE-WAIT is the state before the server closes, TIME-WAIT belongs to the client, and FIN-WAIT-2 is a state of the active closer."
+      }
+    }
+  ],
+  "skipped": []
+}

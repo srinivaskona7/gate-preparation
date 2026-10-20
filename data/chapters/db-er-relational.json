@@ -1,0 +1,2106 @@
+{
+  "id": "db-er-relational",
+  "summary": "The ER model describes a design as entity sets, attributes and relationships with cardinality and participation constraints, and a fixed set of rules turns the diagram into relations. The relational model stores data as sets of tuples identified by keys and queries them with relational algebra or tuple relational calculus. GATE tests the chapter through computation: count the minimum number of tables an ER diagram needs, evaluate an algebra query (joins, outer joins, division) on small tables, bound the size of a result, and match equivalent algebra and calculus queries.",
+  "highYield": [
+    "Minimum number of relations for an ER diagram: one per entity set, plus one per many-to-many relationship and per multivalued attribute; 1:N and 1:1 relationships fold into an existing table.",
+    "Evaluating a relational algebra expression on small tables, especially natural joins, outer joins and division, and reporting the number of tuples.",
+    "Result-size facts: |R × S| = |R|·|S|, a natural join returns 0 to |R|·|S| tuples, and a join along a NOT NULL foreign key returns exactly |R| tuples.",
+    "Superkeys versus candidate keys, including counting superkeys with powers of two and inclusion–exclusion.",
+    "Matching an English query with its relational algebra and tuple calculus forms: 'every' signals division or ∀, and ¬(t ∈ R) on its own signals an unsafe expression."
+  ],
+  "topics": [
+    {
+      "id": "db-er-relational.er-components",
+      "title": "Entities, attributes and relationships",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        516,
+        520
+      ],
+      "points": [
+        "An entity is one distinguishable object, such as a single student; an entity set is the collection of all entities of one type and is drawn as a rectangle.",
+        "Attributes describe an entity and take their values from a domain; a key attribute (underlined) has a different value for every entity in the set.",
+        "A relationship associates entities, and a relationship set (a diamond) collects relationships of one type. It can carry its own attributes, such as the grade on Enrolls between Student and Course.",
+        "The degree of a relationship set is the number of entity sets it connects. Binary is the common case; a recursive relationship links an entity set to itself through role names such as manager and subordinate."
+      ],
+      "keyTerms": [
+        "entity set",
+        "attribute",
+        "relationship set",
+        "degree"
+      ],
+      "lesson": {
+        "why": "Questions on ER diagrams ask you to turn a sentence into rectangles, diamonds and ovals, so you must tell an entity from a relationship and an attribute at a glance.",
+        "intro": "A database design starts as a picture. An entity is one distinguishable thing, such as one student. An entity set is all things of one type, drawn as a rectangle. An attribute is a fact about an entity, drawn as an oval. A relationship set is an association between entity sets, such as students registering for courses, drawn as a diamond. The number of entity sets a diamond joins is its degree.",
+        "analogy": {
+          "text": "Reading a sentence like grammar: nouns that carry facts of their own become rectangles, and the verbs that link two nouns become diamonds.",
+          "breaksWhen": "Some nouns are only facts about another noun, such as a date or a grade, and those are ovals, not rectangles."
+        },
+        "definitions": [
+          {
+            "term": "Entity set",
+            "meaning": "The collection of all entities of one type, drawn as a rectangle."
+          },
+          {
+            "term": "Relationship set",
+            "meaning": "The collection of associations of one type among entity sets, drawn as a diamond."
+          },
+          {
+            "term": "Degree",
+            "meaning": "The number of entity sets that a relationship set connects."
+          }
+        ],
+        "principle": {
+          "text": "Each verb that links two things in the specification becomes one diamond joined to exactly the rectangles it names, and nothing the specification does not mention is added."
+        },
+        "limits": "A noun that has no facts of its own and belongs to one entity is better drawn as an attribute. A relationship may carry its own attribute, such as a grade, which belongs to the pair and to neither entity alone.",
+        "example": {
+          "problem": "Specification: Doctors treat patients. Patients are admitted to wards. Each treatment has a date. Draw the parts of the ER diagram.",
+          "steps": [
+            "The nouns Doctor, Patient and Ward are things with facts of their own, so each is a rectangle.",
+            "The verb treat links Doctor and Patient, and admitted links Patient and Ward, so there are two diamonds, Treats and Admitted.",
+            "A date describes one treatment, meaning one doctor-patient pair, so it is an attribute of the Treats diamond."
+          ],
+          "result": "Three rectangles, two diamonds, four connecting lines, and one oval attached to Treats."
+        },
+        "misconceptions": [
+          "A noun is not always an entity set: a date or a grade is a fact about something else and is drawn as an oval.",
+          "A diagram that turns a verb into a rectangle, or a noun into a diamond, swaps entity and relationship and is wrong even if every name appears.",
+          "Adding an extra entity set that the specification never mentions makes the diagram incorrect, however sensible it looks."
+        ],
+        "recall": [
+          {
+            "q": "Which symbol is an entity set, and which is a relationship set?",
+            "a": "An entity set is a rectangle and a relationship set is a diamond."
+          },
+          {
+            "q": "What is the degree of a relationship set?",
+            "a": "The number of entity sets it connects; a binary relationship has degree 2."
+          },
+          {
+            "q": "Where does an attribute of a relationship, such as a grade, belong?",
+            "a": "On the diamond, because it describes the pair of entities and not either one alone."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Specification: Authors write books. Readers borrow books. Each loan has a due date. Which diagram parts are correct?",
+          "options": [
+            "Rectangles Author, Book, Reader; diamonds Writes and Borrows; a due-date oval on Borrows",
+            "Rectangles Author, Book, Reader, Loan; diamonds Writes and Borrows; no attribute",
+            "Rectangles Author, Reader; one diamond Books joining them; a due-date oval on Reader",
+            "Rectangles Author, Book, Reader; diamonds Writes and Borrows; a due-date oval on Book"
+          ],
+          "answer": 0,
+          "explanation": "The nouns Author, Book and Reader are rectangles and the two verbs are diamonds. The due date belongs to one borrowing, a reader-book pair, so it sits on Borrows. Putting it on Book is tempting but wrong, since a book has a different due date for each loan. A Loan rectangle adds something not in the specification, and turning a noun into a diamond swaps entity and relationship."
+        },
+        "summary": "Nouns with facts of their own are rectangles, linking verbs are diamonds, facts about a thing are ovals, and a diagram must contain what the specification says and nothing more."
+      }
+    },
+    {
+      "id": "db-er-relational.attribute-types",
+      "title": "Attribute types and ER notation",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        50,
+        516,
+        517,
+        520
+      ],
+      "points": [
+        "Simple attributes are atomic; composite attributes split into parts, such as name into first and last name. Only the simple components become columns.",
+        "A single-valued attribute holds one value per entity; a multivalued attribute, such as a set of phone numbers, is drawn as a double ellipse.",
+        "A derived attribute is computed from others, such as age from date of birth; it is drawn as a dashed ellipse and is usually not stored.",
+        "Notation: rectangle = entity set, diamond = relationship set, ellipse = attribute, underline = key, double rectangle = weak entity set, double diamond = identifying relationship, double line = total participation."
+      ],
+      "keyTerms": [
+        "composite attribute",
+        "multivalued attribute",
+        "derived attribute",
+        "key attribute"
+      ],
+      "lesson": {
+        "why": "ER questions ask which attributes become columns and which need a table of their own, so the three attribute kinds must be told apart on sight.",
+        "intro": "An attribute describes an entity. A simple attribute holds one indivisible value, such as a roll number. A composite attribute is built from parts: name splits into first name and last name. A multivalued attribute can hold several values for one entity, such as a set of phone numbers, and is drawn as a double ellipse. A derived attribute is computed from other attributes, such as age from date of birth, and is drawn as a dashed ellipse. A key attribute is underlined; its values identify the entity.",
+        "prerequisites": [
+          "db-er-relational.er-components"
+        ],
+        "definitions": [
+          {
+            "term": "Composite attribute",
+            "meaning": "An attribute made of parts; only its simple components become columns."
+          },
+          {
+            "term": "Multivalued attribute",
+            "meaning": "An attribute that can hold several values for one entity; drawn as a double ellipse."
+          },
+          {
+            "term": "Derived attribute",
+            "meaning": "An attribute computed from others, drawn dashed and usually not stored."
+          },
+          {
+            "term": "Key attribute",
+            "meaning": "An attribute whose values identify an entity; underlined in the diagram."
+          }
+        ],
+        "principle": {
+          "text": "Each attribute kind decides its storage. A simple attribute is one column. A composite attribute contributes its simple components as columns. A multivalued attribute needs its own relation with the entity key. A derived attribute is not stored.",
+          "tex": "\\text{columns of the entity relation} = \\#\\text{simple} + \\#\\text{components of composites}"
+        },
+        "limits": "A multivalued attribute that is never searched or split is sometimes stored in one column by an application, but the relational model needs atomic values, so the exam answer is a separate relation. A derived attribute may be stored for speed; the diagram still marks it as derived.",
+        "example": {
+          "problem": "Employee has the key empid, a composite name (first, last), a multivalued phone, a date of birth dob and a derived age. List the columns of the Employee relation and name any extra relation.",
+          "steps": [
+            "empid is a simple key attribute, so it is one column.",
+            "name is composite, so only its parts first and last become columns.",
+            "dob is simple and becomes a column. age is derived, so it is not stored.",
+            "phone is multivalued, so it leaves the Employee relation and goes to Phone(empid, phone), with empid as a foreign key."
+          ],
+          "result": "Employee(empid, first, last, dob) has 4 columns, plus a separate relation Phone(empid, phone)."
+        },
+        "misconceptions": [
+          "The composite attribute itself does not become a column. Only its simple components do.",
+          "A multivalued attribute does not get several columns phone1, phone2, and so on; the number of values is unbounded, so it gets its own relation.",
+          "A derived attribute is not a key and is not stored by default, even though it appears in the diagram."
+        ],
+        "recall": [
+          {
+            "q": "How is a multivalued attribute drawn and mapped?",
+            "a": "It is a double ellipse, and it maps to a separate relation holding the entity key and the value."
+          },
+          {
+            "q": "Which attribute kind is drawn with a dashed ellipse?",
+            "a": "The derived attribute, for example age computed from date of birth."
+          },
+          {
+            "q": "What does a composite attribute contribute to the entity relation?",
+            "a": "Its simple components, one column each, and not the composite itself."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Student has the key roll, a composite name (first, middle, last), a multivalued email, a date of birth dob, a derived age and a simple city. How many columns does the Student relation have?",
+          "answer": 6,
+          "explanation": "The columns are roll, first, middle, last, dob and city, which is 6. The multivalued email moves to its own relation and the derived age is not stored. The tempting answer 8 counts email and age; 4 counts name as a single column and drops city."
+        },
+        "summary": "Simple attributes are columns, composite attributes give their components, multivalued attributes get their own relation, and derived attributes are not stored."
+      }
+    },
+    {
+      "id": "db-er-relational.cardinality-participation",
+      "title": "Cardinality ratios and participation",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        517,
+        520
+      ],
+      "points": [
+        "The cardinality ratio of a binary relationship is 1:1, 1:N or M:N: it limits how many entities on one side a single entity on the other side can be related to.",
+        "Participation is a minimum constraint. Total participation (double line) means every entity of the set takes part in at least one relationship; partial participation (single line) means some may not.",
+        "The two constraints are independent. 'Each employee works in exactly one department, and a department may be empty' is N:1 from Employee to Department, total for Employee and partial for Department.",
+        "Total participation is an existence dependency: the entity cannot be stored without a partner, which becomes a NOT NULL foreign key in the relational schema."
+      ],
+      "keyTerms": [
+        "1:1",
+        "1:N",
+        "M:N",
+        "total participation",
+        "partial participation"
+      ],
+      "lesson": {
+        "why": "Cardinality and participation decide what a many-to-one relationship forces, and GATE asks you to deduce which statements must be true from them.",
+        "intro": "Two separate constraints describe a relationship. The cardinality ratio, 1:1, 1:N or M:N, says how many partners one entity may have at most. Participation says how many it must have at least. Total participation means every entity of the set takes part in at least one relationship, shown by a double line. Partial participation means some entities may have no partner at all.",
+        "prerequisites": [
+          "db-er-relational.er-components"
+        ],
+        "definitions": [
+          {
+            "term": "Many-to-one from E1 to E2",
+            "meaning": "Each E1 entity has at most one E2 partner, while an E2 entity may have many E1 partners."
+          },
+          {
+            "term": "Total participation",
+            "meaning": "Every entity of the set is related to at least one entity of the other set."
+          }
+        ],
+        "principle": {
+          "text": "Cardinality gives the upper limit on partners and participation gives the lower limit, so the two can be combined. A many-to-one relationship with total participation on the many side gives each of its entities exactly one partner.",
+          "tex": "\\text{many-to-one} + \\text{total on } E_1 \\Rightarrow \\text{each } e \\in E_1 \\text{ has exactly one partner in } E_2"
+        },
+        "limits": "Cardinality says nothing about whether partners must exist, and participation says nothing about how many there may be. When the sizes of the sets are not given, you cannot conclude how the many side is spread over the one side.",
+        "example": {
+          "problem": "Employees work in departments, many-to-one from Employee to Department, with total participation on both sides. There are 5 employees and 2 departments. Must some department hold 3 or more employees?",
+          "steps": [
+            "Many-to-one with total participation on Employee gives each employee exactly one department.",
+            "Total participation on Department means neither department is empty.",
+            "If both departments held at most 2 employees, they would hold at most 4, but all 5 employees must be placed.",
+            "Listing every assignment of 5 employees to 2 non-empty departments shows the largest department always has at least 3."
+          ],
+          "result": "Yes: some department always holds at least 3 employees, by the pigeonhole principle."
+        },
+        "misconceptions": [
+          "Total participation does not mean the relationship is one-to-one; it only says no entity is left without a partner.",
+          "Many-to-one from E1 to E2 puts the single partner on the E2 side of each E1 entity. It does not limit how many E1 entities share one E2 entity.",
+          "A statement about every E2 entity having exactly one E1 partner is false in a many-to-one relationship when E1 is larger than E2."
+        ],
+        "recall": [
+          {
+            "q": "What does cardinality ratio limit, and what does participation limit?",
+            "a": "The cardinality ratio limits the maximum number of partners; participation limits the minimum."
+          },
+          {
+            "q": "What does total participation of a set mean?",
+            "a": "Every entity of that set is related to at least one entity of the other set."
+          },
+          {
+            "q": "If a many-to-one relationship is total on the many side, how many partners does each many-side entity have?",
+            "a": "Exactly one."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Works_in is many-to-one from Employee to Department, with total participation on both sides. There are 7 employees and 3 departments. What is the smallest possible number of employees in the largest department?",
+          "answer": 3,
+          "explanation": "Each employee has exactly one department and no department is empty. Spreading 7 over 3 as evenly as possible gives sizes 3, 2, 2, so the largest is 3, which is the ceiling of 7/3. Answering 2 is tempting because 7/3 is close to 2, but 3 departments of at most 2 hold only 6."
+        },
+        "summary": "Cardinality is the maximum number of partners and participation is the minimum; combined with the sizes of the sets they force statements such as exactly one partner or a crowded partner."
+      }
+    },
+    {
+      "id": "db-er-relational.weak-entities",
+      "title": "Weak entity sets",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        517,
+        518,
+        520,
+        524
+      ],
+      "points": [
+        "A weak entity set has no key of its own. Its entities are identified by the key of an owner entity set combined with a discriminator, also called the partial key.",
+        "The weak entity set is drawn as a double rectangle and its identifying relationship as a double diamond. It always participates totally, and each weak entity has exactly one owner.",
+        "Example: Section(section_no, semester) owned by Course(course_id) maps to Section(course_id, section_no, semester), with primary key (course_id, section_no) and course_id a foreign key to Course.",
+        "The identifying relationship needs no table of its own, because the owner's key already sits inside the weak entity's relation."
+      ],
+      "keyTerms": [
+        "owner entity set",
+        "discriminator",
+        "identifying relationship"
+      ],
+      "lesson": {
+        "why": "Weak entity sets appear in ER questions about keys, participation and symbols, and each has a fixed rule you can recall in seconds.",
+        "intro": "Some entities cannot be told apart by their own attributes. A room number such as 101 repeats in every building. Such an entity set is weak: it has no key of its own. Each weak entity is identified by the key of an owner entity, here the building, together with a partial key, the room number. The link between a weak entity and its owner is the identifying relationship.",
+        "prerequisites": [
+          "db-er-relational.er-components",
+          "db-er-relational.cardinality-participation"
+        ],
+        "definitions": [
+          {
+            "term": "Partial key",
+            "meaning": "The attribute of a weak entity set that tells entities of the same owner apart; also called the discriminator."
+          },
+          {
+            "term": "Identifying relationship",
+            "meaning": "The many-to-one relationship that links a weak entity set to its owner."
+          }
+        ],
+        "principle": {
+          "text": "The key of a weak entity is the owner key joined with the partial key. A weak entity cannot exist without its owner, so the weak set participates totally in the identifying relationship, while the owner may participate partially.",
+          "tex": "\\text{key}(W) = \\text{key}(\\text{owner}) \\cup \\text{partial key}(W)"
+        },
+        "limits": "Drawing a double rectangle is not enough; the set is weak only when the partial key needs the owner key for uniqueness. The owner side has no forced participation, because an owner may have no weak entities.",
+        "example": {
+          "problem": "Course(course_id) owns Section(section_no, semester). Course C1 has sections 1, 2, 3 and course C2 has sections 1, 2, 3. Is section_no alone a key of Section?",
+          "steps": [
+            "The Section relation has 6 tuples, one for each course and section number pair.",
+            "Only 3 distinct section_no values occur, so section_no repeats and cannot be a key.",
+            "The pair (course_id, section_no) has 6 distinct values, one per tuple, so it identifies every section."
+          ],
+          "result": "The key of Section is (course_id, section_no): the owner key plus the partial key."
+        },
+        "misconceptions": [
+          "The owner is not forced to participate totally. A course with no sections is allowed; only the weak side must be total.",
+          "The double diamond is the identifying relationship, and the double rectangle is the weak entity set. They are different symbols.",
+          "The partial key alone is not the key of the weak entity, because it repeats across owners."
+        ],
+        "recall": [
+          {
+            "q": "How is a weak entity identified?",
+            "a": "By the key of its owner entity together with its own partial key."
+          },
+          {
+            "q": "Which side must participate totally in the identifying relationship?",
+            "a": "The weak entity set; the owner may be partial."
+          },
+          {
+            "q": "Which symbol draws the identifying relationship?",
+            "a": "A diamond with a double or bold border."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Dependent(name, age) is a weak entity set owned by Employee(emp_id). Its partial key is name, the attribute that tells apart the dependents of one employee. Which attribute set is its primary key when it becomes a relation?",
+          "options": [
+            "name",
+            "(emp_id, name)",
+            "(emp_id, age)",
+            "emp_id"
+          ],
+          "answer": 1,
+          "explanation": "The key of a weak entity is the owner key plus the partial key, and name is the partial key, so the key is (emp_id, name). Choosing name alone is tempting but two employees may have a dependent with the same name. Choosing emp_id alone fails because one employee can have several dependents. Age is not the discriminator, so (emp_id, age) does not identify a dependent."
+        },
+        "summary": "A weak entity set is keyed by its owner key plus a partial key, takes total participation in a double-diamond identifying relationship, and the owner need not participate totally."
+      }
+    },
+    {
+      "id": "db-er-relational.er-to-relational",
+      "title": "Mapping an ER diagram to relations",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        517,
+        518,
+        521
+      ],
+      "points": [
+        "Each strong entity set becomes a relation whose columns are its simple attributes and whose primary key is its key; derived attributes are normally dropped.",
+        "1:N relationship: copy the key of the 1 side, with the relationship's attributes, into the relation of the N side as a foreign key. No new relation is needed.",
+        "M:N relationship: create a new relation holding both entity keys as foreign keys plus the relationship's attributes; the pair of keys is its primary key.",
+        "1:1 relationship: add a UNIQUE foreign key to either side, preferably the totally participating side so it can be NOT NULL. One total side is enough to merge both into one relation keyed on the partial side's key; Elmasri and Navathe merge only when both are total, to avoid NULL-padded rows.",
+        "A multivalued attribute becomes its own relation (owner key, value) keyed on both columns; a relationship among three or more entity sets becomes a relation holding all their keys."
+      ],
+      "keyTerms": [
+        "foreign key",
+        "relationship relation"
+      ],
+      "lesson": {
+        "why": "Converting an ER diagram to tables is a standard question, and the number of tables and the place of each foreign key follow fixed rules.",
+        "intro": "A table stores rows, and each row needs a key. A strong entity set becomes one table with its attributes as columns and its key as primary key. A relationship is stored using keys of the entities it joins. A foreign key is a column that holds the key of a row in another table, linking the two.",
+        "prerequisites": [
+          "db-er-relational.cardinality-participation"
+        ],
+        "definitions": [
+          {
+            "term": "Foreign key",
+            "meaning": "A column or set of columns that holds the key of a row in another table."
+          },
+          {
+            "term": "Multivalued attribute",
+            "meaning": "An attribute that can take several values for one entity, such as phone numbers."
+          }
+        ],
+        "principle": {
+          "text": "A one-to-many relationship puts the key of the one side into the table of the many side. The merge is free of NULLs only when that entity has at most one partner and participates totally; with partial participation some rows have no partner, so the column holds NULL (or a separate relationship table is kept). A many-to-many relationship needs its own table of both keys. A multivalued attribute needs its own table of owner key and value.",
+          "tex": "\\text{tables} = \\text{entity sets} + \\text{M:N relationships} + \\text{multivalued attributes}"
+        },
+        "limits": "The formula assumes strong entity sets only, and every 1:N or 1:1 relationship merges into an existing table. Weak entity sets and relationships among three or more entity sets need extra rules. A foreign key on the side with partial participation holds NULL for rows without a partner, so the merge is clean only under total participation.",
+        "example": {
+          "problem": "Student and Course are entity sets. Enrolls is many-to-many with attribute grade. Student has a multivalued attribute phone. How many tables result and what are they?",
+          "steps": [
+            "Student and Course are strong entity sets, so each gives one table.",
+            "Enrolls is many-to-many, so it gets its own table with both keys and the grade.",
+            "The multivalued attribute phone gets a table of the student key and one phone value."
+          ],
+          "result": "4 tables: Student, Course, Enrolls(student key, course key, grade) and Student_phone(student key, phone)."
+        },
+        "misconceptions": [
+          "A many-to-one relationship does not need its own table; its foreign key goes in the many side.",
+          "The foreign key goes on the side that has at most one partner. Putting it on the other side would need several values in one column.",
+          "A relationship table for M:N is keyed on both entity keys together, not on either key alone.",
+          "Merging a relationship into an entity's table is not decided by cardinality alone: with partial participation the merged column is NULL for entities that have no partner."
+        ],
+        "recall": [
+          {
+            "q": "Where does the foreign key go for a one-to-many relationship?",
+            "a": "In the table of the many side, holding the key of the one side."
+          },
+          {
+            "q": "Which relationships need a table of their own?",
+            "a": "Many-to-many relationships, and relationships among three or more entity sets."
+          },
+          {
+            "q": "How is a multivalued attribute stored?",
+            "a": "In a separate table with the owner key and one value per row, keyed on both columns."
+          },
+          {
+            "q": "When can a relationship be merged into an entity's table without NULLs?",
+            "a": "When that entity has at most one partner (the many side of a many-to-one, or either side of a one-to-one) and participates totally."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An ER diagram has 3 strong entity sets, one many-to-many relationship, two one-to-many relationships and one multivalued attribute. Counting the minimum tables, how many does the relational schema need?",
+          "answer": 5,
+          "explanation": "Each entity set gives a table, so 3. The many-to-many relationship adds 1. The one-to-many relationships merge into existing tables and add 0. The multivalued attribute adds 1. The total is 5. Counting the one-to-many relationships as tables gives 7, which is the tempting error."
+        },
+        "summary": "Tables equal entity sets plus many-to-many relationships plus multivalued attributes, and each one-to-many relationship adds only a foreign key on the many side."
+      }
+    },
+    {
+      "id": "db-er-relational.minimum-relations",
+      "title": "Counting the minimum number of relations",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [
+        50,
+        518
+      ],
+      "points": [
+        "Start with one relation per entity set, strong or weak. Add one relation for each M:N relationship, each multivalued attribute and each relationship of degree three or more.",
+        "1:N and 1:1 binary relationships and identifying relationships add nothing: each becomes a foreign key in an existing relation. A recursive 1:N relationship becomes a foreign key referencing its own relation.",
+        "For 1:1, participation decides the minimum. One total side allows one merged relation keyed on the partial side's key, since each entity on the total side has exactly one partner; with both sides total either key works. Only when both sides are partial does it stay at two: a merged row would need a NULL key.",
+        "Example: E1 and E2 joined by an M:N relationship, E2 and E3 by a 1:N relationship, and E2 with one multivalued attribute need 3 entity relations + 1 for the M:N + 1 for the multivalued attribute = 5."
+      ],
+      "keyTerms": [
+        "minimum relations",
+        "1NF"
+      ],
+      "lesson": {
+        "why": "Counting the minimum number of relations for an ER diagram is a recurring numerical question, and one rule per construct settles it.",
+        "intro": "Turning an ER diagram into tables starts with one relation for every entity set, weak ones included. Next, look at each relationship. A many-to-many relationship (M:N) cannot be a foreign key, because each side has many partners, so it needs its own relation. A relationship among three or more entity sets also needs its own relation. A one-to-many (1:N) relationship needs none: the foreign key goes into the relation on the many side. The same holds for an identifying relationship of a weak entity. A multivalued attribute also gets a relation of its own.",
+        "prerequisites": [
+          "db-er-relational.er-to-relational",
+          "db-er-relational.cardinality-participation",
+          "db-er-relational.weak-entities",
+          "db-er-relational.attribute-types"
+        ],
+        "principle": {
+          "text": "Count one relation per entity set, plus one per M:N relationship, per multivalued attribute and per relationship of degree three or more. 1:N, identifying and recursive 1:N relationships add nothing. A 1:1 relationship with a total side merges into one relation and saves one.",
+          "tex": "\\#\\text{relations} = E + \\#\\text{M:N} + \\#\\text{multivalued} + \\#\\text{ternary or higher}"
+        },
+        "limits": "The count is a minimum: a design may use more tables. The formula assumes no 1:1 merge; a 1:1 relationship with at least one total side merges the two entity relations, so subtract one. A 1:1 with both sides partial keeps two relations and gains none.",
+        "example": {
+          "problem": "A diagram has four entity sets, one of them weak. It has one M:N relationship, one 1:N relationship, the identifying relationship of the weak set, one ternary relationship and one multivalued attribute. Find the minimum number of relations.",
+          "steps": [
+            "Four entity sets, weak one included, give 4 relations.",
+            "The M:N relationship adds 1 and the ternary relationship adds 1.",
+            "The multivalued attribute adds 1.",
+            "The 1:N and the identifying relationship add 0, since each becomes a foreign key."
+          ],
+          "result": "4 + 1 + 1 + 1 = 7 relations."
+        },
+        "misconceptions": [
+          "A 1:N relationship does not get a table; the many side receives a foreign key.",
+          "The weak entity set is easy to forget, but it is a relation and its identifying relationship is not.",
+          "A multivalued attribute is easy to skip, yet it always adds one relation."
+        ],
+        "recall": [
+          {
+            "q": "Which relationships add a relation of their own?",
+            "a": "M:N relationships and relationships among three or more entity sets."
+          },
+          {
+            "q": "Where does a 1:N relationship go in the tables?",
+            "a": "It becomes a foreign key in the relation on the N side, so it adds no relation."
+          },
+          {
+            "q": "When does a 1:1 relationship save a relation?",
+            "a": "When at least one side has total participation, the two entity relations merge."
+          },
+          {
+            "q": "How many relations does a multivalued attribute add?",
+            "a": "One, holding the entity key and the attribute value."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A diagram has five entity sets, two M:N relationships, three 1:N relationships, two multivalued attributes, and one 1:1 relationship between two entity sets where one side is total. What is the minimum number of relations?",
+          "answer": 8,
+          "explanation": "The 1:1 relationship with a total side merges its two entity relations, so the five entity sets give 4 relations. Add 2 for the M:N relationships and 2 for the multivalued attributes: 4 + 2 + 2 = 8. The 1:N relationships add nothing. The tempting answer 11 adds the three 1:N relationships; 9 forgets the merge."
+        },
+        "summary": "Count entity sets, then add M:N relationships, multivalued attributes and relationships of degree three or more; 1:N relationships add nothing and a 1:1 with a total side merges two relations."
+      }
+    },
+    {
+      "id": "db-er-relational.generalization",
+      "title": "Generalization and specialization",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        518,
+        521
+      ],
+      "points": [
+        "Specialization splits an entity set into subclasses (Employee into Engineer and Manager); generalization merges similar entity sets into a superclass. Subclasses inherit the superclass's attributes and key.",
+        "A specialization is disjoint or overlapping (can one entity be in two subclasses?) and total or partial (must every superclass entity belong to some subclass?).",
+        "Three mappings: one relation for the whole hierarchy with nullable subclass columns; one relation per subclass that holds the superclass key as primary and foreign key; or one relation per concrete class, which suits a total, disjoint specialization."
+      ],
+      "lesson": {
+        "why": "Questions on specialization ask for the number of relations or columns under each mapping, so you need all three mappings and their trade-offs.",
+        "intro": "Generalization and specialization describe one idea from two directions. Specialization splits an entity set into subclasses: Employee into Engineer and Manager. Generalization merges similar entity sets into a superclass. A subclass inherits the attributes and the key of its superclass, and adds its own. The split is disjoint when an entity can be in only one subclass, and overlapping when it can be in several. It is total when every superclass entity must be in some subclass, and partial otherwise.",
+        "prerequisites": [
+          "db-er-relational.er-components"
+        ],
+        "definitions": [
+          {
+            "term": "Superclass",
+            "meaning": "The general entity set whose attributes and key the subclasses inherit."
+          },
+          {
+            "term": "Disjoint",
+            "meaning": "An entity can belong to at most one subclass."
+          },
+          {
+            "term": "Total specialization",
+            "meaning": "Every superclass entity must belong to some subclass."
+          }
+        ],
+        "principle": {
+          "text": "There are three mappings. One relation for the whole hierarchy uses nullable subclass columns. One relation per subclass keeps the superclass key as primary and foreign key, plus a superclass relation. One relation per concrete class copies the superclass attributes into each, which suits a total, disjoint specialization."
+        },
+        "limits": "The single-relation mapping wastes space on NULLs when the subclasses differ a lot. Copying the superclass into each subclass fails for a partial specialization, since an entity in no subclass would have no relation, and it duplicates data when subclasses overlap.",
+        "example": {
+          "problem": "Employee(eid, name) is specialized into Engineer(branch) and Manager(budget). Count the relations and columns under the first two mappings.",
+          "steps": [
+            "Mapping 1 stores everything in one relation Employee(eid, name, branch, budget), which has 4 columns and NULLs where a subclass does not apply.",
+            "Mapping 2 keeps Employee(eid, name), Engineer(eid, branch) and Manager(eid, budget), so there are 3 relations.",
+            "In mapping 2 each subclass eid is both the primary key and a foreign key to Employee.",
+            "The columns in mapping 2 are 2 + 2 + 2 = 6."
+          ],
+          "result": "Mapping 1 gives 1 relation with 4 columns; mapping 2 gives 3 relations with 6 columns."
+        },
+        "misconceptions": [
+          "Disjoint and total answer different questions: disjoint is about membership in several subclasses, total is about membership in none.",
+          "A subclass relation does not need its own new key; it reuses the superclass key.",
+          "Copying the superclass into each subclass is not valid for every hierarchy; it suits only a total, disjoint one."
+        ],
+        "recall": [
+          {
+            "q": "What does a subclass inherit from its superclass?",
+            "a": "Its attributes and its key."
+          },
+          {
+            "q": "What is the difference between disjoint and total?",
+            "a": "Disjoint means at most one subclass per entity; total means at least one subclass per entity."
+          },
+          {
+            "q": "Which mapping suits a total, disjoint specialization?",
+            "a": "One relation per concrete class, each carrying the superclass attributes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Person(pid, name) is specialized into Student(gpa), Staff(salary) and Alum(year). Under the mapping with one relation for the superclass and one per subclass, each subclass relation holding pid, what is the total number of columns across all relations?",
+          "answer": 8,
+          "explanation": "Person has 2 columns, and Student, Staff and Alum each have pid plus one own attribute, so 2 each. The total is 2 + 3 x 2 = 8. The tempting answer 5 counts each attribute once and forgets that pid is repeated as a foreign key in each subclass."
+        },
+        "summary": "Subclasses inherit the key; specialization is disjoint or overlapping and total or partial, and it maps to one relation, one per subclass, or one per concrete class."
+      }
+    },
+    {
+      "id": "db-er-relational.relational-model",
+      "title": "Relations, schemas and instances",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        518,
+        521
+      ],
+      "points": [
+        "A relation schema R(A₁, …, Aₙ) names the attributes and their domains; an instance is the set of tuples stored at one moment.",
+        "The degree (arity) of a relation is its number of attributes; its cardinality is its number of tuples.",
+        "A relation is a set: it has no duplicate tuples and no tuple order, attributes are referred to by name, and every value is atomic.",
+        "NULL marks a value that is unknown or does not apply. Primary key attributes may never be NULL."
+      ],
+      "keyTerms": [
+        "schema",
+        "instance",
+        "degree",
+        "cardinality"
+      ],
+      "lesson": {
+        "why": "Questions on the relational model test its vocabulary: degree, cardinality, tuples, and the three levels at which a database is described.",
+        "intro": "A relation is a table. Its columns are attributes and its rows are tuples. The schema names the attributes and fixes how many there are; the instance is the set of rows stored right now. The degree, or arity, counts the columns. The cardinality counts the rows. A database is also described at three levels: the external schema shows views to users, the logical schema defines the relations, and the physical schema defines files and indexes.",
+        "definitions": [
+          {
+            "term": "Degree",
+            "meaning": "The number of attributes of a relation, fixed by its schema."
+          },
+          {
+            "term": "Cardinality",
+            "meaning": "The number of tuples in a relation, which changes with inserts and deletes."
+          },
+          {
+            "term": "NULL",
+            "meaning": "A marker for a value that is unknown or does not apply; it equals nothing, not even another NULL."
+          },
+          {
+            "term": "Logical schema",
+            "meaning": "The description of the relations, their attributes, keys and constraints."
+          },
+          {
+            "term": "Physical schema",
+            "meaning": "The description of file organization and indexes on disk."
+          },
+          {
+            "term": "External schema",
+            "meaning": "The views that show one group of users part of the database."
+          }
+        ],
+        "principle": {
+          "text": "Degree counts columns and cardinality counts rows. A relation is a set of tuples, so it has no duplicate rows and no order, and every value is atomic. The higher the schema level, the closer to the user and the further from the disk.",
+          "tex": "\\text{entries} = \\text{degree} \\times \\text{cardinality}"
+        },
+        "limits": "The entry count formula holds because every tuple has a value, possibly NULL, in each column. Degree is not the number of distinct domains, since two attributes can share one domain.",
+        "example": {
+          "problem": "Student(roll, name, dept) currently holds 4 tuples. State its degree, its cardinality and the number of entries, then say what changes when one tuple is deleted.",
+          "steps": [
+            "The schema lists 3 attributes, so the degree is 3.",
+            "The instance holds 4 tuples, so the cardinality is 4.",
+            "Each tuple has a value in each column, so there are 3 x 4 = 12 entries.",
+            "Deleting a tuple changes the cardinality to 3 and the entries to 9, but the degree stays 3."
+          ],
+          "result": "Degree 3, cardinality 4, 12 entries; a deletion changes only cardinality."
+        },
+        "misconceptions": [
+          "Degree and cardinality are easy to swap: degree is the width of the table and cardinality is its length.",
+          "The number of entries is not the degree. It is the degree multiplied by the cardinality.",
+          "The logical schema is not the set of views. Views belong to the external schema, and file organization and indexes belong to the physical schema."
+        ],
+        "recall": [
+          {
+            "q": "What is the degree of a relation, and what is its cardinality?",
+            "a": "The degree is the number of attributes and the cardinality is the number of tuples."
+          },
+          {
+            "q": "Which schema level holds views, relations, and indexes?",
+            "a": "Views are the external level, relations the logical level, and indexes and file organization the physical level."
+          },
+          {
+            "q": "Which of the two sizes does an insert change?",
+            "a": "It changes the cardinality; the degree is fixed by the schema."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A relation has degree 4 and cardinality 6. Two tuples are deleted and then one attribute is added to the schema. How many entries does the relation hold afterwards?",
+          "answer": 20,
+          "explanation": "The degree becomes 4 + 1 = 5 and the cardinality becomes 6 - 2 = 4. Entries are 5 x 4 = 20. The tempting error is to subtract the two tuples from the original 24 entries without counting the new column."
+        },
+        "summary": "Degree is the number of columns, cardinality the number of rows, and entries their product; the external, logical and physical schemas hold views, relations and indexes in that order."
+      }
+    },
+    {
+      "id": "db-er-relational.keys",
+      "title": "Superkeys, candidate keys and foreign keys",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        518,
+        519,
+        521,
+        524,
+        525
+      ],
+      "points": [
+        "A superkey is any set of attributes whose values differ in every pair of tuples; a candidate key is a minimal superkey, so no proper subset of it is a superkey.",
+        "The primary key is the candidate key the designer chooses (unique and NOT NULL); the other candidate keys are alternate keys. A key with several attributes is a composite key.",
+        "Every superkey contains a candidate key, and adding attributes to a superkey keeps it a superkey. With n attributes and a single candidate key of k attributes there are $2^{n-k}$ superkeys; with several candidate keys, use inclusion–exclusion.",
+        "A foreign key is a set of attributes whose value must equal the primary key of some tuple of the referenced relation (possibly the same relation) or be NULL.",
+        "The model's integrity constraints are domain (values come from the declared domain), key or entity integrity (the primary key is unique and not NULL) and referential integrity (foreign keys point to existing tuples)."
+      ],
+      "keyTerms": [
+        "superkey",
+        "candidate key",
+        "primary key",
+        "alternate key",
+        "foreign key"
+      ],
+      "lesson": {
+        "why": "Key questions ask you to count superkeys or to tell candidate, primary and foreign keys apart, and the counting is a short formula.",
+        "intro": "A key picks out one tuple. A superkey is any set of attributes whose values differ for every pair of tuples. A candidate key is a minimal superkey: if you remove any attribute from it, it stops being a superkey. The designer chooses one candidate key as the primary key, which must be unique and not NULL; the others are alternate keys. A foreign key is a set of attributes in one relation whose values must match the primary key of a tuple in another relation, or be NULL.",
+        "prerequisites": [
+          "db-er-relational.relational-model"
+        ],
+        "definitions": [
+          {
+            "term": "Superkey",
+            "meaning": "A set of attributes that is distinct for every pair of tuples."
+          },
+          {
+            "term": "Candidate key",
+            "meaning": "A superkey with no proper subset that is a superkey."
+          },
+          {
+            "term": "Foreign key",
+            "meaning": "Attributes that must match a primary key value of the referenced relation, or be NULL."
+          }
+        ],
+        "principle": {
+          "text": "Every superkey contains a candidate key, and adding attributes to a superkey keeps it a superkey. With n attributes and one candidate key of k attributes, the other n - k attributes are free, so there are 2^(n-k) superkeys. With several candidate keys, use inclusion-exclusion.",
+          "tex": "\\#\\text{superkeys} = 2^{\\,n-k}"
+        },
+        "limits": "The formula 2^(n-k) holds only when there is one candidate key. With two keys a plain sum counts the supersets of both keys twice, so subtract them. Keys are fixed by the meaning of the data, not by one instance, since an instance may show values that happen to be distinct.",
+        "example": {
+          "problem": "R(A, B, C, D) has the candidate keys AB and C. Count its superkeys.",
+          "steps": [
+            "Superkeys containing AB leave C and D free: 2^2 = 4.",
+            "Superkeys containing C leave A, B and D free: 2^3 = 8.",
+            "Sets containing both keys contain A, B and C, leaving D free: 2^1 = 2, counted twice above.",
+            "Subtract the overlap once: 4 + 8 - 2."
+          ],
+          "result": "R has 10 superkeys."
+        },
+        "misconceptions": [
+          "A candidate key is not just any key: it must be minimal. AB is not a candidate key if A alone is already a superkey.",
+          "The primary key is not a different kind of key from the candidate keys; it is the candidate key the designer chose.",
+          "A foreign key need not be unique or NOT NULL in the referencing relation."
+        ],
+        "recall": [
+          {
+            "q": "What makes a superkey a candidate key?",
+            "a": "Minimality: no proper subset of it is a superkey."
+          },
+          {
+            "q": "How many superkeys does a relation with n attributes and one candidate key of k attributes have?",
+            "a": "It has 2^(n-k) superkeys."
+          },
+          {
+            "q": "What may a foreign key value be?",
+            "a": "It must equal a primary key value of the referenced relation, or be NULL."
+          },
+          {
+            "q": "What is an alternate key?",
+            "a": "A candidate key that was not chosen as the primary key."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B, C, D, E, F) has exactly two candidate keys, A and BC. How many superkeys does R have?",
+          "answer": 40,
+          "explanation": "Supersets of A: 2^5 = 32. Supersets of BC: 2^4 = 16. Supersets of both, which contain A, B and C: 2^3 = 8. By inclusion-exclusion, 32 + 16 - 8 = 40. The tempting answer 48 adds the two counts without subtracting the overlap."
+        },
+        "summary": "A candidate key is a minimal superkey; one key of k attributes among n gives 2^(n-k) superkeys, several keys need inclusion-exclusion, and a foreign key matches a primary key or is NULL."
+      }
+    },
+    {
+      "id": "db-er-relational.ra-basic",
+      "title": "The basic relational algebra operators",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        51,
+        519,
+        521,
+        522
+      ],
+      "points": [
+        "Selection $\\sigma_p(R)$ keeps the tuples that satisfy predicate p and leaves the schema unchanged. Selections commute and cascade: $\\sigma_p(\\sigma_q(R)) = \\sigma_{p \\wedge q}(R)$.",
+        "Projection $\\pi_L(R)$ keeps only the attributes in L and, because a relation is a set, removes duplicate tuples.",
+        "Union, set difference and intersection need union-compatible operands: the same number of attributes with compatible domains, position by position.",
+        "Cartesian product R × S pairs every tuple of R with every tuple of S, so degrees add and cardinalities multiply. Rename ρ gives a relation or its attributes new names, which a self-join needs.",
+        "{σ, π, ∪, −, ×, ρ} is a complete set: intersection is R − (R − S), and every join and division can be written with these six operators."
+      ],
+      "keyTerms": [
+        "selection",
+        "projection",
+        "union compatibility",
+        "Cartesian product",
+        "rename"
+      ],
+      "lesson": {
+        "why": "Relational algebra questions ask you to evaluate or build queries from a few operators, so each operator and its set behaviour must be exact.",
+        "intro": "Relational algebra works on whole relations and always returns a relation, which is a set of tuples. Selection keeps the rows that meet a condition. Projection keeps chosen columns. Because a relation is a set, projection drops rows that become identical. Union, difference and intersection combine two relations with matching columns. The cross product pairs each row of one relation with each row of another.",
+        "definitions": [
+          {
+            "term": "Selection",
+            "meaning": "The operator that keeps the tuples satisfying a condition and leaves the columns unchanged."
+          },
+          {
+            "term": "Projection",
+            "meaning": "The operator that keeps chosen columns and removes duplicate tuples."
+          },
+          {
+            "term": "Union-compatible",
+            "meaning": "Two relations with the same number of attributes and compatible domains, position by position."
+          }
+        ],
+        "principle": {
+          "text": "Each operator takes relations and returns a relation. Projection removes duplicates, set operators need union-compatible operands, and a cross product multiplies cardinalities and adds degrees.",
+          "tex": "|R \\times S| = |R| \\cdot |S|, \\qquad \\deg(R \\times S) = \\deg R + \\deg S"
+        },
+        "limits": "Counting rows with SQL-style grouping is not available in these operators. A self-join needs a rename, so that the two copies of a relation have distinct attribute names. Set difference is not symmetric.",
+        "example": {
+          "problem": "Emp(id, dept) holds (1,A), (2,A), (3,B), (4,B), (5,C). Evaluate the projection on dept of the selection id >= 2.",
+          "steps": [
+            "The selection keeps 4 tuples, the ones with id from 2 to 5.",
+            "Their dept values are A, B, B, C.",
+            "Projection removes the repeated B, leaving 3 tuples."
+          ],
+          "result": "The result is {A, B, C}, with 3 tuples although the selection had 4."
+        },
+        "misconceptions": [
+          "Projection does not keep duplicates. Counting the rows before projection gives the wrong tuple count.",
+          "Set difference is not commutative: A - B and B - A usually differ.",
+          "A selection condition on one tuple cannot compare two tuples of the same relation; a self-join with rename is needed for that."
+        ],
+        "recall": [
+          {
+            "q": "What does projection do to duplicate rows?",
+            "a": "It removes them, because a relation is a set of tuples."
+          },
+          {
+            "q": "What do set operators require of their operands?",
+            "a": "The relations must be union-compatible: the same number of attributes with compatible domains."
+          },
+          {
+            "q": "How many tuples and attributes does R x S have?",
+            "a": "The tuples number |R| times |S|, and the attributes number the degree of R plus the degree of S."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "S(x, y) = {(1,a), (2,a), (3,b), (4,c)} and T(x, y) = {(1,a), (3,c), (5,b)}. How many tuples does the projection on y of S, minus the projection on y of the selection x > 2 on T, return?",
+          "answer": 1,
+          "explanation": "The projection of S on y is {a, b, c}. The selection on T keeps (3,c) and (5,b), whose projection is {c, b}. The difference is {a}, which has 1 tuple. Answering 3 is tempting if the right-hand side is forgotten; the tuple (1,a) of T never matters because the selection removes it."
+        },
+        "summary": "Selection filters rows, projection keeps columns and removes duplicates, set operators need compatible operands, and a cross product multiplies cardinalities."
+      }
+    },
+    {
+      "id": "db-er-relational.ra-joins",
+      "title": "Theta, natural, semi and outer joins",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        50,
+        519,
+        520,
+        521,
+        524
+      ],
+      "points": [
+        "A theta join is a selection over a product, $R \\bowtie_{\\theta} S = \\sigma_{\\theta}(R \\times S)$. An equijoin uses only equalities and keeps both copies of the join columns.",
+        "A natural join equates all attributes that have the same name and keeps one copy of each. With no common attribute it degenerates into R × S.",
+        "The semijoin R ⋉ S returns the tuples of R that have at least one match in S, with R's attributes only.",
+        "Outer joins keep unmatched tuples padded with NULLs: left (⟕) keeps all of R, right (⟖) all of S, full (⟗) both. A left outer join has |R ⋈ S| tuples plus one for each R tuple with no match.",
+        "NULL equals nothing, not even another NULL, so a tuple whose join attribute is NULL is unmatched: it vanishes from an inner join and is padded in an outer join."
+      ],
+      "keyTerms": [
+        "theta join",
+        "equijoin",
+        "natural join",
+        "semijoin",
+        "outer join"
+      ],
+      "lesson": {
+        "why": "Join questions ask for a tuple count or the meaning of a query, and the answer turns on which rows find a partner and what happens to the rows that do not.",
+        "intro": "A join combines two relations by pairing rows that agree on a condition. Start from the cross product, which pairs every row of one relation with every row of the other, then keep only the pairs that pass the condition. When the condition is an arbitrary comparison, the result is a theta join. When it is equality on the attributes that share a name, and one copy of each shared column is kept, it is a natural join. Rows with no partner disappear from these inner joins, and the outer and semi variants decide what to do with them.",
+        "prerequisites": [
+          "db-er-relational.ra-basic"
+        ],
+        "definitions": [
+          {
+            "term": "Natural join",
+            "meaning": "A join that equates every pair of attributes with the same name and keeps a single copy of each."
+          },
+          {
+            "term": "Semijoin",
+            "meaning": "The rows of the left relation that have at least one partner in the right one, with the left attributes only."
+          },
+          {
+            "term": "Left outer join",
+            "meaning": "A natural join that also keeps each unmatched left row, padded with NULL in the right-hand columns."
+          }
+        ],
+        "principle": {
+          "text": "A theta join is a selection over a cross product. A left outer join has the inner join rows plus one padded row for each left row with no partner. A NULL join value matches nothing.",
+          "tex": "R \\bowtie_{\\theta} S = \\sigma_{\\theta}(R \\times S), \\qquad |R \\mathbin{\\text{LOJ}} S| = |R \\bowtie S| + \\#\\{r \\in R : r \\text{ has no partner}\\}"
+        },
+        "limits": "A row of the left relation can pair with many rows of the right one, so a join can have more tuples than either input. Joining a self-copy needs a rename first, otherwise the two column sets clash. The natural join depends on attribute names, so renaming a column changes the result.",
+        "example": {
+          "problem": "R(A, B) = {(1,x), (2,y), (3,z)} and S(A, C) = {(1,p), (1,q), (3,r), (4,s)}. Find the natural join, the left outer join and the semijoin of R with S, as tuple counts.",
+          "steps": [
+            "The shared attribute is A. A = 1 in R meets two rows of S, giving 2 joined rows. A = 3 meets one row, giving 1. A = 2 meets none.",
+            "The natural join therefore has 2 + 1 = 3 tuples. The row with A = 4 in S never matters, since the left side has no 4.",
+            "The left outer join adds one NULL-padded row for the unmatched row (2,y), so it has 3 + 1 = 4 tuples.",
+            "The semijoin keeps the R rows that have a partner, (1,x) and (3,z), each once and with R attributes only: 2 tuples."
+          ],
+          "result": "Natural join 3 tuples, left outer join 4 tuples, semijoin 2 tuples."
+        },
+        "misconceptions": [
+          "The semijoin does not repeat a left row once per partner, because it returns left rows only; the natural join does repeat it.",
+          "A row whose join attribute is NULL is not matched even by another NULL, so an inner join drops it and an outer join pads it.",
+          "A theta join result is not limited by the larger input: with many partners per row it can approach the product of the sizes."
+        ],
+        "recall": [
+          {
+            "q": "How is a theta join defined from simpler operators?",
+            "a": "It is a selection with the join condition applied to the cross product of the two relations."
+          },
+          {
+            "q": "How many tuples does a left outer join have compared with the inner join?",
+            "a": "The inner join count plus one padded row for each left row that has no partner."
+          },
+          {
+            "q": "What does a semijoin return?",
+            "a": "The left rows that have at least one match in the right relation, with only the left attributes."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R(A, B) = {(1,5), (2,7), (3,9)} and S(A, C) = {(1,6), (2,6), (2,8), (4,1)}. How many tuples does the natural left outer join of R with S return?",
+          "answer": 4,
+          "explanation": "A = 1 gives 1 row, A = 2 gives 2 rows, so the inner join has 3. The row of R with A = 3 has no partner and adds one padded row, so the total is 4. Answering 3 is tempting if the outer join is read as an inner join, and the row (4,1) of S is never kept because the left side has no A = 4."
+        },
+        "summary": "A theta join selects from a cross product, a natural join equates same-named columns, a semijoin keeps matching left rows, and an outer join pads the unmatched ones with NULL."
+      }
+    },
+    {
+      "id": "db-er-relational.ra-division",
+      "title": "Division and 'for all' queries",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        51,
+        519,
+        521,
+        524,
+        525
+      ],
+      "points": [
+        "For R(X, Y) and S(Y), R ÷ S is the set of X-values x such that (x, y) is in R for every y in S. The result has only the attributes X, those of R that are not in S.",
+        "Division answers 'every' queries: Enrolled(sid, cid) ÷ Course(cid) gives the students enrolled in all courses.",
+        "In basic operators, $R \\div S = \\pi_X(R) - \\pi_X((\\pi_X(R) \\times S) - R)$. The inner part lists the (x, y) pairs that are missing from R, and the subtraction removes every x with a gap.",
+        "Edge cases: if S is empty, every x in π_X(R) qualifies vacuously; if S is non-empty, the result has at most ⌊|R| / |S|⌋ tuples.",
+        "Division undoes a product, (R × S) ÷ S = R for non-empty S, but in general only (R ÷ S) × S ⊆ R holds."
+      ],
+      "keyTerms": [
+        "division",
+        "for all",
+        "divisor"
+      ],
+      "lesson": {
+        "why": "Every query that says \"for all\" or \"every\" in relational algebra is a division, and GATE tests both the result of one and which expressions build it.",
+        "intro": "Division finds the values of one column that are paired with every value in a list. Take a relation of pairs, such as a student and a subject, and a second relation that is a list of subjects. Dividing the pairs by the list returns each student who appears with every subject in the list. A student who has all the listed subjects and some more still qualifies. A student missing even one listed subject does not.",
+        "prerequisites": [
+          "db-er-relational.ra-basic",
+          "db-er-relational.ra-joins"
+        ],
+        "definitions": [
+          {
+            "term": "Divisor",
+            "meaning": "The relation after the division sign, whose rows must all be present for a value to qualify."
+          },
+          {
+            "term": "Quotient",
+            "meaning": "The result of the division, which has the attributes of the dividend that are not in the divisor."
+          }
+        ],
+        "principle": {
+          "text": "For R(X, Y) and S(Y), a value x is in R divided by S exactly when no pair (x, y) with y in S is missing from R. In basic operators, build all pairs that should exist, subtract the ones that do, and remove the offending x values.",
+          "tex": "R \\div S = \\pi_X(R) - \\pi_X\\big((\\pi_X(R) \\times S) - R\\big)"
+        },
+        "limits": "Division only works when the divisor attributes are a subset of the dividend attributes. Extra pairs in R never disqualify an x; only a missing pair does. If the divisor is empty, every x in R qualifies, since nothing can be missing. Dividing by the wrong list, such as the values that happen to occur in R rather than the full master list, changes the answer.",
+        "example": {
+          "problem": "Reg(stu, sub) = {(a,m), (a,n), (b,m), (c,m), (c,n), (c,o)} and Need(sub) = {m, n}. Find Reg divided by Need.",
+          "steps": [
+            "The candidate students are a, b and c, which is the projection of Reg on stu.",
+            "Pair each candidate with each needed subject: (a,m), (a,n), (b,m), (b,n), (c,m), (c,n).",
+            "Subtract Reg from these pairs. Only (b,n) is absent from Reg, so b is the one student with a gap.",
+            "Remove b from the candidates. Student c has the extra subject o, which does not matter."
+          ],
+          "result": "The quotient is {a, c}, which has 2 tuples."
+        },
+        "misconceptions": [
+          "A student with extra subjects beyond the divisor is not rejected; the test is only that every divisor row is present.",
+          "Dividing by the values that happen to occur in R, instead of the full required list, is wrong: a shorter divisor lets students with gaps qualify.",
+          "The quotient does not contain the divisor attributes; the result has only the leftover columns of the dividend."
+        ],
+        "recall": [
+          {
+            "q": "What does R divided by S return when R has attributes X, Y and S has Y?",
+            "a": "The X values that appear in R paired with every Y value in S."
+          },
+          {
+            "q": "How can division be written with basic operators?",
+            "a": "Project the X values, then subtract those x for which a pair of x with some divisor row is missing from R."
+          },
+          {
+            "q": "Does an extra pair in R disqualify an x value?",
+            "a": "No. Only a missing pair for some divisor row disqualifies it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Sup(sup, part) = {(s1,p1), (s1,p2), (s1,p3), (s2,p1), (s2,p3), (s3,p1), (s3,p2), (s3,p3), (s3,p4), (s4,p1), (s4,p2)} and Part(part) = {p1, p2, p3}. How many tuples does Sup divided by Part return?",
+          "answer": 2,
+          "explanation": "Supplier s1 has p1, p2 and p3, and s3 has all three plus p4, so both qualify. Supplier s2 lacks p2 and s4 lacks p3, so each has a gap. The result is {s1, s3}, 2 tuples. Answering 1 is tempting if s3 is rejected for its extra part p4, and 4 if every supplier holding any listed part is counted."
+        },
+        "summary": "Division returns the dividend values that are paired with every divisor row; extra pairs are harmless, a single missing pair disqualifies, and the basic-operator form subtracts the values with a gap."
+      }
+    },
+    {
+      "id": "db-er-relational.ra-result-size",
+      "title": "Bounds on the size of a result",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Selection returns 0 to |R| tuples. Projection of a non-empty R returns 1 to |R| tuples, and exactly |R| when the projected attributes contain a key.",
+        "R × S has exactly |R|·|S| tuples. A natural or theta join has between 0 and |R|·|S|; joining a NOT NULL foreign key of R to the primary key of S gives exactly |R|.",
+        "Union has between max(|R|, |S|) and |R| + |S| tuples, intersection between 0 and min(|R|, |S|), and R − S between max(0, |R| − |S|) and |R|.",
+        "A left outer join R ⟕ S has at least |R| tuples and, for non-empty S, at most |R|·|S|."
+      ],
+      "lesson": {
+        "why": "Many questions give only the sizes of relations and ask for the smallest or largest possible result, so each operator's size range has to be known without any data.",
+        "intro": "The number of tuples in a result depends on which rows overlap or match, and a question that gives only sizes asks you to take the most favourable and the least favourable case. Take two relations R and S of known sizes. For a union, the fewest rows occur when one relation sits inside the other, and the most when they share nothing. For a difference, the fewest rows occur when S removes as many R rows as it can, and the most when S removes none. A question that instead gives value ranges and says the attributes are independent asks for an estimate: multiply the tuple count by the fraction of rows that pass the condition.",
+        "prerequisites": [
+          "db-er-relational.ra-basic"
+        ],
+        "principle": {
+          "text": "For union-compatible R and S, the union has between max(|R|, |S|) and |R| + |S| tuples, the intersection between 0 and min(|R|, |S|), and R - S between max(0, |R| - |S|) and |R|. A cross product has exactly |R||S| tuples. For an estimate, a condition passed by a fraction p of the rows keeps p|R| rows; for independent conditions, AND multiplies the fractions and OR gives p + q - pq.",
+          "tex": "max(|R|,|S|) \\le |R \\cup S| \\le |R|+|S|, \\quad 0 \\le |R \\cap S| \\le min(|R|,|S|), \\quad max(0,|R|-|S|) \\le |R - S| \\le |R|"
+        },
+        "limits": "These ranges assume nothing about keys. A non-null foreign key into a primary key fixes a join at exactly the size of the referencing side, and a projection that keeps a key keeps every row. An estimate from value ranges is a single number, not a range, and holds only if the conditions are independent.",
+        "example": {
+          "problem": "R has 6 tuples and S has 4 tuples, and both have the same attributes. Give the smallest and largest possible sizes of R union S, R minus S, and R intersect S.",
+          "steps": [
+            "Union is smallest when S is contained in R, leaving 6 tuples, and largest when they share nothing, giving 6 + 4 = 10.",
+            "Difference is smallest when all 4 rows of S are in R, leaving 6 - 4 = 2, and largest when S shares nothing with R, leaving all 6.",
+            "Intersection is smallest when they share nothing, so 0, and largest when S sits inside R, so 4.",
+            "For an estimate instead of bounds, let 30% of 200 rows pass one condition and 50% pass an independent one. An OR keeps 0.3 + 0.5 - 0.3 x 0.5 = 0.65 of the rows, so 200 x 0.65 = 130."
+          ],
+          "result": "Union 6 to 10, difference 2 to 6, intersection 0 to 4; the OR estimate in the last step is 130 rows."
+        },
+        "misconceptions": [
+          "R - S cannot exceed |R|, since it only removes rows from R; its largest size has nothing to do with |S|.",
+          "The smallest union is the larger of the two sizes, not zero and not the smaller size.",
+          "A natural join is not guaranteed to have at least one row: with no matches it is empty, and the product size is only its upper bound."
+        ],
+        "recall": [
+          {
+            "q": "What is the range of sizes of R union S?",
+            "a": "From the larger of |R| and |S| up to |R| + |S|."
+          },
+          {
+            "q": "What is the smallest size of R - S?",
+            "a": "It is max(0, |R| - |S|), reached when S contains as many rows of R as possible."
+          },
+          {
+            "q": "How many tuples does a cross product have?",
+            "a": "Exactly |R| times |S|, whatever the contents."
+          },
+          {
+            "q": "How is the size of a selection with an OR of two independent conditions estimated?",
+            "a": "Add the two selectivities, subtract their product, and multiply by the tuple count."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "R and S are union-compatible, with |R| = 8 and |S| = 5. What is the largest possible size of R - S minus the smallest possible size of R - S?",
+          "answer": 5,
+          "explanation": "The largest size is 8, when S shares no row with R. The smallest is 8 - 5 = 3, when all 5 rows of S are in R. The gap is 8 - 3 = 5. Answering 8 is tempting if the smallest size is taken as 0, which would need S to remove all 8 rows and cannot happen with only 5."
+        },
+        "summary": "Size questions take the best and worst overlap: union runs from the larger input to the sum, intersection from 0 to the smaller input, difference from max(0, |R| - |S|) to |R|."
+      }
+    },
+    {
+      "id": "db-er-relational.trc",
+      "title": "Tuple relational calculus and safety",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        51,
+        520,
+        521,
+        524
+      ],
+      "points": [
+        "A TRC query {t | P(t)} returns every tuple t for which the formula P is true. It states what to retrieve, not how; relational algebra gives a procedure instead.",
+        "Atoms are t ∈ R, t.A θ s.B and t.A θ c, combined with ∧, ∨, ¬, ⇒ and the quantifiers ∃s ∈ R and ∀s ∈ R. Only t may be free; every other tuple variable must be bound, and the attributes the formula gives t form the result schema.",
+        "An expression is safe when every value in its result comes from dom(P): the constants in P plus the values stored in the relations P mentions. {t | ¬(t ∈ R)} is unsafe because it describes infinitely many tuples.",
+        "Safe TRC, safe domain calculus and relational algebra have the same expressive power, called relational completeness. None of them can express aggregation or transitive closure.",
+        "A bound over R can also be written unrestricted: ∃s ∈ R (P) is ∃s (s ∈ R ∧ P) and ∀s ∈ R (P) is ∀s (s ∈ R ⇒ P). Swapping the connectives breaks both: ∀s (s ∈ R ∧ P) is false because some tuple lies outside R, and ∃s (s ∈ R ⇒ P) is true for the same reason.",
+        "Domain relational calculus names one variable per attribute instead of a tuple: {⟨x, y⟩ | ∃z (⟨x, y, z⟩ ∈ Emp ∧ z > 30)}. Safe DRC is as expressive as safe TRC and the algebra."
+      ],
+      "keyTerms": [
+        "free variable",
+        "bound variable",
+        "safe expression",
+        "relational completeness"
+      ],
+      "lesson": {
+        "why": "Tuple calculus questions ask which of several formulas is correct, safe or equivalent to an algebra query, and each of those checks depends on reading the formula exactly.",
+        "intro": "Tuple relational calculus describes the answer instead of a procedure for computing it. A query has the form of a variable t and a condition on t, and the result is every tuple that makes the condition true. The variable t is a row, so t.sal means the sal value of that row. A condition can say that t is a row of a stored relation, compare values, and use \"there exists a row\" or \"for all rows\" to talk about other tuples. Domain calculus writes the same idea with one variable per column, as in the pair u, v in R.",
+        "prerequisites": [
+          "db-er-relational.ra-basic"
+        ],
+        "definitions": [
+          {
+            "term": "Free variable",
+            "meaning": "A tuple variable not bound by a quantifier; it is the one that the answer ranges over."
+          },
+          {
+            "term": "Safe expression",
+            "meaning": "An expression whose every result value comes from the constants in it and the stored relations it mentions, so the result is finite."
+          }
+        ],
+        "principle": {
+          "text": "A query returns every tuple t for which the formula holds. It is safe when each value of t is tied to stored data, either by t in R or by an equality such as t[A] = u[A] with u in R, so the result is finite. Going to algebra, a variable shared by two conditions is a join, a quantified variable that is not output is projected out, exists pairs with and, and for all pairs with implies.",
+          "tex": "\\{\\, t.A \\mid t \\in R \\wedge \\exists s\\,(s \\in S \\wedge t.B = s.B) \\,\\}"
+        },
+        "limits": "A formula that never ties t to stored data, such as one that only says t.sal is above 50, describes infinitely many tuples and is unsafe. Neither calculus nor the algebra can count, sum or compute a transitive closure. P implies Q means if P then Q, true whenever P is false. Every s in R satisfies Q is for all s (s in R implies Q); an and in its place would demand that every tuple be in R.",
+        "example": {
+          "problem": "Dept(did, name) = {(10,Sales), (20,Ops), (30,Law)} and Emp(eid, did) = {(1,10), (2,10), (3,30)}. Evaluate {d.name | d in Dept and there is an e in Emp with e.did = d.did}.",
+          "steps": [
+            "The variable d ranges over the three Dept rows, because d is tied to Dept.",
+            "For d = (10,Sales), employees 1 and 2 have did 10, so the condition holds. For d = (20,Ops), no employee has did 20, so it fails. For d = (30,Law), employee 3 matches.",
+            "The output collects name for the rows where the condition holds."
+          ],
+          "result": "The result is {Sales, Law}: the departments that have at least one employee."
+        },
+        "misconceptions": [
+          "The query does not say how to compute the answer; the order of the conditions inside the formula does not matter.",
+          "A tuple variable can only use attributes of the relation it ranges over, so asking for p.pname when p ranges over a relation without pname is not a valid query.",
+          "Two relations are not linked just because both appear in the formula; an equality on their common attribute must say so, or every pair qualifies."
+        ],
+        "recall": [
+          {
+            "q": "What does a query written with t and a condition P return?",
+            "a": "Every tuple t for which P is true, with the result attributes taken from the attributes the formula gives t."
+          },
+          {
+            "q": "Why is a formula that says only that t is not in R unsafe?",
+            "a": "It describes infinitely many tuples, since nothing ties t to values stored in the database."
+          },
+          {
+            "q": "What can neither relational algebra nor tuple calculus express?",
+            "a": "Aggregation such as counting or summing, and transitive closure."
+          },
+          {
+            "q": "How does a calculus formula translate to relational algebra?",
+            "a": "A variable used in two conditions becomes a join condition, and a quantified variable that is not output is projected away."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Emp(id, sal) is a relation. Which tuple calculus expression is safe?",
+          "options": [
+            "{t | not (t in Emp)}",
+            "{t | t.sal > 50}",
+            "{t | t in Emp and t.sal > 50}",
+            "{t | t in Emp or t.sal > 50}"
+          ],
+          "answer": 2,
+          "explanation": "Only the third ties t to a stored relation by a conjunction, so every result tuple is an Emp row and the result is finite. The first lists everything outside Emp, and the second lists every tuple with a large sal, both infinite. The fourth is tempting because it names Emp, but the or allows any tuple with sal above 50, so it is unsafe."
+        },
+        "summary": "Tuple calculus states what to return as a formula over tuple variables; it is safe only when each result value is tied to stored data, and then it matches relational algebra in power."
+      }
+    },
+    {
+      "id": "db-er-relational.query-equivalence",
+      "title": "Equivalent relational algebra and TRC queries",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [
+        520
+      ],
+      "points": [
+        "Translation: a selection becomes a condition on t; a projection becomes ∃s ∈ R (t.A = s.A ∧ …); a join becomes nested ∃ with equalities; a difference becomes ∧ ¬∃; a division becomes ∀.",
+        "Quantifier identities: ∀s ∈ R (P) ≡ ¬∃s ∈ R (¬P), and P ⇒ Q ≡ ¬P ∨ Q. A ∀ over an empty relation is true, so a 'for all' query with an empty divisor returns every candidate.",
+        "Projection distributes over union but not over difference or intersection: with R = {(1, x)} and S = {(1, y)}, π_A(R − S) = {1} while π_A(R) − π_A(S) = ∅. Selection distributes over ∪, ∩ and −.",
+        "A selection that mentions only R's attributes can be pushed below a join, $\\sigma_p(R \\bowtie S) = \\sigma_p(R) \\bowtie S$; optimisers use this to shrink intermediate results.",
+        "Maximum pattern, with K a key of R: $\\pi_K(R) - \\pi_{R1.K}(\\sigma_{R1.A < R2.A}(\\rho_{R1}(R) \\times \\rho_{R2}(R)))$ removes every tuple whose A is smaller than some other tuple's A, leaving the tuples that hold the maximum, ties included.",
+        "Extremes use ¬∃: {t | t ∈ Emp ∧ ¬∃s ∈ Emp (s.sal > t.sal)} keeps the top earners, ties included, and adding s.dept = t.dept keeps the top earner of each department. 'More than every employee of dept 2' is ∀s ∈ Emp (s.dept = 2 ⇒ t.sal > s.sal), true for everyone when dept 2 is empty."
+      ],
+      "lesson": {
+        "why": "GATE asks whether two algebra or calculus queries return the same result on every database, and the answer rests on a few laws plus the ability to build a counterexample.",
+        "intro": "Two queries are equivalent when they return the same rows for every possible legal database, not just for one sample. A single instance where they differ proves they are not equivalent. To prove they are, you need a rule. Selection can be moved across union, intersection and difference. Projection can be moved across union but not across difference or intersection, because dropping a column can make two different rows look the same.",
+        "prerequisites": [
+          "db-er-relational.ra-basic",
+          "db-er-relational.ra-joins"
+        ],
+        "principle": {
+          "text": "Selection distributes over union, intersection and difference. Projection distributes over union only. A selection that uses attributes of one operand can be pushed below a join. An outer join is not equivalent to an inner join unless every row is guaranteed a partner.",
+          "tex": "\\sigma_p(R \\cup S) = \\sigma_p(R) \\cup \\sigma_p(S), \\qquad \\pi_A(R \\cup S) = \\pi_A(R) \\cup \\pi_A(S)"
+        },
+        "limits": "Equivalence can depend on constraints: with a foreign key and no NULLs, a left outer join gives the same rows as the inner join, but without them it does not. Showing a rule fails only needs one small instance.",
+        "example": {
+          "problem": "R(A, B) = {(1,x), (2,y), (3,z)} and S(A, B) = {(1,y), (3,z)}. Compare the projection on A of R - S with the projection on A of R minus the projection on A of S.",
+          "steps": [
+            "R - S removes (3,z), which is in both, and keeps (1,x) and (2,y). Projecting on A gives {1, 2}.",
+            "The projection of R on A is {1, 2, 3} and the projection of S on A is {1, 3}. Their difference is {2}.",
+            "The two results differ, so the queries are not equivalent. The value 1 is lost on the second side because S has a different row with the same A."
+          ],
+          "result": "The first query gives {1, 2} and the second gives {2}, so projection does not distribute over difference."
+        },
+        "misconceptions": [
+          "Projection does not distribute over difference or intersection; a shared A value can come from different rows.",
+          "Matching results on one sample database does not show equivalence; only a rule or a proof for all instances does.",
+          "An outer join is not an inner join in disguise. It equals one only when every left row has a partner, as a non-null foreign key guarantees."
+        ],
+        "recall": [
+          {
+            "q": "Over which set operators does selection distribute?",
+            "a": "Union, intersection and difference."
+          },
+          {
+            "q": "Over which set operator does projection distribute?",
+            "a": "Only union; it fails for difference and intersection."
+          },
+          {
+            "q": "How do you show two queries are not equivalent?",
+            "a": "Give one small legal instance on which they return different results."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "R and S are union-compatible relations with attributes A and B. Which pair of expressions is equivalent on every instance?",
+          "options": [
+            "The projection on A of (R - S), and the projection on A of R minus the projection on A of S",
+            "The selection B = x applied to (R union S), and the union of the selection B = x on R and on S",
+            "The projection on A of (R intersect S), and the intersection of the projection on A of R and of S",
+            "R - S, and S - R"
+          ],
+          "answer": 1,
+          "explanation": "Selection distributes over union, so the second pair is equivalent. The first and third fail because a shared A value can come from different rows, so the projected sets differ from the projection of the combined set. The fourth is tempting for symmetry, but difference depends on order: R - S keeps the rows of R only."
+        },
+        "summary": "Equivalence must hold on every legal instance: selection moves across union, intersection and difference, projection only across union, and one counterexample refutes a claimed law."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "db-er-relational.product-size",
+      "name": "Cartesian product size and degree",
+      "tex": "|R \\times S| = |R| \\cdot |S|, \\qquad \\deg(R \\times S) = \\deg(R) + \\deg(S)",
+      "text": "|R × S| = |R|·|S|; degree(R × S) = degree(R) + degree(S)",
+      "note": "Exact for any instances. With 10 and 20 tuples, of degrees 3 and 4, the product has 200 tuples of degree 7.",
+      "topic": "db-er-relational.ra-basic",
+      "origin": "source",
+      "pages": [
+        523,
+        524
+      ]
+    },
+    {
+      "id": "db-er-relational.intersection-via-difference",
+      "name": "Intersection from difference",
+      "tex": "R \\cap S = R - (R - S)",
+      "text": "R ∩ S = R − (R − S)",
+      "note": "Shows that intersection is not a basic operator.",
+      "topic": "db-er-relational.ra-basic",
+      "origin": "source",
+      "pages": [
+        519
+      ]
+    },
+    {
+      "id": "db-er-relational.theta-join",
+      "name": "Theta join",
+      "tex": "R \\bowtie_{\\theta} S = \\sigma_{\\theta}(R \\times S)",
+      "text": "R ⋈θ S = σθ(R × S)",
+      "note": "A natural join adds equality on every common attribute and then projects away the duplicate columns.",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "source",
+      "pages": [
+        50,
+        519,
+        521
+      ]
+    },
+    {
+      "id": "db-er-relational.semijoin",
+      "name": "Semijoin",
+      "tex": "R \\ltimes S = \\pi_{\\text{attrs}(R)}(R \\bowtie S)",
+      "text": "R ⋉ S = π attrs(R) (R ⋈ S)",
+      "note": "Each R tuple appears at most once, however many S tuples it matches.",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "source",
+      "pages": [
+        519
+      ]
+    },
+    {
+      "id": "db-er-relational.left-outer-join-size",
+      "name": "Left outer join size",
+      "tex": "|R \\;\\text{LEFT JOIN}\\; S| = |R \\bowtie S| + u_R",
+      "text": "|R ⟕ S| = |R ⋈ S| + u_R",
+      "where": [
+        [
+          "u_R",
+          "number of R tuples that match no S tuple"
+        ]
+      ],
+      "note": "A full outer join also adds u_S, the unmatched S tuples.",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "curated",
+      "pages": [
+        519,
+        520
+      ]
+    },
+    {
+      "id": "db-er-relational.division",
+      "name": "Division in basic operators",
+      "tex": "R \\div S = \\pi_X(R) - \\pi_X\\big((\\pi_X(R) \\times S) - R\\big)",
+      "text": "R ÷ S = πX(R) − πX((πX(R) × S) − R)",
+      "where": [
+        [
+          "X",
+          "attributes of R that are not attributes of S"
+        ]
+      ],
+      "note": "If S is empty the subtracted part is empty, so the result is all of πX(R).",
+      "topic": "db-er-relational.ra-division",
+      "origin": "curated",
+      "pages": [
+        519
+      ]
+    },
+    {
+      "id": "db-er-relational.division-size",
+      "name": "Division result size",
+      "tex": "|R \\div S| \\le \\left\\lfloor \\frac{|R|}{|S|} \\right\\rfloor \\qquad (S \\ne \\varnothing)",
+      "text": "|R ÷ S| ≤ ⌊|R| / |S|⌋ for non-empty S",
+      "note": "Each result value x needs |S| distinct tuples (x, y) in R.",
+      "topic": "db-er-relational.ra-division",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.join-size",
+      "name": "Natural join size bounds",
+      "tex": "0 \\le |R \\bowtie S| \\le |R| \\cdot |S|",
+      "text": "0 ≤ |R ⋈ S| ≤ |R|·|S|",
+      "note": "If the common attributes are the primary key of S and R holds a NOT NULL foreign key to it, |R ⋈ S| = |R| exactly. With no common attribute the join is R × S.",
+      "topic": "db-er-relational.ra-result-size",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.set-operation-sizes",
+      "name": "Union and intersection sizes",
+      "tex": "\\max(|R|,|S|) \\le |R \\cup S| \\le |R| + |S|, \\qquad 0 \\le |R \\cap S| \\le \\min(|R|,|S|)",
+      "text": "max(|R|, |S|) ≤ |R ∪ S| ≤ |R| + |S|; 0 ≤ |R ∩ S| ≤ min(|R|, |S|)",
+      "note": "Difference: max(0, |R| − |S|) ≤ |R − S| ≤ |R|. All three need union-compatible operands.",
+      "topic": "db-er-relational.ra-result-size",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.superkey-count",
+      "name": "Number of superkeys",
+      "tex": "\\#\\text{superkeys} = 2^{\\,n-k}",
+      "text": "number of superkeys = 2^(n − k)",
+      "where": [
+        [
+          "n",
+          "number of attributes in the relation"
+        ],
+        [
+          "k",
+          "number of attributes in its only candidate key"
+        ]
+      ],
+      "note": "With two candidate keys K₁ and K₂ use inclusion–exclusion: 2^(n−|K₁|) + 2^(n−|K₂|) − 2^(n−|K₁ ∪ K₂|). For R(A, B, C, D, E) with keys A and BC: 16 + 8 − 4 = 20.",
+      "topic": "db-er-relational.keys",
+      "origin": "curated",
+      "pages": [
+        518
+      ]
+    },
+    {
+      "id": "db-er-relational.forall-via-exists",
+      "name": "Universal quantifier through the existential",
+      "tex": "\\forall s \\in R\\,(P) \\;\\equiv\\; \\neg\\, \\exists s \\in R\\,(\\neg P)",
+      "text": "∀s ∈ R (P) ≡ ¬∃s ∈ R (¬P)",
+      "note": "This is the 'no counterexample' reading behind division and behind SQL's double NOT EXISTS.",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.restricted-quantifiers",
+      "name": "Restricted quantifiers written unrestricted",
+      "tex": "\\exists s \\in R\\,(P) \\equiv \\exists s\\,(s \\in R \\wedge P), \\qquad \\forall s \\in R\\,(P) \\equiv \\forall s\\,(s \\in R \\Rightarrow P)",
+      "text": "∃s ∈ R (P) ≡ ∃s (s ∈ R ∧ P); ∀s ∈ R (P) ≡ ∀s (s ∈ R ⇒ P)",
+      "note": "∃ pairs with ∧, ∀ pairs with ⇒. ∀s (s ∈ R ∧ P) is always false and ∃s (s ∈ R ⇒ P) always true, since the domain holds tuples outside R.",
+      "topic": "db-er-relational.trc",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.trc-maximum",
+      "name": "Maximum through a negated existential",
+      "tex": "\\{t \\mid t \\in R \\wedge \\neg \\exists s \\in R\\,(s.A > t.A)\\}",
+      "text": "{t | t ∈ R ∧ ¬∃s ∈ R (s.A > t.A)}",
+      "note": "Returns every tuple holding the largest A, ties included; < gives the minimum, and adding s.G = t.G gives the maximum per group G. Calculus twin of the algebra's self-product difference.",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "db-er-relational.count-min-relations",
+      "title": "Minimum number of relations for an ER diagram",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Count every entity set, strong or weak, as one relation.",
+        "Add one relation for each M:N relationship, each multivalued attribute and each relationship of degree three or more.",
+        "Add nothing for 1:N or 1:1 relationships and for identifying relationships: they become foreign keys in existing relations.",
+        "Merge the two sides of a 1:1 relationship whenever at least one participation is total, keyed on the partial side's key (either key when both are total); this saves one relation. Only a 1:1 with both sides partial keeps two."
+      ],
+      "trap": "Forgetting the extra relation for a multivalued attribute, or giving a 1:N relationship a table of its own.",
+      "topic": "db-er-relational.minimum-relations",
+      "origin": "curated",
+      "pages": [
+        50,
+        518
+      ]
+    },
+    {
+      "id": "db-er-relational.evaluate-ra",
+      "title": "Evaluate a relational algebra query on given tables",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Work from the inside out: apply selections and projections to the base relations first.",
+        "For a join, list the matching pairs value by value; for an outer join, then add the unmatched tuples padded with NULLs.",
+        "After every projection, delete duplicate tuples before you count."
+      ],
+      "trap": "Counting duplicates after a projection, or letting two NULL join values match.",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "source",
+      "pages": [
+        519,
+        520,
+        523
+      ]
+    },
+    {
+      "id": "db-er-relational.result-size-bounds",
+      "title": "Minimum and maximum size of a query result",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Write the bound for each operator: × multiplies exactly, a join ranges from 0 to the product, a union from the larger operand to the sum.",
+        "Use keys: a join on a key of S matches each R tuple at most once, and a NOT NULL foreign key makes it exactly once.",
+        "Combine the bounds from the innermost operator outward."
+      ],
+      "trap": "Assuming a join returns at most max(|R|, |S|) tuples; without a key it can return the whole product.",
+      "topic": "db-er-relational.ra-result-size",
+      "origin": "source",
+      "pages": [
+        523,
+        524
+      ]
+    },
+    {
+      "id": "db-er-relational.division-queries",
+      "title": "Recognise or evaluate a division ('for all') query",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Identify X, the attributes of R that are not in the divisor, and compute the divisor after any selection on it.",
+        "For each x, check that every divisor tuple appears paired with x in R; extra pairs do not matter.",
+        "If the divisor is empty, every x in πX(R) qualifies."
+      ],
+      "trap": "Dividing by the whole relation when the query restricts the divisor, or reporting R's full tuples instead of only X.",
+      "topic": "db-er-relational.ra-division",
+      "origin": "source",
+      "pages": [
+        51,
+        519,
+        524
+      ]
+    },
+    {
+      "id": "db-er-relational.match-ra-trc",
+      "title": "Match an English query with equivalent algebra and calculus expressions",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Translate the English: 'some' means ∃ or a join, 'no' means a difference or ¬∃, 'every' means ∀ or division.",
+        "Check the result schema: a projection in algebra corresponds to giving t only the needed attributes in calculus.",
+        "Test each option on a two-tuple instance, and once with an empty relation."
+      ],
+      "trap": "An ∃ that closes before the condition using its variable, or a ∀ where 'at least one' is meant.",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "source",
+      "pages": [
+        520,
+        521
+      ]
+    },
+    {
+      "id": "db-er-relational.count-superkeys",
+      "title": "Count superkeys or candidate keys",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "List the candidate keys.",
+        "For one key of k attributes out of n, there are 2^(n − k) superkeys: the other attributes are free.",
+        "For several keys, add the count for each key and subtract the sets counted twice, by inclusion–exclusion."
+      ],
+      "trap": "Adding the counts for two keys without subtracting the attribute sets that contain both.",
+      "topic": "db-er-relational.keys",
+      "origin": "curated",
+      "pages": [
+        518
+      ]
+    },
+    {
+      "id": "db-er-relational.read-constraints",
+      "title": "Read cardinality and participation from a description",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "'Exactly one' or 'at most one' partner gives the 1 of the cardinality ratio; 'many' or 'any number' gives N.",
+        "'Every', 'must' or 'exactly one' signals total participation (double line); 'may' signals partial.",
+        "When mapping, total participation on the N side becomes a NOT NULL foreign key."
+      ],
+      "trap": "Reading the ratio backwards: N:1 from Employee to Department means each employee has one department, not the reverse.",
+      "topic": "db-er-relational.cardinality-participation",
+      "origin": "source",
+      "pages": [
+        50,
+        517
+      ]
+    },
+    {
+      "id": "db-er-relational.evaluate-trc",
+      "title": "Evaluate a tuple calculus query on a small instance",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Fix the result variable t and test it against each tuple of the relation it is drawn from, one at a time.",
+        "For ∃s ∈ R (…), look for one witness s; for ¬∃, check that no s satisfies the condition; for ∀s ∈ R (A ⇒ B), check B only on the tuples where A holds.",
+        "Watch strict versus non-strict comparisons and ties, then count the tuples that pass."
+      ],
+      "trap": "Reading ∀s (A ⇒ B) as ∀s (A ∧ B), which rejects every t, or letting a tie pass a strict >.",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "db-er-relational.q-min-relations",
+      "type": "nat",
+      "marks": 2,
+      "stem": "An ER diagram has three strong entity sets: E1 (key a1, attribute a2), E2 (key b1, multivalued attribute b2) and E3 (key c1, attribute c2). Relationship R12 between E1 and E2 is many-to-many and has an attribute r. Relationship R23 between E2 and E3 is one-to-many: each E3 entity is related to at most one E2 entity. What is the minimum number of relations needed to store this design with every relation in 1NF?",
+      "answer": 5,
+      "explanation": "E1(a1, a2), E2(b1) and E3(c1, c2, b1) cover the entity sets, with R23 folded into E3 as the foreign key b1 on the many side. The M:N relationship needs R12(a1, b1, r) with key (a1, b1), and the multivalued attribute needs E2B2(b1, b2) with key (b1, b2) to stay in 1NF. Total: 3 + 1 + 1 = 5.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.minimum-relations",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.q-mn-mapping",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Student(roll, name) and Course(cid, title) are linked by a many-to-many relationship Enrolls that has the attribute grade. How is Enrolls represented in the standard mapping to relations?",
+      "options": [
+        "As a foreign key cid, plus grade, added to Student",
+        "As a foreign key roll, plus grade, added to Course",
+        "As a separate relation Enrolls(roll, cid, grade) with primary key (roll, cid)",
+        "As a separate relation Enrolls(roll, cid, grade) with primary key roll"
+      ],
+      "answer": 2,
+      "explanation": "A student takes many courses and a course has many students, so a single foreign key on either side would have to hold several values. The relationship gets its own relation holding both keys and its attribute. Neither roll nor cid alone is unique there, but each (roll, cid) pair occurs once, so the pair is the primary key.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.er-to-relational",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Mapping",
+      "pages": [
+        50,
+        518,
+        523
+      ]
+    },
+    {
+      "id": "db-er-relational.q-participation-reading",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Every employee works in exactly one department, and a department may have no employees. How should the WorksIn relationship between Employee and Department be drawn?",
+      "options": [
+        "N:1 from Employee to Department, with total participation of Employee and partial participation of Department",
+        "1:N from Employee to Department, with total participation of Department",
+        "M:N, with total participation of both entity sets",
+        "N:1 from Employee to Department, with partial participation of Employee and total participation of Department"
+      ],
+      "answer": 0,
+      "explanation": "'Exactly one department' fixes both the ratio (many employees to one department) and Employee's total participation, drawn as a double line. 'A department may have no employees' makes Department's participation partial. In the relational schema WorksIn becomes a NOT NULL foreign key dept in Employee.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.cardinality-participation",
+      "origin": "source",
+      "pages": [
+        50,
+        517
+      ]
+    },
+    {
+      "id": "db-er-relational.q-weak-entity-facts",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Dependent is a weak entity set owned by Employee(emp_id) through the identifying relationship HasDependent, and dep_name is Dependent's discriminator. Which statements are correct?",
+      "options": [
+        "Every Dependent entity must participate in HasDependent.",
+        "dep_name alone is the primary key of the Dependent relation.",
+        "The Dependent relation's primary key is (emp_id, dep_name), and emp_id is also a foreign key to Employee.",
+        "HasDependent needs a relation of its own when the diagram is mapped to tables."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "A weak entity cannot exist without its owner, so its participation in the identifying relationship is total. The discriminator only separates the dependents of one employee (two employees can each have a dependent named Asha), so the key is the owner's key plus the discriminator, and emp_id doubles as the foreign key. That foreign key already records HasDependent, so no separate relation is needed.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.weak-entities",
+      "origin": "source",
+      "pages": [
+        50,
+        517,
+        518,
+        524
+      ]
+    },
+    {
+      "id": "db-er-relational.q-superkey-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "Relation R(A, B, C, D, E) has exactly two candidate keys, {A} and {B, C}. How many superkeys does R have?",
+      "answer": 20,
+      "explanation": "Superkeys containing A leave the other 4 attributes free: 2⁴ = 16. Superkeys containing both B and C: 2³ = 8. Sets containing A, B and C were counted in both groups: 2² = 4. By inclusion–exclusion, 16 + 8 − 4 = 20.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.keys",
+      "origin": "curated",
+      "pages": [
+        518
+      ]
+    },
+    {
+      "id": "db-er-relational.q-superkey-vs-candidate",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which statement about the keys of a relation is always true?",
+      "options": [
+        "Every superkey is a candidate key.",
+        "Adding an attribute to a candidate key gives another candidate key.",
+        "A relation has exactly one candidate key.",
+        "Every candidate key is a superkey, and no proper subset of a candidate key is a superkey."
+      ],
+      "answer": 3,
+      "explanation": "A candidate key is by definition a minimal superkey: a superkey with no smaller superkey inside it. A superkey may carry extra attributes, so it need not be a candidate key; a relation can have several candidate keys; and adding an attribute to a candidate key gives a superkey that is no longer minimal.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.keys",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — Keys",
+      "pages": [
+        518,
+        523
+      ]
+    },
+    {
+      "id": "db-er-relational.q-division-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Takes(sid, cid) holds (s1, c1), (s1, c2), (s1, c4), (s2, c1), (s2, c2), (s2, c3), (s3, c1), (s3, c2), (s3, c3), (s3, c4) and (s4, c4). Course(cid, dept) holds (c1, CS), (c2, CS), (c3, EE) and (c4, CS). How many tuples are in $\\text{Takes} \\div \\pi_{cid}(\\sigma_{dept=\\text{'CS'}}(\\text{Course}))$?",
+      "answer": 2,
+      "explanation": "The divisor is the set of CS courses {c1, c2, c4}. s1 takes c1, c2 and c4, so it qualifies. s2 lacks c4, and s4 takes only c4. s3 takes all three; its extra course c3 does not matter. The result is {s1, s3}: 2 tuples.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.ra-division",
+      "origin": "curated",
+      "pages": [
+        519
+      ]
+    },
+    {
+      "id": "db-er-relational.q-division-meaning",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Enrolled(sid, cid) records which student takes which course, and Course(cid, title) lists all courses. What does $\\text{Enrolled} \\div \\pi_{cid}(\\text{Course})$ return?",
+      "options": [
+        "The students enrolled in at least one course",
+        "The courses in which every student is enrolled",
+        "The students enrolled in every course",
+        "The students enrolled in no course"
+      ],
+      "answer": 2,
+      "explanation": "Division keeps the attribute that is not in the divisor, sid, and returns the sid values that Enrolled pairs with every cid of the divisor. That is the 'for all' query: the students who take every course.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.ra-division",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Division",
+      "pages": [
+        51,
+        519,
+        524
+      ]
+    },
+    {
+      "id": "db-er-relational.q-full-outer-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "R(A, B) holds (1, a), (2, b), (3, a) and (4, c). S(B, C) holds (a, x), (a, y), (b, z) and (d, w). How many tuples are in the full outer natural join R ⟗ S?",
+      "answer": 7,
+      "explanation": "The inner natural join on B gives (1, a, x), (1, a, y), (3, a, x), (3, a, y) and (2, b, z): 5 tuples. R's tuple (4, c) has no partner and is kept as (4, c, NULL); S's tuple (d, w) is kept as (NULL, d, w). Total 5 + 1 + 1 = 7.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "curated",
+      "pages": [
+        519,
+        520
+      ]
+    },
+    {
+      "id": "db-er-relational.q-fk-join-size",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(A, B) has 50 tuples and S(B, C) has 20 tuples. B is the primary key of S, and R.B is a NOT NULL foreign key referencing S. How many tuples does the natural join R ⋈ S contain?",
+      "options": [
+        "Exactly 20",
+        "Exactly 50",
+        "Exactly 1000",
+        "Anywhere from 0 to 1000"
+      ],
+      "answer": 1,
+      "explanation": "Because B is a key of S, each R tuple matches at most one S tuple; because R.B is a NOT NULL foreign key, it matches at least one. So every R tuple appears exactly once: 50 tuples. Without the key and foreign-key facts the bound would only be 0 to 50 × 20 = 1000.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.ra-result-size",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.q-ra-identities",
+      "type": "msq",
+      "marks": 2,
+      "stem": "R and S are union-compatible relations with attributes (A, B), and p is a condition on A only. Which equalities hold for every instance of R and S?",
+      "options": [
+        "$\\pi_A(R \\cup S) = \\pi_A(R) \\cup \\pi_A(S)$",
+        "$\\pi_A(R - S) = \\pi_A(R) - \\pi_A(S)$",
+        "$\\sigma_p(R - S) = \\sigma_p(R) - S$",
+        "$\\pi_A(R \\cap S) = \\pi_A(R) \\cap \\pi_A(S)$"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "An A-value comes from R ∪ S exactly when it comes from R or from S, so projection distributes over union. A tuple is in σp(R − S) when it is in R, not in S and satisfies p, which is exactly membership in σp(R) − S. Projection does not distribute over difference or intersection: with R = {(1, x)} and S = {(1, y)}, πA(R − S) = {1} but πA(R) − πA(S) = ∅, and πA(R ∩ S) = ∅ but πA(R) ∩ πA(S) = {1}.",
+      "difficulty": "hard",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": [
+        519
+      ]
+    },
+    {
+      "id": "db-er-relational.q-trc-unsafe",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "R(A, B) and S(A, B) are relations. Which tuple relational calculus expression is unsafe?",
+      "options": [
+        "{t | t ∈ R ∧ t.A > 5}",
+        "{t | ¬(t ∈ R)}",
+        "{t | t ∈ R ∧ ¬(t ∈ S)}",
+        "{t | t ∈ R ∨ t ∈ S}"
+      ],
+      "answer": 1,
+      "explanation": "{t | ¬(t ∈ R)} asks for every possible tuple that is not in R: infinitely many tuples, built from values that appear nowhere in the database. The other three take every result tuple from R or S; they are a selection, a difference and a union.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.trc",
+      "origin": "source",
+      "pages": [
+        51,
+        520
+      ]
+    },
+    {
+      "id": "db-er-relational.q-trc-equivalent",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Emp(eid, name, age). Which TRC expression returns the same relation as $\\pi_{name}(\\sigma_{age > 30}(\\text{Emp}))$?",
+      "options": [
+        "{t | t ∈ Emp ∧ t.age > 30}",
+        "{t | ∃e ∈ Emp (e.age > 30 ∧ t.name = e.name)}",
+        "{t | ∀e ∈ Emp (e.age > 30 ∧ t.name = e.name)}",
+        "{t | ∃e ∈ Emp (e.age > 30) ∧ ∃f ∈ Emp (t.name = f.name)}"
+      ],
+      "answer": 1,
+      "explanation": "The projection keeps only name, so t must have that single attribute, copied from an Emp tuple that passes the selection: ∃e ∈ Emp (e.age > 30 ∧ t.name = e.name). {t | t ∈ Emp ∧ t.age > 30} returns whole Emp tuples with all three attributes. The ∀ version demands that every employee be over 30 and share t's name. The last option tests the two conditions on different tuples, so once anyone is over 30 it returns every employee's name.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": [
+        520,
+        523
+      ]
+    },
+    {
+      "id": "db-er-relational.q-left-outer-join",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Emp(eid, did) holds (1, 10), (2, 20) and (3, NULL). Dept(did, dname) holds (10, CS) and (30, EE). Which describes the natural left outer join Emp ⟕ Dept?",
+      "options": [
+        "1 tuple: (1, 10, CS)",
+        "3 tuples, only 1 of which has dname = NULL",
+        "4 tuples: the 3 Emp tuples plus (NULL, 30, EE)",
+        "3 tuples, 2 of which have dname = NULL"
+      ],
+      "answer": 3,
+      "explanation": "A left outer join keeps every Emp tuple. (1, 10) matches and gives (1, 10, CS). (2, 20) finds no department 20, and (3, NULL) cannot match anything because NULL equals nothing, so both are padded: (2, 20, NULL) and (3, NULL, NULL). Dept's unmatched (30, EE) appears only in a right or full outer join.",
+      "difficulty": "easy",
+      "topic": "db-er-relational.ra-joins",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2018) — Outer join",
+      "pages": [
+        50,
+        519,
+        523
+      ]
+    },
+    {
+      "id": "db-er-relational.q-max-salary",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Emp(eid, salary) has key eid. What does $\\pi_{eid}(\\text{Emp}) - \\pi_{E1.eid}(\\sigma_{E1.salary < E2.salary}(\\rho_{E1}(\\text{Emp}) \\times \\rho_{E2}(\\text{Emp})))$ return?",
+      "options": [
+        "The employees with the highest salary, including all who tie for it",
+        "The employees with the lowest salary",
+        "Every employee except those with the highest salary",
+        "The employees whose salary differs from every other employee's"
+      ],
+      "answer": 0,
+      "explanation": "The product pairs every employee E1 with every employee E2, and the selection keeps the pairs where E1 earns less than E2. Projecting E1.eid lists everyone who earns less than somebody. Subtracting them from all employees leaves those whom nobody out-earns: the maximum-salary employees, ties included. With > in place of < the expression would return the minimum instead.",
+      "difficulty": "hard",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.q-trc-forall",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Student(sid, name), Course(cid) and Enrolled(sid, cid) are relations, and Course is non-empty. Which relational algebra expression returns the same result as {t | t ∈ Student ∧ ∀c ∈ Course ∃e ∈ Enrolled (e.sid = t.sid ∧ e.cid = c.cid)}?",
+      "options": [
+        "$\\text{Student} \\bowtie (\\text{Enrolled} \\div \\text{Course})$",
+        "$\\text{Student} \\bowtie \\pi_{sid}(\\text{Enrolled})$",
+        "$\\text{Student} \\bowtie (\\pi_{sid}(\\text{Enrolled}) - (\\text{Enrolled} \\div \\text{Course}))$",
+        "$\\pi_{sid,name}(\\text{Student} \\times \\text{Course})$"
+      ],
+      "answer": 0,
+      "explanation": "The calculus query keeps a student when every course has a matching Enrolled tuple: a 'for all' query, hence division. Enrolled ÷ Course returns the sid values paired with every cid, and the natural join with Student adds the name. Joining with πsid(Enrolled) means 'at least one course', and the third option is 'some but not all'. The non-empty condition matters: with no courses the calculus query returns every student, but the division returns only students with some enrollment.",
+      "difficulty": "hard",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": [
+        520
+      ]
+    },
+    {
+      "id": "db-er-relational.q-trc-forall-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Emp(eid, dept, sal) holds the tuples (1, 1, 50), (2, 1, 70), (3, 2, 60), (4, 2, 40), (5, 3, 80) and (6, 3, 60). How many tuples does {t | t ∈ Emp ∧ ∀s ∈ Emp (s.dept = 2 ⇒ t.sal > s.sal)} return?",
+      "answer": 2,
+      "explanation": "The implication constrains t only against the dept-2 employees, whose salaries are 60 and 40, so t qualifies when t.sal > 60. That holds for eid 2 (70) and eid 5 (80). Eid 3 and eid 6 earn exactly 60 and fail the strict >; with ≥ the count would be 4. Reading ⇒ as ∧ demands that every employee be in dept 2 and returns 0 tuples.",
+      "difficulty": "medium",
+      "topic": "db-er-relational.query-equivalence",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "db-er-relational.q-trc-quantifier-forms",
+      "type": "msq",
+      "marks": 2,
+      "stem": "R(A, B) and S(A, B) are relations, and an unrestricted tuple variable ranges over every tuple of the domain, which always contains tuples outside S. Which expressions are equivalent to {t | t ∈ R ∧ ∀s ∈ S (s.B > t.B)} on every instance?",
+      "options": [
+        "{t | t ∈ R ∧ ¬∃s ∈ S (s.B ≤ t.B)}",
+        "{t | t ∈ R ∧ ∀s (s ∈ S ⇒ s.B > t.B)}",
+        "{t | t ∈ R ∧ ∀s (s ∈ S ∧ s.B > t.B)}",
+        "{t | t ∈ R ∧ ∃s (s ∈ S ⇒ s.B > t.B)}"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "∀s ∈ S (P) ≡ ¬∃s ∈ S (¬P), and the negation of s.B > t.B is s.B ≤ t.B, so the first form matches. The bounded ∀ unrolls to ∀s (s ∈ S ⇒ P), so the second matches. The third demands that every tuple of the domain be in S, which fails, so it always returns ∅. In the fourth, any tuple outside S makes the implication true, so it returns all of R.",
+      "difficulty": "hard",
+      "topic": "db-er-relational.trc",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Natural join matches on every attribute with the same name. If the relations share no attribute it silently becomes a Cartesian product; if they share an unintended one, matches disappear.",
+      "origin": "source",
+      "pages": [
+        519,
+        524
+      ]
+    },
+    {
+      "text": "Division has 'all of' semantics and returns only the attributes that are not in the divisor. An empty divisor makes every candidate qualify.",
+      "origin": "source",
+      "pages": [
+        524
+      ]
+    },
+    {
+      "text": "Outer joins pad unmatched tuples with NULLs, and a NULL join value matches nothing, not even another NULL. A later selection on a padded attribute throws those tuples away again.",
+      "origin": "source",
+      "pages": [
+        524
+      ]
+    },
+    {
+      "text": "A superkey need not be minimal: every candidate key is a superkey, but a superkey with a removable attribute is not a candidate key.",
+      "origin": "source",
+      "pages": [
+        524
+      ]
+    },
+    {
+      "text": "Relational algebra projection removes duplicates because relations are sets, so a projection can return fewer tuples than its input. SQL's SELECT keeps duplicates unless DISTINCT is written.",
+      "origin": "curated",
+      "pages": [
+        50
+      ]
+    },
+    {
+      "text": "When counting tables, a 1:N relationship becomes a foreign key on the N side and needs no table, while every M:N relationship and every multivalued attribute needs its own.",
+      "origin": "source",
+      "pages": [
+        50,
+        518
+      ]
+    },
+    {
+      "text": "Unrestricted quantifiers pair ∃ with ∧ and ∀ with ⇒. Writing ∀s (s ∈ R ∧ P) makes the query empty, and ∃s (s ∈ R ⇒ P) makes the condition always true.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "ER to relations",
+      "lines": [
+        "Entity set, strong or weak → one relation; weak key = owner key + discriminator",
+        "1:N → foreign key on the N side; 1:1 → foreign key on either side, or one merged relation when at least one side is total",
+        "M:N → own relation keyed on both entity keys; multivalued attribute → own relation",
+        "Derived attributes are not stored; double line = total participation"
+      ],
+      "origin": "source",
+      "pages": [
+        50,
+        518,
+        525
+      ]
+    },
+    {
+      "heading": "Keys",
+      "lines": [
+        "Candidate key = minimal superkey; primary key = the chosen candidate key (unique, NOT NULL)",
+        "One candidate key of k attributes among n → 2^(n − k) superkeys",
+        "Foreign key value = an existing referenced key value, or NULL"
+      ],
+      "origin": "source",
+      "pages": [
+        518,
+        519,
+        525
+      ]
+    },
+    {
+      "heading": "Relational algebra",
+      "lines": [
+        "Basic: σ, π, ∪, −, ×, ρ; R ∩ S = R − (R − S)",
+        "θ-join = σθ(R × S); natural join equates all common attributes",
+        "Outer joins pad with NULL; R ÷ S answers 'for all' queries",
+        "|R × S| = |R|·|S|; 0 ≤ |R ⋈ S| ≤ |R|·|S|"
+      ],
+      "origin": "source",
+      "pages": [
+        519,
+        520,
+        525
+      ]
+    },
+    {
+      "heading": "Tuple calculus",
+      "lines": [
+        "{t | P(t)} with ∃ and ∀; only t is free",
+        "Safe: every result value comes from the database or the query's constants",
+        "Safe TRC ≡ relational algebra (relationally complete)",
+        "∃s ∈ R (P) = ∃s (s ∈ R ∧ P); ∀s ∈ R (P) = ∀s (s ∈ R ⇒ P) = ¬∃s ∈ R (¬P)",
+        "Maximum: t ∈ R ∧ ¬∃s ∈ R (s.A > t.A), ties kept"
+      ],
+      "origin": "source",
+      "pages": [
+        51,
+        520
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 521,
+      "claim": "Division is the inverse of Cartesian product and returns the tuples in the left relation that pair with every tuple in the right.",
+      "correction": "R ÷ S does not return tuples of R. Its schema is X = attrs(R) − attrs(S), and it returns each x such that (x, y) ∈ R for every y ∈ S. It inverts a product only in the sense that (R × S) ÷ S = R for non-empty S; in general (R ÷ S) × S ⊆ R."
+    },
+    {
+      "page": 51,
+      "claim": "A safe TRC expression is one in which all tuples of the result come from the database.",
+      "correction": "Safety concerns values, not stored tuples: every value in the result must belong to dom(P), the constants of the formula plus the values in the relations it mentions. Result tuples need not be stored tuples; {t | ∃s ∈ R (t.A = s.A)} builds new one-attribute tuples and is safe, while {t | ¬(t ∈ R)} is unsafe."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "db-er-model",
+      "status": "covered",
+      "topics": [
+        "db-er-relational.er-components",
+        "db-er-relational.attribute-types",
+        "db-er-relational.cardinality-participation",
+        "db-er-relational.weak-entities",
+        "db-er-relational.er-to-relational",
+        "db-er-relational.minimum-relations",
+        "db-er-relational.generalization"
+      ]
+    },
+    {
+      "item": "db-relational-algebra",
+      "status": "covered",
+      "topics": [
+        "db-er-relational.relational-model",
+        "db-er-relational.keys",
+        "db-er-relational.ra-basic",
+        "db-er-relational.ra-joins",
+        "db-er-relational.ra-division",
+        "db-er-relational.ra-result-size"
+      ]
+    },
+    {
+      "item": "db-tuple-calculus",
+      "status": "partial",
+      "topics": [
+        "db-er-relational.trc",
+        "db-er-relational.query-equivalence"
+      ]
+    }
+  ]
+}

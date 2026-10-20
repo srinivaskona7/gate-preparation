@@ -1,0 +1,1985 @@
+{
+  "id": "toc-cfl-pda",
+  "summary": "Context-free grammars and pushdown automata describe the same class of languages: the context-free languages, one level above the regular languages. GATE tests this chapter through classification more than construction: is a language regular, DCFL, CFL or none; which operations preserve context-freeness; which questions about grammars are decidable. Add ambiguity and parse-tree counting, CNF and GNF derivation lengths, CYK tables and the pumping lemma, and the chapter is covered.",
+  "highYield": [
+    "Classify a language as regular, DCFL, CFL or not CFL: one stack can match one pair of counts or one mirrored string, never two independent pairs or a copy ww.",
+    "Closure table: CFL is closed under union, concatenation, star, reversal, homomorphism, inverse homomorphism and intersection with a regular set, but not under intersection or complement.",
+    "DCFL is closed under complement and intersection with regular sets, but not under union, intersection or concatenation.",
+    "Decidable for CFGs: membership, emptiness, finiteness. Undecidable: equivalence, ambiguity, inclusion, L = Σ*, whether the complement is a CFL.",
+    "A CNF grammar derives a string of length n in exactly 2n − 1 steps; a GNF grammar in exactly n steps."
+  ],
+  "topics": [
+    {
+      "id": "toc-cfl-pda.cfg-definition",
+      "title": "Context-free grammars",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        35,
+        411,
+        412
+      ],
+      "points": [
+        "A CFG is a 4-tuple G = (V, T, P, S): variables V, terminals T, productions P of the form A → α with A ∈ V and α ∈ (V ∪ T)*, and a start variable S ∈ V.",
+        "The left side of every production is a single variable, so a variable can be rewritten wherever it occurs; that independence from context is what the name means.",
+        "L(G) is the set of terminal strings derivable from S. Example: S → aSb | ε generates {aⁿbⁿ | n ≥ 0}, and S → 0S0 | 1S1 | 0 | 1 | ε generates all binary palindromes.",
+        "Every regular language is context-free (a right-linear grammar is a CFG), and {aⁿbⁿ} shows the inclusion is strict."
+      ],
+      "keyTerms": [
+        "variable",
+        "terminal",
+        "production",
+        "start symbol",
+        "L(G)"
+      ],
+      "lesson": {
+        "why": "Every grammar question in this chapter starts from reading a production set and saying which strings it produces, so this is the skill the rest of the chapter assumes.",
+        "intro": "A grammar is a set of rewriting rules. You begin with one special symbol, the start variable, and keep replacing a variable by the right side of one of its rules. When only letters of the alphabet are left, you have produced a string. The set of all strings you can produce this way is the language of the grammar. Letters that can never be replaced are called terminals; symbols that can be replaced are called variables.",
+        "definitions": [
+          {
+            "term": "Variable",
+            "meaning": "A symbol that stands for a set of strings and can be replaced using a production."
+          },
+          {
+            "term": "Terminal",
+            "meaning": "A symbol of the language's alphabet; it is never replaced."
+          },
+          {
+            "term": "Production",
+            "meaning": "A rule $A \\to \\alpha$ saying the variable $A$ may be replaced by the string $\\alpha$."
+          }
+        ],
+        "principle": {
+          "text": "A context-free grammar is $G=(V,T,P,S)$ whose every production has exactly one variable on the left. Because the left side never includes neighbouring symbols, a variable can be replaced wherever it appears. The language is $L(G)$, the terminal strings reachable from $S$.",
+          "tex": "L(G)=\\{\\,w\\in T^{*}\\mid S\\Rightarrow^{*}w\\,\\}"
+        },
+        "limits": "The one-variable left side is the whole restriction. A rule such as $aA \\to b$ needs context to apply, so it is not context-free. Also, reading a grammar means finding every string it can make, not just the first one you derive.",
+        "example": {
+          "problem": "Grammar: $S \\to aSc \\mid B$ and $B \\to bB \\mid b$. Describe $L(G)$.",
+          "steps": [
+            "Using $S \\to aSc$ $n$ times wraps the string in $n$ letters $a$ on the left and $n$ letters $c$ on the right.",
+            "Then $S \\to B$ hands over to $B$, and $B \\to bB \\mid b$ produces $b^m$ with $m \\ge 1$, since $B$ cannot vanish.",
+            "Putting the pieces together gives $a^n b^m c^n$ with $n \\ge 0$ and $m \\ge 1$."
+          ],
+          "result": "$L(G)=\\{a^n b^m c^n \\mid n \\ge 0,\\ m \\ge 1\\}$; the $a$ count and the $c$ count match, the $b$ count is free."
+        },
+        "misconceptions": [
+          "Reading the productions in the order written is not a derivation: only the rules you actually apply, from $S$, matter, and a rule can be applied any number of times.",
+          "A grammar that has $\\epsilon$ as an option for a variable allows that variable to vanish; one without it forces at least one symbol, which is how $m \\ge 1$ versus $m \\ge 0$ is decided."
+        ],
+        "recall": [
+          {
+            "q": "What is the one restriction that makes a grammar context-free?",
+            "a": "Every production has a single variable on its left side."
+          },
+          {
+            "q": "What is $L(G)$?",
+            "a": "The set of terminal strings that can be derived from the start variable."
+          },
+          {
+            "q": "Why is every regular language context-free?",
+            "a": "A regular language has a right-linear grammar, and a right-linear grammar is a context-free grammar."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For the grammar $S \\to aSc \\mid B$, $B \\to bB \\mid b$, how many strings of length exactly 5 are in $L(G)$?",
+          "answer": 3,
+          "explanation": "Strings have the form $a^n b^m c^n$ with $m \\ge 1$, so the length is $2n+m=5$. The pairs are $(n,m)=(0,5)$, $(1,3)$ and $(2,1)$, giving 3 strings. The choice 2 tempts if you forget that $n=0$ is allowed, and 5 tempts if you count every split of 5 letters without requiring equal $a$ and $c$ counts."
+        },
+        "summary": "A context-free grammar rewrites single variables from a start symbol; its language is every terminal string it can reach, and reading it means describing those strings in closed form."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.derivations-parse-trees",
+      "title": "Derivations and parse trees",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        35,
+        412
+      ],
+      "points": [
+        "A leftmost derivation always rewrites the leftmost variable of the sentential form; a rightmost derivation always rewrites the rightmost one.",
+        "In a parse tree the root is the start symbol, internal nodes are variables, leaves are terminals or ε, and the children of a node spell the body of the production applied to it.",
+        "The yield of a parse tree, its leaves read left to right, is the derived string.",
+        "Parse trees, leftmost derivations and rightmost derivations are in one-to-one correspondence, so counting any one of them counts the others."
+      ],
+      "keyTerms": [
+        "leftmost derivation",
+        "rightmost derivation",
+        "yield",
+        "sentential form"
+      ],
+      "lesson": {
+        "why": "Questions on this topic ask for the step or node count of a derivation, and for relations that hold between the letters of every string a grammar derives. Both need a derivation and its tree seen as one object.",
+        "intro": "A derivation is the list of sentences you pass through while rewriting from the start variable to a string. If at every step you rewrite the variable that sits furthest left, it is a leftmost derivation; furthest right gives a rightmost derivation. A parse tree draws the same process: the root is the start variable, every inner node is a variable, and the children of a node are the right side of the rule used on it. Reading the leaves from left to right gives the derived string.",
+        "definitions": [
+          {
+            "term": "Sentential form",
+            "meaning": "Any string of variables and terminals reached during a derivation."
+          },
+          {
+            "term": "Yield",
+            "meaning": "The leaves of a parse tree read from left to right."
+          }
+        ],
+        "principle": {
+          "text": "A parse tree, a leftmost derivation and a rightmost derivation of a string describe the same choices of rules. Each tree has exactly one leftmost and one rightmost derivation, and each such derivation gives back exactly one tree. The number of derivation steps equals the number of inner nodes of the tree. To prove a relation over every derived string, count what each rule adds: the number of unfinished variables starts at 1 and must end at 0, and a rule with $k$ variables on its right side changes it by $k-1$, while each terminal on the right side adds one letter."
+        },
+        "limits": "The correspondence is between a tree and the leftmost or rightmost order. An arbitrary derivation that mixes orders is not unique, so many different derivations can share one tree.",
+        "example": {
+          "problem": "Grammar: $S \\to AB$, $A \\to aA \\mid a$, $B \\to b$. Give the leftmost and rightmost derivation of $aab$.",
+          "steps": [
+            "Leftmost: always rewrite the leftmost variable: $S \\Rightarrow AB \\Rightarrow aAB \\Rightarrow aaB \\Rightarrow aab$.",
+            "Rightmost: always rewrite the rightmost variable: $S \\Rightarrow AB \\Rightarrow Ab \\Rightarrow aAb \\Rightarrow aab$.",
+            "Both use the same four rules ($S\\to AB$, $A\\to aA$, $A\\to a$, $B\\to b$), so both describe the same tree with four inner nodes.",
+            "Count what each rule adds: $S\\to AB$ turns one variable into two, $A\\to aA$ adds an $a$ and keeps one $A$, and $A\\to a$ and $B\\to b$ each close one variable and add one letter. Only $B\\to b$ makes a $b$ and it is used once, so every derived string has exactly one $b$ and at least one $a$."
+          ],
+          "result": "Two different derivations, one parse tree, four steps each, yield $aab$."
+        },
+        "misconceptions": [
+          "Leftmost and rightmost derivations of one string are not different trees; they are two orders of reading a single tree.",
+          "A rule that rewrites a variable to $\\epsilon$ still counts as a step and the node still appears in the tree, although it contributes no letter to the yield."
+        ],
+        "recall": [
+          {
+            "q": "What is the yield of a parse tree?",
+            "a": "Its leaves read from left to right, which is the derived string."
+          },
+          {
+            "q": "How does the number of derivation steps relate to the parse tree?",
+            "a": "It equals the number of inner (variable) nodes of the tree."
+          },
+          {
+            "q": "How do you prove a relation between letter counts over every string a grammar derives?",
+            "a": "Count what each rule adds. Track the unfinished variables (start at 1, end at 0) and the terminals each rule emits, then combine the counts."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For the grammar $S \\to (S)S \\mid \\epsilon$, how many derivation steps does the leftmost derivation of the string $()()$ take?",
+          "answer": 5,
+          "explanation": "The derivation is $S \\Rightarrow (S)S \\Rightarrow ()S \\Rightarrow ()(S)S \\Rightarrow ()()S \\Rightarrow ()()$. Two steps apply $S \\to (S)S$ and three apply $S \\to \\epsilon$, so there are 5 steps, the number of inner nodes of the tree. The choice 2 tempts if the $\\epsilon$ steps are skipped because they add no letter, but each one is a step and a node."
+        },
+        "summary": "A parse tree, its leftmost derivation and its rightmost derivation encode the same rule choices; the step count is the number of inner nodes, and the yield is the string."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.ambiguity",
+      "title": "Ambiguity and inherent ambiguity",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        36,
+        412,
+        415
+      ],
+      "points": [
+        "A grammar is ambiguous if some string has two or more parse trees, equivalently two or more leftmost derivations.",
+        "To show ambiguity, exhibit one string with two trees: S → SS | a gives aaa two trees, and S → S+S | S*S | a gives a+a*a two trees.",
+        "Ambiguity belongs to the grammar; the expression grammar becomes unambiguous once precedence and associativity are encoded with layered variables E, T, F.",
+        "A language is inherently ambiguous if every grammar for it is ambiguous. The standard example is {aⁿbⁿcᵐ} ∪ {aⁿbᵐcᵐ}: every grammar for it gives some string aⁿbⁿcⁿ two parse trees (Ogden's lemma).",
+        "Whether an arbitrary CFG is ambiguous is undecidable, so GATE only asks it for small concrete grammars."
+      ],
+      "keyTerms": [
+        "ambiguous grammar",
+        "inherently ambiguous language"
+      ],
+      "lesson": {
+        "why": "Deciding whether a grammar is ambiguous, and counting how many trees a string has, appears directly in grammar questions.",
+        "intro": "A grammar is ambiguous when one string can be built by two different parse trees, so the string has two different meanings in the grammar. Showing ambiguity needs only one string and two trees that differ. Showing that a grammar is not ambiguous means checking that no string has two trees, which is harder. Ambiguity is a property of the grammar, not of the language: a different grammar for the same language may have only one tree per string.",
+        "prerequisites": [
+          "toc-cfl-pda.derivations-parse-trees"
+        ],
+        "definitions": [
+          {
+            "term": "Ambiguous grammar",
+            "meaning": "A grammar in which some string has two or more parse trees, equivalently two leftmost derivations."
+          },
+          {
+            "term": "Inherently ambiguous language",
+            "meaning": "A language for which every grammar is ambiguous."
+          }
+        ],
+        "principle": {
+          "text": "For $S \\to SS \\mid a$ the string $a^n$ has $C_{n-1}$ parse trees, where $C_k$ is the Catalan number, because the top rule splits the letters into two non-empty halves and each half is parsed independently.",
+          "tex": "t_n=\\sum_{k=1}^{n-1} t_k\\, t_{n-k},\\qquad t_1=1"
+        },
+        "limits": "The count applies only to this grammar shape. Ambiguity of a general grammar is undecidable, although membership of a string in a context-free language is always decidable, so exam questions only use small concrete grammars. Rewriting with extra variables, such as layers for precedence, can remove ambiguity without changing the language.",
+        "example": {
+          "problem": "Show that $S \\to SS \\mid a$ is ambiguous and count the trees of $aaa$.",
+          "steps": [
+            "The top rule must be $S \\to SS$, splitting $aaa$ as $a \\mid aa$ or $aa \\mid a$.",
+            "The split $a \\mid aa$ gives the left child one tree and the right child $aa$ one tree, so one tree.",
+            "The split $aa \\mid a$ likewise gives one tree, and the two trees differ."
+          ],
+          "result": "$aaa$ has 2 parse trees, so the grammar is ambiguous."
+        },
+        "misconceptions": [
+          "A language is not ambiguous merely because one of its grammars is; only a language where every grammar is ambiguous is inherently ambiguous.",
+          "Two derivations of a string are not necessarily two trees: derivations that differ only in the order of rewriting give the same tree, so compare leftmost derivations."
+        ],
+        "recall": [
+          {
+            "q": "What does it take to prove a grammar ambiguous?",
+            "a": "One string with two different parse trees, or equivalently two different leftmost derivations."
+          },
+          {
+            "q": "Is ambiguity a property of the grammar or the language?",
+            "a": "Of the grammar; a language is inherently ambiguous only if every grammar for it is ambiguous."
+          },
+          {
+            "q": "For $S \\to aSbS \\mid bS \\mid \\epsilon$, how do you look for two trees of a string?",
+            "a": "Write it as $a\\,[S_1]\\,b\\,[S_2]$ and try each $b$ of the string as the rule's $b$. For $abb$, $S_1=\\epsilon,S_2=b$ and $S_1=b,S_2=\\epsilon$ both work, so there are two trees."
+          },
+          {
+            "q": "Is it decidable whether a string belongs to the language of a context-free grammar?",
+            "a": "Yes, always (for example by the CYK table). Only the question whether the grammar is ambiguous is undecidable."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For the grammar $S \\to SS \\mid a$, how many distinct parse trees does the string $aaaaa$ have?",
+          "answer": 14,
+          "explanation": "With $t_n$ trees for $a^n$: $t_1=1$, $t_2=1$, $t_3=2$, $t_4=5$, and $t_5=t_1t_4+t_2t_3+t_3t_2+t_4t_1=5+2+2+5=14$, the Catalan number $C_4$. The choice 5 tempts if you copy the value for four letters, and 4 tempts if you count only the 4 splits of the top rule and not the subtrees under them."
+        },
+        "summary": "Ambiguity means one string with two parse trees; it belongs to the grammar, and for $S \\to SS \\mid a$ the string $a^n$ has the Catalan number $C_{n-1}$ of trees."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.simplification",
+      "title": "Simplifying a CFG: ε, unit and useless productions",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        36,
+        412
+      ],
+      "points": [
+        "A variable is nullable if it derives ε. Find them by fixpoint: first every A with A → ε, then every A with a body made only of nullable variables.",
+        "To remove ε-productions, replace each production by all versions with any subset of its nullable occurrences deleted, never adding an empty body; keep S → ε only if ε ∈ L.",
+        "To remove unit productions A → B, compute all unit pairs (A, B) with A ⇒* B through units, and give A every non-unit body of B.",
+        "A symbol is useless if it is non-generating (derives no terminal string) or unreachable from S. Delete non-generating symbols first, then unreachable ones; the reverse order can leave useless symbols behind.",
+        "The safe overall order is ε-productions, then unit productions, then useless symbols, because each removal can create the next kind."
+      ],
+      "keyTerms": [
+        "nullable",
+        "unit production",
+        "generating",
+        "reachable",
+        "useless symbol"
+      ],
+      "lesson": {
+        "why": "Every normal-form conversion and every membership or emptiness test assumes a clean grammar. Removing empty, unit and useless rules in the right order is a routine step in questions that count productions or variables.",
+        "intro": "A grammar can carry dead weight. Some rules only rewrite a variable to nothing, some only rename one variable to another, and some variables can never take part in producing a string. Simplification deletes this weight without changing the language. A variable is nullable if it can derive the empty string. A variable is useless if it cannot reach a string of terminals, or if no derivation from the start variable ever uses it.",
+        "prerequisites": [
+          "toc-cfl-pda.cfg-definition"
+        ],
+        "definitions": [
+          {
+            "term": "Nullable variable",
+            "meaning": "A variable $A$ with $A \\Rightarrow^* \\epsilon$; found by starting from rules $A\\to\\epsilon$ and repeating."
+          },
+          {
+            "term": "Unit production",
+            "meaning": "A rule $A\\to B$ whose right side is a single variable."
+          },
+          {
+            "term": "Generating",
+            "meaning": "A variable that derives at least one string made only of terminals."
+          },
+          {
+            "term": "Reachable",
+            "meaning": "A variable that appears in some sentential form derived from the start variable."
+          }
+        ],
+        "principle": {
+          "text": "Remove $\\epsilon$-productions by adding, for every production, all versions with any subset of nullable variables deleted (never an empty body). Remove unit productions by giving $A$ every non-unit body of each $B$ with $A\\Rightarrow^* B$ through units. Remove useless symbols by deleting non-generating variables first, then unreachable ones. Do the three jobs in the order $\\epsilon$, unit, useless.",
+          "tex": "\\text{order: } \\epsilon\\text{-rules} \\to \\text{unit rules} \\to \\text{non-generating} \\to \\text{unreachable}"
+        },
+        "limits": "The empty string cannot come from a grammar with no $\\epsilon$-rules, so if $\\epsilon\\in L$ keep $S\\to\\epsilon$ separately. Deleting reachable symbols before non-generating ones can leave useless symbols behind, so the order inside the useless step matters.",
+        "example": {
+          "problem": "Remove the useless symbols from $S\\to AB\\mid a$, $A\\to a$, $B\\to BB$, $C\\to c$.",
+          "steps": [
+            "Find generating variables. $S$ (by $S\\to a$), $A$ and $C$ derive terminal strings. $B$ only rewrites to $BB$, so it never ends and is non-generating.",
+            "Delete $B$ and every rule that uses it. This removes $S\\to AB$ and $B\\to BB$, leaving $S\\to a$, $A\\to a$, $C\\to c$.",
+            "Find reachable variables from $S$. Only $S$ is reachable; $A$ and $C$ are not, so delete their rules.",
+            "Check the reverse order: reachability first keeps $A$ and $B$ (both appear in $S\\to AB$) and drops only $C$. Then removing $B$ leaves $A$ unreachable but still present."
+          ],
+          "result": "The simplified grammar is $S\\to a$. Doing the reachable step first would have left the useless symbol $A$."
+        },
+        "misconceptions": [
+          "Removing a nullable variable's rule is not enough: every production that mentions it needs a second copy with that occurrence deleted, or the language shrinks.",
+          "A variable that appears in some rule is not necessarily reachable. It must appear in a rule of a variable that is itself reachable from $S$.",
+          "Removing $\\epsilon$-rules first and unit rules second is not arbitrary; removing unit rules first can be undone when $\\epsilon$-removal creates new unit rules such as $A\\to B$ from $A\\to BC$ with $C$ nullable."
+        ],
+        "recall": [
+          {
+            "q": "How do you find all nullable variables?",
+            "a": "Start with every $A$ having a rule $A\\to\\epsilon$, then add any $A$ with a body made only of nullable variables, until nothing changes."
+          },
+          {
+            "q": "In which order are non-generating and unreachable symbols removed?",
+            "a": "Non-generating first, then unreachable. The other order can leave useless symbols behind."
+          },
+          {
+            "q": "What is the safe overall order of the three simplifications?",
+            "a": "Remove $\\epsilon$-productions, then unit productions, then useless symbols."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A grammar has productions $S\\to ABC$, $A\\to\\epsilon$, $B\\to\\epsilon$, $C\\to c$. After removing the $\\epsilon$-productions, how many productions have $S$ or $C$ on the left side?",
+          "answer": 5,
+          "explanation": "$A$ and $B$ are nullable, $C$ is not. The body $ABC$ gives one version for each subset of $\\{A,B\\}$ deleted: $ABC$, $BC$, $AC$ and $C$, so $S$ has 4 rules. $C\\to c$ adds 1, total 5. The answer 8 tempts if you also count the empty-body version or the rules of $A$ and $B$, and 4 if you forget $C\\to c$."
+        },
+        "summary": "Simplification deletes $\\epsilon$-rules, unit rules and useless symbols without changing the language, in that order, and within the useless step it deletes non-generating variables before unreachable ones."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.cnf",
+      "title": "Chomsky normal form",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        36,
+        412,
+        413
+      ],
+      "points": [
+        "In CNF every production is A → BC with B, C variables, or A → a with a a terminal; S → ε is allowed only when ε ∈ L and S never appears on a right side.",
+        "Conversion: simplify, replace terminals inside long bodies by new variables (Xₐ → a), then break bodies of length k ≥ 3 into a chain of k − 2 new binary productions.",
+        "Every parse tree is binary above the leaves, so a string of length n ≥ 1 needs n − 1 binary steps and n terminal steps: 2n − 1 derivation steps in all.",
+        "If the longest root-to-leaf path of a CNF parse tree has h edges, the yield has length at most 2^(h−1); this bound drives the pumping lemma."
+      ],
+      "keyTerms": [
+        "CNF",
+        "binary production"
+      ],
+      "lesson": {
+        "why": "Chomsky normal form fixes the shape of every rule, which makes derivation lengths and tree sizes exact and is the basis for the table algorithm and the pumping lemma.",
+        "intro": "Chomsky normal form allows only two kinds of rule: a variable becomes exactly two variables, or a variable becomes exactly one terminal. Every context-free language without the empty string has such a grammar. Because each rule either splits a node into two or ends a branch with a letter, the parse tree is binary, and its size depends only on the length of the string.",
+        "prerequisites": [
+          "toc-cfl-pda.simplification"
+        ],
+        "definitions": [
+          {
+            "term": "Binary production",
+            "meaning": "A rule $A \\to BC$ whose right side is exactly two variables."
+          }
+        ],
+        "principle": {
+          "text": "In a grammar in Chomsky normal form, a string of length $n \\ge 1$ has a parse tree with $n-1$ binary steps and $n$ terminal steps, so every derivation of it takes $2n-1$ steps. To convert a rule with a body of length $k \\ge 3$, replace terminals in the body by new variables and chain the body into $k-1$ binary rules.",
+          "tex": "\\text{steps}(w)=(n-1)+n=2n-1"
+        },
+        "limits": "The count of $2n-1$ needs a real Chomsky normal form grammar. The empty string needs the special rule $S \\to \\epsilon$ with $S$ never on a right side, and the conversion assumes the grammar has been simplified first (no useless symbols, which never take part in deriving a string; no $\\epsilon$-rules $A\\to\\epsilon$; and no unit rules $A\\to B$).",
+        "example": {
+          "problem": "The grammar $S \\to AX \\mid AB$, $X \\to SB$, $A \\to a$, $B \\to b$ is in Chomsky normal form and generates $a^nb^n$ with $n\\ge1$. How many steps derive $aabb$?",
+          "steps": [
+            "The string has length $n=4$, so the tree has $n-1=3$ binary steps.",
+            "It also has $n=4$ terminal steps, one for each letter, using $A\\to a$ and $B\\to b$.",
+            "Together, $3+4=7=2n-1$ steps."
+          ],
+          "result": "Seven steps, whichever order the variables are rewritten."
+        },
+        "misconceptions": [
+          "The step count $2n-1$ is for a Chomsky normal form grammar; the original grammar before conversion can use a different number of steps for the same string.",
+          "A new variable is needed for a terminal only inside a longer body; a rule $A \\to a$ is already in normal form and needs no change."
+        ],
+        "recall": [
+          {
+            "q": "What two rule shapes does Chomsky normal form allow?",
+            "a": "$A \\to BC$ with two variables, and $A \\to a$ with one terminal."
+          },
+          {
+            "q": "How many derivation steps does a string of length $n$ take in Chomsky normal form?",
+            "a": "$2n-1$: $n-1$ binary steps and $n$ terminal steps."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The production $A \\to BcDe$ has variables $B$, $D$ and terminals $c$, $e$. When it is converted to Chomsky normal form, how many productions replace it, counting the terminal rules for $c$ and $e$?",
+          "answer": 5,
+          "explanation": "Replace $c$ and $e$ by new variables $X_c\\to c$ and $X_e\\to e$ (2 rules), then the body $BX_cDX_e$ of length 4 becomes a chain of $4-1=3$ binary rules: $A\\to BY_1$, $Y_1\\to X_cY_2$, $Y_2\\to DX_e$. The total is $2+3=5$. The choice 4 tempts if you count only the binary rules plus one terminal rule, and 3 if you forget the terminal rules."
+        },
+        "summary": "Chomsky normal form allows only $A\\to BC$ and $A\\to a$, which makes every parse tree binary and every derivation of a length-$n$ string exactly $2n-1$ steps."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.gnf",
+      "title": "Greibach normal form",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        36,
+        413
+      ],
+      "points": [
+        "In GNF every production is A → aα with a a terminal and α a string of variables, possibly empty.",
+        "Every step emits exactly one terminal, so a string of length n is derived in exactly n steps, and a GNF grammar has no left recursion.",
+        "GNF gives a direct PDA with one state: on input a with A on top, pop A and push α. Each move consumes input, which is why it suits PDA construction."
+      ],
+      "keyTerms": [
+        "GNF"
+      ],
+      "lesson": {
+        "why": "Greibach normal form turns derivation length and PDA construction into simple counts. A string of length $n$ takes exactly $n$ steps, which GATE asks directly.",
+        "intro": "In Greibach normal form every rule starts with one terminal, followed by any number of variables, possibly none. Each rule therefore writes exactly one letter of the final string. Counting letters counts steps. The leading terminal also means the grammar cannot be left recursive, because a variable never begins its own replacement.",
+        "prerequisites": [
+          "toc-cfl-pda.cnf"
+        ],
+        "definitions": [
+          {
+            "term": "Left recursion",
+            "meaning": "A rule such as $A\\to A\\alpha$ where the variable begins its own right side; Greibach normal form has none."
+          }
+        ],
+        "principle": {
+          "text": "A grammar is in Greibach normal form when every production is $A\\to a\\alpha$ with $a$ a terminal and $\\alpha$ a string of variables, possibly empty. Each step emits one terminal, so a string of length $n\\ge1$ has a derivation of exactly $n$ steps.",
+          "tex": "A \\to a\\,\\alpha,\\quad a\\in T,\\ \\alpha\\in V^{*}\\qquad \\text{steps}(w)=|w|"
+        },
+        "limits": "The count $n$ holds only when the whole grammar is in this form. The empty string needs a separate rule $S\\to\\epsilon$. Left recursion must be removed during conversion, which adds new variables.",
+        "example": {
+          "problem": "The left-recursive grammar $A\\to Aa\\mid b$ generates $ba^{*}$. Convert it to Greibach normal form and derive $baa$.",
+          "steps": [
+            "Left recursion is the problem. Introduce a new variable $Z$ for the repeated tail $a, a, \\ldots$: $A\\to bZ\\mid b$ and $Z\\to aZ\\mid a$.",
+            "Every rule now begins with a terminal followed by variables, so the grammar is in Greibach normal form.",
+            "Derive $baa$: $A\\Rightarrow bZ\\Rightarrow baZ\\Rightarrow baa$. That is 3 steps for a string of length 3."
+          ],
+          "result": "Greibach form: $A\\to bZ\\mid b$, $Z\\to aZ\\mid a$. The string $baa$ takes 3 steps, equal to its length."
+        },
+        "misconceptions": [
+          "Chomsky normal form needs $2n-1$ steps and Greibach needs $n$; mixing the two formulas is the usual error.",
+          "Starting with a terminal is not enough. Everything after the first symbol must be variables, so $A\\to aBc$ is not in Greibach normal form."
+        ],
+        "recall": [
+          {
+            "q": "What shape must every Greibach normal form rule have?",
+            "a": "$A\\to a\\alpha$ with $a$ a terminal and $\\alpha$ a possibly empty string of variables."
+          },
+          {
+            "q": "How many steps derive a string of length $n$ in Greibach normal form?",
+            "a": "Exactly $n$, since each step emits one terminal."
+          },
+          {
+            "q": "Why is a Greibach grammar never left recursive?",
+            "a": "Every right side begins with a terminal, so no variable can begin its own replacement."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The grammar $S\\to aSB\\mid b$, $B\\to b$ is in Greibach normal form. How many derivation steps produce $aaaabbbbb$, which has length 9?",
+          "answer": 9,
+          "explanation": "Every step of a Greibach normal form grammar emits one terminal, so a string of length 9 takes 9 steps: four uses of $S\\to aSB$, one of $S\\to b$ and four of $B\\to b$. The choice 17 tempts if you apply the Chomsky normal form formula $2n-1$."
+        },
+        "summary": "Greibach normal form forces every rule to begin with a terminal followed by variables, so every string of length $n$ takes exactly $n$ steps and no variable is left recursive."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.cyk",
+      "title": "CYK membership algorithm",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        415
+      ],
+      "points": [
+        "CYK decides w ∈ L(G) for a grammar in CNF by dynamic programming over substrings; it fails on a grammar not in CNF, and GNF does not help.",
+        "Cell (i, j) holds every variable that derives the substring wᵢ…wⱼ. Length-1 cells come from rules A → a; a longer cell gets A whenever A → BC with B in (i, k) and C in (k+1, j) for some split k.",
+        "w is in L exactly when S is in the top cell (1, n).",
+        "The table has n(n+1)/2 cells and each cell tries up to n − 1 splits, so the running time is O(n³·|G|) with O(n²) space."
+      ],
+      "keyTerms": [
+        "CYK",
+        "dynamic programming",
+        "membership"
+      ],
+      "lesson": {
+        "why": "CYK is the standard way to test whether a string belongs to a context-free language. GATE asks for table entries, the table size and the running time.",
+        "intro": "To decide whether a string belongs to a grammar's language, CYK asks the same question about every substring, shortest first. For each substring it records which variables can derive it. A substring of length 1 is settled by terminal rules. A longer substring is settled by splitting it into two parts and combining what is known about each. The algorithm needs the grammar in Chomsky normal form so that every rule splits a substring into exactly two parts.",
+        "prerequisites": [
+          "toc-cfl-pda.cnf"
+        ],
+        "definitions": [
+          {
+            "term": "Table cell $(i,j)$",
+            "meaning": "The set of variables that derive the substring from position $i$ to position $j$ of the input."
+          }
+        ],
+        "principle": {
+          "text": "Cell $(i,i)$ holds every $A$ with $A\\to w_i$. Cell $(i,j)$ with $i<j$ holds $A$ whenever $A\\to BC$ is a rule, $B$ is in $(i,k)$ and $C$ is in $(k+1,j)$ for some split $k$. The string is in the language exactly when $S$ is in cell $(1,n)$. The table has $n(n+1)/2$ cells and the time is $O(n^3|G|)$.",
+          "tex": "\\text{cells}=\\frac{n(n+1)}{2},\\qquad T(n)=O(n^{3}\\,|G|)"
+        },
+        "limits": "The algorithm requires Chomsky normal form; a grammar in Greibach normal form or with long bodies must be converted first. The empty string is handled separately.",
+        "example": {
+          "problem": "Grammar in Chomsky normal form: $S\\to AB\\mid BC$, $A\\to BA\\mid a$, $B\\to CC\\mid b$, $C\\to AB\\mid a$. Is $baaba$ in the language?",
+          "steps": [
+            "Length-1 row from the terminal rules: $b\\mapsto\\{B\\}$, $a\\mapsto\\{A,C\\}$, so the cells are $B,\\{A,C\\},\\{A,C\\},B,\\{A,C\\}$.",
+            "Length 2, one split each. $(1,2)=ba$: $B\\cdot\\{A,C\\}$ matches $S\\to BC$ and $A\\to BA$, so $\\{S,A\\}$. $(2,3)=aa$: $\\{A,C\\}\\cdot\\{A,C\\}$ matches $B\\to CC$, so $\\{B\\}$. $(3,4)=ab$: $A\\cdot B$ matches $S\\to AB$ and $C\\to AB$, so $\\{S,C\\}$. $(4,5)=ba$: $\\{S,A\\}$ as for $(1,2)$.",
+            "Length 3, two splits each. $(1,3)=baa$ is empty, $(2,4)=aab$ gives $\\{B\\}$, and $(3,5)=aba$ gives $\\{B\\}$.",
+            "Length 4, three splits each. $(1,4)=baab$ is empty. $(2,5)=aaba$ gives $\\{A,C,S\\}$, for example $A$ in $(2,2)$ with $B$ in $(3,5)$ gives $S$ and $C$ through $S\\to AB$ and $C\\to AB$, and $B$ in $(2,4)$ with $\\{A,C\\}$ in $(5,5)$ adds $A$ through $A\\to BA$ and $S$ through $S\\to BC$.",
+            "Length 5, four splits of $baaba$. The split $k=1$ pairs $B$ in $(1,1)$ with $\\{A,C,S\\}$ in $(2,5)$: $S\\to BC$ gives $S$ and $A\\to BA$ gives $A$. The split $k=2$ pairs $\\{S,A\\}$ in $(1,2)$ with $B$ in $(3,5)$: $C\\to AB$ gives $C$."
+          ],
+          "result": "The top cell holds $\\{S,A,C\\}$ and contains $S$, so $baaba$ is in the language."
+        },
+        "misconceptions": [
+          "A substring of length $l$ has $l-1$ split points; forgetting one split loses a variable and can flip the answer.",
+          "A cell can be empty and the string can still be accepted: only the top cell $(1,n)$ must contain $S$.",
+          "CYK does not work on a grammar that is not in Chomsky normal form, and Greibach normal form does not fix that."
+        ],
+        "recall": [
+          {
+            "q": "What does cell $(i,j)$ of the CYK table contain?",
+            "a": "Every variable that derives the substring from position $i$ to $j$."
+          },
+          {
+            "q": "When is the string accepted?",
+            "a": "When the start variable $S$ is in the top cell $(1,n)$."
+          },
+          {
+            "q": "What are the table size and running time of CYK?",
+            "a": "$n(n+1)/2$ cells and $O(n^3|G|)$ time with $O(n^2)$ space."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "CYK runs on an input of length 5. A cell of a substring of length $l\\ge2$ tries $l-1$ splits. How many splits in total are tried over all cells of length 2 and above?",
+          "answer": 20,
+          "explanation": "Substrings of length $l$ number $5-l+1$, each with $l-1$ splits: $4\\cdot1+3\\cdot2+2\\cdot3+1\\cdot4=20$. The answer 15 tempts because 15 is the number of cells, $5\\cdot6/2$, which is a different count."
+        },
+        "summary": "CYK fills a table of $n(n+1)/2$ cells, shortest substrings first, using every split with the rules $A\\to BC$, and accepts exactly when $S$ is in the top cell; it needs Chomsky normal form and runs in $O(n^3|G|)$."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.pda-model",
+      "title": "Pushdown automata and acceptance modes",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        416
+      ],
+      "points": [
+        "A PDA is a 7-tuple (Q, Σ, Γ, δ, q₀, Z₀, F): a finite automaton with a stack, Z₀ the initial stack symbol and δ: Q × (Σ ∪ {ε}) × Γ → finite subsets of Q × Γ*.",
+        "Each move reads one input symbol or ε, pops the top stack symbol and pushes a string in its place, so it can push, pop or leave the stack unchanged.",
+        "A PDA accepts by final state (input consumed, state in F) or by empty stack (input consumed, stack empty). For nondeterministic PDAs the two modes accept the same class.",
+        "For deterministic PDAs the modes differ: empty-stack acceptance captures only prefix-free DCFLs, so DPDAs are defined with final-state acceptance."
+      ],
+      "keyTerms": [
+        "stack alphabet",
+        "Z₀",
+        "final-state acceptance",
+        "empty-stack acceptance"
+      ],
+      "lesson": {
+        "why": "PDA questions ask you to trace a machine on an input or to say which language it accepts, so you must know exactly what one move does to the stack and when the machine accepts.",
+        "intro": "A pushdown automaton is a finite automaton with a stack for memory. On each move it looks at the current state, the next input letter (or nothing) and the top of the stack. It then pops that top symbol and pushes a string in its place, and moves to a new state. Many GATE figures write a move as $a, X \\to Y$: read $a$, require $X$ on top and pop it, then push $Y$. In that notation $X=\\epsilon$ means the stack is ignored (no check, no pop) and $Y=\\epsilon$ means nothing is pushed. Because the stack can grow without limit, the machine can count, which a finite automaton cannot. It accepts a string either when it ends in a final state or when the stack is empty.",
+        "definitions": [
+          {
+            "term": "Stack alphabet",
+            "meaning": "The symbols that may be on the stack, which can differ from the input letters."
+          },
+          {
+            "term": "Final-state acceptance",
+            "meaning": "The input is used up and the state is final, whatever is on the stack."
+          },
+          {
+            "term": "Empty-stack acceptance",
+            "meaning": "The input is used up and the stack has no symbols left."
+          }
+        ],
+        "principle": {
+          "text": "Each move reads zero or one input letters, pops the top symbol and pushes a string; in the label form $a, X \\to Y$ with $X=\\epsilon$ the move pops nothing and checks nothing, and only pushes $Y$. A move that pushes $\\epsilon$ is a pop, a move that pushes the same symbol back leaves the stack alone. For nondeterministic machines final-state and empty-stack acceptance describe the same class of languages.",
+          "tex": "\\delta:Q\\times(\\Sigma\\cup\\{\\epsilon\\})\\times\\Gamma\\to 2^{\\,Q\\times\\Gamma^{*}}"
+        },
+        "limits": "The two acceptance modes agree only for nondeterministic machines. A deterministic machine that accepts by empty stack can accept only prefix-free languages, so deterministic machines are defined with final states. The stack is also read only at the top: nothing below it can be examined without popping.",
+        "example": {
+          "problem": "A machine starts in $q_0$ with $Z_0$ on the stack. On $a$ it pushes $A$; on the first $b$ it pops an $A$ and moves to $q_1$; on later $b$ it pops an $A$; with $Z_0$ on top in $q_1$ it moves by $\\epsilon$ to the final state $q_f$. Trace $aabb$.",
+          "steps": [
+            "Reading $a,a$ in $q_0$ leaves $AAZ_0$ on the stack after two moves.",
+            "Reading $b$ pops one $A$ and switches to $q_1$; the second $b$ pops the other $A$, leaving $Z_0$ after four moves in all.",
+            "In $q_1$ with $Z_0$ on top and the input used up, the $\\epsilon$ move enters $q_f$, the fifth move."
+          ],
+          "result": "The machine accepts $aabb$ by final state after 5 moves, and so accepts $\\{a^nb^n\\mid n\\ge1\\}$."
+        },
+        "misconceptions": [
+          "A machine does not accept just because the input is used up; the state must be final (or the stack empty, in that mode).",
+          "Empty-stack acceptance and final-state acceptance are not interchangeable for deterministic machines, even though they are for nondeterministic ones."
+        ],
+        "recall": [
+          {
+            "q": "What does one PDA move do to the stack?",
+            "a": "It pops the top symbol and pushes a string, which may be empty, so it can push, pop or leave it unchanged. If the label's stack symbol is $\\epsilon$, nothing is popped."
+          },
+          {
+            "q": "Which two acceptance modes does a PDA have?",
+            "a": "Final state with input consumed, and empty stack with input consumed."
+          },
+          {
+            "q": "In a transition label $a, X \\to Y$, what do $X=\\epsilon$ and $Y=\\epsilon$ mean?",
+            "a": "$X=\\epsilon$: ignore the stack, no check and no pop. $Y=\\epsilon$: push nothing. The label $\\epsilon,\\epsilon\\to\\epsilon$ changes only the state."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The machine of the worked example is run on $aaaabbbb$. Counting every move including the final $\\epsilon$ move, how many moves does it make before accepting?",
+          "answer": 9,
+          "explanation": "There are 4 moves to read the $a$ letters, 4 moves to read the $b$ letters and 1 $\\epsilon$ move into $q_f$, so $4+4+1=9$. The choice 8 tempts if the final $\\epsilon$ move is forgotten because it reads no input, but it is a move and the machine cannot accept without it."
+        },
+        "summary": "A PDA is a finite automaton with a stack; each move pops one symbol and pushes a string, and it accepts by final state or empty stack, which agree only when nondeterminism is allowed."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.pda-design",
+      "title": "Designing PDAs for standard languages",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        413,
+        416
+      ],
+      "points": [
+        "{aⁿbⁿ}: push one symbol per a, pop one per b, accept when the stack is back to Z₀ after the input; the first b ends the a-phase, and an a after a b has no move.",
+        "{aⁿb²ⁿ}: push two symbols per a and pop one per b. {a²ⁿbⁿ}: push one per a and pop two per b, or push on every second a and pop one per b.",
+        "{wcwᴿ}: push until the marker c, then pop and compare; the marker makes the machine deterministic.",
+        "{wwᴿ}: the machine must guess the middle with an ε-move, so it needs nondeterminism; no DPDA accepts it.",
+        "Equal numbers of a's and b's in any order: keep the surplus symbol on the stack, pushing on a match of the top and popping on the opposite symbol; this stays deterministic."
+      ],
+      "keyTerms": [
+        "guess the middle",
+        "marker",
+        "counter"
+      ],
+      "lesson": {
+        "why": "Designing a PDA for a standard language appears as a direct question and underlies the deterministic versus nondeterministic classification.",
+        "intro": "A pushdown automaton recognises a language by using its stack as a counter or a memory. For a language like $a^nb^n$ it pushes a symbol for each $a$, then pops one for each $b$, and accepts if the stack is back at its bottom marker when the input ends. The design question is always the same: what must the stack remember, and can the machine see where one phase ends and the next begins.",
+        "prerequisites": [
+          "toc-cfl-pda.pda-model"
+        ],
+        "definitions": [
+          {
+            "term": "Marker",
+            "meaning": "A symbol such as $c$ in $wcw^R$ that shows exactly where the middle is, so no guessing is needed."
+          },
+          {
+            "term": "Guess the middle",
+            "meaning": "An $\\epsilon$-move taken nondeterministically at the point where one half ends and the mirror begins."
+          }
+        ],
+        "principle": {
+          "text": "Push as many stack symbols per input symbol as the language demands, pop in the matching ratio, and accept with the bottom marker $Z_0$ exposed. A language whose switch point is visible (a marker, or a change of letter) has a deterministic PDA. A language like $ww^R$, where the middle must be guessed, needs nondeterminism.",
+          "tex": "a^{n}b^{2n}:\\ \\text{push 2 per } a,\\ \\text{pop 1 per } b"
+        },
+        "limits": "Stack ratios work only for one comparison at a time. Two independent counts, as in $a^nb^nc^n$, cannot both be held on one stack, so no PDA exists.",
+        "example": {
+          "problem": "Design a deterministic PDA for $\\{a^nb^{2n}\\mid n\\ge1\\}$ and trace it on $aabbbb$.",
+          "steps": [
+            "On each $a$, push two copies of $X$ above $Z_0$. After $aa$ the stack holds four $X$.",
+            "The first $b$ ends the $a$-phase. On each $b$ pop one $X$; an $a$ after a $b$ has no move.",
+            "After $bbbb$ all four $X$ are gone and only $Z_0$ is left with the input used up, so the machine accepts.",
+            "On $aabbb$ one $X$ remains at the end, so it rejects."
+          ],
+          "result": "Accept $aabbbb$, with a maximum stack height of 4 above $Z_0$."
+        },
+        "misconceptions": [
+          "$wcw^R$ and $ww^R$ look alike but differ: the marker $c$ makes the first deterministic, while the second needs a guess and has no deterministic PDA.",
+          "Accepting needs the stack back at $Z_0$ and the input finished; reaching $Z_0$ early with input left over is a reject."
+        ],
+        "recall": [
+          {
+            "q": "How does a PDA for $a^nb^{2n}$ use its stack?",
+            "a": "It pushes two symbols for each $a$ and pops one for each $b$, accepting when only $Z_0$ remains at the end of the input."
+          },
+          {
+            "q": "Why can a PDA for $wcw^R$ be deterministic but not one for $ww^R$?",
+            "a": "The marker $c$ shows where the middle is. In $ww^R$ the middle must be guessed, which needs nondeterminism."
+          },
+          {
+            "q": "How are equal counts of $a$ and $b$ in any order handled?",
+            "a": "The stack keeps the surplus symbol, pushing when the input matches the top and popping on the opposite symbol, and this stays deterministic."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A deterministic PDA for $\\{a^nb^{3n}\\mid n\\ge1\\}$ pushes three symbols per $a$ and pops one per $b$. On the input with $n=4$, what is the largest number of stack symbols above $Z_0$?",
+          "answer": 12,
+          "explanation": "The stack grows only during the $a$-phase, to $3\\cdot4=12$ symbols, and then shrinks to zero over the 12 $b$ moves. The choice 4 tempts if you count one push per $a$."
+        },
+        "summary": "A PDA design fixes how many symbols to push per input symbol and how many to pop; a visible switch point or marker keeps the machine deterministic, while a hidden middle forces a nondeterministic guess."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.cfg-pda-equivalence",
+      "title": "Equivalence of CFGs and PDAs",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        416
+      ],
+      "points": [
+        "A language is context-free if and only if some nondeterministic PDA accepts it.",
+        "CFG to PDA: one state; with variable A on top, ε-move replacing A by any body of A; with terminal a on top, match it against the input and pop. The PDA simulates leftmost derivations.",
+        "PDA to CFG: for an empty-stack PDA, variables [pXq] stand for 'from state p, pop X and end in state q', and productions follow each transition.",
+        "Two stacks are as powerful as a Turing machine, so a PDA with a second stack leaves the context-free class."
+      ],
+      "keyTerms": [
+        "leftmost simulation",
+        "[pXq] construction"
+      ],
+      "lesson": {
+        "why": "The equivalence of grammars and PDAs is why context-free languages can be handled by either model, and it justifies using whichever is easier on a given question.",
+        "intro": "A grammar and a pushdown automaton are two descriptions of the same class of languages. To turn a grammar into an automaton, let the stack hold what the derivation still has to produce. When the top is a variable, replace it by one of its bodies. When the top is a terminal, it must match the next input letter, and both are removed. The machine accepts when the stack and the input are both empty.",
+        "prerequisites": [
+          "toc-cfl-pda.cfg-definition",
+          "toc-cfl-pda.pda-model"
+        ],
+        "definitions": [
+          {
+            "term": "Leftmost simulation",
+            "meaning": "The PDA mimics a leftmost derivation: it always expands the variable that sits at the top of the stack."
+          },
+          {
+            "term": "$[pXq]$ variable",
+            "meaning": "In the PDA-to-grammar construction, the variable that derives exactly the input read while the machine goes from state $p$ to $q$ and pops $X$."
+          }
+        ],
+        "principle": {
+          "text": "A language is context-free if and only if a nondeterministic PDA accepts it. From a grammar, build a one-state PDA with an $\\epsilon$-move $A\\to\\alpha$ for every production and a match-and-pop move for every terminal. From a PDA, build variables $[pXq]$ with one production per transition.",
+          "tex": "\\delta(q,\\epsilon,A)\\ni(q,\\alpha)\\ \\text{for } A\\to\\alpha,\\qquad \\delta(q,a,a)=\\{(q,\\epsilon)\\}"
+        },
+        "limits": "The PDA must be allowed to guess, so the equivalence is with nondeterministic PDAs only; deterministic PDAs accept a smaller class. Adding a second stack gives Turing-machine power and leaves the context-free class.",
+        "example": {
+          "problem": "Build a one-state PDA from $S\\to aSb\\mid\\epsilon$ and show it accepts $ab$.",
+          "steps": [
+            "The stack starts with $S$. For the two productions, add the $\\epsilon$-moves: replace $S$ by $aSb$, or replace $S$ by nothing. For the terminals, add: on input $a$ with $a$ on top, pop; on input $b$ with $b$ on top, pop.",
+            "Expand $S$ by $aSb$: the stack reads $aSb$.",
+            "Match $a$ with the input, pop: stack $Sb$. Expand $S$ by $\\epsilon$: stack $b$.",
+            "Match $b$ with the input, pop: stack empty and input empty."
+          ],
+          "result": "The PDA accepts $ab$ with an empty stack, following the derivation $S\\Rightarrow aSb\\Rightarrow ab$."
+        },
+        "misconceptions": [
+          "The grammar-to-PDA machine needs only one state; the states are not what carries the information.",
+          "The equivalence is with nondeterministic PDAs. A grammar like $S\\to aSa\\mid bSb\\mid\\epsilon$ has no deterministic PDA."
+        ],
+        "recall": [
+          {
+            "q": "What does the PDA built from a grammar do when a variable is on top of the stack?",
+            "a": "It uses an $\\epsilon$-move to replace the variable by the body of one of its productions."
+          },
+          {
+            "q": "What does it do when a terminal is on top?",
+            "a": "It matches that terminal with the next input symbol and pops it."
+          },
+          {
+            "q": "What does the variable $[pXq]$ stand for?",
+            "a": "The strings that take the PDA from state $p$ to state $q$ while popping $X$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "The grammar $S\\to aSb\\mid bSc\\mid SS\\mid\\epsilon$ has terminals $a$, $b$, $c$. In the one-state PDA built from it, how many transitions are there if each production gives one $\\epsilon$-move and each terminal gives one match move?",
+          "answer": 7,
+          "explanation": "There are 4 productions, giving 4 $\\epsilon$-moves, and 3 terminals, giving 3 match moves: $4+3=7$. The answer 4 tempts if you count only the productions."
+        },
+        "summary": "Context-free grammars and nondeterministic PDAs describe the same languages: a grammar becomes a one-state PDA that simulates leftmost derivations, and a PDA becomes a grammar of $[pXq]$ variables."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.dcfl",
+      "title": "Deterministic CFLs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        414,
+        416
+      ],
+      "points": [
+        "A DPDA has at most one move in every situation: for each state and stack top, at most one move per input symbol, and no input move when an ε-move is defined.",
+        "DCFL is the class of languages accepted by DPDAs by final state; Regular ⊊ DCFL ⊊ CFL.",
+        "In DCFL: {aⁿbⁿ}, {wcwᴿ}, {aⁿbᵐ | n ≥ m}, balanced parentheses, equal a's and b's. CFL but not DCFL: {wwᴿ} and palindromes over two or more letters, {aⁿbⁿ} ∪ {aⁿb²ⁿ}.",
+        "DCFL is closed under complement and under intersection with a regular set, but not under union, intersection, concatenation, star or reversal.",
+        "Every DCFL has an unambiguous grammar, so an inherently ambiguous language is never a DCFL."
+      ],
+      "keyTerms": [
+        "DPDA",
+        "DCFL",
+        "LR(k)"
+      ],
+      "lesson": {
+        "why": "Classification questions ask whether a language is regular, DCFL, CFL or none, and the DCFL step is the one that needs the idea of a machine that must guess.",
+        "intro": "A deterministic pushdown automaton never has a choice: in each situation at most one move applies. A language is a deterministic context-free language if some such machine accepts it by final state. This is a smaller class than the context-free languages, because a nondeterministic machine can guess where something happens, such as the middle of a string, and a deterministic machine cannot guess.",
+        "prerequisites": [
+          "toc-cfl-pda.pda-model"
+        ],
+        "definitions": [
+          {
+            "term": "DPDA",
+            "meaning": "A pushdown automaton with at most one possible move in every situation."
+          },
+          {
+            "term": "DCFL",
+            "meaning": "A language accepted by some DPDA by final state."
+          }
+        ],
+        "principle": {
+          "text": "Regular languages are strictly inside DCFL, and DCFL is strictly inside CFL. A language needs a guess it cannot avoid, for instance the unmarked middle of a mirrored string $ww^R$, to fall outside DCFL; a marker such as $c$ in $wcw^R$ removes the guess.",
+          "tex": "\\text{Regular}\\subsetneq \\text{DCFL}\\subsetneq \\text{CFL}"
+        },
+        "limits": "The marker must separate the two halves without ambiguity. DCFL is closed under complement but not under union or intersection, so the class of a combined language cannot be read off from the classes of its parts.",
+        "example": {
+          "problem": "Is $\\{wcw^R\\mid w\\in\\{a,b\\}^*\\}$ a DCFL?",
+          "steps": [
+            "Before $c$, push each letter of $w$ onto the stack; there is no choice because $a$ and $b$ are always pushed.",
+            "On reading $c$, switch to a popping state; the marker tells the machine the middle was reached, so no guess is needed.",
+            "After $c$, each letter must match the top and pop it; accept when the stack is back to $Z_0$ and the input is used up."
+          ],
+          "result": "Yes, a DPDA accepts it; without the marker the language $ww^R$ is context-free but not deterministic."
+        },
+        "misconceptions": [
+          "Not every context-free language is deterministic: $ww^R$ is the standard example, since the machine would have to guess the middle.",
+          "DCFL is not closed under union: the union of two DCFLs can fail to be a DCFL, so a combined language cannot be assumed deterministic."
+        ],
+        "recall": [
+          {
+            "q": "What property defines a DPDA?",
+            "a": "In each situation at most one move applies, so there is never a choice."
+          },
+          {
+            "q": "Why is $ww^R$ not a DCFL while $wcw^R$ is?",
+            "a": "The machine must guess the middle of $ww^R$; the symbol $c$ marks the middle of $wcw^R$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which ONE of the following languages over $\\{a,b\\}$ is accepted by a deterministic pushdown automaton?",
+          "options": [
+            "$\\{ww^R\\mid w\\in\\{a,b\\}^*\\}$",
+            "$\\{ww\\mid w\\in\\{a,b\\}^*\\}$",
+            "$\\{a^nb^nc^n\\mid n\\ge0\\}$",
+            "$\\{a^nb^m\\mid n\\ge m\\ge0\\}$"
+          ],
+          "answer": 3,
+          "explanation": "Push every $a$, pop one per $b$, and accept at any point after the input ends with no unmatched $b$; no guess is needed, so the last language is a DCFL. The first is context-free but needs a guess of the middle. The second and third are not context-free at all, so no stack machine accepts them. The first tempts most because it is context-free and looks like the marker example."
+        },
+        "summary": "A DCFL is accepted by a machine that never guesses; Regular is inside DCFL, DCFL is inside CFL, and a language that needs an unmarked middle guess like $ww^R$ is outside DCFL."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.closure",
+      "title": "Closure properties of CFLs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        36,
+        414,
+        416
+      ],
+      "points": [
+        "CFLs are closed under union, concatenation, Kleene star, reversal, homomorphism, inverse homomorphism and substitution.",
+        "CFLs are not closed under intersection: {aⁿbⁿcᵐ} ∩ {aᵐbⁿcⁿ} = {aⁿbⁿcⁿ}, which is not context-free.",
+        "Not closed under complement either, since closure under complement and union would give intersection by De Morgan; difference fails for the same reason.",
+        "CFL ∩ regular is a CFL: run the PDA and DFA in parallel in the product states. CFL − regular is therefore also a CFL, because it equals CFL ∩ complement of the regular set.",
+        "The complement of a CFL can still happen to be a CFL (the complement of a DCFL always is); non-closure only means it is not guaranteed."
+      ],
+      "keyTerms": [
+        "product construction",
+        "De Morgan argument"
+      ],
+      "lesson": {
+        "why": "Closure questions ask which operations on CFLs keep the result context-free. Every one is settled by a fixed list of results and one counterexample, so they are quick marks once the list is known.",
+        "intro": "A class of languages is closed under an operation if applying the operation to members of the class always gives a member of the class. For context-free languages (CFLs), the operations that combine two grammars side by side stay inside the class: union, concatenation, star and reversal. Intersection and complement do not. Intersecting with a regular language is the useful exception, because a regular language needs only finite memory and the pushdown automaton can carry that memory along.",
+        "prerequisites": [
+          "toc-cfl-pda.cfg-definition",
+          "toc-cfl-pda.pda-model"
+        ],
+        "definitions": [
+          {
+            "term": "Closed under an operation",
+            "meaning": "Applying the operation to any members of the class always yields a member of the class."
+          },
+          {
+            "term": "Product construction",
+            "meaning": "Running a PDA and a DFA together, with states that are pairs, so both read the same input."
+          }
+        ],
+        "principle": {
+          "text": "CFLs are closed under union, concatenation, star, reversal, homomorphism and inverse homomorphism. They are not closed under intersection, complement or difference of two CFLs. For a CFL $L$ and a regular language $R$, both $L\\cap R$ and $L-R$ are context-free.",
+          "tex": "L_1,L_2\\ \\text{CFL}\\Rightarrow L_1\\cup L_2,\\ L_1L_2,\\ L_1^{*},\\ L_1^{R}\\ \\text{CFL};\\qquad L\\cap R\\ \\text{CFL}"
+        },
+        "limits": "Non-closure means the result is not guaranteed to be context-free, not that it never is: the intersection of two particular CFLs can be a CFL. Closure under intersection with a regular language does not extend to two CFLs. The complement of a deterministic CFL is always a CFL, but the complement of a general CFL need not be.",
+        "example": {
+          "problem": "Let $L_1=\\{a^ib^jc^i\\mid i,j\\ge0\\}$ and $L_2=\\{a^ib^jc^j\\mid i,j\\ge0\\}$. Both are context-free. Find $L_1\\cap L_2$ and list its strings of length at most 6.",
+          "steps": [
+            "A string in $L_1$ has the form $a^ib^jc^k$ with $i=k$. A string in $L_2$ has $j=k$.",
+            "A string in both has $i=j=k$, so the intersection is $\\{a^nb^nc^n\\mid n\\ge0\\}$.",
+            "Listing by length up to 6 gives $\\epsilon$, $abc$ and $aabbcc$, three strings.",
+            "This language is not context-free (pumping lemma), so the intersection of two CFLs left the class."
+          ],
+          "result": "$L_1\\cap L_2=\\{a^nb^nc^n\\}$, not a CFL, so CFLs are not closed under intersection."
+        },
+        "misconceptions": [
+          "Because CFLs are closed under union but not intersection, learners assume complement is also closed. If complement were closed, De Morgan, $L_1\\cap L_2=\\overline{\\overline{L_1}\\cup\\overline{L_2}}$, would give closure under intersection, so complement is not closed.",
+          "Intersection with a regular language is closed. Writing 'CFL $\\cap$ CFL is not closed' and then rejecting $L\\cap R$ is a common slip.",
+          "A non-closure result does not make the specific answer non-CFL; check the actual languages before declaring the result not context-free."
+        ],
+        "recall": [
+          {
+            "q": "Which of union, concatenation, star and reversal keep a CFL context-free?",
+            "a": "All four. CFLs are closed under each of them."
+          },
+          {
+            "q": "Why is the class of CFLs not closed under complement?",
+            "a": "Closure under complement and union would give closure under intersection by De Morgan, and intersection fails."
+          },
+          {
+            "q": "Is $L-R$ context-free for a CFL $L$ and a regular $R$?",
+            "a": "Yes. It equals $L\\cap\\overline{R}$, and $\\overline{R}$ is regular."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Consider the six operations on context-free languages: union, concatenation, intersection, complement, Kleene star and reversal. For how many of them is the class of context-free languages closed?",
+          "answer": 4,
+          "explanation": "Union, concatenation, Kleene star and reversal keep the result context-free, which is 4. Intersection fails because $\\{a^ib^jc^i\\}\\cap\\{a^ib^jc^j\\}=\\{a^nb^nc^n\\}$, and complement fails by De Morgan. The answer 5 tempts if intersection is counted because it is closed with a regular language, and 6 if complement is counted because it works for deterministic CFLs."
+        },
+        "summary": "CFLs are closed under union, concatenation, star and reversal, and under intersection with a regular language, but not under intersection or complement of two CFLs."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.pumping-lemma",
+      "title": "Pumping lemma for CFLs",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        36,
+        414,
+        416,
+        419
+      ],
+      "points": [
+        "If L is a CFL there is p such that every s ∈ L with |s| ≥ p splits as uvxyz with |vxy| ≤ p, |vy| ≥ 1 and uvⁱxyⁱz ∈ L for all i ≥ 0.",
+        "The lemma is necessary, not sufficient: it proves a language is not context-free, never that it is.",
+        "Proof idea: a long string forces a tall CNF parse tree, so some variable repeats on one path; the two subtrees of the repeated variable give v and y, and repeating or removing the gap pumps them together.",
+        "For {aⁿbⁿcⁿ} with s = aᵖbᵖcᵖ, the window vxy of length ≤ p touches at most two letter blocks, so pumping changes at most two of the three counts.",
+        "Choose the string carefully: for {ww}, s = aᵖbaᵖb can be pumped (v = a, x = b, y = a around the middle b), but s = aᵖbᵖaᵖbᵖ cannot."
+      ],
+      "keyTerms": [
+        "pumping length",
+        "uvxyz",
+        "window |vxy| ≤ p"
+      ],
+      "lesson": {
+        "why": "The pumping lemma is the standard way to prove a language is not context-free. Exam questions give a language and ask whether it is context-free, and the lemma is the justification behind the answer.",
+        "intro": "A long string in a context-free language has a parse tree tall enough that some variable repeats along one path. The two pieces that the repeating variable generates can be copied any number of times, or removed, and the result is still in the language. So every long string in a CFL has two short, nearby parts that can be pumped together. If a language has a long string for which no such pair of parts works, the language cannot be context-free.",
+        "prerequisites": [
+          "toc-cfl-pda.cnf"
+        ],
+        "definitions": [
+          {
+            "term": "Pumping length",
+            "meaning": "A constant $p$ that depends only on the language; strings of length at least $p$ must be pumpable."
+          },
+          {
+            "term": "Window",
+            "meaning": "The middle part $vxy$ of the split $uvxyz$, which is at most $p$ symbols long."
+          }
+        ],
+        "principle": {
+          "text": "If $L$ is context-free there is a $p\\ge1$ such that every $s\\in L$ with $|s|\\ge p$ can be written $s=uvxyz$ with $|vxy|\\le p$, $|vy|\\ge1$ and $uv^ixy^iz\\in L$ for every $i\\ge0$. To show $L$ is not context-free, pick one $s$ and show every allowed split fails for some $i$.",
+          "tex": "s=uvxyz,\\quad |vxy|\\le p,\\quad |vy|\\ge1,\\quad uv^{i}xy^{i}z\\in L\\ \\ \\forall i\\ge0"
+        },
+        "limits": "The lemma is a necessary condition only. Failing it proves a language is not context-free, but passing it proves nothing, so it can never show a language is context-free. The string must be chosen with care: a poor choice of $s$ may be pumpable and prove nothing.",
+        "example": {
+          "problem": "Show that $L=\\{a^nb^nc^n\\mid n\\ge0\\}$ is not context-free using the string $s=a^pb^pc^p$ with $p=3$.",
+          "steps": [
+            "Take $s=aaabbbccc$. Any allowed window $vxy$ has length at most 3, so it cannot contain both an $a$ and a $c$, because the $b$ block in between has length 3.",
+            "So $v$ and $y$ together touch at most two of the three letters, and $|vy|\\ge1$ means at least one letter count changes.",
+            "Pumping to $i=2$ (or $i=0$) changes that count but leaves the third letter's count unchanged, so the three counts are no longer equal.",
+            "Enumerating every split of $s$ with $|vxy|\\le3$ and $|vy|\\ge1$ gives 121 splits, and each of them leaves $L$ at $i=0$ or $i=2$ (at $i=1$ the string is $s$ itself, which is in $L$)."
+          ],
+          "result": "No split can be pumped, so $L$ is not context-free."
+        },
+        "misconceptions": [
+          "Satisfying the pumping conditions does not show a language is context-free; the lemma can only be used to prove that a language is not.",
+          "The window $vxy$ is at most $p$ long, but the parts $v$ and $y$ may sit apart inside it. Assuming that $v$ and $y$ are adjacent misses splits like $v=a$, $y=a$ around a middle part.",
+          "The adversary picks the split, not you. A proof must fail every allowed split, not just the one you find convenient."
+        ],
+        "recall": [
+          {
+            "q": "What three conditions must a split $uvxyz$ satisfy in the pumping lemma?",
+            "a": "$|vxy|\\le p$, $|vy|\\ge1$, and $uv^ixy^iz\\in L$ for all $i\\ge0$."
+          },
+          {
+            "q": "Can the pumping lemma show that a language is context-free?",
+            "a": "No. It is only a necessary condition, so it can prove non-context-freeness but never context-freeness."
+          },
+          {
+            "q": "Why does the window $vxy$ in $a^pb^pc^p$ touch at most two letters?",
+            "a": "Its length is at most $p$, which is shorter than the block of $b$ separating the $a$ block from the $c$ block."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Take $s=a^4b^4c^4$ with pumping length $p=4$. Count the windows of length exactly 4 inside $s$ that contain exactly two distinct letters.",
+          "answer": 6,
+          "explanation": "The string has length 12, so a window of length 4 can start at 9 positions. Starting at positions 1 and 5 and 9 gives windows $aaaa$, $bbbb$ and $cccc$ with one letter each. The other six starts straddle a block boundary and hold exactly two letters, so the count is 6. No window holds all three letters, which is why pumping cannot keep all three counts equal. The answer 9 tempts if all windows are counted, and 3 if only the single-letter ones are."
+        },
+        "summary": "If $L$ is a CFL, long strings split as $uvxyz$ with $|vxy|\\le p$, $|vy|\\ge1$ and every pump staying in $L$; a language where one chosen string cannot do this is not context-free."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.decision-properties",
+      "title": "Decision properties of CFLs",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        37,
+        415,
+        416
+      ],
+      "points": [
+        "Decidable: membership (CYK, O(n³)), emptiness (is S generating?) and finiteness (after simplification to CNF, is the variable dependency graph acyclic?).",
+        "Undecidable: equivalence of two CFGs, ambiguity of a CFG, inclusion L₁ ⊆ L₂, L(G) = Σ*, emptiness of L₁ ∩ L₂, and whether the complement or the intersection is context-free.",
+        "Equivalence and universality are undecidable for CFGs but decidable for DFAs; for DPDAs, equivalence is decidable (Sénizergues) and L = Σ* is decidable via complementation.",
+        "Asking whether L(G) is regular is also undecidable for a general CFG."
+      ],
+      "keyTerms": [
+        "emptiness",
+        "finiteness",
+        "universality",
+        "equivalence"
+      ],
+      "lesson": {
+        "why": "Which questions about grammars and PDAs a program can answer is a standard multiple-select item, and the answers differ from those for DFAs.",
+        "intro": "A question about a language is decidable if some algorithm always halts with the right yes or no. For context-free grammars, some questions are easy: is a given string in the language, is the language empty, is it finite. Others cannot be answered by any algorithm: whether two grammars generate the same language, whether a grammar is ambiguous, or whether a grammar generates every string.",
+        "prerequisites": [
+          "toc-cfl-pda.cfg-definition",
+          "toc-cfl-pda.simplification",
+          "toc-cfl-pda.cnf"
+        ],
+        "definitions": [
+          {
+            "term": "Decidable",
+            "meaning": "There is an algorithm that halts on every input with the correct yes or no."
+          },
+          {
+            "term": "Universality",
+            "meaning": "The question whether $L(G)=\\Sigma^{*}$, that is, whether the grammar generates every string."
+          }
+        ],
+        "principle": {
+          "text": "For context-free grammars, membership (by CYK), emptiness (is $S$ generating?) and finiteness (after simplification, is the variable graph acyclic?) are decidable. Equivalence, inclusion, ambiguity, universality, regularity and emptiness of an intersection of two languages are undecidable.",
+          "tex": "\\text{decidable: } w\\in L,\\ L=\\emptyset,\\ |L|<\\infty\\qquad \\text{undecidable: } L_1=L_2,\\ L=\\Sigma^{*}"
+        },
+        "limits": "The undecidable results are for general context-free grammars. The same questions for DFAs are all decidable, and for deterministic PDAs equivalence and $L=\\Sigma^{*}$ are decidable.",
+        "example": {
+          "problem": "Decide whether $L(G)$ is empty for $S\\to AB\\mid C$, $A\\to a$, $B\\to BB$, $C\\to CD$, $D\\to d$.",
+          "steps": [
+            "Mark generating variables. $A\\to a$ and $D\\to d$ have only terminals on the right, so $A$ and $D$ are generating.",
+            "Repeat. $B\\to BB$ needs $B$, and $C\\to CD$ needs $C$, so neither is ever added.",
+            "$S\\to AB$ needs $B$ and $S\\to C$ needs $C$, so $S$ is not generating."
+          ],
+          "result": "The start variable is not generating, so $L(G)=\\emptyset$."
+        },
+        "misconceptions": [
+          "Equivalence is decidable for DFAs but undecidable for context-free grammars; do not carry the DFA answers over.",
+          "Intersection of two context-free languages need not be context-free, and deciding whether it is empty is undecidable, even though each language alone has a decidable emptiness test."
+        ],
+        "recall": [
+          {
+            "q": "How is emptiness of a context-free grammar tested?",
+            "a": "Compute the generating variables by repeated marking; the language is empty exactly when $S$ is not generating."
+          },
+          {
+            "q": "Name three undecidable questions about context-free grammars.",
+            "a": "Equivalence of two grammars, ambiguity of a grammar, and whether $L(G)=\\Sigma^{*}$."
+          },
+          {
+            "q": "Which questions are decidable for a context-free grammar?",
+            "a": "Membership, emptiness and finiteness."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of the following problems about a context-free grammar $G$ is decidable?",
+          "options": [
+            "Whether $L(G_1)=L(G_2)$ for two grammars",
+            "Whether $G$ is ambiguous",
+            "Whether $L(G)$ is empty",
+            "Whether $L(G)=\\Sigma^{*}$"
+          ],
+          "answer": 2,
+          "explanation": "Emptiness is decidable: mark the generating variables and check whether $S$ is among them. Equivalence, ambiguity and universality are all undecidable. Universality tempts because it is decidable for DFAs, and equivalence tempts for the same reason."
+        },
+        "summary": "For context-free grammars membership, emptiness and finiteness are decidable, while equivalence, inclusion, ambiguity, universality and regularity are undecidable."
+      }
+    },
+    {
+      "id": "toc-cfl-pda.classifying-languages",
+      "title": "Classifying a language quickly",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Regular if only a bounded amount of memory is needed: aⁿbᵐ, strings with an even number of a's, aⁿbᵐ with n + m even.",
+        "CFL if one stack suffices: one pair of counts linked by a linear relation (aⁿb²ⁿ, aⁿbᵐcⁿ⁺ᵐ, aⁱbʲcᵏ with i = j or j = k), or one mirrored string (wwᴿ).",
+        "Not CFL if two comparisons interleave or cross: aⁿbⁿcⁿ, aᵐbⁿcᵐdⁿ (crossing), ww (copy, not mirror), aⁿ with n prime or n a perfect square, aⁿbⁿ² (a non-linear relation between counts).",
+        "A 'union' (i = j or j = k) stays a CFL because the PDA guesses which test to run; an 'and' of two independent tests (i = j and j = k) does not.",
+        "Over a one-letter alphabet every CFL is regular, so aⁿ with n prime is not even context-free."
+      ],
+      "keyTerms": [
+        "crossing dependencies",
+        "unary CFL",
+        "linear exponent"
+      ],
+      "lesson": {
+        "why": "Many questions give a language such as $\\{a^ib^jc^k\\mid i=j\\}$ and ask whether it is regular, context-free or neither. A short checklist of what must be remembered decides each one.",
+        "intro": "Think about what a machine must remember to read a string. If it only needs a fixed amount of information, such as the parity of a count, the language is regular. If it needs one unbounded counter, or the reverse of a string, a stack is enough and the language is context-free. If it must compare two or more unbounded quantities at the same time, one stack cannot do it, and the language is not context-free.",
+        "prerequisites": [
+          "toc-cfl-pda.pda-model",
+          "toc-cfl-pda.pumping-lemma"
+        ],
+        "principle": {
+          "text": "Regular: a fixed number of states suffices. Context-free: one stack suffices, which allows one linked pair of counts or a mirrored string. Not context-free: two comparisons that must hold together, a copy $ww$, or a non-linear relation between counts.",
+          "tex": "\\{a^ib^jc^k:\\ i=j\\ \\text{or}\\ j=k\\}\\ \\text{CFL},\\qquad \\{a^ib^jc^k:\\ i=j\\ \\text{and}\\ j=k\\}\\ \\text{not CFL}"
+        },
+        "limits": "The checklist is a guide for the usual exam shapes, not a proof. A language that looks demanding can still be simpler, so confirm a 'not context-free' verdict with the pumping lemma. Over a one-letter alphabet every CFL is regular.",
+        "example": {
+          "problem": "Classify $A=\\{a^ib^jc^k\\mid i=j\\text{ or }j=k\\}$ and $B=\\{a^ib^jc^k\\mid i=j\\text{ and }j=k\\}$, and count the strings of length 6 in each.",
+          "steps": [
+            "For $A$, a PDA guesses which test to run. It either matches $a$'s against $b$'s and ignores $c$'s, or ignores $a$'s and matches $b$'s against $c$'s. One stack is enough, so $A$ is context-free.",
+            "For $B$, both tests must hold on the same string, so $a$'s, $b$'s and $c$'s must all be equal: $B=\\{a^nb^nc^n\\}$. One stack cannot compare all three counts, so $B$ is not context-free.",
+            "Counting by enumeration, $A$ has 7 strings of length 6 and $B$ has 1, namely $aabbcc$."
+          ],
+          "result": "$A$ is context-free, $B$ is not; an 'or' of tests stays context-free, an 'and' does not."
+        },
+        "misconceptions": [
+          "Counting symbols is not the test: $\\{a^nb^n\\}$ needs a stack and is not regular, even though it looks as simple as $a^nb^m$.",
+          "A language with 'or' between two comparisons is context-free, while 'and' of two independent comparisons is not. The words in the definition decide the class.",
+          "A relation like $k=ij$ or $n^2$ is non-linear; a stack can only compare counts that add or match, so such languages are not context-free."
+        ],
+        "recall": [
+          {
+            "q": "What does a language need to be regular rather than merely context-free?",
+            "a": "Only a fixed amount of memory, such as a finite set of states, with no unbounded counter."
+          },
+          {
+            "q": "Why is $\\{ww\\}$ not context-free while $\\{ww^R\\}$ is?",
+            "a": "A stack reads the reverse of what it stored, so it matches $w^R$, but it cannot replay $w$ in the same order."
+          },
+          {
+            "q": "Why is $\\{a^n\\mid n\\text{ prime}\\}$ not context-free?",
+            "a": "Over a one-letter alphabet every CFL is regular, and the primes are not an ultimately periodic set, so the language is not regular."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which description fits $L=\\{a^ib^jc^k\\mid k=i\\cdot j,\\ i,j,k\\ge0\\}$?",
+          "options": [
+            "Regular",
+            "Context-free but not regular",
+            "Context-free and deterministic",
+            "Not context-free"
+          ],
+          "answer": 3,
+          "explanation": "The count of $c$'s is the product of the other two, a non-linear relation, so one stack cannot check it and the language is not context-free. Context-free but not regular tempts because a single counter looks involved, but a stack compares only matching or additive counts, and regular fails because the counts are unbounded."
+        },
+        "summary": "Ask what must be remembered: fixed memory is regular, one stack is context-free, and two simultaneous comparisons, a copy, or a non-linear count rule are not context-free."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "toc-cfl-pda.cfg-tuple",
+      "name": "Context-free grammar",
+      "tex": "G = (V, T, P, S),\\quad P \\subseteq V \\times (V \\cup T)^{*}",
+      "text": "G = (V, T, P, S), with each production A → α, A ∈ V, α ∈ (V ∪ T)*",
+      "where": [
+        [
+          "V",
+          "variables (non-terminals)"
+        ],
+        [
+          "T",
+          "terminals"
+        ],
+        [
+          "P",
+          "productions"
+        ],
+        [
+          "S",
+          "start variable"
+        ]
+      ],
+      "topic": "toc-cfl-pda.cfg-definition",
+      "origin": "source",
+      "pages": [
+        35,
+        411
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.pda-transition",
+      "name": "PDA transition function",
+      "tex": "\\delta : Q \\times (\\Sigma \\cup \\{\\varepsilon\\}) \\times \\Gamma \\to \\text{finite subsets of } Q \\times \\Gamma^{*}",
+      "text": "δ: Q × (Σ ∪ {ε}) × Γ → finite subsets of Q × Γ*",
+      "where": [
+        [
+          "Q",
+          "states"
+        ],
+        [
+          "Σ",
+          "input alphabet"
+        ],
+        [
+          "Γ",
+          "stack alphabet"
+        ]
+      ],
+      "note": "A DPDA allows at most one choice per (state, input, top) and no input move where an ε-move on the same state and top exists.",
+      "topic": "toc-cfl-pda.pda-model",
+      "origin": "source",
+      "pages": [
+        413
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.cnf-derivation-length",
+      "name": "Derivation length in CNF",
+      "tex": "\\text{steps}(w) = 2|w| - 1 \\quad (|w| \\ge 1)",
+      "text": "steps = 2n − 1 for a string of length n ≥ 1",
+      "where": [
+        [
+          "|w|",
+          "length n of the derived string"
+        ]
+      ],
+      "note": "n − 1 steps apply A → BC and n steps apply A → a. The count is the same for every string of length n, ambiguous or not.",
+      "topic": "toc-cfl-pda.cnf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.gnf-derivation-length",
+      "name": "Derivation length in GNF",
+      "tex": "\\text{steps}(w) = |w|",
+      "text": "steps = n for a string of length n",
+      "where": [
+        [
+          "|w|",
+          "length n of the derived string"
+        ]
+      ],
+      "note": "Each GNF step emits exactly one terminal.",
+      "topic": "toc-cfl-pda.gnf",
+      "origin": "source",
+      "pages": [
+        36
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.cnf-yield-bound",
+      "name": "Yield bound for a CNF parse tree",
+      "tex": "|w| \\le 2^{h-1}",
+      "text": "|w| ≤ 2^(h−1) when the longest root-to-leaf path has h edges",
+      "where": [
+        [
+          "h",
+          "edges on the longest path of the parse tree"
+        ]
+      ],
+      "note": "With m variables, any string longer than 2^(m−1) forces a path of more than m variables, so p = 2^m works as a pumping length.",
+      "topic": "toc-cfl-pda.cnf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.pumping-conditions",
+      "name": "Pumping lemma conditions",
+      "tex": "s = uvxyz,\\; |vxy| \\le p,\\; |vy| \\ge 1,\\; uv^{i}xy^{i}z \\in L\\ \\forall i \\ge 0",
+      "text": "s = uvxyz, |vxy| ≤ p, |vy| ≥ 1, uvⁱxyⁱz ∈ L for all i ≥ 0",
+      "where": [
+        [
+          "p",
+          "pumping length of L"
+        ],
+        [
+          "s",
+          "any string of L with |s| ≥ p"
+        ]
+      ],
+      "note": "v and y pump together; i = 0 (pumping down) is often the quickest contradiction.",
+      "topic": "toc-cfl-pda.pumping-lemma",
+      "origin": "source",
+      "pages": [
+        36,
+        414,
+        420
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.cyk-cost",
+      "name": "CYK table size and time",
+      "tex": "\\text{cells} = \\frac{n(n+1)}{2},\\qquad T(n) = O(n^{3}\\,|G|)",
+      "text": "cells = n(n+1)/2, time O(n³ · |G|)",
+      "where": [
+        [
+          "n",
+          "length of the input string"
+        ],
+        [
+          "|G|",
+          "number of productions in the CNF grammar"
+        ]
+      ],
+      "note": "Only valid on a CNF grammar.",
+      "topic": "toc-cfl-pda.cyk",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        415
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.catalan-parse-trees",
+      "name": "Parse trees of aⁿ under S → SS | a",
+      "tex": "\\#\\text{trees}(a^{n}) = C_{n-1} = \\frac{1}{n}\\binom{2n-2}{n-1}",
+      "text": "number of trees for aⁿ = C(n−1) = (1/n)·binom(2n−2, n−1)",
+      "where": [
+        [
+          "C_k",
+          "k-th Catalan number: 1, 1, 2, 5, 14, 42"
+        ]
+      ],
+      "note": "aaa has 2 trees, aaaa has 5, aaaaa has 14: the number of ways to bracket a product of n factors.",
+      "topic": "toc-cfl-pda.ambiguity",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "toc-cfl-pda.cyk-membership",
+      "name": "CYK membership test (CNF grammar)",
+      "worst": "O(n³ · |G|)",
+      "space": "O(n²)",
+      "notes": "Fills n(n+1)/2 cells, each trying up to n − 1 split points.",
+      "topic": "toc-cfl-pda.cyk",
+      "origin": "source",
+      "pages": [
+        36,
+        413,
+        415
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.emptiness-test",
+      "name": "Emptiness test of a CFG (generating-symbol fixpoint)",
+      "worst": "O(|G|) with work lists",
+      "notes": "L(G) is empty exactly when S is not generating. A naive repeat-until-stable loop is O(|G|²).",
+      "topic": "toc-cfl-pda.decision-properties",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.dpda-membership",
+      "name": "Membership in a DCFL (DPDA simulation)",
+      "worst": "O(n)",
+      "notes": "A DPDA can be normalised to make a bounded number of ε-moves per input symbol, which is why LR parsers run in linear time.",
+      "topic": "toc-cfl-pda.dcfl",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "toc-cfl-pda.pt-classify-language",
+      "title": "Classify a language as regular, DCFL, CFL or not CFL",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Ask what must be remembered: bounded memory means regular.",
+        "If one count or one mirrored string must be matched, and the switch point is visible, it is a DCFL; if the machine must guess (middle of wwᴿ, which of two tests), it is CFL but not DCFL.",
+        "If two independent comparisons cross or nest wrongly (aⁿbⁿcⁿ, aᵐbⁿcᵐdⁿ, ww), it is not a CFL; confirm with the pumping window |vxy| ≤ p."
+      ],
+      "trap": "wwᴿ (mirror) is a CFL; ww (copy) is not. An 'or' of conditions stays a CFL, an 'and' usually does not.",
+      "topic": "toc-cfl-pda.classifying-languages",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.pt-closure",
+      "title": "Closure: what class does an operation on CFLs, DCFLs and regular sets produce",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Write down the class of each operand.",
+        "Look the operation up: CFL is closed under ∪, ·, *, reversal, homomorphisms and ∩ regular; not under ∩ or complement.",
+        "For DCFL: closed under complement and ∩ regular only, among the common operations.",
+        "A non-closure result means 'not always'; the answer is the smallest class guaranteed, often 'need not be CFL' or 'recursive'."
+      ],
+      "trap": "CFL ∩ CFL is always decidable (recursive) even though it need not be a CFL.",
+      "topic": "toc-cfl-pda.closure",
+      "origin": "source",
+      "pages": [
+        36,
+        414,
+        418
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.pt-ambiguity",
+      "title": "Is this grammar ambiguous, and how many parse trees does a string have",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find a short string where two productions compete at the root, such as S → SS splitting aaa as a·aa or aa·a.",
+        "To count trees, set N(w) = Σ over root productions and over every split of w consistent with the body of the product of the sub-counts.",
+        "For S → SS | a this gives Catalan numbers: 1, 1, 2, 5, 14 for lengths 1 to 5."
+      ],
+      "trap": "Two different derivations are not enough; they must be two different leftmost derivations (two trees).",
+      "topic": "toc-cfl-pda.ambiguity",
+      "origin": "source",
+      "pages": [
+        36,
+        412,
+        418
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.pt-normal-form-steps",
+      "title": "Derivation steps and productions in CNF or GNF",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "CNF: a string of length n needs 2n − 1 steps; GNF: n steps.",
+        "When converting, count new variables: one Xₐ per terminal inside a long body, and k − 2 new variables per body of length k ≥ 3."
+      ],
+      "trap": "Using 2n or 2n + 1 for CNF: the root step is one of the n − 1 binary steps, not an extra step.",
+      "topic": "toc-cfl-pda.cnf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.pt-decidability",
+      "title": "Which problems about CFGs or PDAs are decidable",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Decidable: membership, emptiness, finiteness, and anything about a single string.",
+        "Undecidable: equivalence, inclusion, ambiguity, universality (L = Σ*), regularity, emptiness of an intersection of two CFLs.",
+        "If the problem is about a DFA or DPDA instead, re-check: DFA problems are all decidable, and DPDA equivalence is decidable."
+      ],
+      "trap": "Finiteness of a CFL is decidable; finiteness of a Turing-recognisable language is not.",
+      "topic": "toc-cfl-pda.decision-properties",
+      "origin": "source",
+      "pages": [
+        37,
+        415,
+        419
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.pt-cyk-pda-trace",
+      "title": "CYK table entry or PDA trace for a given string",
+      "frequency": "low",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Fill the length-1 row from the terminal rules.",
+        "For each longer substring, try every split and add A for every A → BC whose B and C sit in the two halves.",
+        "For a PDA, track (state, remaining input, stack) move by move and check the acceptance mode named in the question."
+      ],
+      "trap": "Missing one split point in a cell: a substring of length l has l − 1 splits.",
+      "topic": "toc-cfl-pda.cyk",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "toc-cfl-pda.q-catalan-parse-trees",
+      "type": "nat",
+      "marks": 2,
+      "stem": "For the grammar S → SS | a, how many distinct parse trees does the string aaaa have?",
+      "answer": 5,
+      "explanation": "Let N(n) be the number of trees for aⁿ. N(1) = 1, and the root S → SS splits aⁿ into a prefix of length k and a suffix of length n − k, so N(n) = Σ N(k)·N(n−k). N(2) = 1, N(3) = N(1)N(2) + N(2)N(1) = 2, N(4) = N(1)N(3) + N(2)N(2) + N(3)N(1) = 2 + 1 + 2 = 5. These are the Catalan numbers C₍ₙ₋₁₎.",
+      "difficulty": "medium",
+      "topic": "toc-cfl-pda.ambiguity",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2018) — Ambiguity",
+      "pages": [
+        418
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-which-ambiguous",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which one of the following grammars is ambiguous?",
+      "options": [
+        "S → aSb | ab",
+        "S → aS | Sa | a",
+        "S → aSa | bSb | c",
+        "S → aB, B → bB | b"
+      ],
+      "answer": 1,
+      "explanation": "In S → aS | Sa | a, the string aa has two trees: S → aS → aa and S → Sa → aa. The other grammars each fix the derivation by the string itself: aSb peels one a and one b from the ends, aSa | bSb | c is forced by the outer letters until the centre c, and aB with B → bB | b generates abⁿ in only one way.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.ambiguity",
+      "origin": "source",
+      "pages": [
+        412,
+        416
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-inherent-ambiguity",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which one of the following languages is inherently ambiguous?",
+      "options": [
+        "{aⁿbⁿ | n ≥ 0}",
+        "{aⁿbⁿcᵐ | n, m ≥ 0} ∪ {aⁿbᵐcᵐ | n, m ≥ 0}",
+        "{wcwᴿ | w ∈ {a, b}*}",
+        "{aⁿbᵐ | n ≥ m ≥ 0}"
+      ],
+      "answer": 1,
+      "explanation": "Strings aⁿbⁿcⁿ belong to both parts of the union, and Ogden's lemma shows every grammar for the union gives some string aⁿbⁿcⁿ two parse trees, so every grammar is ambiguous. The other three are DCFLs, and every DCFL has an unambiguous grammar.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.ambiguity",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — Inherent ambiguity",
+      "pages": [
+        412,
+        419
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-cfl-membership-msq",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following languages are context-free?",
+      "options": [
+        "{aⁱbʲcᵏ | i = j or j = k}",
+        "{aⁿbⁿcⁿ | n ≥ 0}",
+        "{aⁿbᵐcⁿ⁺ᵐ | n, m ≥ 0}",
+        "{aᵐbⁿcᵐdⁿ | m, n ≥ 0}"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "Option 1 is the union of {aⁱbⁱcᵏ} and {aⁱbʲcʲ}, both CFLs, so it is a CFL. Option 3: S → aSc | T, T → bTc | ε nests the b–c matching inside the a–c matching. Option 2 fails the pumping lemma on aᵖbᵖcᵖ because vxy touches at most two blocks. Option 4 needs a–c and b–d matches that cross; pumping aᵖbᵖcᵖdᵖ with |vxy| ≤ p changes at most two adjacent blocks, breaking one equality.",
+      "difficulty": "medium",
+      "topic": "toc-cfl-pda.classifying-languages",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-not-dcfl",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which one of the following is context-free but not a deterministic context-free language?",
+      "options": [
+        "{wcwᴿ | w ∈ {a, b}*}",
+        "{aⁿbⁿ | n ≥ 1}",
+        "{wwᴿ | w ∈ {a, b}*}",
+        "{w ∈ {a, b}* | w has equally many a's and b's}"
+      ],
+      "answer": 2,
+      "explanation": "For wwᴿ a PDA must guess where the middle is, which needs nondeterminism; no DPDA can do it. The marker c in wcwᴿ tells the machine when to switch from pushing to popping, aⁿbⁿ switches at the first b, and equal counts are tracked deterministically by keeping the surplus letter on the stack.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.dcfl",
+      "origin": "source",
+      "pages": [
+        414,
+        416,
+        419
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-cfl-intersect-regular",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "L₁ is a context-free language and L₂ is a regular language. Which one of the following is always true?",
+      "options": [
+        "L₁ ∩ L₂ is regular",
+        "L₁ ∩ L₂ is context-free",
+        "L₁ ∩ L₂ need not be context-free",
+        "The complement of L₁ is context-free"
+      ],
+      "answer": 1,
+      "explanation": "Run the PDA for L₁ and the DFA for L₂ together: states are pairs, the stack belongs to the PDA, and a pair is accepting when both parts are. That is a PDA, so the intersection is context-free. It need not be regular (take L₂ = Σ*), and CFLs are not closed under complement.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.closure",
+      "origin": "source",
+      "sourceLabel": "PYQ-4 (GATE 2016) — Closure",
+      "pages": [
+        36,
+        414,
+        418
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-closure-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Under which of the following operations is the class of context-free languages closed?",
+      "options": [
+        "Union",
+        "Intersection",
+        "Complement",
+        "Inverse homomorphism"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "Union: S → S₁ | S₂. Inverse homomorphism: a PDA reads a symbol a and simulates the original PDA on h(a), buffered in its finite control. Intersection fails: {aⁿbⁿcᵐ} ∩ {aᵐbⁿcⁿ} = {aⁿbⁿcⁿ}. Complement fails too, because with union it would give intersection by De Morgan.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.closure",
+      "origin": "source",
+      "pages": [
+        414,
+        420
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-dcfl-closure",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Under which one of the following operations is the class of deterministic context-free languages closed?",
+      "options": [
+        "Union",
+        "Complement",
+        "Concatenation",
+        "Intersection"
+      ],
+      "answer": 1,
+      "explanation": "A DPDA can be normalised to read all input without blocking, then its accepting states are swapped, so DCFLs are closed under complement. Union fails: {aⁿbⁿcᵐ} and {aᵐbⁿcⁿ} are DCFLs whose union is inherently ambiguous, so not a DCFL. Intersection fails with the same pair, which gives aⁿbⁿcⁿ, and concatenation fails as well.",
+      "difficulty": "medium",
+      "topic": "toc-cfl-pda.dcfl",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — DCFL",
+      "pages": [
+        414,
+        418
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-decidable-msq",
+      "type": "msq",
+      "marks": 1,
+      "stem": "For context-free grammars G, G₁ and G₂ over Σ, which of the following problems are decidable?",
+      "options": [
+        "Is a given string w in L(G)?",
+        "Is L(G) finite?",
+        "Is L(G₁) = L(G₂)?",
+        "Is L(G) = Σ*?"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Membership is decided by CYK after converting G to CNF. Finiteness is decided by converting to CNF without useless symbols and checking that the graph with an edge A → B whenever B appears in a body of A has no cycle. Equivalence and universality are undecidable for CFGs (reductions from the Post correspondence problem).",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.decision-properties",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2020) — Decision",
+      "pages": [
+        415,
+        419
+      ]
+    },
+    {
+      "id": "toc-cfl-pda.q-cnf-steps",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A grammar G is in Chomsky normal form and has no ε-production. How many derivation steps does G need to derive a string of length 6?",
+      "answer": 11,
+      "explanation": "Each step is either A → BC, which adds one variable to the sentential form, or A → a, which turns one variable into a terminal. Going from the single variable S to 6 terminals takes 5 binary steps (to reach 6 variables) and 6 terminal steps: 2·6 − 1 = 11.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.cnf",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-cyk-top-cell",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "The CNF grammar S → AB | BC, A → BA | a, B → CC | b, C → AB | a is run through the CYK algorithm on the string baaba. Which set of variables appears in the top cell, the one for the whole string?",
+      "options": [
+        "{S}",
+        "{S, A, C}",
+        "{A, C}",
+        "{S, B}"
+      ],
+      "answer": 1,
+      "explanation": "Length 1: b → {B}, a → {A, C}. Length 2: ba {S, A}, aa {B}, ab {S, C}, ba {S, A}. Length 3: baa ∅, aab {B}, aba {B}. Length 4: baab ∅, aaba {S, A, C}. Length 5: the split b·aaba gives B·{S, A, C}, and the split ba·aba gives {S, A}·{B}, producing A → BA, S → BC, C → AB and S → AB. The top cell is {S, A, C}, so baaba ∈ L.",
+      "difficulty": "hard",
+      "topic": "toc-cfl-pda.cyk",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-nullable-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "In the grammar S → ABC, A → aA | ε, B → bB | C, C → c | ε, D → d, how many variables are nullable?",
+      "answer": 4,
+      "explanation": "Round 1: A and C have ε-productions. Round 2: B → C, so B is nullable. Round 3: S → ABC with A, B, C all nullable, so S is nullable. D only derives d. The nullable set is {S, A, B, C}: 4 variables.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.simplification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-epsilon-removal",
+      "type": "nat",
+      "marks": 1,
+      "stem": "The grammar S → AB, A → aA | ε, B → bB | ε generates a*b*. After ε-productions are removed (keeping S → ε since ε is in the language), how many productions have S on the left, excluding S → ε?",
+      "answer": 3,
+      "explanation": "A and B are nullable, so S → AB is replaced by every version with a subset of its nullable symbols removed, except the empty body: S → AB, S → A and S → B. Adding S → ε separately restores ε. That is 3 productions besides S → ε.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.simplification",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-pda-language",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A PDA starts in state q₀ with Z₀ on the stack. In q₀, each a pushes two X's. On the first b it moves to q₁ and pops one X; in q₁, each further b pops one X, and an a has no move. On an empty input the machine has no move. It accepts by final state when the input is consumed, it is in q₁ and the top is Z₀. Which language does it accept?",
+      "options": [
+        "{aⁿbⁿ | n ≥ 1}",
+        "{aⁿb²ⁿ | n ≥ 1}",
+        "{a²ⁿbⁿ | n ≥ 1}",
+        "{aⁿbᵐ | m ≤ 2n}"
+      ],
+      "answer": 1,
+      "explanation": "After n a's the stack holds 2n X's above Z₀. Each b pops one X, the machine has no move for a b when Z₀ is on top, and acceptance needs Z₀ back on top, so exactly 2n b's are read. Since q₁ is reached only on a b and an X must be available, n ≥ 1. Accepted strings: abb, aabbbb, aaabbbbbb, …",
+      "difficulty": "medium",
+      "topic": "toc-cfl-pda.pda-design",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-pumping-ww-string",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "To prove L = {ww | w ∈ {a, b}*} is not context-free with the pumping lemma (pumping length p), which choice of string makes every split uvxyz with |vxy| ≤ p and |vy| ≥ 1 fail?",
+      "options": [
+        "aᵖbaᵖb",
+        "aᵖbᵖaᵖbᵖ",
+        "a²ᵖ",
+        "(ab)ᵖ(ab)ᵖ"
+      ],
+      "answer": 1,
+      "explanation": "aᵖbaᵖb pumps: u = aᵖ⁻¹, v = a, x = b, y = a, z = aᵖ⁻¹b gives aᵖ⁻¹⁺ⁱbaᵖ⁻¹⁺ⁱb, still of the form ww. a²ᵖ pumps with v = y = a, and (ab)ᵖ(ab)ᵖ pumps with v = ab, y = ab straddling the middle. In aᵖbᵖaᵖbᵖ the window of length ≤ p lies within one block or two adjacent ones; pumping down either unbalances the halves or shifts the midpoint so the two halves no longer match.",
+      "difficulty": "hard",
+      "topic": "toc-cfl-pda.pumping-lemma",
+      "origin": "curated",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Pumping",
+      "pages": []
+    },
+    {
+      "id": "toc-cfl-pda.q-cyk-needs-cnf",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The CYK membership algorithm requires the grammar to be in which form, and what is its running time on a string of length n?",
+      "options": [
+        "Greibach normal form, O(n²)",
+        "Chomsky normal form, O(n³)",
+        "Chomsky normal form, O(n²)",
+        "Any CFG without ε-productions, O(n³)"
+      ],
+      "answer": 1,
+      "explanation": "CYK combines two adjacent substrings per rule, which only works when every body is BC or a single terminal, so it needs CNF. There are O(n²) cells, each tried with O(n) split points, giving O(n³) for a fixed grammar.",
+      "difficulty": "easy",
+      "topic": "toc-cfl-pda.cyk",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — CYK",
+      "pages": [
+        413,
+        417,
+        418
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "Confusing wwᴿ with ww: the mirror language is a CFL (but not a DCFL), while the copy language ww is not context-free at all.",
+      "origin": "source",
+      "pages": [
+        414,
+        418
+      ]
+    },
+    {
+      "text": "Assuming CFLs are closed under intersection or complement. Only intersection with a regular language is safe.",
+      "origin": "source",
+      "pages": [
+        414,
+        419
+      ]
+    },
+    {
+      "text": "Running CYK on a GNF or arbitrary grammar. CYK needs Chomsky normal form.",
+      "origin": "source",
+      "pages": [
+        419
+      ]
+    },
+    {
+      "text": "Thinking final-state and empty-stack acceptance are equivalent for DPDAs. They are equivalent only for nondeterministic PDAs; empty-stack DPDAs accept only prefix-free languages.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Removing useless symbols before ε- and unit productions. Removing ε- and unit productions can make symbols useless, so useless symbols go last.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Using the pumping lemma to prove a language is context-free. Passing the lemma proves nothing; build a grammar or PDA instead.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Treating 'CFG ambiguity is undecidable' as 'no grammar can be shown ambiguous'. A concrete grammar is shown ambiguous by one string with two parse trees.",
+      "origin": "source",
+      "pages": [
+        415,
+        419
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Grammars and normal forms",
+      "lines": [
+        "CFG = (V, T, P, S), productions A → α",
+        "Ambiguous: some string has 2 or more parse trees",
+        "CNF: A → BC | a; 2n − 1 steps; CYK O(n³)",
+        "GNF: A → aα; n steps; direct one-state PDA",
+        "Simplify in order: ε, unit, useless"
+      ],
+      "origin": "source",
+      "pages": [
+        36,
+        412,
+        413,
+        420
+      ]
+    },
+    {
+      "heading": "Machines and classes",
+      "lines": [
+        "PDA = NFA + stack; final state ≡ empty stack (nondeterministic only)",
+        "NPDA = CFG = CFL; DPDA = DCFL",
+        "Regular ⊊ DCFL ⊊ CFL ⊊ CSL",
+        "wwᴿ is CFL, not DCFL; ww and aⁿbⁿcⁿ are not CFL"
+      ],
+      "origin": "source",
+      "pages": [
+        37,
+        413,
+        414,
+        420
+      ]
+    },
+    {
+      "heading": "Closure",
+      "lines": [
+        "CFL yes: ∪, ·, *, reversal, h, h⁻¹, ∩ regular",
+        "CFL no: ∩, complement, difference",
+        "DCFL yes: complement, ∩ regular; no: ∪, ∩, ·"
+      ],
+      "origin": "source",
+      "pages": [
+        36,
+        414,
+        420
+      ]
+    },
+    {
+      "heading": "Pumping and decidability",
+      "lines": [
+        "s = uvxyz, |vxy| ≤ p, |vy| ≥ 1, uvⁱxyⁱz ∈ L",
+        "Decidable: membership, emptiness, finiteness",
+        "Undecidable: equivalence, ambiguity, inclusion, L = Σ*"
+      ],
+      "origin": "source",
+      "pages": [
+        36,
+        415,
+        420
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 412,
+      "claim": "Simplification steps are: 1. remove useless symbols, 2. remove ε-productions, 3. remove unit productions.",
+      "correction": "Removing ε- and unit productions can create new useless symbols (for example S → AB, A → ε, B → b leaves A non-generating after ε-removal, since A has no productions left, so S → AB becomes useless), so the safe order is ε-productions, then unit productions, then useless symbols, as on page 36. Q16 on page 418 repeats the wrong order."
+    },
+    {
+      "page": 418,
+      "claim": "Q18: a PDA for ww (palindrome) needs to be nondeterministic.",
+      "correction": "ww is the copy language, which is not context-free, so no PDA accepts it. The palindrome language is wwᴿ, which is a CFL that needs a nondeterministic PDA."
+    },
+    {
+      "page": 419,
+      "claim": "PYQ-10: to show {ww} is not context-free, pick s = aᵖbaᵖb; pumping breaks the repetition.",
+      "correction": "aᵖbaᵖb can be pumped: u = aᵖ⁻¹, v = a, x = b, y = a, z = aᵖ⁻¹b keeps every uvⁱxyⁱz of the form ww. The working choice is s = aᵖbᵖaᵖbᵖ."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "toc-cfg-pda",
+      "status": "covered",
+      "topics": [
+        "toc-cfl-pda.cfg-definition",
+        "toc-cfl-pda.derivations-parse-trees",
+        "toc-cfl-pda.ambiguity",
+        "toc-cfl-pda.simplification",
+        "toc-cfl-pda.cnf",
+        "toc-cfl-pda.gnf",
+        "toc-cfl-pda.cyk",
+        "toc-cfl-pda.pda-model",
+        "toc-cfl-pda.pda-design",
+        "toc-cfl-pda.cfg-pda-equivalence",
+        "toc-cfl-pda.dcfl"
+      ]
+    },
+    {
+      "item": "toc-context-free-languages",
+      "status": "covered",
+      "topics": [
+        "toc-cfl-pda.closure",
+        "toc-cfl-pda.pumping-lemma",
+        "toc-cfl-pda.decision-properties",
+        "toc-cfl-pda.dcfl",
+        "toc-cfl-pda.classifying-languages"
+      ]
+    }
+  ]
+}

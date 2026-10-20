@@ -1,0 +1,2505 @@
+{
+  "id": "coa-memory-hierarchy",
+  "summary": "The memory hierarchy stacks small fast storage over large slow storage so that, thanks to locality, most references are served near the CPU. GATE tests it almost entirely through computation: split an address into tag, index and offset, size the tag directory, trace hits and misses under a mapping and replacement policy, and compute the average access time for one or more cache levels under hierarchical or simultaneous access. Memory interfacing (building a memory from smaller chips) and interleaving complete the 2027 syllabus.",
+  "highYield": [
+    "Tag, index and offset widths for a direct-mapped, k-way or fully associative cache: a short NAT calculation: take the logarithm of each size and subtract.",
+    "Average memory access time for two cache levels, with the hierarchical vs simultaneous distinction and local hit ratios.",
+    "Tag-directory size: lines × (tag + valid + dirty + replacement bits).",
+    "Hit/miss trace of a short block-address sequence under direct mapping vs set-associative LRU.",
+    "Miss counts for row-wise vs column-wise array traversal, and the stall-cycle CPI that follows from a miss rate."
+  ],
+  "topics": [
+    {
+      "id": "coa-memory-hierarchy.hierarchy-locality",
+      "title": "The hierarchy and locality of reference",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        18,
+        274,
+        278,
+        282
+      ],
+      "points": [
+        "From registers through L1, L2, L3, main memory and SSD/HDD, each level is larger, slower and cheaper per byte than the one above it.",
+        "Temporal locality: an address used now is likely to be used again soon. Spatial locality: addresses near it are likely to be used soon. Caches keep recent blocks to exploit the first and fetch whole blocks to exploit the second.",
+        "In an inclusive hierarchy every block held in L1 is also held in L2; in an exclusive one a block lives in at most one of the two levels, so the total capacity is the sum.",
+        "The hierarchy works only because a small fast level serves most references: with a 95% hit ratio, 1 ns cache and 100 ns memory, the average stays near 6 ns, not 100."
+      ],
+      "keyTerms": [
+        "temporal locality",
+        "spatial locality",
+        "inclusion",
+        "exclusive cache"
+      ],
+      "lesson": {
+        "why": "Every cache question rests on one fact: a small fast memory can stand in for a huge slow one because programs reuse data. Knowing why lets you judge when the average access time stays low and when it does not.",
+        "intro": "A computer keeps data in several memories. Registers are tiny and instant, the cache is small and fast, main memory is larger and slower, and disk is huge and slowest. Faster memory costs more per byte, so a machine cannot be built from fast memory alone. Instead it keeps the data in use near the top. This works because programs are predictable: they tend to use the same addresses again, and addresses close to one they just used. The first habit is called temporal locality and the second spatial locality.",
+        "analogy": {
+          "text": "A desk, a bookshelf and a library: you keep the books you are using on the desk, the likely ones on the shelf, and the rest in the library.",
+          "breaksWhen": "A person chooses what goes on the desk with understanding, while a cache guesses from past accesses only, so a program with no reuse gets no benefit."
+        },
+        "definitions": [
+          {
+            "term": "Temporal locality",
+            "meaning": "An address used now is likely to be used again soon."
+          },
+          {
+            "term": "Spatial locality",
+            "meaning": "Addresses near the one just used are likely to be used soon."
+          },
+          {
+            "term": "Inclusive hierarchy",
+            "meaning": "Every block in the smaller level is also present in the next larger level."
+          }
+        ],
+        "principle": {
+          "text": "Because most references are served by the small fast level, the average access time is close to that level's time. With hit ratio $h$, fast time $t_c$ and slow-level time $t_m$, a miss pays the extra $t_m$ on top of $t_c$.",
+          "tex": "\\mathrm{AMAT} = t_c + (1-h)\\,t_m"
+        },
+        "limits": "The gain disappears when references do not repeat or stay near each other, such as a scan over data larger than the cache that touches each address once. In an exclusive hierarchy the capacities add up, while in an inclusive one the larger level's size is the total.",
+        "example": {
+          "problem": "A cache takes 2 ns and has hit ratio 0.9. Main memory adds 80 ns on a miss. What is the average access time?",
+          "steps": [
+            "The miss ratio is $1 - 0.9 = 0.1$.",
+            "The average extra cost of misses is $0.1 \\times 80 = 8$ ns.",
+            "Add the cache time paid on every access: $2 + 8 = 10$ ns."
+          ],
+          "result": "10 ns, against 82 ns if every access went to memory after checking the cache."
+        },
+        "misconceptions": [
+          "Spatial locality is not the same as temporal locality: reusing the same address is temporal, touching its neighbours is spatial, and fetching a whole block is what exploits the second.",
+          "A high hit ratio does not mean the average equals the cache time; the miss ratio times the large penalty still adds to it.",
+          "Inclusion does not add capacity: in an inclusive pair the L1 contents are duplicated in L2, so only an exclusive pair offers the sum."
+        ],
+        "recall": [
+          {
+            "q": "Which kind of locality does fetching a whole block exploit?",
+            "a": "Spatial locality, because the neighbours of the requested address are likely to be needed next."
+          },
+          {
+            "q": "Why is the hierarchy not built from fast memory alone?",
+            "a": "Fast memory costs much more per byte, so a small fast level backed by larger slower ones gives low average time at low cost."
+          },
+          {
+            "q": "What is the difference between an inclusive and an exclusive cache pair?",
+            "a": "Inclusive keeps every L1 block also in L2; exclusive keeps a block in at most one of them, so the capacities add."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A cache with access time 1 ns has hit ratio 0.8. A miss costs an extra 50 ns from main memory. What is the average access time in ns?",
+          "answer": 11,
+          "explanation": "Miss ratio is 0.2, so the miss cost averages $0.2 \\times 50 = 10$ ns, and adding the 1 ns paid on every access gives 11 ns. A tempting 10 ns forgets the cache time that a miss also pays, and 41 ns multiplies by the hit ratio instead of the miss ratio."
+        },
+        "summary": "Programs reuse addresses and their neighbours, so a small fast level serves most references and the average time is the fast time plus the miss ratio times the penalty."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.address-split",
+      "title": "Blocks, hits and the tag | index | offset split",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        18,
+        19,
+        275,
+        278,
+        280,
+        281
+      ],
+      "points": [
+        "Memory and cache are divided into blocks (lines) of B bytes, a power of 2; a hit means the referenced block is already in the cache.",
+        "Offset = log₂ B bits picks the byte inside a block; index = log₂ S bits picks the set, where S = number of lines ÷ associativity; the tag is everything left over.",
+        "Example: 32-bit address, 4 KB cache, 16-byte blocks, 4-way gives 256 lines, 64 sets, offset 4, index 6 and tag 32 − 4 − 6 = 22 bits.",
+        "The index is computed from sets, not lines: doubling associativity at fixed capacity removes one index bit and adds one tag bit."
+      ],
+      "keyTerms": [
+        "block offset",
+        "set index",
+        "tag",
+        "hit ratio"
+      ],
+      "lesson": {
+        "why": "Questions on tag width, index width and total cache size all begin with the same step: cutting the address into three fields. Once that cut is automatic, each of those questions is one line of arithmetic.",
+        "intro": "A cache keeps copies of memory in blocks (also called lines) of a fixed size. To find an address, the cache reads it as three fields, from the right. The offset says which byte inside the block. The index says which set to look in, where a set is the group of lines in which a block is allowed to live. The tag is all the bits left over; it is stored beside each line so the cache can tell which of the many blocks sharing that set is currently there.",
+        "prerequisites": [
+          "coa-memory-hierarchy.hierarchy-locality"
+        ],
+        "definitions": [
+          {
+            "term": "Block (line)",
+            "meaning": "The fixed-size chunk of memory that moves between memory and the cache as one unit."
+          },
+          {
+            "term": "Set",
+            "meaning": "A group of lines; a block can sit in any line of exactly one set. A direct-mapped cache has one line per set."
+          },
+          {
+            "term": "Tag",
+            "meaning": "The high address bits stored with a line to identify which block it holds."
+          }
+        ],
+        "principle": {
+          "text": "Let $A$ be the address bits, $C$ the cache capacity in bytes, $B$ the block size in bytes and $k$ the lines per set. The three fields add up to the address width. The offset needs enough bits to name every byte of a block, the index enough bits to name every set, and the tag takes the rest.",
+          "tex": "\\text{offset}=\\log_2 B,\\qquad \\text{index}=\\log_2 S,\\quad S=\\frac{C/B}{k},\\qquad \\text{tag}=A-\\text{index}-\\text{offset}"
+        },
+        "limits": "The index counts sets, not lines: with more ways per set there are fewer sets, so the index shrinks and the tag grows by the same amount. A fully associative cache has one set, so its index has 0 bits. The rule assumes a byte-addressable memory; if the block size is given in words, convert to bytes first.",
+        "example": {
+          "problem": "A byte-addressable machine has 32-bit addresses and a direct-mapped cache of 8 KB with 32-byte blocks. How many bits are in the offset, the index and the tag?",
+          "steps": [
+            "A block holds 32 bytes, so the offset needs $\\log_2 32 = 5$ bits.",
+            "The cache holds $8192 / 32 = 256$ lines. Direct mapping gives one line per set, so there are 256 sets and the index needs $\\log_2 256 = 8$ bits.",
+            "The tag is what remains of the address: $32 - 8 - 5 = 19$ bits."
+          ],
+          "result": "Offset 5 bits, index 8 bits, tag 19 bits."
+        },
+        "misconceptions": [
+          "The index is not the number of lines in the cache. It is the number of sets, so a 4-way cache has a quarter as many index values as it has lines.",
+          "The tag is not a separate piece of the cache size calculation: it never reduces the data capacity. Capacity is lines times block size, and the tags are extra storage beside it.",
+          "A bigger block does not add tag bits. It adds offset bits and, for a fixed capacity, removes index bits, so the tag stays the same in a direct-mapped cache."
+        ],
+        "recall": [
+          {
+            "q": "In which order are the three address fields read, and what does each pick?",
+            "a": "From the right: offset picks the byte in the block, index picks the set, and the tag is the remaining high bits identifying the block."
+          },
+          {
+            "q": "How many index bits does a fully associative cache have?",
+            "a": "None, since all lines form a single set and $\\log_2 1 = 0$."
+          },
+          {
+            "q": "What happens to the tag width when associativity doubles at fixed capacity and block size?",
+            "a": "The number of sets halves, so the index loses one bit and the tag gains one bit."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A processor uses 30-bit byte addresses and a 2-way set-associative cache of 8 KB with 32-byte blocks. How many bits are in the tag?",
+          "answer": 18,
+          "explanation": "The offset is $\\log_2 32 = 5$ bits. The cache has $8192/32 = 256$ lines, grouped in pairs, so 128 sets and 7 index bits. The tag is $30 - 7 - 5 = 18$. The tempting answer is 17: it takes the index from the 256 lines (8 bits) and forgets that two lines share each set."
+        },
+        "summary": "Cut the address into offset (log of block size), index (log of the number of sets) and tag (the rest). Associativity changes the set count, so it moves bits between index and tag."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.direct-mapped",
+      "title": "Direct mapping",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        19,
+        275,
+        279,
+        282
+      ],
+      "points": [
+        "Block number b = ⌊address ÷ B⌋ can live only in line b mod L, where L is the number of lines.",
+        "Lookup reads one line and compares one tag, so hit time is the lowest and the hardware the simplest.",
+        "Two frequently used blocks with the same index evict each other on every access (ping-pong), producing conflict misses even when the rest of the cache is empty.",
+        "With 4 lines and 1-byte blocks, addresses 0, 4, 8, 12 all land in line 0, so the sequence 0, 4, 8, 12, 0, 4, 8 misses every time."
+      ],
+      "lesson": {
+        "prerequisites": [
+          "coa-memory-hierarchy.address-split"
+        ],
+        "why": "Direct mapping is the simplest placement rule and the base case for every other mapping. Questions ask which addresses collide and how many misses a sequence causes.",
+        "intro": "A cache holds memory in fixed-size blocks and stores each block in a slot called a line. In a direct-mapped cache each block is allowed in exactly one line, found by dividing the block number by the number of lines and keeping the remainder. To look up an address, the cache goes to that one line and compares a stored label, the tag, with the block's own. A match is a hit; otherwise the block is fetched and replaces whatever was there.",
+        "definitions": [
+          {
+            "term": "Line",
+            "meaning": "One slot of the cache that holds a single block plus its tag and status bits."
+          },
+          {
+            "term": "Conflict miss",
+            "meaning": "A miss caused by two blocks needing the same line while other lines may be empty."
+          }
+        ],
+        "principle": {
+          "text": "Block $b$ is the address divided by the block size, rounded down. With $L$ lines it can live only in line $b \\bmod L$.",
+          "tex": "b = \\left\\lfloor \\frac{\\text{address}}{B} \\right\\rfloor, \\qquad \\text{line} = b \\bmod L"
+        },
+        "limits": "The rule is rigid: blocks whose numbers differ by a multiple of $L$ share a line and evict each other even if the cache is mostly empty. Associative caches relax this at the cost of more comparators. There is no replacement choice to make, since each block has one possible line.",
+        "example": {
+          "problem": "A direct-mapped cache has 8 lines of 16 bytes. Byte addresses 0, 16, 128, 0, 16, 32 are read in order. Which are hits?",
+          "steps": [
+            "Block numbers are $\\lfloor a/16 \\rfloor$: 0, 1, 8, 0, 1, 2. Lines are block mod 8: 0, 1, 0, 0, 1, 2.",
+            "Address 0 and 16 miss and fill lines 0 and 1. Address 128 is block 8, also line 0, so it misses and evicts block 0.",
+            "Address 0 now misses again and evicts block 8. Address 16 finds block 1 still in line 1, a hit. Address 32 is a first use of line 2, a miss."
+          ],
+          "result": "Only the fifth access (address 16) hits: 5 misses out of 6."
+        },
+        "misconceptions": [
+          "Using the byte address mod the number of lines is wrong; divide by the block size first, because every byte of a block shares one line.",
+          "A conflict miss does not mean the cache is full; in a direct-mapped cache two blocks can fight over one line while the others stay empty.",
+          "Hit time is lowest because one tag is compared, but that does not make the hit ratio the best, since conflicts lower it."
+        ],
+        "recall": [
+          {
+            "q": "How is the line of an address found in a direct-mapped cache?",
+            "a": "Divide the address by the block size to get the block number, then take it mod the number of lines."
+          },
+          {
+            "q": "Why do blocks 0 and 8 collide in a cache of 8 lines?",
+            "a": "Both have remainder 0 when divided by 8, so both can only use line 0."
+          },
+          {
+            "q": "Why does a direct-mapped cache need no replacement policy?",
+            "a": "Each block has exactly one possible line, so there is never a choice of victim."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A direct-mapped cache has 4 lines of 16 bytes. Byte addresses 0, 16, 64, 16, 0, 64 are read in this order, starting from an empty cache. How many accesses miss?",
+          "answer": 5,
+          "explanation": "Blocks are 0, 1, 4, 1, 0, 4 and lines are 0, 1, 0, 1, 0, 0. Addresses 0, 16 and 64 miss, and 64 evicts block 0 from line 0. The second 16 hits. Then 0 misses and evicts block 4, and 64 misses again, giving 5 misses. Counting 3 treats only first uses as misses and ignores the conflict between blocks 0 and 4."
+        },
+        "summary": "A direct-mapped cache places block $b$ in line $b \\bmod L$, so lookup is one tag compare but blocks with the same remainder keep evicting each other."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.set-associative",
+      "title": "Set-associative and fully associative mapping",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        19,
+        275,
+        279
+      ],
+      "points": [
+        "A k-way set-associative cache has S = L/k sets; block b goes to set b mod S and may occupy any of the k lines there.",
+        "Direct mapping is the 1-way case and fully associative is the L-way case with a single set, zero index bits and a tag of all non-offset bits.",
+        "Fully associative placement has no conflict misses but needs a comparator on every line; typical caches are 4- to 16-way as a compromise.",
+        "On the block sequence 0, 4, 0, 4, 8, 0, 4 with 4 lines, direct mapping misses 7 times, 2-way LRU 5 times and fully associative LRU 3 times."
+      ],
+      "keyTerms": [
+        "k-way",
+        "set",
+        "fully associative"
+      ],
+      "lesson": {
+        "why": "GATE asks where a block may be placed and how many sets a cache has, and these decide the miss counts of every access sequence. The three mappings are one idea with a single dial, the number of lines per set.",
+        "intro": "Suppose the cache has $L$ lines. A direct-mapped cache gives each memory block exactly one line it may use, so two blocks that want the same line keep evicting each other (removing the other to make room). A fully associative cache lets a block use any line, which removes that fight but means the hardware must check every line. A $k$-way set-associative cache sits between: the lines are grouped into sets of $k$, the block number picks the set, and the block may use any of the $k$ lines in it.",
+        "prerequisites": [
+          "coa-memory-hierarchy.address-split"
+        ],
+        "definitions": [
+          {
+            "term": "k-way",
+            "meaning": "Each set holds $k$ lines, so a block has $k$ places it may occupy."
+          },
+          {
+            "term": "Conflict miss",
+            "meaning": "A miss caused by blocks competing for the same set while other sets stay unused."
+          }
+        ],
+        "principle": {
+          "text": "With $L$ lines and $k$ lines per set there are $S = L/k$ sets, and block number $b$ goes to set $b \\bmod S$. Setting $k=1$ gives direct mapping and $k=L$ gives fully associative.",
+          "tex": "S = \\frac{L}{k}, \\qquad \\text{set}(b) = b \\bmod S"
+        },
+        "limits": "More ways do not always mean fewer misses on a given sequence: with a short sequence or an unlucky replacement order, 2-way can tie direct mapping. Associativity also costs a comparator per way, so every extra way adds a comparator and a slower, costlier lookup. Fully associative placement removes conflict misses but not the misses on first use.",
+        "example": {
+          "problem": "A cache has 4 lines. Blocks are requested in the order 0, 2, 4, 0, starting empty. Count the misses for direct mapping, 2-way with least recently used (LRU) replacement, and fully associative with LRU.",
+          "steps": [
+            "Direct mapped: 4 sets, so blocks 0 and 4 share line 0. Block 0 misses, 2 misses, 4 misses and evicts 0, and the final 0 misses again: 4 misses.",
+            "Two-way: 2 sets, and the even blocks 0, 2 and 4 all map to set 0. Blocks 0 and 2 fill it. Block 4 evicts the least recently used one, block 0, so the last request for 0 misses: 4 misses.",
+            "Fully associative: one set of 4 lines holds 0, 2 and 4 together, so only the first three requests miss and the final 0 hits: 3 misses."
+          ],
+          "result": "Direct mapped 4 misses, 2-way 4 misses, fully associative 3 misses."
+        },
+        "misconceptions": [
+          "Set-associative does not mean the block can go anywhere in the cache. It can go in any line of one specific set, chosen by the block number, so a conflict can still happen.",
+          "Direct mapped is not a different design from set-associative. It is the case with one line per set, and fully associative is the case with a single set."
+        ],
+        "recall": [
+          {
+            "q": "How many sets does a $k$-way cache with $L$ lines have, and which set does block $b$ use?",
+            "a": "It has $L/k$ sets, and block $b$ uses set $b \\bmod (L/k)$."
+          },
+          {
+            "q": "What are the number of sets and the index width of a fully associative cache?",
+            "a": "One set and 0 index bits, so the tag is every address bit except the offset."
+          },
+          {
+            "q": "Why not make every cache fully associative?",
+            "a": "Every line would need its own comparator, and the search slows and costs more as the cache grows."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A 4-way set-associative cache of 16 KB has 32-byte blocks and a 32-bit address. Byte address 0x1A7C is accessed. Which set does it map to?",
+          "options": [
+            "83",
+            "211",
+            "19",
+            "124"
+          ],
+          "answer": 0,
+          "explanation": "The offset is 5 bits, so the block number is $6780 / 32 = 211$ (6780 is 0x1A7C in decimal). The cache has 512 lines, hence 128 sets, and the set is $211 \\bmod 128 = 83$. The value 211 is the line a direct-mapped cache would use, so it ignores the ways. The value 19 divides the lines by the wrong factor. The value 124 uses the byte address and forgets to remove the offset first."
+        },
+        "summary": "A $k$-way cache has $L/k$ sets and sends block $b$ to set $b \\bmod (L/k)$; direct mapping and full associativity are the two ends of the same scale."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.tag-directory",
+      "title": "Tag directory size and lookup hardware",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Each line stores its tag plus a valid bit; a write-back cache adds a dirty bit, and LRU replacement adds log₂ k bits per line in a k-way set.",
+        "Tag-directory size = number of lines × (tag + valid + dirty + replacement bits); the data array is not part of it.",
+        "A k-way lookup reads the k tags of one set in parallel, so it needs k comparators of tag width and a k-to-1 multiplexer to pick the data.",
+        "A fully associative cache needs one comparator per line; a direct-mapped cache needs exactly one comparator and no way-select multiplexer."
+      ],
+      "keyTerms": [
+        "tag directory",
+        "valid bit",
+        "dirty bit",
+        "comparator"
+      ],
+      "lesson": {
+        "why": "A cache is more than its data: each line carries tag and status bits, and the question may ask for the total storage or the number of comparators. Both follow from the address split and a short list of what each line stores.",
+        "intro": "The tag directory is the table of bookkeeping kept next to the data array, with one entry per cache line. An entry holds the tag, so the cache can tell which block the line contains, and a valid bit, which says whether the line holds anything yet. A write-back cache, where a store updates only the cache and memory is updated later, adds a dirty bit, which says the line was changed after loading. A cache with LRU replacement, which evicts the line unused for the longest time, also stores a few bits per line to track recency. On a lookup the cache compares the tags of the chosen set with the tag of the address.",
+        "prerequisites": [
+          "coa-memory-hierarchy.address-split",
+          "coa-memory-hierarchy.set-associative"
+        ],
+        "definitions": [
+          {
+            "term": "Valid bit",
+            "meaning": "One bit per line that is 1 once the line holds a real block, so stale contents after power-up never count as a hit."
+          },
+          {
+            "term": "Dirty bit",
+            "meaning": "One bit per line in a write-back cache that is 1 when the line differs from main memory and must be written back on eviction."
+          }
+        ],
+        "principle": {
+          "text": "The directory has one entry per line, and each entry stores the tag plus the status bits the design needs. The data array is counted separately. A $k$-way lookup compares $k$ tags at once, so it needs $k$ comparators.",
+          "tex": "\\text{directory bits} = L \\times (\\text{tag} + \\text{valid} + \\text{dirty} + \\text{replacement})"
+        },
+        "limits": "Include a bit only if the design has it: a write-through cache has no dirty bit, and a direct-mapped cache has no replacement bits because there is no choice of victim. If a question asks only for the total tag bits, count the tag field alone and leave out the status bits.",
+        "example": {
+          "problem": "A 4-way set-associative write-back cache has 16 KB of data, 32-byte blocks, 32-bit addresses and LRU replacement using $\\log_2 4$ bits per line. Find the size of the tag directory in bits and the number of comparators.",
+          "steps": [
+            "The cache has $16384/32 = 512$ lines in 128 sets, so the index is 7 bits, the offset 5 bits and the tag $32-7-5 = 20$ bits.",
+            "Each entry stores the tag, one valid bit, one dirty bit and $\\log_2 4 = 2$ LRU bits: $20+1+1+2 = 24$ bits.",
+            "The directory has 512 entries, so it holds $512 \\times 24 = 12288$ bits. A lookup reads one set, so it uses 4 comparators of 20 bits and a 4-to-1 multiplexer."
+          ],
+          "result": "12288 bits (1.5 KB) of directory and 4 comparators."
+        },
+        "misconceptions": [
+          "The tag directory is not part of the cache capacity quoted for the data. A 16 KB cache holds 16 KB of data, and the directory is extra storage on top.",
+          "A cache does not compare the tags of every line on each access unless it is fully associative. A set-associative cache compares only the $k$ tags of the one selected set."
+        ],
+        "recall": [
+          {
+            "q": "What does one tag directory entry hold?",
+            "a": "The tag, a valid bit, a dirty bit if the cache is write-back, and any replacement bits the policy needs."
+          },
+          {
+            "q": "How many comparators does a direct-mapped cache need?",
+            "a": "One, since each address can live in only one line, and no way-select multiplexer is needed."
+          },
+          {
+            "q": "Why does a write-through cache need no dirty bit?",
+            "a": "Every store also goes to memory, so no line is ever newer than memory."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A direct-mapped write-back cache holds 8 KB of data with 16-byte blocks and 32-bit addresses. Each line stores a tag, a valid bit and a dirty bit. How many bits does the tag directory contain in total?",
+          "answer": 10752,
+          "explanation": "The cache has $8192/16 = 512$ lines, so 9 index bits and 4 offset bits, which leaves a tag of $32-9-4 = 19$ bits. With the two status bits each entry has 21 bits, and $512 \\times 21 = 10752$. Counting only the tags gives 9728, which is tempting but misses the valid and dirty bits that the question includes."
+        },
+        "summary": "Directory size is the number of lines times the bits per entry (tag and status), and a $k$-way lookup needs $k$ comparators."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.replacement",
+      "title": "Replacement policies",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        279,
+        282
+      ],
+      "points": [
+        "When the target set is full, LRU evicts the line used longest ago, FIFO the line loaded longest ago, LFU the least often used line, and Random any line.",
+        "Belady's optimal (MIN) evicts the line whose next use is farthest in the future; it needs future knowledge, so it serves only as a benchmark.",
+        "FIFO can suffer Belady's anomaly: on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 it faults 9 times with 3 frames and 10 with 4. LRU is a stack algorithm and never does.",
+        "Direct mapping needs no policy at all: each block has exactly one possible line."
+      ],
+      "keyTerms": [
+        "LRU",
+        "FIFO",
+        "Belady's anomaly",
+        "optimal"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "coa-memory-hierarchy.set-associative"
+        ],
+        "why": "When a set is full, the cache must choose a victim, and traces under LRU or FIFO are routine exam work. The policies differ only in what they remember.",
+        "intro": "A cache set holds a few blocks. When a new block arrives and the set is full, one resident block must leave. The replacement policy decides which. Least Recently Used removes the block unused for the longest time, betting that the past predicts the future. First In First Out removes the block that arrived earliest, whether or not it was used since. An ideal policy would remove the block needed farthest in the future, but that needs knowledge of the future, so it serves only as a yardstick.",
+        "definitions": [
+          {
+            "term": "LRU",
+            "meaning": "Evict the block whose last use is the oldest."
+          },
+          {
+            "term": "FIFO",
+            "meaning": "Evict the block that has been resident the longest, ignoring later uses."
+          },
+          {
+            "term": "Optimal",
+            "meaning": "Evict the block whose next use is farthest away; it needs the future and is only a benchmark."
+          }
+        ],
+        "principle": {
+          "text": "A policy ranks the resident blocks and evicts the lowest-ranked one. LRU ranks by last use, which a hit refreshes; FIFO ranks by arrival, which a hit leaves unchanged."
+        },
+        "limits": "Policies apply only within a set, and direct mapping has no choice to make. FIFO can fault more with more frames (Belady's anomaly), while LRU never does. Optimal cannot be built in hardware.",
+        "example": {
+          "problem": "A set has 3 frames, initially empty. The block references are 1, 2, 3, 1, 4, 1, 2, 5. How many misses occur under LRU and under FIFO?",
+          "steps": [
+            "Both policies miss on 1, 2, 3 and hit on the second 1. The set then holds 1, 2, 3.",
+            "At 4: LRU evicts 2, the oldest use, while FIFO evicts 1, the earliest arrival. LRU then hits on 1; FIFO misses on 1 and evicts 2.",
+            "At 2: LRU misses and evicts 3; FIFO misses and evicts 3. At 5 both miss, LRU evicting 4 and FIFO evicting 4. Count: LRU has 6 misses, FIFO has 7."
+          ],
+          "result": "LRU 6 misses, FIFO 7 misses."
+        },
+        "misconceptions": [
+          "A hit does not change a block's place under FIFO; only LRU treats a hit as a fresh use.",
+          "More frames do not always mean fewer faults for FIFO: on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 it faults 9 times with 3 frames and 10 with 4.",
+          "Optimal is not a usable policy; it needs the future and is used only to measure how good the others are."
+        ],
+        "recall": [
+          {
+            "q": "Which block does LRU evict?",
+            "a": "The one whose most recent use is the oldest."
+          },
+          {
+            "q": "How does FIFO differ from LRU on a hit?",
+            "a": "FIFO leaves the block's arrival order unchanged, while LRU moves it to most recent."
+          },
+          {
+            "q": "What is Belady's anomaly?",
+            "a": "Giving a FIFO cache more frames can increase the number of faults; LRU does not behave this way."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "A fully associative cache of 3 blocks starts empty and sees block references 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5. Which statement is true?",
+          "options": [
+            "FIFO has 9 misses and LRU has 10 misses.",
+            "FIFO has 10 misses and LRU has 9 misses.",
+            "Both have 9 misses.",
+            "FIFO has 9 misses and LRU has 8 misses."
+          ],
+          "answer": 0,
+          "explanation": "FIFO faults on 1, 2, 3, 4, 1, 2, 5, 3, 4 for 9 misses, since 1 and 2 hit after 5 arrives. LRU, in this cyclic pattern, always evicts the block that is needed soonest, so it misses 10 times. The second option reverses the two and tempts because LRU is usually better; here the pattern cycles through more blocks than fit."
+        },
+        "summary": "On a full set, LRU evicts the oldest use and FIFO the oldest arrival; optimal evicts the farthest next use but needs the future, and only FIFO can show Belady's anomaly."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.write-policies",
+      "title": "Write policies",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        279,
+        282
+      ],
+      "points": [
+        "Write-through updates the cache and main memory on every store: memory is always current, but every store costs memory bandwidth.",
+        "Write-back updates only the cache and sets the dirty bit; the block is written to memory when it is evicted, so repeated stores to one block cost one memory write.",
+        "On a write miss, write-allocate fetches the block and then writes it; no-write-allocate sends the write straight to memory and leaves the cache unchanged.",
+        "The usual pairings are write-back with write-allocate and write-through with no-write-allocate."
+      ],
+      "keyTerms": [
+        "write-through",
+        "write-back",
+        "dirty bit",
+        "write-allocate"
+      ],
+      "lesson": {
+        "why": "Statements about write-through, write-back and the two write-miss policies are a standard true-or-false item. Each one follows from a single question: when does main memory learn about a store?",
+        "intro": "When the processor stores a value and the block is in the cache, the cache copy changes, and memory still holds the old value. A write-through cache fixes this at once by sending every store to memory as well. A write-back cache does not: it marks the line with a dirty bit and writes the block to memory only when the line is evicted (removed from the cache to make room for another block). A separate choice applies when the store misses. Write-allocate loads the block into the cache first and then writes it. No-write-allocate sends the store to memory and leaves the cache alone.",
+        "prerequisites": [
+          "coa-memory-hierarchy.tag-directory"
+        ],
+        "definitions": [
+          {
+            "term": "Write-through",
+            "meaning": "Every store updates the cache and main memory together, so memory is never out of date."
+          },
+          {
+            "term": "Write-back",
+            "meaning": "A store updates only the cache and sets the dirty bit; memory is updated when a dirty line is evicted."
+          }
+        ],
+        "principle": {
+          "text": "Write-through spends memory bandwidth on every store and needs no dirty bit. Write-back saves bandwidth by merging repeated stores to one block into a single block write on eviction, at the price of a dirty bit and lines that are newer than memory."
+        },
+        "limits": "The pairings write-back with write-allocate and write-through with no-write-allocate are habits, not rules; any pairing works. A read miss in a write-back cache can force a write-back, because the victim line may be dirty, while a read miss in a write-through cache never does.",
+        "example": {
+          "problem": "A program stores to the same block 10 times while it stays in the cache, and then the block is evicted. How many writes reach main memory under write-through and under write-back?",
+          "steps": [
+            "Write-through sends each store to memory immediately, so 10 stores cause 10 memory writes.",
+            "Write-back updates the cache line and sets the dirty bit on the first store, and later stores find the bit already set, so memory is untouched.",
+            "At eviction the line is dirty, so the block is written back once."
+          ],
+          "result": "10 memory writes for write-through and 1 block write for write-back."
+        },
+        "misconceptions": [
+          "Write-back does not lose data. The dirty line is the only copy of the newest value until eviction, and the dirty bit guarantees it is written then.",
+          "Write-allocate is not tied to write-back by necessity. Either write policy can be combined with either miss policy.",
+          "Evicting a block does not always cost a memory write in a write-back cache. Only a dirty block is written; a clean block is simply dropped."
+        ],
+        "recall": [
+          {
+            "q": "What does the dirty bit record?",
+            "a": "That the line was modified after it was loaded, so memory is stale and the block must be written back on eviction."
+          },
+          {
+            "q": "What do write-allocate and no-write-allocate each do on a write miss?",
+            "a": "Write-allocate loads the block and then writes it in the cache; no-write-allocate sends the store to memory and does not load the block."
+          },
+          {
+            "q": "Why can a read miss cause a memory write in a write-back cache?",
+            "a": "The line chosen for replacement may be dirty, and it must be written back before the new block replaces it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A cache is empty and uses write-through with no-write-allocate. Block X and block Y are different blocks. The processor performs: write X, read X, write X, write Y, read Y, write Y. How many of these operations send a write to main memory?",
+          "answer": 4,
+          "explanation": "Write-through sends every store to memory, whether it hits or misses. The stores are write X (a miss, no-write-allocate so the block is not loaded), write X (a hit after the read loaded X), write Y (a miss) and write Y (a hit after the read loaded Y): 4 memory writes. Counting only the 2 write misses is tempting because a hit looks cheap, but write-through forwards the hits too. A write-back cache with write-allocate would send none until a dirty line is evicted."
+        },
+        "summary": "Write-through forwards every store to memory; write-back sets a dirty bit and writes the block once on eviction. Write-allocate loads on a write miss, while no-write-allocate goes straight to memory."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.emat",
+      "title": "Effective memory access time: hierarchical vs simultaneous",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        279,
+        280,
+        281
+      ],
+      "points": [
+        "AMAT = hit time + miss rate × miss penalty: a 1 ns hit, 5% misses and a 100 ns penalty give 1 + 0.05 × 100 = 6 ns.",
+        "Hierarchical (look-through) access tries the cache first and goes to memory only on a miss, so a miss pays both: T = h·t_c + (1 − h)(t_c + t_m) = t_c + (1 − h)·t_m.",
+        "Simultaneous (look-aside) access starts the cache and memory lookups together and takes whichever answers, so a miss pays only memory: T = h·t_c + (1 − h)·t_m.",
+        "When a question says nothing, a miss penalty quoted on top of the hit time is hierarchical; read the wording before choosing the form."
+      ],
+      "keyTerms": [
+        "AMAT",
+        "look-through",
+        "look-aside",
+        "miss penalty"
+      ],
+      "lesson": {
+        "why": "Average access time is the most direct way GATE asks how well a cache pays off. The two forms differ only in whether a miss also pays for the failed cache lookup, and the wording of the question decides which applies.",
+        "intro": "Not every access takes the same time. A hit is served by the cache in the cache access time. A miss must also reach the next level, which takes longer. The average access time weights each outcome by how often it happens. With hit ratio $h$, a fraction $h$ of accesses hit and a fraction $1-h$ miss. If the processor looks in the cache first and goes to memory only after the cache fails, the miss pays both times. If the cache and memory are started together, the miss pays only the memory time.",
+        "prerequisites": [
+          "coa-memory-hierarchy.hierarchy-locality"
+        ],
+        "definitions": [
+          {
+            "term": "Hit ratio",
+            "meaning": "The fraction of accesses found in the cache; the miss ratio is one minus this."
+          },
+          {
+            "term": "Miss penalty",
+            "meaning": "The extra time a miss costs beyond the cache access time, which is the time to get the block from the next level."
+          }
+        ],
+        "principle": {
+          "text": "In the hierarchical (look-through) form, every access pays the cache time and only the misses add the memory time. In the simultaneous (look-aside) form, a hit costs the cache time and a miss costs the memory time alone.",
+          "tex": "T_{\\text{hier}} = t_c + (1-h)\\,t_m, \\qquad T_{\\text{sim}} = h\\,t_c + (1-h)\\,t_m"
+        },
+        "limits": "Use the hierarchical form unless the question says the levels are accessed simultaneously. If the question gives complete access times for each outcome, such as \"20 ns when found in L2\", those already include the earlier lookups, and adding them again is double counting. A miss penalty quoted separately is added to the hit time.",
+        "example": {
+          "problem": "A cache has access time 2 ns and hit ratio 0.9. Main memory has access time 50 ns. Find the average access time with hierarchical access and with simultaneous access.",
+          "steps": [
+            "Hierarchical: every access pays 2 ns and the 0.1 fraction of misses adds 50 ns, so $T = 2 + 0.1 \\times 50 = 7$ ns.",
+            "Simultaneous: hits take 2 ns and misses take 50 ns, so $T = 0.9 \\times 2 + 0.1 \\times 50 = 6.8$ ns."
+          ],
+          "result": "7 ns hierarchical and 6.8 ns simultaneous, since the simultaneous form skips the wasted cache lookup on a miss."
+        },
+        "misconceptions": [
+          "The average time is not the arithmetic mean of the cache time and the memory time. It is a weighted mean, and with a high hit ratio it stays close to the cache time.",
+          "If a time is quoted as the total for an outcome (for example 20 ns when found in L2), it already includes the earlier lookups. Adding the cache time to it again counts the lookup twice."
+        ],
+        "recall": [
+          {
+            "q": "What is the hierarchical access time in terms of $t_c$, $t_m$ and $h$?",
+            "a": "$t_c + (1-h)\\,t_m$: every access pays the cache time, and misses add the memory time."
+          },
+          {
+            "q": "Why is the simultaneous time never larger than the hierarchical time?",
+            "a": "On a miss it skips the cache lookup that the hierarchical form pays first, and a hit costs the same in both."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A system looks in the cache first and goes to memory only on a miss. The cache access time is 3 ns and the memory access time is 60 ns. What is the minimum cache hit ratio for the average access time to be at most 6 ns?",
+          "answer": 0.95,
+          "explanation": "The hierarchical form gives $3 + (1-h) \\times 60 \\le 6$, so $(1-h) \\le 3/60 = 0.05$ and $h \\ge 0.95$. The simultaneous form would give $3h + 60(1-h) \\le 6$, so $h \\ge 54/57 \\approx 0.947$. That is a lower hit ratio than 0.95, which is why the form must be read from the wording."
+        },
+        "summary": "The hierarchical time is $t_c + (1-h)t_m$ and the simultaneous time is $h t_c + (1-h)t_m$; use the first unless the question says the levels start together."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.multilevel-cache",
+      "title": "Multilevel caches and local vs global hit ratios",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        279,
+        280,
+        282
+      ],
+      "points": [
+        "With two levels, AMAT = t₁ + m₁ × (t₂ + m₂ × t_mem), where m₂ is the local miss rate of L2: misses at L2 divided by accesses that reach L2.",
+        "The global miss rate of L2 is misses at L2 divided by all CPU references, which equals m₁ × m₂. If L1 misses 40 and L2 misses 20 of 1000 references, L2's local miss rate is 0.5 and its global miss rate 0.02.",
+        "Quoting L2's miss rate as global and plugging it into the local formula is the classic error; convert first.",
+        "With local hit ratios h₁, h₂, hierarchical T = h₁t₁ + (1 − h₁)h₂(t₁ + t₂) + (1 − h₁)(1 − h₂)(t₁ + t₂ + t_m); the simultaneous form charges each level only its own time."
+      ],
+      "keyTerms": [
+        "local miss rate",
+        "global miss rate",
+        "L2"
+      ],
+      "lesson": {
+        "why": "Two-level cache questions test one habit: a miss rate must be measured against the accesses that reach that level. Mixing the local and global rates is the usual cause of a wrong answer.",
+        "intro": "A second cache, L2, sits behind the first, L1. The processor always asks L1 first. Only the accesses that miss in L1 reach L2, and only those that miss in L2 reach main memory. So the L2 miss rate can be stated two ways. The local rate divides L2 misses by the accesses L2 actually received. The global rate divides L2 misses by all processor references. The global rate is the smaller number, and the average time formula needs the local one.",
+        "prerequisites": [
+          "coa-memory-hierarchy.emat"
+        ],
+        "definitions": [
+          {
+            "term": "Local miss rate",
+            "meaning": "Misses at a level divided by the accesses that reach that level."
+          },
+          {
+            "term": "Global miss rate",
+            "meaning": "Misses at a level divided by all references made by the processor."
+          }
+        ],
+        "principle": {
+          "text": "Each level adds its own time weighted by the fraction of accesses that reach it. The global miss rate of L2 is the product of the two local rates.",
+          "tex": "T = t_1 + m_1\\,(t_2 + m_2\\,t_{\\text{mem}}), \\qquad m_{2,\\text{global}} = m_1 m_2"
+        },
+        "limits": "This nested form is the hierarchical one: a miss pays the time of every level it visits. If a question gives total times for each outcome, weight them by the probabilities of those outcomes instead. A global rate is only convertible to a local rate when the L1 miss rate is known. If accesses are a mix, such as instruction and data caches with a 60/40 split, first weight the miss ratios into one rate per reference; if misses are counted per instruction, divide by the accesses per instruction first. A quoted miss penalty for a level is the added time $t_2$ of the nested formula.",
+        "example": {
+          "problem": "Out of 1000 processor references, L1 misses 50 and L2 misses 10 of those. The times are $t_1=1$ ns, $t_2=10$ ns and memory 100 ns. Find the local and global miss rates of L2 and the average access time.",
+          "steps": [
+            "L1 misses 50 of 1000, so $m_1 = 0.05$, and these 50 are the accesses that reach L2.",
+            "L2 misses 10 of the 50 it receives, so its local miss rate is $m_2 = 0.2$. Over all 1000 references its global miss rate is 0.01, which equals $0.05 \\times 0.2$.",
+            "The average time is $1 + 0.05\\,(10 + 0.2 \\times 100) = 2.5$ ns."
+          ],
+          "result": "Local miss rate 0.2, global miss rate 0.01, average access time 2.5 ns."
+        },
+        "misconceptions": [
+          "A global L2 miss rate cannot be put straight into the nested formula in place of $m_2$. Divide it by $m_1$ first, because the formula multiplies by $m_1$ separately.",
+          "A low global L2 miss rate does not mean L2 is effective. It is small mainly because L1 already filtered most accesses, and the local rate is the honest measure of L2 itself."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between the local and global miss rate of L2?",
+            "a": "Local divides L2 misses by the accesses reaching L2; global divides them by all processor references."
+          },
+          {
+            "q": "How is the global L2 miss rate related to the local rates?",
+            "a": "It is the product $m_1 m_2$ of the L1 and L2 local miss rates."
+          },
+          {
+            "q": "Which accesses pay the main-memory time in a two-level cache?",
+            "a": "Only those that miss in both L1 and L2, a fraction $m_1 m_2$ of all references."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a two-level cache the L1 miss rate is 0.1 and the global miss rate of L2 is 0.02. The access times are 2 ns for L1, 12 ns for L2 and 120 ns for main memory. What is the average memory access time in ns?",
+          "answer": 5.6,
+          "explanation": "The local L2 miss rate is $0.02/0.1 = 0.2$. Then $T = 2 + 0.1\\,(12 + 0.2 \\times 120) = 5.6$ ns. Using 0.02 as if it were the local rate gives 3.44 ns, which is tempting because it is the only L2 figure in the question, but it is measured against all references and must be converted first."
+        },
+        "summary": "Weight each level by the accesses that reach it: $T = t_1 + m_1(t_2 + m_2 t_{\\text{mem}})$ with local miss rates, and convert a global L2 rate by dividing by $m_1$."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.three-cs",
+      "title": "The three Cs of misses",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        19,
+        277,
+        279
+      ],
+      "points": [
+        "Compulsory (cold) misses are first references to a block; they occur even in an infinite cache.",
+        "Capacity misses happen because the working set is larger than the cache; they would occur even with full associativity.",
+        "Conflict misses come from too many blocks mapping to one set; they vanish in a fully associative cache of the same size.",
+        "Bigger caches cut capacity misses, higher associativity cuts conflict misses, and larger blocks cut compulsory misses until the fewer, larger blocks start raising conflicts and the miss penalty."
+      ],
+      "keyTerms": [
+        "compulsory",
+        "capacity",
+        "conflict"
+      ],
+      "lesson": {
+        "why": "Questions that ask which kind of miss a change removes (more ways, a bigger cache, bigger blocks) or that count conflict misses in a trace all need the three-way split.",
+        "intro": "A cache miss means the wanted block is not in the cache. Not all misses have the same cause. The very first use of a block always misses, because nothing could have loaded it earlier. A later miss happens because the block was thrown out. It was thrown out either because the whole working set is bigger than the cache, or because several blocks were forced into the same place while other places sat unused. Telling these causes apart tells you which design change would help.",
+        "prerequisites": [
+          "coa-memory-hierarchy.direct-mapped",
+          "coa-memory-hierarchy.set-associative"
+        ],
+        "definitions": [
+          {
+            "term": "Compulsory miss",
+            "meaning": "The first reference to a block. It happens even in an infinitely large cache."
+          },
+          {
+            "term": "Capacity miss",
+            "meaning": "A miss on a block that was evicted because the cache is too small for the blocks in use, so a fully associative cache of the same size would miss too."
+          },
+          {
+            "term": "Conflict miss",
+            "meaning": "A miss on a block that was evicted only because other blocks map to the same set; a fully associative cache of the same size would have hit."
+          }
+        ],
+        "principle": {
+          "text": "Run the trace through a fully associative LRU cache of the same size. A first reference is compulsory. A miss that the fully associative cache also suffers is a capacity miss. Every other miss of the real cache is a conflict miss.",
+          "tex": "\\text{misses}=\\text{compulsory}+\\text{capacity}+\\text{conflict}"
+        },
+        "limits": "The split depends on the cache size, block size and replacement rule, so changing one can move misses from one class to another. In a fully associative cache the conflict count is zero by definition. In a trace that touches fewer blocks than the cache has lines, the capacity count is zero.",
+        "example": {
+          "problem": "A direct-mapped cache has 4 lines. Block numbers are referenced in the order 0, 4, 0, 4, 1, 2, 3. Classify each miss.",
+          "steps": [
+            "Block $b$ goes to line $b \\bmod 4$. Blocks 0 and 4 both go to line 0; blocks 1, 2, 3 go to lines 1, 2, 3.",
+            "References 0 and 4 are first uses, so both are compulsory misses. The next 0 finds block 4 in line 0 and misses, and so does the next 4.",
+            "A fully associative cache of 4 lines would hold both 0 and 4 together, so those two repeat misses are conflict misses, not capacity misses.",
+            "References 1, 2 and 3 are first uses: three more compulsory misses."
+          ],
+          "result": "7 misses in all: 5 compulsory, 0 capacity, 2 conflict."
+        },
+        "misconceptions": [
+          "A miss on a block that was loaded before is not automatically a capacity miss. If a fully associative cache of the same size would have hit, the cause is a conflict.",
+          "Making blocks larger does not always lower the miss count: fewer, bigger blocks can raise conflicts and make each miss cost more."
+        ],
+        "recall": [
+          {
+            "q": "Which design change removes conflict misses but not capacity misses?",
+            "a": "Raising associativity at the same total size, since it lets blocks that share a set spread over more lines."
+          },
+          {
+            "q": "How do you separate capacity misses from conflict misses in a trace?",
+            "a": "Replay the trace on a fully associative cache of the same size; its repeat misses are capacity, and the extra repeat misses of the real cache are conflict."
+          },
+          {
+            "q": "Which miss class survives an infinitely large cache?",
+            "a": "Compulsory misses, because the first use of a block always misses."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A direct-mapped cache has 4 lines. Block numbers are referenced in the order 0, 4, 8, 0, 4, 8, 0, 4, 8. How many of the misses are conflict misses?",
+          "answer": 6,
+          "explanation": "Blocks 0, 4 and 8 all map to line 0, so every reference misses: 9 misses. The first use of each of the 3 blocks is compulsory, leaving 6. A fully associative cache of 4 lines holds all three blocks, so none of the 6 is a capacity miss; they are conflicts. The tempting answer 9 counts first uses as conflicts, and 0 comes from thinking the cache is big enough."
+        },
+        "summary": "Compulsory misses are first uses, capacity misses are what a fully associative cache of the same size would also suffer, and conflict misses are the rest; associativity attacks only the last class."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.cache-performance",
+      "title": "Miss penalty, stall cycles and CPI",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Memory stall cycles per instruction = memory accesses per instruction × miss rate × miss penalty, and effective CPI = base CPI + stall cycles.",
+        "Every instruction makes one instruction fetch plus its data accesses: with 0.3 data references per instruction, 1.3 accesses per instruction feed the stall count.",
+        "In a write-back cache a miss that evicts a dirty block also writes it back, so the average miss cost is (1 + d) block transfers when a fraction d of victims is dirty.",
+        "Speed-up from a cache is the access time without it divided by the access time with it, e.g. 100 ns ÷ 6 ns ≈ 16.7."
+      ],
+      "keyTerms": [
+        "stall cycles",
+        "CPI",
+        "miss penalty"
+      ],
+      "lesson": {
+        "why": "Speed-up and effective CPI questions reappear in many papers, and the usual error is forgetting that every instruction also makes an instruction fetch.",
+        "intro": "A processor without memory delays finishes an instruction in some base number of cycles, the base CPI (cycles per instruction). A cache miss makes the processor wait for the slower memory, and that waiting is added on top. So the real CPI is the base CPI plus the average stall cycles per instruction. The stall depends on how often an instruction touches memory, how often that access misses, and how many cycles one miss costs.",
+        "prerequisites": [
+          "coa-memory-hierarchy.emat"
+        ],
+        "definitions": [
+          {
+            "term": "Miss penalty",
+            "meaning": "The extra cycles the processor waits when an access misses in the cache."
+          },
+          {
+            "term": "Stall cycles per instruction",
+            "meaning": "Memory accesses per instruction times miss rate times miss penalty, summed over instruction and data accesses."
+          }
+        ],
+        "principle": {
+          "text": "Add the stalls of the instruction stream and the data stream. Every instruction is fetched once; only loads and stores make a data access. Speed-up compares the CPI before and after.",
+          "tex": "\\text{CPI}=\\text{CPI}_{\\text{base}}+m_I\\,p_I+f_{ls}\\,m_D\\,p_D"
+        },
+        "limits": "The formula assumes every miss stalls the processor for the full penalty. It does not hold when the processor overlaps misses with other work, and a write-back cache adds the cost of writing dirty victims to the penalty.",
+        "example": {
+          "problem": "Base CPI is 1.5. 30% of instructions are loads or stores. The instruction cache misses 4% of the time, the data cache 10%, and every miss costs 50 cycles. Find the CPI and the speed-up of a perfect cache.",
+          "steps": [
+            "Instruction stream: every instruction is fetched, so the stall is $1 \\times 0.04 \\times 50 = 2$ cycles.",
+            "Data stream: only 30% of instructions access data, so the stall is $0.3 \\times 0.10 \\times 50 = 1.5$ cycles.",
+            "CPI $= 1.5 + 2 + 1.5 = 5$.",
+            "A perfect cache removes the stalls and leaves CPI $1.5$, so the speed-up is $5 / 1.5$."
+          ],
+          "result": "CPI is 5 and the speed-up of a perfect cache is 3.33."
+        },
+        "misconceptions": [
+          "The data miss rate applies only to the fraction of instructions that are loads or stores, not to every instruction.",
+          "Forgetting the instruction fetch is the common slip: even an instruction with no data access makes one cache access."
+        ],
+        "recall": [
+          {
+            "q": "How many cache accesses does an instruction make if 25% of instructions are loads or stores?",
+            "a": "On average 1.25: one instruction fetch plus 0.25 data accesses."
+          },
+          {
+            "q": "How is the speed-up of a perfect cache found?",
+            "a": "Divide the real CPI by the base CPI, since the instruction count and clock stay the same."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Base CPI is 1.2 and 40% of instructions are loads or stores. The instruction cache misses 2% of the time, the data cache 5%, and each miss costs 80 cycles. What is the effective CPI?",
+          "answer": 4.4,
+          "explanation": "Instruction stalls are $0.02 \\times 80 = 1.6$ cycles. Data stalls are $0.4 \\times 0.05 \\times 80 = 1.6$ cycles. CPI $= 1.2 + 1.6 + 1.6 = 4.4$. Applying the 5% data miss rate to every instruction gives 6.8 and leaving out the instruction fetch gives 2.8, which are the tempting wrong values."
+        },
+        "summary": "Effective CPI is the base CPI plus instruction-fetch stalls on every instruction plus data stalls on the load and store fraction; speed-up is the ratio of CPIs."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.performance-extensions",
+      "title": "Read/write mixes, line fill time, target hit ratio and cost per bit",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "With write-through and no-write-allocate, every write goes to memory whether it hits or not, so T = f_r·T_read + f_w·t_m. Example: t_c = 10 ns, t_m = 100 ns, read hit ratio 0.9, 80% reads: 0.8 × (10 + 0.1 × 100) + 0.2 × 100 = 36 ns.",
+        "The miss penalty of a line fill is latency + line size ÷ bandwidth: a 64-byte line over a 1 GB/s bus (1 byte per ns) after 32 ns of latency takes 32 + 64 = 96 ns.",
+        "A target access time T fixes the hit ratio by inverting the EMAT formula: hierarchical h = 1 − (T − t_c)/t_m, simultaneous h = (t_m − T)/(t_m − t_c).",
+        "The average cost per bit of a hierarchy is Σ cᵢSᵢ ÷ Σ Sᵢ, weighted by size, while its average time is weighted by the share of references each level serves; a small fast level buys speed close to its own at a cost close to the large level's.",
+        "Example: an 8 MB level at 4 units per byte over a 56 MB level at 1 unit per byte averages (32 + 56) ÷ 64 = 1.375 units per byte, not the plain mean 2.5."
+      ],
+      "keyTerms": [
+        "write-through",
+        "line fill",
+        "bandwidth",
+        "cost per bit"
+      ],
+      "lesson": {
+        "why": "These questions extend the average access time formula to block fills, memory bandwidth and write-through, and each one rewards writing down the time of a single miss first.",
+        "intro": "On a miss the cache loads a whole block, not a single word. Memory needs some time to deliver the first word and then a shorter time for each following word, so the cost of a miss grows with the block size. Once the time of one miss is known, the average access time is the hit time plus the miss rate times that cost. Bandwidth is the same idea turned around: bytes delivered divided by the time to deliver them.",
+        "prerequisites": [
+          "coa-memory-hierarchy.emat"
+        ],
+        "definitions": [
+          {
+            "term": "Line fill",
+            "meaning": "Loading one whole block from memory into the cache after a miss."
+          },
+          {
+            "term": "Bandwidth",
+            "meaning": "Bytes delivered per unit time; for a block fill it is the block size divided by the fill time."
+          }
+        ],
+        "principle": {
+          "text": "The miss penalty is the time to fill the whole block: the first-word latency plus the remaining words at their own rate. The average access time adds the miss rate times that penalty to the hit time.",
+          "tex": "t_{\\text{miss}}=t_{\\text{first}}+(W-1)\\,t_{\\text{next}},\\qquad \\text{AMAT}=t_h+(1-h)\\,t_{\\text{miss}}"
+        },
+        "limits": "Whether the lookup time is added to the penalty or overlapped with it changes the answer, so read how the question describes a miss. With write-through and no write allocate, writes go to memory whether they hit or not, so the plain formula does not apply to them.",
+        "example": {
+          "problem": "A cache has hit time 2 ns and hit rate 95%. Blocks are 64 bytes and words are 4 bytes. On a miss, the first word takes 30 ns and every later word takes 5 ns. Find the average access time.",
+          "steps": [
+            "A block holds $64 / 4 = 16$ words.",
+            "The fill time is $30 + 15 \\times 5 = 105$ ns.",
+            "The miss rate is $1 - 0.95 = 0.05$, so the expected extra time is $0.05 \\times 105 = 5.25$ ns.",
+            "Add the hit time that every access pays: $2 + 5.25$."
+          ],
+          "result": "The average access time is 7.25 ns."
+        },
+        "misconceptions": [
+          "Charging the first-word time for every word of the block overstates the penalty; only the first word pays the full latency.",
+          "A larger block does not lower the average time by itself, because the fill time grows with the number of words."
+        ],
+        "recall": [
+          {
+            "q": "What is the miss penalty when a block has W words, the first word takes a and each later word takes b?",
+            "a": "$a + (W-1)b$, the time to fill the whole block."
+          },
+          {
+            "q": "How is the bandwidth of a block fill computed?",
+            "a": "Divide the block size in bytes by the fill time in seconds, where the fill time is the number of cycles times the clock period."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A memory system runs on a 50 MHz clock. Serving a miss takes 2 cycles to accept the address, 2 cycles to fetch the block, and then 1 cycle per word to send 4 words of 4 bytes each. What is the maximum bandwidth in units of $10^6$ bytes per second?",
+          "answer": 100,
+          "explanation": "One miss moves $4 \\times 4 = 16$ bytes and takes $2 + 2 + 4 = 8$ cycles. That is 2 bytes per cycle, and 50 million cycles per second give 100 million bytes per second. Using only the 4 transfer cycles gives 200, which is the tempting wrong choice."
+        },
+        "summary": "The cost of a miss is the time to fill a whole block, first word plus the rest; average access time and bandwidth both follow from that one number."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.miss-counting",
+      "title": "Counting misses for array traversals",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "C stores arrays row-major: element A[i][j] of an R × C array of w-byte elements sits at base + (i·C + j)·w.",
+        "Row-wise traversal touches each block once in order, so misses = array size ÷ block size when the cache starts empty.",
+        "Column-wise traversal jumps one row per access; if the rows of one column map to fewer lines than there are rows, each block is evicted before the next column reuses it and every access misses.",
+        "For int A[64][64] with a 4 KB direct-mapped cache and 16-byte blocks: row-wise 1024 misses, column-wise 4096; a 16 KB cache brings column-wise back to 1024."
+      ],
+      "lesson": {
+        "why": "Counting the misses of a loop over an array tests whether you can turn an address into a block and a cache line, and the row-wise versus column-wise contrast is a recurring theme.",
+        "intro": "A C array is stored row by row. Walking along a row visits neighbouring bytes, so every block that is loaded is used completely before the walk moves on. Walking down a column jumps over a whole row between accesses, so each access lands in a different block. Whether a loaded block survives until the next column needs it depends on the cache size. Counting misses means finding the block of each access, the line that block uses, and whether the line still holds it.",
+        "prerequisites": [
+          "coa-memory-hierarchy.direct-mapped"
+        ],
+        "definitions": [
+          {
+            "term": "Row-major order",
+            "meaning": "Storing a two-dimensional array row after row, so element $A[i][j]$ of an $n \\times n$ array of $w$-byte elements sits at base $+ (in + j)w$."
+          }
+        ],
+        "principle": {
+          "text": "The block of an access is its byte address divided by the block size, and in a direct-mapped cache it uses line block mod number of lines. An access hits only if that line holds the same block; otherwise it misses and replaces the line.",
+          "tex": "\\text{line}=\\left\\lfloor \\frac{\\text{address}}{B}\\right\\rfloor \\bmod L"
+        },
+        "limits": "Row-wise counting as array size divided by block size assumes the cache starts empty and the array base is aligned to a block. Column-wise counting needs the line numbers of one column; when they spread over all lines and the rows fit, the blocks survive and the count drops back to the row-wise value.",
+        "example": {
+          "problem": "int A[32][32] with 4-byte ints is read row by row and then separately column by column, each time from an empty 1 KB direct-mapped cache with 32-byte blocks. How many misses does each traversal cause?",
+          "steps": [
+            "The array is $32 \\times 32 \\times 4 = 4096$ bytes. The cache has $1024 / 32 = 32$ lines.",
+            "Row-wise, each block is read in full before the next one, so misses $= 4096 / 32 = 128$.",
+            "One row is $128$ bytes, so it spans 4 blocks and $A[i][j]$ lies in block $4i + \\lfloor j/8 \\rfloor$, which uses line $(4i + \\lfloor j/8 \\rfloor) \\bmod 32$.",
+            "Down one column the lines repeat every 8 rows, so the 32 rows land on only 8 lines. Each block is replaced before the next column returns to it, so every access misses: $32 \\times 32 = 1024$."
+          ],
+          "result": "Row-wise 128 misses; column-wise 1024 misses."
+        },
+        "misconceptions": [
+          "Column-wise traversal does not always miss on every access. If the rows of a column map to distinct lines and fit in the cache, the blocks stay and the next column hits.",
+          "The number of misses is not the number of elements divided by the block size in a column-wise walk; that formula holds only when blocks are used in order."
+        ],
+        "recall": [
+          {
+            "q": "Why is row-wise traversal of a C array cache-friendly?",
+            "a": "Rows are stored contiguously, so each loaded block is used completely before the walk leaves it."
+          },
+          {
+            "q": "When does column-wise traversal miss on every access?",
+            "a": "When the blocks of one column map to fewer lines than there are rows, so each block is evicted before the next column reuses it."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "int A[16][16] with 4-byte ints is read column by column, starting with an empty 256-byte direct-mapped cache with 16-byte blocks. How many misses occur?",
+          "answer": 256,
+          "explanation": "The cache has $256 / 16 = 16$ lines. A row is 64 bytes, 4 blocks, so element $A[i][j]$ is in block $4i + \\lfloor j/4 \\rfloor$ on line $(4i + \\lfloor j/4 \\rfloor) \\bmod 16$. Down a column the line repeats every 4 rows, so 16 rows use only 4 lines and each block is evicted before the next column returns. All $16 \\times 16 = 256$ accesses miss. The tempting answer is 64, the row-wise count, which wrongly assumes each block is reused."
+        },
+        "summary": "Find each access's block and line; row-wise walks miss once per block, while a column-wise walk misses every time when its rows crowd into too few lines."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.memory-interfacing",
+      "title": "Memory interfacing: building memory from chips",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A chip of m words × n bits has log₂ m address lines and n data lines; a memory of M × N built from it needs (M/m) × (N/n) chips.",
+        "Chips placed side by side share address and chip-select lines and widen the word; rows of chips stacked vertically deepen the memory, and a log₂(M/m)-to-M/m decoder on the high-order address bits selects one row.",
+        "Example: 16K × 8 from 1K × 4 chips needs 16 rows of 2 chips, 32 in all; the 14 address bits split into 10 for every chip and 4 for a 4-to-16 decoder.",
+        "The address range of a row is fixed by the decoder input: row r covers addresses r·m to (r + 1)·m − 1, which is how a memory map with RAM and ROM regions is read off a circuit.",
+        "Full decoding gates every unused high address bit into the chip select, so each word has exactly one address. Partial decoding leaves u address bits unconnected, so every word answers at 2ᵘ aliased addresses.",
+        "Example: a 16-bit CPU with four 2K × 8 chips, A10–A0 to every chip, a 2-to-4 decoder on A12 A11 and A15 = A14 = A13 = 0 required to enable it: output 3 selects 1800H–1FFFH. If A15–A13 are ignored instead, each byte appears at 2³ = 8 addresses."
+      ],
+      "keyTerms": [
+        "chip select",
+        "address decoder",
+        "memory map"
+      ],
+      "lesson": {
+        "why": "Chip-count questions and address-range questions from a decoder circuit appear regularly, and both are short once the address bits are split correctly.",
+        "intro": "A memory chip stores a fixed number of words of a fixed width, such as 2K words of 8 bits. A larger memory is built from several chips. Chips placed side by side make the word wider, because each supplies some of the bits. Chips stacked as separate rows make the memory deeper, because each row holds different addresses. A decoder looks at the high address bits and switches on only the row that holds the wanted address, using each chip's chip-select input.",
+        "prerequisites": [
+          "coa-memory-hierarchy.dram-sram"
+        ],
+        "definitions": [
+          {
+            "term": "Chip select",
+            "meaning": "An input that lets a chip respond only when it is 1."
+          },
+          {
+            "term": "Address decoder",
+            "meaning": "A circuit that turns the high address bits into one active chip-select line."
+          }
+        ],
+        "principle": {
+          "text": "To build an $M \\times N$ memory from $m \\times n$ chips, use $M/m$ rows of $N/n$ chips. The low $\\log_2 m$ address bits go to every chip and the high bits go to the decoder.",
+          "tex": "\\text{chips}=\\frac{M}{m}\\times\\frac{N}{n}"
+        },
+        "limits": "With partial decoding some high address bits are ignored, so one word answers at several addresses and the address range is larger than the memory. The counts above assume the sizes divide evenly.",
+        "example": {
+          "problem": "Build an 8K x 16 memory from 2K x 8 chips. How many chips are needed, how are the 13 address bits used, and where does each row start?",
+          "steps": [
+            "Rows: $8K / 2K = 4$. Chips per row: $16 / 8 = 2$. Total $4 \\times 2 = 8$ chips.",
+            "Each chip has 2K words, so the low $\\log_2 2048 = 11$ address bits go to every chip.",
+            "The remaining $13 - 11 = 2$ bits feed a 2-to-4 decoder that selects one row.",
+            "Row $r$ starts at $r \\times 2048$: 0000, 0800, 1000 and 1800 in hexadecimal."
+          ],
+          "result": "8 chips, 11 shared address bits, 2 decoder bits, rows starting at 0000, 0800, 1000, 1800 (hex)."
+        },
+        "misconceptions": [
+          "Chips in the same row are not selected one by one. They share one chip-select and each supplies part of the word.",
+          "A decoder that ignores some high address bits does not make the memory bigger; it makes copies of the same words appear at several addresses."
+        ],
+        "recall": [
+          {
+            "q": "How do you find the number of chips for an M x N memory built from m x n chips?",
+            "a": "Multiply the number of rows $M/m$ by the number of chips per row $N/n$."
+          },
+          {
+            "q": "Which address bits go to the decoder?",
+            "a": "The high-order bits left over after the low bits that address a word inside one chip."
+          },
+          {
+            "q": "What does partial decoding cause?",
+            "a": "Each word answers at $2^u$ addresses, where $u$ is the number of unconnected high address bits."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many 32K x 4 chips are needed to build a 256K x 8 memory?",
+          "answer": 16,
+          "explanation": "Rows: $256K / 32K = 8$. Chips per row: $8 / 4 = 2$. Total $8 \\times 2 = 16$ chips. Dividing capacities in bits gives the same count. Counting only the rows gives 8, which forgets that each row must be two chips wide."
+        },
+        "summary": "Rows of chips deepen the memory and chips within a row widen it; the low address bits go to every chip and the high bits go to a decoder that picks the row."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.memory-interleaving",
+      "title": "Memory interleaving",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        20
+      ],
+      "points": [
+        "Memory is split into m banks that can be accessed in parallel, so consecutive accesses can overlap.",
+        "Low-order interleaving picks the bank with the low address bits (bank = address mod m), sending consecutive words to different banks: ideal for block fetches into a cache.",
+        "High-order interleaving picks the bank with the high bits (bank = ⌊address ÷ words per bank⌋), so a contiguous region stays in one bank; it suits independent regions, not sequential bursts.",
+        "With 4 banks, a 15-cycle access, 1 cycle to send the address and 1 cycle per word transferred, a 4-word block costs 1 + 4 × (15 + 1) = 65 cycles from one bank but 1 + 15 + 4 = 20 interleaved."
+      ],
+      "keyTerms": [
+        "bank",
+        "low-order interleaving",
+        "high-order interleaving"
+      ],
+      "lesson": {
+        "prerequisites": [
+          "coa-memory-hierarchy.hierarchy-locality"
+        ],
+        "why": "Fetching a cache block is slow if one memory chip must answer every word in turn. Interleaving explains how banks overlap that wait, and the time formulas are short, exact calculations.",
+        "intro": "Main memory can be split into several banks, each able to work on its own request at the same time. A bank needs a long time to start up after an address arrives, but moving one word out is quick. If the words of a block sit in different banks, all banks can start together, and the words then leave one after another. Which bank holds a word depends on which address bits select the bank: the low bits or the high bits.",
+        "definitions": [
+          {
+            "term": "Bank",
+            "meaning": "One independent memory module that can start an access while others are busy."
+          },
+          {
+            "term": "Low-order interleaving",
+            "meaning": "The low address bits pick the bank, so consecutive addresses fall in different banks."
+          },
+          {
+            "term": "High-order interleaving",
+            "meaning": "The high address bits pick the bank, so a contiguous region stays inside one bank."
+          }
+        ],
+        "principle": {
+          "text": "With $m$ banks, low-order interleaving puts address $a$ in bank $a \\bmod m$. Fetching a block of $k$ words with address time $t_a$, bank access time $t_{acc}$ and word transfer time $t_x$ costs $k$ separate accesses from one bank but a single overlapped access from $k$ banks.",
+          "tex": "T_{\\text{single}} = t_a + k(t_{acc} + t_x), \\qquad T_{\\text{interleaved}} = t_a + t_{acc} + k\\,t_x"
+        },
+        "limits": "The saving needs consecutive words in different banks, so it works for low-order interleaving but not for high-order. It also needs the block to span all the banks; an access pattern that keeps hitting one bank, such as a stride equal to $m$, gets no overlap.",
+        "example": {
+          "problem": "Four banks, 1 cycle to send the address, 10 cycles per bank access, 1 cycle to transfer a word. Compare a 4-word block fetch from a single bank with low-order interleaving.",
+          "steps": [
+            "Single bank: the access repeats for every word, so $1 + 4 \\times (10 + 1) = 45$ cycles.",
+            "Interleaved: with low-order bits, words 0 to 3 are in banks 0 to 3, and all four accesses run in parallel for 10 cycles.",
+            "The four words then transfer one per cycle: $1 + 10 + 4 = 15$ cycles."
+          ],
+          "result": "45 cycles single, 15 cycles interleaved."
+        },
+        "misconceptions": [
+          "High-order interleaving does not speed up a sequential block fetch; consecutive addresses stay in one bank, so the accesses cannot overlap.",
+          "Interleaving does not make one access faster; it hides the access time of several words behind each other.",
+          "Under low-order interleaving the bank is the remainder of the word address divided by the bank count, not the quotient by the block size."
+        ],
+        "recall": [
+          {
+            "q": "Which address bits select the bank in low-order interleaving?",
+            "a": "The lowest bits, so the bank is the address mod the number of banks and consecutive words use different banks."
+          },
+          {
+            "q": "Why does high-order interleaving not help a block fetch?",
+            "a": "A contiguous block lies in one bank, so its accesses cannot overlap."
+          },
+          {
+            "q": "What is the interleaved fetch time for a k-word block?",
+            "a": "One address time plus one access time plus k transfer times."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A memory has 8 low-order interleaved banks. Sending the address takes 1 cycle, a bank access 12 cycles and a word transfer 1 cycle. How many cycles does it take to fetch an 8-word block?",
+          "answer": 21,
+          "explanation": "All eight banks start together, so the time is $1 + 12 + 8 = 21$ cycles. The value 105 is the single-bank time $1 + 8 \\times (12 + 1)$, which tempts if the banks are thought to work one after another. The value 13 forgets that the eight words still leave one per cycle."
+        },
+        "summary": "Low-order interleaving spreads consecutive words across banks so one access time is shared by a whole block, giving $t_a + t_{acc} + k\\,t_x$ instead of $t_a + k(t_{acc}+t_x)$."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.dram-sram",
+      "title": "SRAM and DRAM",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        20
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "SRAM stores a bit in a 6-transistor latch: fast, needs no refresh, and is used for caches.",
+        "DRAM stores a bit as charge on one capacitor behind one transistor: dense and cheap but slower, and it must be refreshed periodically because the charge leaks."
+      ],
+      "lesson": {
+        "why": "The refresh overhead of a DRAM is a numeric calculation of rows times refresh time over the refresh period, and the SRAM versus DRAM contrast supports the choice of memory for caches and main memory.",
+        "intro": "Memory chips store each bit in one of two ways. SRAM keeps a bit in a small circuit of six transistors that holds its state as long as power is on. It is fast but takes more area per bit, so it is used for caches. DRAM keeps a bit as charge on a tiny capacitor with one transistor. It is small and cheap, so main memory is built from it, but the charge leaks away. Every row must therefore be read and rewritten before the charge is lost. This refresh occupies the chip for part of the time.",
+        "prerequisites": [
+          "coa-memory-hierarchy.hierarchy-locality"
+        ],
+        "definitions": [
+          {
+            "term": "Refresh",
+            "meaning": "Reading a DRAM row and writing it back to restore the leaking charge."
+          },
+          {
+            "term": "Refresh period",
+            "meaning": "The time within which every row must have been refreshed once."
+          }
+        ],
+        "principle": {
+          "text": "In every refresh period the chip refreshes each row once, one row per refresh operation. The busy fraction is rows times refresh time over the period, and the rest is available for reads and writes.",
+          "tex": "\\text{available}=1-\\frac{R\\,t_{\\text{refresh}}}{T_{\\text{period}}}"
+        },
+        "limits": "Chips of a memory that share a row address refresh the same row together, so the refresh time is that of one chip, not the sum over chips. The formula also assumes refresh and access cannot overlap.",
+        "example": {
+          "problem": "A DRAM chip has $2^{13}$ rows, a refresh operation takes 40 ns and the refresh period is 4 ms. What fraction of time is free for reads and writes?",
+          "steps": [
+            "The number of rows is $2^{13} = 8192$.",
+            "One full sweep takes $8192 \\times 40\\ \\text{ns} = 327\\,680\\ \\text{ns} = 0.32768$ ms.",
+            "The busy fraction is $0.32768 / 4 = 0.08192$, which is 8.192%.",
+            "The free fraction is $100\\% - 8.192\\%$."
+          ],
+          "result": "About 91.8% of the time is available for reads and writes."
+        },
+        "misconceptions": [
+          "SRAM does not need refresh; only DRAM does, because only DRAM stores a bit as leaking charge.",
+          "The refresh time is not multiplied by the number of chips in the memory when the chips refresh the same row together."
+        ],
+        "recall": [
+          {
+            "q": "Why must DRAM be refreshed?",
+            "a": "A bit is stored as charge on a capacitor that leaks, so each row must be read and rewritten within the refresh period."
+          },
+          {
+            "q": "Why is SRAM used for caches and DRAM for main memory?",
+            "a": "SRAM is faster but takes more area per bit; DRAM is slower but denser and cheaper."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A DRAM chip has $2^{12}$ rows. One refresh operation takes 60 ns and the refresh period is 2 ms. What percentage of time is available for reads and writes, to one decimal place?",
+          "answer": 87.7,
+          "explanation": "The sweep takes $4096 \\times 60 = 245\\,760$ ns, which is 0.24576 ms. Out of 2 ms that is 12.288%, so the available time is $100 - 12.288 = 87.712$, or 87.7%. The value 12.3 is the refresh share, which is the tempting wrong answer."
+        },
+        "summary": "SRAM is a fast latch that needs no refresh; DRAM is a dense capacitor cell that loses time to refresh, and the lost fraction is rows times refresh time over the period."
+      }
+    },
+    {
+      "id": "coa-memory-hierarchy.virtual-memory-tlb",
+      "title": "Virtual memory and the TLB",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        20,
+        277,
+        278,
+        279,
+        281,
+        282,
+        283
+      ],
+      "points": [
+        "Paging splits virtual memory into pages and physical memory into equal frames; the page table maps a virtual page number to a frame, and the offset passes through unchanged.",
+        "A 32-bit virtual address with 4 KB pages has a 20-bit VPN, so a flat table has 2²⁰ entries: 4 MB at 4 bytes each.",
+        "The TLB caches recent VPN-to-frame translations. With hit ratio h, TLB time t and memory time m and a one-level table: EAT = h(t + m) + (1 − h)(t + 2m).",
+        "A TLB miss is not a page fault: the page may be resident and only the walk is needed. A page fault (valid bit 0) traps to the OS, which loads the page from disk."
+      ],
+      "keyTerms": [
+        "VPN",
+        "page table",
+        "TLB",
+        "page fault"
+      ],
+      "lesson": {
+        "why": "GATE asks both for the effective access time with a TLB and for which chains of TLB, page table and cache events are possible, and both rest on knowing whether a page is in memory.",
+        "intro": "A program uses virtual addresses, which are translated into physical addresses before memory is touched. Memory is cut into equal pages (virtual side) and frames (physical side). A page table stores, for each virtual page number, the frame that holds the page, or marks the page as absent. The low bits of the address, the offset, are copied through unchanged, so a virtual address with $v$ bits and pages of $2^{o}$ bytes has $v-o$ page number bits and the table has $2^{v-o}$ entries, one per virtual page (a flat table is that many entries times the entry size). Reading the page table costs a memory access, so a small fast table of recent translations, the TLB, is kept next to the processor and checked first.",
+        "prerequisites": [
+          "coa-memory-hierarchy.emat"
+        ],
+        "definitions": [
+          {
+            "term": "Page fault",
+            "meaning": "A reference to a page whose valid bit is 0; the operating system must bring the page in from disk."
+          },
+          {
+            "term": "TLB hit",
+            "meaning": "The translation for the page is found in the TLB, so the page table is not read."
+          },
+          {
+            "term": "Page table miss",
+            "meaning": "The page table lookup finds the page absent from memory (valid bit 0), the same event as a page fault. A page table hit means the page is resident."
+          }
+        ],
+        "principle": {
+          "text": "The TLB is checked first. On a hit the frame is known at once; on a miss the page table is read, costing one more memory access. A TLB entry exists only for a page that is in memory. A cache indexed by physical address holds only blocks of resident pages, and when a page is evicted its cached blocks are invalidated, so a page table miss forces a cache miss too. With a one-level table, hit ratio $h$, TLB time $t$ and memory time $m$:",
+          "tex": "\\mathrm{EAT} = h\\,(t + m) + (1 - h)\\,(t + 2m)"
+        },
+        "limits": "The formula assumes a one-level page table and no page faults; a multi-level table adds one memory access per level on a miss, and a fault adds the disk time. Whether the cache is indexed by physical or virtual address changes which events can follow which.",
+        "example": {
+          "problem": "A one-level page table is used with TLB time 10 ns, memory time 100 ns and TLB hit ratio 0.9. Find the effective access time.",
+          "steps": [
+            "A hit costs the TLB probe plus one memory access: 10 + 100 = 110 ns.",
+            "A miss costs the TLB probe, one memory access for the page table and one for the data: 10 + 200 = 210 ns.",
+            "Weight by the ratios: 0.9 × 110 + 0.1 × 210 = 99 + 21."
+          ],
+          "result": "The effective access time is 120 ns."
+        },
+        "misconceptions": [
+          "A TLB miss is not a page fault: the page is usually in memory and only the translation is missing from the TLB.",
+          "A TLB miss does not force a cache miss, because the two are separate structures; a block can stay cached after its translation leaves the TLB.",
+          "The offset is not translated: only the page number goes through the TLB or page table."
+        ],
+        "recall": [
+          {
+            "q": "What does the TLB store?",
+            "a": "Recent translations from virtual page number to frame number."
+          },
+          {
+            "q": "What does a TLB hit tell you about the page?",
+            "a": "The page is in main memory, so the page table cannot report it absent."
+          },
+          {
+            "q": "If a page table lookup finds the page absent, can the cache hit? Why?",
+            "a": "No. The cache holds blocks only of resident pages and an evicted page's blocks are invalidated, so the access must miss in the cache."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A machine has 36-bit virtual addresses and 8 KB pages. Each page table entry takes 4 bytes and the page table is a single flat table. What is its size in MB?",
+          "answer": 32,
+          "explanation": "The offset takes 13 bits, leaving a 23-bit page number, so the table has $2^{23}$ entries of 4 bytes, which is $2^{25}$ bytes = 32 MB. Using all 36 bits as the page number gives a far larger figure, and forgetting the 4-byte entry size gives 8 MB."
+        },
+        "summary": "The TLB caches translations; a hit skips the page table, a miss costs one extra memory access, and a TLB entry or a cached block implies the page is in memory."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "coa-memory-hierarchy.offset-bits",
+      "name": "Block offset bits",
+      "tex": "\\text{offset} = \\log_2 B",
+      "text": "offset = log₂ B",
+      "where": [
+        [
+          "B",
+          "block (line) size in addressable units, usually bytes"
+        ]
+      ],
+      "note": "If the memory is word-addressable, measure B in words, not bytes.",
+      "topic": "coa-memory-hierarchy.address-split",
+      "origin": "source",
+      "pages": [
+        19,
+        275,
+        283
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.set-count",
+      "name": "Number of sets and index bits",
+      "tex": "S = \\frac{C}{B \\cdot k}, \\qquad \\text{index} = \\log_2 S",
+      "text": "S = C / (B·k), index = log₂ S",
+      "where": [
+        [
+          "C",
+          "cache data capacity"
+        ],
+        [
+          "k",
+          "associativity (1 for direct mapped)"
+        ],
+        [
+          "S",
+          "number of sets"
+        ]
+      ],
+      "note": "Fully associative: S = 1, so there are no index bits.",
+      "topic": "coa-memory-hierarchy.address-split",
+      "origin": "source",
+      "pages": [
+        19,
+        275,
+        283
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.tag-bits",
+      "name": "Tag bits",
+      "tex": "\\text{tag} = A - \\log_2 S - \\log_2 B",
+      "text": "tag = A − log₂ S − log₂ B",
+      "where": [
+        [
+          "A",
+          "physical address width in bits"
+        ]
+      ],
+      "note": "Equivalently tag = log₂(memory size ÷ cache size) + log₂ k.",
+      "topic": "coa-memory-hierarchy.address-split",
+      "origin": "source",
+      "pages": [
+        19,
+        275,
+        283
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.placement",
+      "name": "Placement of a block",
+      "tex": "b = \\left\\lfloor \\frac{\\text{address}}{B} \\right\\rfloor, \\qquad \\text{set} = b \\bmod S",
+      "text": "b = ⌊address / B⌋, set = b mod S",
+      "note": "Direct mapped: S equals the number of lines, so set is the line number.",
+      "topic": "coa-memory-hierarchy.direct-mapped",
+      "origin": "source",
+      "pages": [
+        19,
+        275
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.tag-directory-size",
+      "name": "Tag directory size",
+      "tex": "\\text{bits} = L \\times (\\text{tag} + v + d + r)",
+      "text": "bits = L × (tag + v + d + r)",
+      "where": [
+        [
+          "L",
+          "number of cache lines"
+        ],
+        [
+          "v",
+          "valid bit (1)"
+        ],
+        [
+          "d",
+          "dirty bit (1 for write-back, else 0)"
+        ],
+        [
+          "r",
+          "replacement bits per line, e.g. log₂ k for LRU"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.tag-directory",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.amat",
+      "name": "Average memory access time",
+      "tex": "\\mathrm{AMAT} = t_{\\text{hit}} + m \\times t_{\\text{penalty}}",
+      "text": "AMAT = t_hit + m × t_penalty",
+      "where": [
+        [
+          "m",
+          "miss rate = 1 − h"
+        ],
+        [
+          "t_penalty",
+          "extra time to serve a miss from the level below"
+        ]
+      ],
+      "note": "This is the hierarchical form: the hit time is paid on every access, including misses.",
+      "topic": "coa-memory-hierarchy.emat",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        283
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.emat-hierarchical",
+      "name": "Single-level EMAT, hierarchical access",
+      "tex": "T = h\\,t_c + (1 - h)(t_c + t_m) = t_c + (1 - h)\\,t_m",
+      "text": "T = h·t_c + (1 − h)(t_c + t_m) = t_c + (1 − h)·t_m",
+      "where": [
+        [
+          "t_c",
+          "cache access time"
+        ],
+        [
+          "t_m",
+          "main-memory access time"
+        ],
+        [
+          "h",
+          "cache hit ratio"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.emat",
+      "origin": "curated",
+      "pages": [
+        19
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.emat-simultaneous",
+      "name": "Single-level EMAT, simultaneous access",
+      "tex": "T = h\\,t_c + (1 - h)\\,t_m",
+      "text": "T = h·t_c + (1 − h)·t_m",
+      "note": "Cache and memory are probed together, so a miss costs only t_m. Always at most the hierarchical value.",
+      "topic": "coa-memory-hierarchy.emat",
+      "origin": "source",
+      "pages": [
+        19
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.amat-two-level",
+      "name": "Two-level AMAT",
+      "tex": "\\mathrm{AMAT} = t_1 + m_1\\,(t_2 + m_2\\,t_{\\text{mem}})",
+      "text": "AMAT = t₁ + m₁(t₂ + m₂·t_mem)",
+      "where": [
+        [
+          "m_1",
+          "L1 miss rate"
+        ],
+        [
+          "m_2",
+          "L2 local miss rate"
+        ],
+        [
+          "t_mem",
+          "main-memory access time"
+        ]
+      ],
+      "note": "m₂ must be local. If the question gives a global L2 miss rate g, use m₂ = g / m₁.",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "origin": "source",
+      "pages": [
+        19,
+        276
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.multilevel-simultaneous",
+      "name": "Two-level EMAT, simultaneous access",
+      "tex": "T = h_1 t_1 + (1 - h_1)\\,h_2\\,t_2 + (1 - h_1)(1 - h_2)\\,t_m",
+      "text": "T = h₁t₁ + (1 − h₁)h₂t₂ + (1 − h₁)(1 − h₂)t_m",
+      "where": [
+        [
+          "h_1, h_2",
+          "local hit ratios of L1 and L2"
+        ]
+      ],
+      "note": "The hierarchical version replaces t₂ by t₁ + t₂ and t_m by t₁ + t₂ + t_m.",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.global-miss-rate",
+      "name": "Global miss rate of L2",
+      "tex": "g_2 = m_1 \\times m_2 = \\frac{\\text{L2 misses}}{\\text{CPU references}}",
+      "text": "g₂ = m₁ × m₂ = L2 misses / CPU references",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.stall-cpi",
+      "name": "CPI with memory stalls",
+      "tex": "\\mathrm{CPI} = \\mathrm{CPI}_{\\text{base}} + a \\times m \\times P",
+      "text": "CPI = CPI_base + a × m × P",
+      "where": [
+        [
+          "a",
+          "memory accesses per instruction (1 fetch + data accesses)"
+        ],
+        [
+          "m",
+          "miss rate"
+        ],
+        [
+          "P",
+          "miss penalty in cycles"
+        ]
+      ],
+      "note": "With separate instruction and data miss rates, add the two products.",
+      "topic": "coa-memory-hierarchy.cache-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.write-back-penalty",
+      "name": "Write-back miss cost",
+      "tex": "t_{\\text{miss}} = (1 + d)\\,t_{\\text{block}}",
+      "text": "t_miss = (1 + d)·t_block",
+      "where": [
+        [
+          "d",
+          "fraction of evicted blocks that are dirty"
+        ],
+        [
+          "t_block",
+          "time to transfer one block"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.cache-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.write-through-mix",
+      "name": "Average time with reads and writes, write-through",
+      "tex": "T = f_r\\,\\bigl(t_c + (1 - h)\\,t_m\\bigr) + f_w\\,t_m",
+      "text": "T = f_r·(t_c + (1 − h)·t_m) + f_w·t_m",
+      "where": [
+        [
+          "f_r, f_w",
+          "fractions of references that are reads and writes, f_r + f_w = 1"
+        ],
+        [
+          "h",
+          "read hit ratio"
+        ]
+      ],
+      "note": "Write-through with no-write-allocate and no write buffer: each write costs a memory write. If the question says reads are simultaneous, replace the read term by h·t_c + (1 − h)·t_m.",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.line-fill-time",
+      "name": "Miss penalty of a line fill",
+      "tex": "t_{\\text{fill}} = t_{\\text{latency}} + \\frac{B}{\\text{bandwidth}} = t_{\\text{latency}} + \\frac{B}{w}\\,t_{\\text{bus}}",
+      "text": "t_fill = t_latency + B / bandwidth = t_latency + (B/w)·t_bus",
+      "where": [
+        [
+          "B",
+          "line size in bytes"
+        ],
+        [
+          "w",
+          "bus width in bytes"
+        ],
+        [
+          "t_bus",
+          "time per bus transfer"
+        ]
+      ],
+      "note": "Units first: 1 GB/s moves one byte per ns. Without interleaving or a burst, each word pays the full latency again.",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.required-hit-ratio",
+      "name": "Hit ratio needed for a target access time",
+      "tex": "h_{\\text{hier}} = 1 - \\frac{T - t_c}{t_m}, \\qquad h_{\\text{sim}} = \\frac{t_m - T}{t_m - t_c}",
+      "text": "hierarchical h = 1 − (T − t_c)/t_m; simultaneous h = (t_m − T)/(t_m − t_c)",
+      "where": [
+        [
+          "T",
+          "target average access time"
+        ]
+      ],
+      "note": "The two forms give different answers on the same data: T = 12.5, t_c = 5, t_m = 80 needs 0.90625 hierarchical but 0.9 simultaneous.",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.cost-per-bit",
+      "name": "Average cost per bit of a hierarchy",
+      "tex": "\\bar{c} = \\frac{\\sum_i c_i S_i}{\\sum_i S_i}",
+      "text": "average cost = Σ cᵢSᵢ / Σ Sᵢ",
+      "where": [
+        [
+          "c_i",
+          "cost per bit (or byte) of level i"
+        ],
+        [
+          "S_i",
+          "capacity of level i"
+        ]
+      ],
+      "note": "Weighted by capacity, not by hit ratio; the plain mean of the costs is the usual wrong option.",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.chip-count",
+      "name": "Chips needed to build a memory",
+      "tex": "n_{\\text{chips}} = \\frac{M}{m} \\times \\frac{N}{n}, \\qquad \\text{decoder: } \\log_2\\tfrac{M}{m} \\text{ to } \\tfrac{M}{m}",
+      "text": "chips = (M/m) × (N/n); decoder log₂(M/m)-to-(M/m)",
+      "where": [
+        [
+          "M × N",
+          "target memory: words × bits per word"
+        ],
+        [
+          "m × n",
+          "one chip: words × bits per word"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.decode-range",
+      "name": "Address range of a chip row and partial-decoding aliases",
+      "tex": "\\text{row } r: [\\,r\\,m,\\ (r + 1)\\,m - 1\\,] + \\text{base}, \\qquad \\text{aliases} = 2^{u}",
+      "text": "row r spans r·m to (r + 1)·m − 1 above the base the fixed high bits select; aliases = 2^u",
+      "where": [
+        [
+          "m",
+          "words per chip row"
+        ],
+        [
+          "u",
+          "address bits left out of the decoding"
+        ]
+      ],
+      "note": "With full decoding u = 0 and the map is one-to-one; with partial decoding the same row answers 2^u separate ranges.",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.interleave-bank",
+      "name": "Bank of an address",
+      "tex": "\\text{low-order: } a \\bmod m, \\qquad \\text{high-order: } \\left\\lfloor \\frac{a}{W/m} \\right\\rfloor",
+      "text": "low-order bank = a mod m; high-order bank = ⌊a / (W/m)⌋",
+      "where": [
+        [
+          "a",
+          "word address"
+        ],
+        [
+          "m",
+          "number of banks"
+        ],
+        [
+          "W",
+          "total words in memory"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.memory-interleaving",
+      "origin": "source",
+      "pages": [
+        20
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.interleaved-block-time",
+      "name": "Block fetch time with and without interleaving",
+      "tex": "T_{\\text{single}} = t_a + k(t_{\\text{acc}} + t_x), \\qquad T_{\\text{interleaved}} = t_a + t_{\\text{acc}} + k\\,t_x",
+      "text": "T_single = t_a + k(t_acc + t_x); T_interleaved = t_a + t_acc + k·t_x",
+      "where": [
+        [
+          "k",
+          "words per block (k banks)"
+        ],
+        [
+          "t_a",
+          "time to send the address"
+        ],
+        [
+          "t_acc",
+          "bank access time"
+        ],
+        [
+          "t_x",
+          "time to transfer one word"
+        ]
+      ],
+      "topic": "coa-memory-hierarchy.memory-interleaving",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.eat-tlb",
+      "name": "Effective access time with a TLB",
+      "tex": "\\mathrm{EAT} = h\\,(t + m) + (1 - h)\\,(t + 2m)",
+      "text": "EAT = h(t + m) + (1 − h)(t + 2m)",
+      "where": [
+        [
+          "h",
+          "TLB hit ratio"
+        ],
+        [
+          "t",
+          "TLB lookup time"
+        ],
+        [
+          "m",
+          "memory access time"
+        ]
+      ],
+      "note": "For a k-level page table the miss term becomes t + (k + 1)m.",
+      "topic": "coa-memory-hierarchy.virtual-memory-tlb",
+      "origin": "source",
+      "pages": [
+        20,
+        278,
+        281
+      ]
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "coa-memory-hierarchy.pt-address-split",
+      "title": "Tag, index and offset widths",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Convert every size to a power of 2 in the addressable unit (byte or word).",
+        "Offset = log₂(block size); lines = cache size ÷ block size; sets = lines ÷ k.",
+        "Index = log₂(sets) (0 for fully associative); tag = address bits − index − offset."
+      ],
+      "trap": "Using the number of lines instead of the number of sets for the index of a set-associative cache.",
+      "topic": "coa-memory-hierarchy.address-split",
+      "origin": "source",
+      "pages": [
+        275,
+        280,
+        281,
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-emat",
+      "title": "Average access time for one or two cache levels",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Decide whether access is hierarchical (miss pays the upper level too) or simultaneous (miss pays only the level that answers).",
+        "Make every miss rate local: divide a global L2 miss rate by the L1 miss rate.",
+        "Apply AMAT = t₁ + m₁(t₂ + m₂·t_mem) for hierarchical, or weight each level's own time by the share of references it serves for simultaneous."
+      ],
+      "trap": "Mixing a global L2 miss rate into the local formula, or adding t₁ to the miss path in a simultaneous system.",
+      "topic": "coa-memory-hierarchy.emat",
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        279,
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-tag-directory",
+      "title": "Tag-directory (tag memory) size",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Compute the tag width from the address split.",
+        "Add the per-line status bits the question names: valid, dirty for write-back, and replacement bits.",
+        "Multiply by the number of lines (not sets)."
+      ],
+      "trap": "Forgetting the dirty bit of a write-back cache, or counting the data array as part of the directory.",
+      "topic": "coa-memory-hierarchy.tag-directory",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-trace",
+      "title": "Hit/miss trace of a block-address sequence",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Turn each byte address into a block number ⌊a ÷ B⌋, then into a set number b mod S.",
+        "Keep one small list per set ordered by recency (LRU) or by load time (FIFO).",
+        "Mark H or M for each reference and count; the first reference to each block is always a compulsory miss."
+      ],
+      "trap": "Mapping byte addresses straight to lines without dividing by the block size first.",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "origin": "source",
+      "pages": [
+        275,
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-array-misses",
+      "title": "Misses for a loop over an array",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Write the address of A[i][j] in row-major order and the block it falls in.",
+        "Find which line each block maps to and how many rows of one column share a line.",
+        "If a block survives until its next use, count one miss per block; otherwise count one miss per access."
+      ],
+      "trap": "Assuming column-wise traversal always misses: if the whole column fits without conflicts, it costs the same as row-wise.",
+      "topic": "coa-memory-hierarchy.miss-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-stall-cpi",
+      "title": "Effective CPI from cache miss rates",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Count memory accesses per instruction: one fetch plus the data references.",
+        "Stall cycles per instruction = accesses × miss rate × miss penalty (sum separately for instruction and data caches).",
+        "Effective CPI = base CPI + stall cycles; speed-up between two designs is the ratio of their CPIs at the same clock."
+      ],
+      "trap": "Counting only data accesses and forgetting the instruction fetch every instruction makes.",
+      "topic": "coa-memory-hierarchy.cache-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-chip-interfacing",
+      "title": "Chips, decoders and address ranges in memory interfacing",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Chips per row = target word width ÷ chip width; rows = target words ÷ chip words.",
+        "Every chip gets log₂(chip words) address lines; the remaining high-order bits drive a decoder that selects a row.",
+        "Row r spans addresses r·m to (r + 1)·m − 1.",
+        "Read the decoder enable: bits that must be 0 or 1 fix the base of the map; bits left unconnected (partial decoding) make each word answer at 2ᵘ addresses."
+      ],
+      "trap": "Sizing the decoder by the chip count instead of the row count, or picking a chip from the decoder inputs while the enable bits disable it.",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.pt-performance-mix",
+      "title": "Read/write mix, line fill time and target hit ratio",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Split references into reads and writes; under write-through every write pays a memory write, under write-back only dirty evictions do.",
+        "Compute the miss penalty from latency + line size ÷ bandwidth (or address + access + words × transfer for an interleaved memory).",
+        "Weight each class by its fraction; for a target time, solve the EMAT equation for h in the access model the question names."
+      ],
+      "trap": "Charging writes only the cache time in a write-through cache, or mixing up hierarchical and simultaneous when solving for h.",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "questions": [
+    {
+      "id": "coa-memory-hierarchy.q-tag-bits-8way",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A 32-bit byte-addressable machine has a 32 KB, 8-way set-associative cache with 32-byte blocks. How many bits wide is the tag?",
+      "answer": 20,
+      "explanation": "Offset = log₂ 32 = 5 bits. Lines = 32 KB ÷ 32 B = 1024, so sets = 1024 ÷ 8 = 128 and index = 7 bits. Tag = 32 − 7 − 5 = 20 bits.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.address-split",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Address split",
+      "pages": [
+        281
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-amat-two-level",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "L1 has a 1 ns hit time and a 10% miss rate. L2 has a 10 ns hit time and a 1% local miss rate. Main memory takes 100 ns. What is the average memory access time?",
+      "options": [
+        "2.1 ns",
+        "2.0 ns",
+        "3.0 ns",
+        "11.0 ns"
+      ],
+      "answer": 0,
+      "explanation": "AMAT = 1 + 0.10 × (10 + 0.01 × 100) = 1 + 0.10 × 11 = 2.1 ns. 2.0 ns drops the memory term; 3.0 ns treats the 1% as a global rate and adds it as a separate term; 11.0 ns charges L2 on every access.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — AMAT calc",
+      "pages": [
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-emat-hierarchical",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A system has L1 (access time 2 ns, hit ratio 0.8), L2 (access time 10 ns, local hit ratio 0.9) and main memory (100 ns, always hits). Access is hierarchical: a request that misses at a level has already spent that level's access time before going down. What is the average access time in ns?",
+      "answer": 6,
+      "tolerance": 0.01,
+      "explanation": "Served by L1: 0.8 × 2 = 1.6. Served by L2: 0.2 × 0.9 = 0.18 of references, each costing 2 + 10 = 12 ns, giving 2.16. Served by memory: 0.2 × 0.1 = 0.02, each costing 2 + 10 + 100 = 112 ns, giving 2.24. Total = 1.6 + 2.16 + 2.24 = 6.0 ns. The same answer comes from t₁ + m₁(t₂ + m₂·t_m) = 2 + 0.2 × (10 + 0.1 × 100) = 6. Under simultaneous access it would be 1.6 + 0.18 × 10 + 0.02 × 100 = 5.4 ns.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.emat",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-local-global-miss",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Out of 1000 CPU memory references, 40 miss in L1 and 20 miss in L2. What are the local and the global miss rates of L2?",
+      "options": [
+        "Local 0.5, global 0.02",
+        "Local 0.02, global 0.5",
+        "Local 0.02, global 0.02",
+        "Local 0.5, global 0.04"
+      ],
+      "answer": 0,
+      "explanation": "Only the 40 L1 misses reach L2, so its local miss rate is 20 ÷ 40 = 0.5. The global miss rate divides by all references: 20 ÷ 1000 = 0.02, which equals 0.04 × 0.5. 0.04 is L1's miss rate.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.multilevel-cache",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-dm-conflict-trace",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A direct-mapped cache has 4 lines with 1-byte blocks and starts empty. The CPU reads byte addresses 0, 4, 8, 12, 0, 4, 8. How many hits and misses occur?",
+      "options": [
+        "0 hits, 7 misses",
+        "1 hit, 6 misses",
+        "3 hits, 4 misses",
+        "4 hits, 3 misses"
+      ],
+      "answer": 0,
+      "explanation": "Every address is a multiple of 4, so each maps to line a mod 4 = 0. Each reference replaces the block the previous one loaded, and no address repeats back to back, so all 7 references miss. 3 hits and 4 misses would be the result in a 4-line fully associative cache.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.direct-mapped",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Cache miss",
+      "pages": [
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-two-way-lru-trace",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A cache holds 4 blocks, is 2-way set-associative with LRU replacement and starts empty. The CPU references main-memory block numbers 0, 4, 0, 4, 8, 0, 4 in that order. How many misses occur?",
+      "answer": 5,
+      "explanation": "There are 2 sets, and every block here is even, so all go to set 0, which holds 2 blocks. 0 M, 4 M, 0 H, 4 H. Block 8 misses and evicts the LRU block 0; then 0 misses and evicts 4; then 4 misses and evicts 8. Misses = 5. A direct-mapped cache with 4 lines would miss all 7 (all map to line 0); a fully associative LRU cache would miss only 3 (the compulsory misses).",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.set-associative",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-tag-directory-size",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A 32-bit byte-addressable machine has a 16 KB, 4-way set-associative write-back cache with 64-byte blocks. Each line stores its tag, one valid bit and one dirty bit, and no replacement bits. What is the total size of the tag directory in bits?",
+      "answer": 5632,
+      "explanation": "Lines = 16 KB ÷ 64 B = 256; sets = 256 ÷ 4 = 64. Offset = 6, index = 6, tag = 32 − 6 − 6 = 20 bits. Each line stores 20 + 1 + 1 = 22 bits, so the directory holds 256 × 22 = 5632 bits.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.tag-directory",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-comparators",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 1024-line, 4-way set-associative cache uses 20-bit tags. What comparison hardware does one lookup need?",
+      "options": [
+        "4 comparators of 20 bits and a 4-to-1 multiplexer",
+        "1 comparator of 20 bits",
+        "4 comparators of 28 bits and a 4-to-1 multiplexer",
+        "1024 comparators of 20 bits"
+      ],
+      "answer": 0,
+      "explanation": "The index selects one set, and the 4 tags of that set are compared with the address tag in parallel, so 4 comparators each as wide as the tag (20 bits). A 4-to-1 multiplexer then passes the data of the matching way. One comparator is the direct-mapped case; one per line is the fully associative case; the index bits are never compared.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.tag-directory",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-write-policies",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these statements about cache write policies are correct?",
+      "options": [
+        "A write-back cache writes a block to memory only when it is evicted and its dirty bit is set.",
+        "With write-through, main memory holds the current value after every store.",
+        "No-write-allocate brings the block into the cache on a write miss.",
+        "Write-back produces one memory write for every store instruction."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Write-back defers memory updates to eviction and skips clean blocks, which is why it cuts memory writes. Write-through updates memory on every store. No-write-allocate is the opposite of fetching on a write miss: it writes to memory and leaves the cache alone. One memory write per store describes write-through, not write-back.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.write-policies",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2015) — Write-back",
+      "pages": [
+        276,
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-inclusion",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An L2 cache is said to be inclusive of L1. What does that mean?",
+      "options": [
+        "Every block present in L1 is also present in L2",
+        "Every block present in L2 is also present in L1",
+        "L1 and L2 never hold the same block",
+        "L1 and L2 are probed simultaneously"
+      ],
+      "answer": 0,
+      "explanation": "Inclusion means L1's contents are a subset of L2's, so evicting a block from L2 forces it out of L1 too. The reverse cannot hold since L2 is larger; never holding the same block is the exclusive policy; probing both together is simultaneous access, an unrelated property.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.hierarchy-locality",
+      "origin": "source",
+      "sourceLabel": "PYQ-8 (GATE 2013) — Inclusion",
+      "pages": [
+        274,
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-three-cs",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which statements about the three classes of cache misses are correct?",
+      "options": [
+        "Raising associativity while keeping capacity fixed reduces conflict misses.",
+        "A fully associative cache has no conflict misses.",
+        "Doubling the cache size removes compulsory misses.",
+        "Increasing the block size always lowers the miss rate."
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Conflict misses arise from too many blocks competing for one set, so more ways per set reduce them, and with a single set they cannot occur. Compulsory misses are first references and happen at any cache size. Larger blocks cut compulsory misses at first, but with fixed capacity there are fewer lines, so conflict misses eventually rise.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.three-cs",
+      "origin": "source",
+      "pages": [
+        277,
+        279
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-fifo-lru-faults",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "With 4 frames, initially empty, the reference string is 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5. How many faults do FIFO and LRU replacement incur?",
+      "options": [
+        "FIFO 10, LRU 8",
+        "FIFO 10, LRU 10",
+        "FIFO 9, LRU 8",
+        "FIFO 8, LRU 10"
+      ],
+      "answer": 0,
+      "explanation": "FIFO: 1, 2, 3, 4 fault (4); 1, 2 hit; 5 replaces 1, 1 replaces 2, 2 replaces 3, 3 replaces 4, 4 replaces 5, 5 replaces 1: 6 more, total 10. LRU: 4 cold faults; 1, 2 hit; 5 replaces 3; 1, 2 hit; 3 replaces 4; 4 replaces 5; 5 replaces 1: total 8. With 3 frames FIFO faults only 9 times, which is Belady's anomaly.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.replacement",
+      "origin": "source",
+      "sourceLabel": "PYQ-3 (GATE 2017) — Replacement",
+      "pages": [
+        282
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-stall-cpi",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A processor has CPI 1.0 with a perfect cache. Every instruction is fetched from memory, and 30% of instructions also make one data access. The miss rate is 2% for all accesses and the miss penalty is 100 cycles. What is the effective CPI?",
+      "answer": 3.6,
+      "tolerance": 0.01,
+      "explanation": "Memory accesses per instruction = 1 fetch + 0.3 data = 1.3. Stall cycles per instruction = 1.3 × 0.02 × 100 = 2.6. Effective CPI = 1.0 + 2.6 = 3.6. Forgetting the instruction fetches gives 1.6.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.cache-performance",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-column-major-misses",
+      "type": "nat",
+      "marks": 2,
+      "stem": "int is 4 bytes and int A[64][64] is stored row-major starting at address 0. A 4 KB direct-mapped cache with 16-byte blocks starts empty. The program reads A[i][j] in the order for (j = 0; j < 64; j++) for (i = 0; i < 64; i++). How many cache misses occur?",
+      "answer": 4096,
+      "explanation": "A[i][j] is at 256i + 4j, in block 16i + ⌊j/4⌋, which maps to line (16i + ⌊j/4⌋) mod 256. Rows i and i + 16 share a line, so the 64 elements of one column fall into only 16 lines, 4 rows per line. By the time the inner loop finishes, each line holds the block of the last of its 4 rows, so the next column (which needs the blocks of the earlier rows) misses again. Every one of the 4096 reads misses. Row-wise order would give 4096 ÷ 4 = 1024 misses, and so would this column order with a 16 KB cache.",
+      "difficulty": "hard",
+      "topic": "coa-memory-hierarchy.miss-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-chip-count",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A 16K × 8 memory is built from 1K × 4 RAM chips. How many chips are needed, and what decoder selects among the rows of chips?",
+      "options": [
+        "32 chips, 4-to-16 decoder",
+        "16 chips, 4-to-16 decoder",
+        "32 chips, 5-to-32 decoder",
+        "64 chips, 4-to-16 decoder"
+      ],
+      "answer": 0,
+      "explanation": "Two 4-bit chips side by side make an 8-bit word, and 16K ÷ 1K = 16 rows give the depth: 16 × 2 = 32 chips. Of the 14 address bits, 10 go to every chip and the top 4 drive a 4-to-16 decoder whose outputs are the row chip-selects. A 5-to-32 decoder would wrongly treat each chip as its own row.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-interleave-module",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "An 8K-word memory is made of 8 modules of 1K words each. Which module holds word address 1234 (decimal) under low-order interleaving and under high-order interleaving?",
+      "options": [
+        "Low-order: module 2; high-order: module 1",
+        "Low-order: module 1; high-order: module 2",
+        "Low-order: module 2; high-order: module 2",
+        "Low-order: module 4; high-order: module 1"
+      ],
+      "answer": 0,
+      "explanation": "Low-order interleaving uses the 3 low address bits: 1234 mod 8 = 2. High-order interleaving uses the 3 high bits, i.e. which 1K block the address falls in: ⌊1234 ÷ 1024⌋ = 1.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.memory-interleaving",
+      "origin": "curated",
+      "pages": [
+        20
+      ]
+    },
+    {
+      "id": "coa-memory-hierarchy.q-interleaved-fetch",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A cache line holds 8 words. Main memory takes 1 cycle to receive an address, 20 cycles for a bank access and 1 cycle to transfer one word over a one-word bus. The memory has 8 banks with low-order interleaving, all accessed in parallel after the address is broadcast. How many cycles does one line fill take?",
+      "answer": 29,
+      "explanation": "The address is sent once (1 cycle), all 8 banks access their word in parallel (20 cycles), then the 8 words cross the bus one at a time (8 cycles): 1 + 20 + 8 = 29. From a single bank each word pays its own access: 1 + 8 × (20 + 1) = 169 cycles, so interleaving speeds the fill up by about 5.8. High-order interleaving would put all 8 consecutive words in one bank and also give 169.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.memory-interleaving",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-decoder-address-range",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A CPU has a 16-bit byte address bus. Four 2K × 8 RAM chips share A10–A0. A 2-to-4 decoder takes A12 (high input) and A11, and it is enabled only when A15 = A14 = A13 = 0; output r drives the chip select of chip r. Which statements are correct?",
+      "options": [
+        "Chip 3 responds to addresses 1800H to 1FFFH.",
+        "The four chips together occupy 0000H to 1FFFH.",
+        "Address 2800H selects chip 1.",
+        "If A15–A13 were left out of the enable logic, every byte of chip 0 would answer at 8 different addresses."
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Each chip covers 2K = 800H bytes, and A12 A11 = r selects chip r, so chip r spans r × 800H to r × 800H + 7FFH: chip 3 is 1800H–1FFFH and the four chips fill 0000H–1FFFH. 2800H is 0010 1000 0000 0000 in binary: A13 = 1 disables the decoder, so no chip answers; reading only A12 A11 = 01 gives the wrong choice of chip 1. Ignoring the 3 bits A15–A13 is partial decoding: each byte answers for all 2³ = 8 values of those bits.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.memory-interfacing",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-write-through-mix",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A write-through, no-write-allocate cache has a 10 ns access time and main memory a 100 ns access time; there is no write buffer. 80% of references are reads and 20% writes. Reads hit with ratio 0.9, and a read miss is served hierarchically (cache probed first, then memory). Every write updates main memory. What is the average access time in ns?",
+      "answer": 36,
+      "tolerance": 0.01,
+      "explanation": "Read time = 10 + 0.1 × 100 = 20 ns. Each write costs a memory write, 100 ns, hit or miss. Average = 0.8 × 20 + 0.2 × 100 = 16 + 20 = 36 ns. Charging writes only the cache time gives 18; treating reads as simultaneous gives 0.8 × (9 + 10) + 20 = 35.2.",
+      "difficulty": "medium",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-required-hit-ratio",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A cache with a 5 ns access time and a main memory with an 80 ns access time are probed simultaneously, and a reference takes whichever answers. What hit ratio gives an average access time of 12.5 ns?",
+      "answer": 0.9,
+      "tolerance": 0.001,
+      "explanation": "Simultaneous access: 5h + 80(1 − h) = 12.5, so 80 − 75h = 12.5 and h = 67.5 ÷ 75 = 0.9. Under hierarchical access the equation would be 5 + 80(1 − h) = 12.5, giving h = 0.90625.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-line-fill-time",
+      "type": "nat",
+      "marks": 1,
+      "stem": "A cache has 64-byte lines. Main memory has a 32 ns latency and a peak bandwidth of 1 GB/s (take 1 GB = 10⁹ bytes). How long, in ns, does it take to fetch one line from memory?",
+      "answer": 96,
+      "explanation": "1 GB/s moves 10⁹ bytes in 10⁹ ns, one byte per ns, so the 64 bytes stream in 64 ns after the 32 ns latency: 32 + 64 = 96 ns. Paying the latency per byte, or forgetting it, are the usual slips.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "coa-memory-hierarchy.q-cost-per-bit",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A two-level memory has an 8 MB fast level costing 4 units per byte and a 56 MB slow level costing 1 unit per byte. What is the average cost per byte of the whole memory?",
+      "options": [
+        "1.375",
+        "2.5",
+        "3.625",
+        "1.0"
+      ],
+      "answer": 0,
+      "explanation": "Average cost = total cost ÷ total capacity = (8 × 4 + 56 × 1) ÷ 64 = 88 ÷ 64 = 1.375. 2.5 is the plain mean of the two prices; 3.625 swaps the capacities; 1.0 ignores the fast level.",
+      "difficulty": "easy",
+      "topic": "coa-memory-hierarchy.performance-extensions",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The index counts sets, not lines: a 1024-line 4-way cache has 256 sets and an 8-bit index.",
+      "origin": "source",
+      "pages": [
+        282,
+        283
+      ]
+    },
+    {
+      "text": "AMAT weights the miss penalty by the miss rate; hit time + miss penalty is the cost of one miss, not the average.",
+      "origin": "source",
+      "pages": [
+        282
+      ]
+    },
+    {
+      "text": "Hierarchical and simultaneous access give different answers on the same data (6.0 ns vs 5.4 ns in the two-level example); check which one the question describes.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "A global L2 miss rate must be divided by the L1 miss rate before it goes into t₁ + m₁(t₂ + m₂·t_mem).",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Pair write policies correctly: write-back goes with write-allocate, write-through with no-write-allocate, and only write-back needs a dirty bit.",
+      "origin": "source",
+      "pages": [
+        282,
+        283
+      ]
+    },
+    {
+      "text": "A TLB miss is not a page fault: the page may be in memory and only the page-table walk is needed.",
+      "origin": "source",
+      "pages": [
+        283
+      ]
+    },
+    {
+      "text": "Divide a byte address by the block size before taking it mod the number of sets; mapping raw addresses to lines is only right for 1-byte blocks.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "In a write-through cache without a write buffer every write costs a memory access, even on a hit: with 20% writes and t_m = 100 ns, writes alone add 20 ns to the average.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Address split",
+      "lines": [
+        "offset = log₂ B",
+        "sets = lines ÷ k; index = log₂ sets (0 if fully associative)",
+        "tag = address bits − index − offset",
+        "tag directory = lines × (tag + valid + dirty + LRU bits)"
+      ],
+      "origin": "source",
+      "pages": [
+        283
+      ]
+    },
+    {
+      "heading": "Access time",
+      "lines": [
+        "AMAT = hit time + miss rate × miss penalty",
+        "Hierarchical: t_c + (1 − h)t_m; simultaneous: h·t_c + (1 − h)t_m",
+        "Two levels: t₁ + m₁(t₂ + m₂·t_mem), m₂ local",
+        "Global L2 miss rate = m₁ × m₂",
+        "CPI = base + accesses/instr × miss rate × penalty",
+        "Write-through mix: f_r(t_c + (1 − h)t_m) + f_w·t_m",
+        "Line fill = latency + line size ÷ bandwidth; cost/bit = Σ cᵢSᵢ ÷ Σ Sᵢ"
+      ],
+      "origin": "source",
+      "pages": [
+        19,
+        276,
+        283
+      ]
+    },
+    {
+      "heading": "Policies and misses",
+      "lines": [
+        "Write-back + write-allocate; write-through + no-write-allocate",
+        "LRU, FIFO (Belady's anomaly), optimal = farthest next use",
+        "3 Cs: compulsory, capacity, conflict (none in fully associative)"
+      ],
+      "origin": "source",
+      "pages": [
+        283
+      ]
+    },
+    {
+      "heading": "Interfacing and VM",
+      "lines": [
+        "M × N from m × n chips: (M/m)(N/n) chips, log₂(M/m)-to-(M/m) decoder",
+        "Partial decoding with u free address bits: 2ᵘ aliases per word",
+        "Low-order bank = a mod m; high-order bank = ⌊a ÷ (W/m)⌋",
+        "TLB: EAT = h(t + m) + (1 − h)(t + 2m)"
+      ],
+      "origin": "curated",
+      "pages": [
+        20,
+        283
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 280,
+      "claim": "Q3: a 32-bit address with a 4-byte offset and an 8-bit index has a 20-bit tag.",
+      "correction": "The 20-bit tag needs a 4-bit offset (16-byte blocks). A 4-byte block would give a 2-bit offset and a 22-bit tag."
+    },
+    {
+      "page": 282,
+      "claim": "PYQ-3: with 4 frames on 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5, LRU incurs 10 faults (FIFO also 10).",
+      "correction": "FIFO incurs 10 faults but LRU incurs 8: after the 4 cold faults, LRU faults only on 5, 3, 4 and 5."
+    },
+    {
+      "page": 282,
+      "claim": "PYQ-4: LRU with 4 frames on 1, 2, 3, 4, 2, 1, 5, 6, 2, 1, 2, 3, 7, 6, 3, 2, 1, 2, 3, 6 gives the classic count of 14 faults.",
+      "correction": "LRU with 4 frames gives 10 faults; 14 is the FIFO count for 4 frames."
+    },
+    {
+      "page": 282,
+      "claim": "PYQ-5: addresses 0, 4, 8, 12, 0, 4, 8 on a 4-line direct-mapped cache with 1-byte blocks give 6 misses and 1 hit.",
+      "correction": "All seven addresses map to line 0 and each evicts the previous block, so there are 7 misses and no hits."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "coa-memory-interfacing",
+      "status": "partial",
+      "topics": [
+        "coa-memory-hierarchy.memory-interfacing",
+        "coa-memory-hierarchy.memory-interleaving"
+      ]
+    },
+    {
+      "item": "coa-memory-performance",
+      "status": "partial",
+      "topics": [
+        "coa-memory-hierarchy.hierarchy-locality",
+        "coa-memory-hierarchy.emat",
+        "coa-memory-hierarchy.multilevel-cache",
+        "coa-memory-hierarchy.three-cs",
+        "coa-memory-hierarchy.cache-performance",
+        "coa-memory-hierarchy.performance-extensions",
+        "coa-memory-hierarchy.miss-counting"
+      ]
+    },
+    {
+      "item": "coa-cache-mapping",
+      "status": "covered",
+      "topics": [
+        "coa-memory-hierarchy.address-split",
+        "coa-memory-hierarchy.direct-mapped",
+        "coa-memory-hierarchy.set-associative",
+        "coa-memory-hierarchy.tag-directory",
+        "coa-memory-hierarchy.replacement",
+        "coa-memory-hierarchy.write-policies"
+      ]
+    }
+  ]
+}

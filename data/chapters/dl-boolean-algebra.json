@@ -1,0 +1,2539 @@
+{
+  "id": "dl-boolean-algebra",
+  "summary": "Boolean algebra is the two-valued algebra of AND, OR and NOT, and minimization finds the cheapest two-level circuit for a function. GATE tests it three ways: simplify an expression with identities (absorption, consensus, De Morgan), minimize with a K-map or the Quine-McCluskey table and count prime or essential prime implicants, and count functions of a given kind or the gates a NAND/NOR realization needs. Every answer can be checked against a truth table, so check it.",
+  "highYield": [
+    "Minimal SOP or POS of a 4-variable function with don't-cares from a K-map, often with two equally minimal answers of which only one is offered.",
+    "Number of prime implicants versus essential prime implicants of a given Σm list: a cyclic function such as Σm(0, 1, 2, 5, 6, 7) has 6 PIs and no EPI.",
+    "Counting functions: 2^(2ⁿ) in all, 2^(2ⁿ − k) with k rows fixed, 2^(2^(n−1)) self-dual, C(2ⁿ, 2^(n−1)) neutral, 2^(n+1) symmetric.",
+    "Algebraic simplification with consensus and absorption: (A + B)(A' + C) = AC + A'B, and ABC + AB'C + ABC' + A'BC = AB + BC + CA.",
+    "Functional completeness: NAND or NOR alone is complete; {AND, OR}, {XOR, AND} and {XOR, OR} are not, because each misses NOT.",
+    "Minimum 2-input NAND gates: 3 for AB + CD, 3 for OR, 4 for XOR."
+  ],
+  "topics": [
+    {
+      "id": "dl-boolean-algebra.operators",
+      "title": "Boolean variables, operators and gates",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        177,
+        190,
+        191
+      ],
+      "points": [
+        "A Boolean variable takes 0 or 1. AND is 1 only when every input is 1, OR is 0 only when every input is 0, and NOT inverts.",
+        "The derived operators are NAND = (AB)', NOR = (A + B)', XOR A ⊕ B = AB' + A'B (inputs differ) and XNOR A ⊙ B = AB + A'B' (inputs agree).",
+        "Two expressions are equal exactly when they agree on all 2ⁿ rows of the truth table, which is also the fastest way to check a simplification.",
+        "Fan-in is the number of inputs a gate accepts and fan-out the number of gate inputs it drives; the delay of a circuit is the sum of gate delays along its longest path."
+      ],
+      "keyTerms": [
+        "truth table",
+        "NAND",
+        "NOR",
+        "XOR",
+        "XNOR",
+        "fan-in",
+        "fan-out"
+      ],
+      "lesson": {
+        "why": "Every later topic in this chapter assumes you can read a gate or an operator and evaluate it on 0 and 1. Truth tables are also the one check that never fails, so you will use them to confirm simplifications.",
+        "intro": "A Boolean variable holds either 0 or 1. AND gives 1 only when all its inputs are 1. OR gives 0 only when all its inputs are 0. NOT flips its input. Joining these gives NAND (AND then NOT), NOR (OR then NOT), XOR (1 when the two inputs differ) and XNOR (1 when they agree). A truth table lists the output for every input row, and with $n$ inputs there are $2^n$ rows.",
+        "definitions": [
+          {
+            "term": "Truth table",
+            "meaning": "A list of the output of an expression for every combination of input values, one row per combination."
+          },
+          {
+            "term": "Fan-in",
+            "meaning": "The number of inputs a single gate accepts."
+          },
+          {
+            "term": "Fan-out",
+            "meaning": "The number of gate inputs that one gate output drives."
+          }
+        ],
+        "principle": {
+          "text": "Two expressions are equal exactly when they give the same output on every one of the $2^n$ input rows. XOR is the 'inputs differ' operator and XNOR is its complement.",
+          "tex": "A \\oplus B = A\\overline{B} + \\overline{A}B, \\qquad A \\odot B = AB + \\overline{A}\\,\\overline{B}"
+        },
+        "limits": "A truth table check needs $2^n$ rows, so it is practical only for a handful of variables. Fan-in limits what a real gate can take, so a wide AND is built from smaller ones and adds delay along the longest path.",
+        "example": {
+          "problem": "Show that $A \\oplus B = (A + B)\\,\\overline{AB}$ by a truth table.",
+          "steps": [
+            "There are two variables, so list the four rows $AB = 00, 01, 10, 11$.",
+            "For $A \\oplus B$ the outputs are 0, 1, 1, 0, since it is 1 only when the inputs differ.",
+            "For $(A + B)\\overline{AB}$: $A + B$ is 0, 1, 1, 1 and $\\overline{AB}$ is 1, 1, 1, 0. Multiplying row by row gives 0, 1, 1, 0.",
+            "The two output columns match on all four rows."
+          ],
+          "result": "The expressions are equal, because they agree on every row."
+        },
+        "misconceptions": [
+          "Reading XOR as 'one or more inputs are 1'. That is OR; XOR is 0 when both inputs are 1.",
+          "Treating NOR as 'NOT A OR NOT B'. NOR is $\\overline{A+B}$, which is 1 only when both inputs are 0.",
+          "Confusing the number of rows $2^n$ with the number of functions of $n$ variables."
+        ],
+        "recall": [
+          {
+            "q": "When is a two-input XOR equal to 1?",
+            "a": "Exactly when its two inputs differ."
+          },
+          {
+            "q": "When is a NOR gate output 1?",
+            "a": "Only when every input is 0."
+          },
+          {
+            "q": "How many rows does the truth table of a 4-variable expression have?",
+            "a": "$2^4 = 16$ rows."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For three variables, $F = \\overline{AB} \\oplus C$ (the NAND of $A$ and $B$, XORed with $C$). For how many of the 8 input rows is $F = 1$?",
+          "answer": 4,
+          "explanation": "When $AB \\ne 11$ (6 rows) the NAND is 1, so $F = \\overline{C}$, which is 1 on the 3 rows with $C = 0$. When $AB = 11$ (2 rows) the NAND is 0, so $F = C$, which is 1 on the single row $C = 1$. The total is 3 + 1 = 4. Answering 3 forgets the $AB = 11$ rows, and answering 6 counts every row where the NAND alone is 1."
+        },
+        "summary": "Evaluate any expression row by row: AND needs all 1s, OR needs one 1, XOR needs differing inputs. Equal truth tables mean equal expressions."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.postulates-duality",
+      "title": "Huntington postulates and the duality principle",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        178,
+        180,
+        198
+      ],
+      "points": [
+        "The postulates are closure, identity elements (A + 0 = A, A·1 = A), commutativity, distributivity in both directions, complements (A + A' = 1, A·A' = 0) and the existence of two distinct elements.",
+        "Associativity, absorption, idempotence and De Morgan are theorems proved from the postulates, not postulates.",
+        "Unlike ordinary arithmetic, OR distributes over AND: A + BC = (A + B)(A + C).",
+        "The dual of an expression swaps AND with OR and 0 with 1 but leaves every literal alone. The dual of a valid identity is again valid, because each postulate's dual is a postulate.",
+        "Dual of A + BC is A(B + C); its complement is A'(B' + C'). Duality does not complement the variables."
+      ],
+      "keyTerms": [
+        "postulate",
+        "duality",
+        "dual"
+      ],
+      "lesson": {
+        "why": "Questions ask which equations are laws of Boolean algebra and which are not, and duality lets you prove or reject half of them for free.",
+        "intro": "Boolean algebra works on two values, 0 and 1, with three operations: OR (written +), AND (written as a dot or by juxtaposition) and NOT (written with a prime). A postulate is a rule we accept without proof; every other law is a theorem derived from the postulates. Duality says that if you swap every OR with AND and every 0 with 1 in a true equation, the new equation is also true.",
+        "definitions": [
+          {
+            "term": "Postulate",
+            "meaning": "A basic rule accepted without proof, such as $A + 0 = A$ or $A + A' = 1$."
+          },
+          {
+            "term": "Dual",
+            "meaning": "The expression obtained by swapping AND with OR and 0 with 1, leaving every variable and every prime as it is."
+          }
+        ],
+        "principle": {
+          "text": "The postulates come in dual pairs: commutative ($A + B = B + A$, $AB = BA$), identity ($A + 0 = A$, $A\\cdot 1 = A$), distributive ($A(B + C) = AB + AC$, $A + BC = (A + B)(A + C)$) and complement ($A + A' = 1$, $A\\cdot A' = 0$). If an equation holds for all values of its variables, its dual holds too, because the dual of each postulate is itself a postulate. Duality changes the operators and constants only, never the literals.",
+          "tex": "E_1 = E_2 \\;\\Longrightarrow\\; E_1^{d} = E_2^{d}"
+        },
+        "limits": "The dual of an expression is not its complement: the complement also primes every variable, while the dual does not. It applies to equations: $A + 1 = 1$ and $A\\cdot 0 = 0$ are duals of each other, yet $A + 1$ and $A\\cdot 0$ are different expressions.",
+        "example": {
+          "problem": "The law $A + A'B = A + B$ is true. Write its dual and check that the dual is true as well.",
+          "steps": [
+            "Swap OR with AND on the left side: $A + A'B$ becomes $A\\cdot(A' + B)$.",
+            "Swap OR with AND on the right side: $A + B$ becomes $A \\cdot B$. The dual law is $A(A' + B) = AB$.",
+            "Check all four rows of $(A, B)$. Both sides are 0 for $00$, $01$ and $10$, and both are 1 for $11$."
+          ],
+          "result": "The dual law $A(A' + B) = AB$ holds on all four input rows."
+        },
+        "misconceptions": [
+          "Duality does not prime the variables. The dual of $A + BC$ is $A(B + C)$, not $A'(B' + C')$; priming everything gives the complement.",
+          "Dualising one side of an equation only: the dual must be taken of both sides, otherwise the two sides no longer match."
+        ],
+        "recall": [
+          {
+            "q": "What does taking the dual of an expression change?",
+            "a": "It swaps AND with OR and 0 with 1. Variables and primes stay exactly where they are."
+          },
+          {
+            "q": "Why is the dual of a true Boolean equation also true?",
+            "a": "The dual of every postulate is again a postulate, so any proof of the original can be rewritten step by step as a proof of the dual."
+          },
+          {
+            "q": "Is $A \\cdot A' = 1$ a law of Boolean algebra?",
+            "a": "No. The complement postulate gives $A \\cdot A' = 0$, and its dual is $A + A' = 1$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "What is the dual of the expression $(a + b')\\cdot 1$?",
+          "options": [
+            "$ab' + 0$",
+            "$a'b + 0$",
+            "$ab' + 1$",
+            "$(a' + b)\\cdot 0$"
+          ],
+          "answer": 0,
+          "explanation": "Swap the AND for an OR, the OR for an AND and the 1 for a 0, keeping $a$ and $b'$ untouched: $ab' + 0$. The second option primes the variables, which is the complement. The third forgets to turn the constant 1 into 0. The last primes the variables and swaps only the constant."
+        },
+        "summary": "The dual swaps AND with OR and 0 with 1 and leaves literals alone; a true equation stays true when dualised, and the dual is not the complement."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.identities",
+      "title": "Standard identities",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        178,
+        179,
+        207
+      ],
+      "points": [
+        "Identity and domination: A + 0 = A, A·1 = A, A + 1 = 1, A·0 = 0. Idempotence: A + A = A, A·A = A. Involution: (A')' = A.",
+        "Absorption: A + AB = A and A(A + B) = A, since A alone already decides the result.",
+        "Adjacency (the K-map merge rule): AB + AB' = A and (A + B)(A + B') = A.",
+        "Redundant literal: A + A'B = A + B, A(A' + B) = AB, AB' + B = A + B and (A + B')B = AB.",
+        "Consensus: AB + A'C + BC = AB + A'C, and dually (A + B)(A' + C)(B + C) = (A + B)(A' + C)."
+      ],
+      "keyTerms": [
+        "absorption",
+        "adjacency",
+        "consensus",
+        "idempotence"
+      ],
+      "lesson": {
+        "why": "Questions that ask which of four equations is wrong, or what an expression reduces to, are settled by a handful of identities. The same identities are what a K-map group and a Quine-McCluskey merge do mechanically.",
+        "intro": "An identity is an equation that holds for every value of its variables. Identity and domination give $A + 0 = A$, $A \\cdot 1 = A$, $A + 1 = 1$ and $A \\cdot 0 = 0$. Idempotence says $A + A = A$. Absorption says $A + AB = A$, because $A$ alone already decides the result. Adjacency says $AB + A\\overline{B} = A$, since $B$ takes both values and drops out. Redundant literal says $A + \\overline{A}B = A + B$.",
+        "definitions": [
+          {
+            "term": "Absorption",
+            "meaning": "A term that contains another term is redundant: $A + AB = A$ and $A(A + B) = A$."
+          },
+          {
+            "term": "Adjacency",
+            "meaning": "Two terms equal except for one complemented variable merge into the common part: $AB + A\\overline{B} = A$."
+          },
+          {
+            "term": "Consensus",
+            "meaning": "The term $BC$ is redundant in $AB + \\overline{A}C + BC$, so it can be dropped."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.operators"
+        ],
+        "principle": {
+          "text": "Every identity has a dual, found by swapping AND with OR and 0 with 1. So each AND form above has an OR form, such as $(A + B)(A + \\overline{B}) = A$.",
+          "tex": "AB + A\\overline{B} = A, \\qquad (A + B)(A + \\overline{B}) = A"
+        },
+        "limits": "Absorption needs the whole shorter term to appear inside the longer one: $A + \\overline{A}B$ is not absorbed. Adjacency needs the other literals to match exactly, so $ABC + A\\overline{B}D$ does not merge.",
+        "example": {
+          "problem": "Simplify $F = A'B + AB' + AB$ using identities.",
+          "steps": [
+            "Group the last two terms: $AB' + AB = A(B' + B) = A$ by adjacency.",
+            "Now $F = A'B + A$.",
+            "Apply the redundant-literal rule $A + A'B = A + B$ to get $F = A + B$.",
+            "Check the row $A = B = 0$: the original is 0 and $A + B$ is 0. On every other row both are 1."
+          ],
+          "result": "$F = A + B$."
+        },
+        "misconceptions": [
+          "Writing $A + A'B = A$. The $A'B$ term is not absorbed; only $B$ survives, giving $A + B$.",
+          "Merging $AB + A'C$ into $B + C$. Adjacency needs the two terms to differ in a single literal and match everywhere else.",
+          "Using $A + A = 2A$ from arithmetic. In Boolean algebra $A + A = A$."
+        ],
+        "recall": [
+          {
+            "q": "What does absorption say?",
+            "a": "$A + AB = A$: a term containing another term adds nothing."
+          },
+          {
+            "q": "Rewrite $A + A'B$ with one fewer literal.",
+            "a": "$A + B$."
+          },
+          {
+            "q": "What does adjacency do to $XY + XY'$?",
+            "a": "It merges them into $X$, because $Y$ appears both plain and complemented."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which expression equals $\\overline{A}B + A\\overline{B} + AB$?",
+          "options": [
+            "$A + B$",
+            "$A \\oplus B$",
+            "$AB$",
+            "$\\overline{AB}$"
+          ],
+          "answer": 0,
+          "explanation": "Merge $A\\overline{B} + AB = A$, so the function is $A + \\overline{A}B = A + B$. It is 0 only when $A = B = 0$. $A \\oplus B$ tempts because two of the three terms form an XOR, but the extra $AB$ term makes the output 1 when both inputs are 1, which XOR does not."
+        },
+        "summary": "Merge terms that differ in one literal, absorb terms that contain another, and drop literals that are already implied. Confirm the result row by row."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.algebraic-simplification",
+      "title": "Algebraic minimization technique",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        179,
+        195,
+        199,
+        202,
+        204
+      ],
+      "points": [
+        "Work in this order: combine adjacent terms (XY + XY' = X), absorb (X + XY = X), drop redundant literals (X + X'Y = X + Y), then delete consensus terms.",
+        "A + AB + A'C + BC: absorption gives A + A'C + BC, then A + C + BC, then A + C.",
+        "(A + B)(A' + C) multiplies out to AC + A'B + BC, and BC is the consensus of AC and A'B, so the result is AC + A'B.",
+        "ABC + AB'C + ABC' + A'BC is the 3-input majority AB + BC + CA. Dropping BC is wrong: the minterm A'BC is covered only by BC.",
+        "A consensus term can be removed only when both parent terms are present. To verify any result, compare minterm lists."
+      ],
+      "keyTerms": [
+        "consensus term",
+        "redundant literal",
+        "majority function"
+      ],
+      "lesson": {
+        "why": "Several GATE questions ask which of four equations is wrong or what an expression reduces to, and a short chain of identities answers them faster than a truth table.",
+        "intro": "Simplifying an expression means finding an equal one with fewer terms or fewer literals, where a literal is one appearance of a variable. You rewrite using a small set of laws that are always true. Merge two terms that differ in one variable: $XY + XY' = X$. Absorb a term that contains another: $X + XY = X$. Remove a variable that is already implied: $X + X'Y = X + Y$. Each step keeps the function the same.",
+        "definitions": [
+          {
+            "term": "Consensus term",
+            "meaning": "For the terms $XY$ and $X'Z$, the term $YZ$; it is redundant whenever both parent terms are present."
+          },
+          {
+            "term": "Literal",
+            "meaning": "One occurrence of a variable, primed or not, inside a term."
+          }
+        ],
+        "principle": {
+          "text": "The consensus theorem says the term built from the other variables of two terms that clash on one variable adds nothing. Whenever $Y = Z = 1$, either $X$ or $X'$ is 1, so one parent term is already 1.",
+          "tex": "XY + X'Z + YZ = XY + X'Z"
+        },
+        "limits": "The consensus term can be deleted only while both parents remain, and deleting a term that looks redundant but is not (such as $BC$ in the majority function) changes the function. When unsure, list the minterms of both sides and compare.",
+        "example": {
+          "problem": "Simplify $F = AB + A'C + BCD$.",
+          "steps": [
+            "The terms $AB$ and $A'C$ clash on $A$, so their consensus is $BC$.",
+            "$BCD$ contains $BC$, and $BC$ is already implied by $AB + A'C$, so $BCD$ adds nothing.",
+            "Delete $BCD$. Check on all 16 rows: $AB + A'C$ and $F$ are 1 on the same inputs."
+          ],
+          "result": "$F = AB + A'C$."
+        },
+        "misconceptions": [
+          "Applying $X + X'Y = X + Y$ to the wrong pair: it needs the same variable $X$ plain in one term and primed in the other, with the rest of the second term kept.",
+          "Deleting a consensus term while one of its parents has already been changed or removed; the theorem needs both parents present."
+        ],
+        "recall": [
+          {
+            "q": "What does absorption say?",
+            "a": "$X + XY = X$: a term that contains another term is redundant and can be deleted."
+          },
+          {
+            "q": "State the consensus theorem.",
+            "a": "$XY + X'Z + YZ = XY + X'Z$: the term $YZ$ is redundant when both $XY$ and $X'Z$ are present."
+          },
+          {
+            "q": "How can you check a simplification quickly?",
+            "a": "List the minterms of the original and of the result, or test every input row; the two sets must be identical."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Simplify $F = A + A'B + A'B'C$ to its minimal sum of products. How many literals does the result have?",
+          "answer": 3,
+          "explanation": "$A + A'B = A + B$, so $F = A + B + A'B'C$. Then $B + B'(A'C) = B + A'C$, giving $A + B + A'C$, and $A + A'C = A + C$ gives $A + B + C$. The function is 0 only at $A = B = C = 0$, which this expression also gives, so it has 3 literals. Counting the original 6 literals, or stopping at $A + B + A'B'C$ with 5, are the tempting wrong totals."
+        },
+        "summary": "Combine, absorb, drop implied literals and remove consensus terms in that order, and confirm the result by comparing minterm lists."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.de-morgan-complement",
+      "title": "De Morgan's laws and complementing expressions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        179,
+        199,
+        200,
+        204
+      ],
+      "points": [
+        "(AB)' = A' + B' and (A + B)' = A'B'. Both generalise to n variables: (x₁x₂…xₙ)' = x₁' + x₂' + … + xₙ'.",
+        "To complement an expression, swap AND with OR and complement every literal; equivalently take the dual and then complement each literal.",
+        "(X + Y)(Y + Z) complemented is X'Y' + Y'Z' = Y'(X' + Z'). The product (X' + Y')(Y' + Z') is a common wrong answer: it complements literals without swapping the operators.",
+        "On minterm lists, F' is the sum of exactly the minterms missing from F."
+      ],
+      "keyTerms": [
+        "De Morgan",
+        "complement of a function"
+      ],
+      "lesson": {
+        "why": "Complementing an expression correctly is the heart of several equivalence questions, and the most common wrong option is built from the classic slip of priming literals without swapping operators.",
+        "intro": "The complement of a function is 1 exactly where the function is 0. De Morgan's laws compute it without a truth table: the complement of an AND is the OR of the complements, and the complement of an OR is the AND of the complements. For a longer expression, apply the laws from the outside in, one operator at a time.",
+        "definitions": [
+          {
+            "term": "Complement",
+            "meaning": "The function that is 1 on exactly the inputs where the original is 0."
+          }
+        ],
+        "principle": {
+          "text": "To complement an expression, swap every AND with OR and every OR with AND, and prime every literal, removing a double prime where one appears.",
+          "tex": "(AB)' = A' + B', \\qquad (A + B)' = A'B'"
+        },
+        "limits": "The laws change the operators and the literals together; doing only one of the two gives a different function. They also complement the whole expression only, so you cannot apply them to one side of an equation and leave the other.",
+        "example": {
+          "problem": "Find the complement of $F = A(B' + C)$.",
+          "steps": [
+            "The outer operator is AND, so the complement is the OR of $A'$ and $(B' + C)'$.",
+            "Complement the inner OR: $(B' + C)' = B''C' = BC'$.",
+            "Combine: $F' = A' + BC'$. Check: $F$ is 1 on rows 100, 101 and 111, so $F'$ must be 1 on the other five rows, and $A' + BC'$ is 1 on 000, 001, 010, 011 and 110."
+          ],
+          "result": "$F' = A' + BC'$."
+        },
+        "misconceptions": [
+          "Priming every literal and keeping the operators gives a wrong answer: the complement of $(X + Y)(Y + Z)$ is not $(X' + Y')(Y' + Z')$.",
+          "Swapping the operators but forgetting to prime the literals gives the dual instead of the complement."
+        ],
+        "recall": [
+          {
+            "q": "State both De Morgan laws.",
+            "a": "$(AB)' = A' + B'$ and $(A + B)' = A'B'$; both extend to any number of variables."
+          },
+          {
+            "q": "Why is the complement not obtained by priming literals alone?",
+            "a": "The AND and OR must swap as well; priming alone leaves the structure unchanged and describes a different function."
+          },
+          {
+            "q": "Which minterms does $F'$ contain?",
+            "a": "Exactly the minterms that are missing from $F$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which expression equals the complement of $G = X'Y + Z$?",
+          "options": [
+            "$(X + Y')Z'$",
+            "$XY' + Z'$",
+            "$(X' + Y)Z'$",
+            "$X'YZ'$"
+          ],
+          "answer": 0,
+          "explanation": "$G$ is an OR of $X'Y$ and $Z$, so $G'$ is the AND of $(X'Y)'$ and $Z'$. Since $(X'Y)' = X + Y'$, the result is $(X + Y')Z'$. The second option primes literals but keeps the operators, the third swaps the operators of $X'Y$ but does not prime its literals, and the last keeps the term $X'Y$ uncomplemented and only complements $Z$."
+        },
+        "summary": "Swap AND with OR and prime every literal to complement an expression; doing only half of that is the usual wrong answer."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.function-counting",
+      "title": "Counting Boolean functions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        180,
+        193,
+        194,
+        201,
+        203,
+        204
+      ],
+      "points": [
+        "An n-variable function assigns 0 or 1 to each of the 2ⁿ rows independently, so there are 2^(2ⁿ) of them: 4, 16, 256 and 65536 for n = 1 to 4.",
+        "Fixing the output on k rows leaves 2^(2ⁿ − k) functions; for 3 variables with f(000) = 1 that is 2⁷ = 128.",
+        "A neutral function has as many 0s as 1s, so there are C(2ⁿ, 2^(n−1)) of them: 6 for n = 2 and 70 for n = 3.",
+        "The truth table has 2ⁿ rows and there are 2ⁿ minterms and 2ⁿ maxterms; do not confuse 2ⁿ rows with 2^(2ⁿ) functions."
+      ],
+      "keyTerms": [
+        "neutral function",
+        "2^(2^n)"
+      ],
+      "lesson": {
+        "why": "Counting questions ask for the number of Boolean functions with some property, and the answer is a power of two or a binomial coefficient. They are quick marks once you know what is free to choose.",
+        "intro": "A Boolean function of $n$ variables is fixed by its truth table. The table has $2^n$ rows, and each row's output can be 0 or 1 independently. So there are $2^{2^n}$ different functions. For $n = 2$ that is 16, and for $n = 3$ it is 256. If some rows are forced to a given output, only the remaining rows are free, and each free row doubles the count.",
+        "definitions": [
+          {
+            "term": "Neutral function",
+            "meaning": "A function with as many rows giving 1 as rows giving 0, so exactly $2^{n-1}$ ones."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.operators"
+        ],
+        "principle": {
+          "text": "Choose one output per free row. With $2^n$ rows and $k$ of them fixed there are $2^{2^n - k}$ functions. When the number of ones is fixed at $r$, choose which rows hold them.",
+          "tex": "N = 2^{2^{n}}, \\qquad N_{k\\ \\text{fixed}} = 2^{2^{n}-k}, \\qquad N_{r\\ \\text{ones}} = \\binom{2^{n}}{r}"
+        },
+        "limits": "The count $2^{2^n}$ applies to all functions. Conditions that couple rows, such as self-dual (a row and its complement row are linked), leave fewer free choices, so the exponent is not simply $2^n - k$.",
+        "example": {
+          "problem": "How many 3-variable Boolean functions have $f(000) = 1$ and $f(111) = 0$?",
+          "steps": [
+            "Three variables give $2^3 = 8$ rows.",
+            "Two rows, 000 and 111, are fixed, so $k = 2$.",
+            "The other $8 - 2 = 6$ rows are free, each with 2 choices.",
+            "Total functions: $2^6 = 64$."
+          ],
+          "result": "64 functions."
+        },
+        "misconceptions": [
+          "Answering $2^n$ for the number of functions. That is the number of rows; the number of functions is $2^{2^n}$.",
+          "Counting fixed rows as extra choices. A fixed row contributes a factor of 1, not 2.",
+          "Using $2^{r}$ instead of a binomial coefficient when the number of ones is fixed."
+        ],
+        "recall": [
+          {
+            "q": "How many Boolean functions of 2 variables exist?",
+            "a": "$2^{2^2} = 16$."
+          },
+          {
+            "q": "How many functions of $n$ variables have $k$ rows fixed?",
+            "a": "$2^{2^n - k}$, since only the remaining rows are free."
+          },
+          {
+            "q": "How many 3-variable neutral functions are there?",
+            "a": "$\\binom{8}{4} = 70$: choose which 4 of the 8 rows output 1."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many 3-variable Boolean functions output 1 on exactly two of the eight input rows?",
+          "answer": 28,
+          "explanation": "Choose which 2 of the 8 rows hold the 1s; every other row is 0. That gives $\\binom{8}{2} = 28$. Writing 256 counts all functions, and writing $2^2 = 4$ treats the choice of rows as if it were a choice of outputs."
+        },
+        "summary": "The number of functions is $2^{2^n}$, each fixed row removes one free choice, and a fixed count of ones is a binomial coefficient over the $2^n$ rows."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.canonical-forms",
+      "title": "SOP, POS, minterms and maxterms",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        181,
+        182,
+        183,
+        195,
+        196
+      ],
+      "points": [
+        "SOP is an OR of product terms and POS an AND of sum terms; both are two-level circuits with one gate delay per level.",
+        "A minterm mᵢ is the product of all n literals that is 1 only on row i (for A, B, C: m₅ = AB'C). A maxterm Mᵢ is the sum of all n literals that is 0 only on row i (M₅ = A' + B + C').",
+        "Canonical SOP lists the rows where F = 1, F = Σm(…); canonical POS lists the rows where F = 0, F = ΠM(…). The two index sets partition {0, …, 2ⁿ − 1}.",
+        "Example: F = 1 on rows 0, 2, 4, 5, 7 gives F = Σm(0, 2, 4, 5, 7) = ΠM(1, 3, 6), and F' = Σm(1, 3, 6).",
+        "To expand AB + C to Σm, list every row satisfying either term: Σm(1, 3, 5, 6, 7). Fewer 1s than 0s usually favours SOP; fewer 0s favours POS."
+      ],
+      "keyTerms": [
+        "minterm",
+        "maxterm",
+        "canonical SOP",
+        "canonical POS",
+        "two-level logic"
+      ],
+      "lesson": {
+        "why": "Circuit and minterm-list questions need you to move between an expression, its minterms and its maxterms without losing a row.",
+        "intro": "A function of $n$ variables has $2^n$ input rows, numbered by reading the inputs as a binary number with the first variable as the high bit. A minterm is a product of all $n$ variables that is 1 on exactly one row. The canonical sum of products lists the rows where the function is 1. A maxterm is a sum of all $n$ variables that is 0 on exactly one row, and the canonical product of sums lists the rows where the function is 0.",
+        "definitions": [
+          {
+            "term": "Minterm",
+            "meaning": "A product containing every variable once, true on exactly one input row; $m_i$ is the one for row $i$."
+          },
+          {
+            "term": "Maxterm",
+            "meaning": "A sum containing every variable once, false on exactly one input row; $M_i$ is the one for row $i$."
+          }
+        ],
+        "principle": {
+          "text": "The rows where the function is 1 form the minterm list, the rows where it is 0 form the maxterm list, and together the two lists use every row from 0 to $2^n - 1$ exactly once.",
+          "tex": "F = \\sum m(S) = \\prod M(\\{0, \\dots, 2^n - 1\\} \\setminus S)"
+        },
+        "limits": "Row numbers depend on the variable order, so a list means nothing until the high bit is named. A maxterm index is the row where the term is 0, so its literals are primed for the 1 bits of the row, the opposite of a minterm.",
+        "example": {
+          "problem": "Write $F(A,B,C) = A'B + AC$ as a sum of minterms and as a product of maxterms.",
+          "steps": [
+            "$A'B$ is 1 on rows $010$ and $011$, which are 2 and 3.",
+            "$AC$ is 1 on rows $101$ and $111$, which are 5 and 7.",
+            "The function is 1 on $\\{2, 3, 5, 7\\}$. The remaining rows 0, 1, 4 and 6 are the zeros."
+          ],
+          "result": "$F = \\sum m(2, 3, 5, 7) = \\prod M(0, 1, 4, 6)$."
+        },
+        "misconceptions": [
+          "Listing the zero rows as minterms: the minterm list always names the rows where the function is 1.",
+          "Reading the row number with the wrong variable as the high bit, which shifts every index."
+        ],
+        "recall": [
+          {
+            "q": "How do you get the maxterm list from the minterm list?",
+            "a": "Take every row number from 0 to $2^n - 1$ that is not in the minterm list."
+          },
+          {
+            "q": "How many rows does a function of 4 variables have?",
+            "a": "Sixteen, numbered 0 to 15."
+          },
+          {
+            "q": "How does a gate combine two minterm lists as sets?",
+            "a": "AND gives the rows common to both, OR gives the union, and XOR gives the rows in exactly one of the two."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "$F(A,B,C) = A'B' + C$. How many maxterms appear in its canonical product of sums?",
+          "answer": 3,
+          "explanation": "$A'B'$ is 1 on rows 0 and 1, and $C$ is 1 on rows 1, 3, 5 and 7, so $F$ is 1 on rows $\\{0, 1, 3, 5, 7\\}$. The maxterms are the other three rows, 2, 4 and 6. Answering 5 counts the minterms instead of the zeros."
+        },
+        "summary": "Minterms list the rows where $F$ is 1 and maxterms list the rows where it is 0; the two lists split the $2^n$ rows between them."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.kmap-layout",
+      "title": "K-map layout for 2 to 5 variables",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        183,
+        184,
+        199
+      ],
+      "points": [
+        "Rows and columns follow Gray code (00, 01, 11, 10), so neighbouring cells differ in exactly one variable.",
+        "4-variable map with rows AB and columns CD: row 00 holds m0 m1 m3 m2, row 01 holds m4 m5 m7 m6, row 11 holds m12 m13 m15 m14, row 10 holds m8 m9 m11 m10.",
+        "The map wraps like a torus: the left edge touches the right edge and the top touches the bottom, so the four corners m0, m2, m8, m10 form one group.",
+        "A 5-variable map is two 4-variable maps, one for each value of the fifth variable; cells in the same position on the two halves are adjacent."
+      ],
+      "keyTerms": [
+        "Gray code",
+        "wrap-around",
+        "5-variable map"
+      ],
+      "lesson": {
+        "why": "Every K-map question depends on placing minterms in the right cell and knowing which cells are neighbours. A wrong layout gives a wrong group, so this is where K-map marks are won or lost.",
+        "intro": "A Karnaugh map draws a truth table as a grid so that cells next to each other differ in exactly one variable. For that to hold, the rows and columns are labelled in Gray code, 00, 01, 11, 10, where each label differs from the next in one bit. The cell of minterm $m_i$ sits where its row label and column label together spell the binary number $i$. The map also wraps around: the left edge touches the right edge and the top touches the bottom.",
+        "definitions": [
+          {
+            "term": "Gray code",
+            "meaning": "An ordering of binary labels in which neighbours differ in exactly one bit, such as 00, 01, 11, 10."
+          },
+          {
+            "term": "Wrap-around",
+            "meaning": "The adjacency between opposite edges of the map, so that the four corners form one group."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.identities"
+        ],
+        "principle": {
+          "text": "Two cells are adjacent exactly when their minterm numbers differ in one bit. Adjacent cells merge by $XY + X\\overline{Y} = X$, which removes the variable that changes. In a 5-variable map, two 4-variable maps stacked, same-position cells of the two halves are adjacent.",
+          "tex": "m_i \\sim m_j \\iff i \\oplus j = 2^{t}\\ \\text{for some}\\ t"
+        },
+        "limits": "The layout 00, 01, 11, 10 must be used on both axes; writing 00, 01, 10, 11 breaks adjacency. Adjacency is only between cells that differ in one bit, so diagonal cells are never adjacent.",
+        "example": {
+          "problem": "In a 4-variable map with rows $AB$ and columns $CD$, place $m_{13}$ and list its neighbours.",
+          "steps": [
+            "Write 13 in binary: $1101$, so $A = 1, B = 1, C = 0, D = 1$.",
+            "Row $AB = 11$ is the third row and column $CD = 01$ is the second column, so $m_{13}$ is in that cell.",
+            "Flip each bit in turn: $0101 = m_5$, $1001 = m_9$, $1111 = m_{15}$, $1100 = m_{12}$.",
+            "The four neighbours are $m_{12}$, $m_{15}$, $m_9$ and $m_5$."
+          ],
+          "result": "$m_{13}$ is adjacent to $m_5$, $m_9$, $m_{12}$ and $m_{15}$."
+        },
+        "misconceptions": [
+          "Numbering the cells 0 to 15 left to right in plain binary order; the columns run $m_0, m_1, m_3, m_2$ in the first row.",
+          "Forgetting wrap-around, so the corner cells $m_0, m_2, m_8, m_{10}$ are missed as one group.",
+          "Treating diagonal cells as adjacent."
+        ],
+        "recall": [
+          {
+            "q": "Which label order is used on a K-map axis?",
+            "a": "Gray code: 00, 01, 11, 10, so neighbours differ in one bit."
+          },
+          {
+            "q": "Which four minterms form the corner group of a 4-variable map?",
+            "a": "$m_0$, $m_2$, $m_8$ and $m_{10}$."
+          },
+          {
+            "q": "How many neighbours does each cell of a 4-variable map have?",
+            "a": "Four, one for each variable that can flip."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "In a 4-variable K-map, which of these minterms is NOT adjacent to $m_2$?",
+          "options": [
+            "$m_0$",
+            "$m_6$",
+            "$m_{10}$",
+            "$m_7$"
+          ],
+          "answer": 3,
+          "explanation": "$m_2 = 0010$. Flipping one bit gives $m_3$, $m_0$, $m_6$ and $m_{10}$, so $m_0$, $m_6$ and $m_{10}$ are neighbours. $m_7 = 0111$ differs from $0010$ in two bits. $m_{10}$ tempts as non-adjacent because it lies at the opposite edge, but the map wraps top to bottom."
+        },
+        "summary": "Label axes in Gray code, find a cell by its row and column bits, and call two cells adjacent when their numbers differ in one bit, including across the wrapped edges."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.kmap-grouping",
+      "title": "Grouping and reading a K-map",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        184,
+        185,
+        199,
+        205
+      ],
+      "points": [
+        "A group is a rectangle of 2ᵏ cells (1, 2, 4, 8, 16), may wrap around edges, and must contain only 1s and don't-cares.",
+        "A group of 2ᵏ cells in an n-variable map drops the k variables that change inside it and leaves a product of n − k literals.",
+        "Cover every 1, make each group as large as possible, and use as few groups as possible; each group is one product term.",
+        "Σm(0, 2, 5, 7, 8, 10, 13, 15): the four corners give B'D' and the centre block gives BD, so F = B'D' + BD = B ⊙ D.",
+        "Three 1s in a row are never one group: split them into two overlapping pairs or a larger block."
+      ],
+      "keyTerms": [
+        "group size",
+        "literal count"
+      ],
+      "lesson": {
+        "why": "Minimal-expression questions on four variables are answered by reading groups off a K-map, and the usual marks are lost on groups that wrap or on groups that are not as large as they could be.",
+        "intro": "A Karnaugh map is a truth table folded into a grid so that cells next to each other differ in exactly one variable. The rows and columns are labelled in the order 00, 01, 11, 10, which keeps that property, and the first and last row, or column, also touch. Two neighbouring ones merge because $XY + XY' = X$. So a rectangle of ones becomes one product term, with the variables that change inside it left out.",
+        "definitions": [
+          {
+            "term": "Group",
+            "meaning": "A rectangle of $2^k$ cells that all hold 1 or don't-care; it may wrap around the edges."
+          },
+          {
+            "term": "Don't-care",
+            "meaning": "An input whose output is never used, so you may treat it as 1 or 0, whichever gives a bigger group."
+          }
+        ],
+        "principle": {
+          "text": "A group of $2^k$ cells in an $n$-variable map gives a product of $n - k$ literals, the ones that stay fixed. Cover every 1 with as few, and as large, groups as possible.",
+          "tex": "\\text{literals in term} = n - k"
+        },
+        "limits": "Group sizes must be 1, 2, 4, 8 or 16 and the shape a rectangle, so three ones in a row are never one group. A group may not include a 0, and a larger group is only better if it is still valid.",
+        "example": {
+          "problem": "Minimize $F(A,B,C,D) = \\sum m(1, 3, 5, 7, 9, 11)$.",
+          "steps": [
+            "Cells 1, 3, 5 and 7 are the rows $AB = 00$ and $AB = 01$ with $D = 1$: one group of four, $A'D$.",
+            "Cells 1, 3, 9 and 11 sit in rows $AB = 00$ and $AB = 10$, which touch across the edge: a second group of four, $B'D$.",
+            "All six ones are covered by these two groups, and neither can grow without taking a 0."
+          ],
+          "result": "$F = A'D + B'D$."
+        },
+        "misconceptions": [
+          "Ignoring that the top and bottom rows (and the left and right columns) are neighbours, so a wrapped group is missed and the term has too many literals.",
+          "Using a smaller group than possible because a cell is already covered; overlap is allowed and often needed."
+        ],
+        "recall": [
+          {
+            "q": "How many literals does a group of 4 cells have in a 4-variable map?",
+            "a": "Two: two variables change inside the group and two stay fixed."
+          },
+          {
+            "q": "Why are K-map rows labelled 00, 01, 11, 10?",
+            "a": "Gray order makes neighbouring cells differ in one variable, which is what lets them merge."
+          },
+          {
+            "q": "Can a group contain a 0?",
+            "a": "No. A group holds only 1s and don't-cares."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Find the minimal sum of products of $F(A,B,C,D) = \\sum m(0, 1, 4, 5, 7)$. How many literals does it contain in total?",
+          "answer": 5,
+          "explanation": "Cells 0, 1, 4 and 5 form a group of four with $A = 0$ and $C = 0$ fixed: $A'C'$. Cell 7 pairs with 5 to give $A'BD$. Together that is $2 + 3 = 5$ literals. Leaving cell 7 on its own as a four-literal minterm would give 6, which is the tempting wrong total."
+        },
+        "summary": "Read each rectangle of $2^k$ ones, wrapping allowed, as a product of the $n - k$ fixed variables, and use the fewest and largest groups that cover every 1."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.prime-implicants",
+      "title": "Implicants, prime and essential prime implicants",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        185,
+        186,
+        199,
+        203,
+        204
+      ],
+      "points": [
+        "An implicant is a product term that forces F = 1; on the K-map it is any valid group of 1s (don't-cares allowed).",
+        "A prime implicant (PI) cannot be enlarged and stay an implicant. An essential PI covers some 1-cell that no other PI covers.",
+        "Every minimal SOP contains all EPIs and only PIs. Σm(0, 1, 4, 5, 12, 13, 14, 15) has three PIs, A'C', BC' and AB, of which A'C' and AB are essential, so F = A'C' + AB.",
+        "A cyclic function has no EPI at all: Σm(0, 1, 2, 5, 6, 7) has six PIs, every minterm lies in exactly two, and two different 3-term covers are minimal.",
+        "A minterm covered only by a group that needs a don't-care still makes that PI essential; a don't-care cell never makes a PI essential."
+      ],
+      "keyTerms": [
+        "implicant",
+        "prime implicant",
+        "essential prime implicant",
+        "cyclic cover"
+      ],
+      "lesson": {
+        "why": "Counting prime and essential prime implicants is a recurring numeric question, and it decides which terms any minimal expression must contain.",
+        "intro": "An implicant is a product term that is 1 only on inputs where the function is 1 (or a don't-care); on a K-map it is any valid group of ones. A prime implicant is an implicant that cannot be made larger by dropping a literal, so it is a group that no bigger valid group contains. An essential prime implicant is a prime implicant that alone covers some 1, and every minimal expression must use it.",
+        "definitions": [
+          {
+            "term": "Prime implicant",
+            "meaning": "A product term of the function that stops being an implicant if any literal is removed."
+          },
+          {
+            "term": "Essential prime implicant",
+            "meaning": "A prime implicant that is the only one containing some required 1."
+          },
+          {
+            "term": "Don't-care",
+            "meaning": "An input whose output is never used, so you may treat it as 1 or 0, whichever gives a bigger group."
+          },
+          {
+            "term": "Required 1",
+            "meaning": "A 1 of the function that is not a don't-care, so some chosen term must cover it."
+          }
+        ],
+        "principle": {
+          "text": "First list every prime implicant. For each required 1, count the primes containing it; a 1 with only one prime makes that prime essential. A minimal expression is the essential primes plus the fewest other primes that cover what is left.",
+          "tex": "\\text{EPI} \\iff \\exists\\, m \\in F \\text{ lying in exactly one prime implicant}"
+        },
+        "limits": "A don't-care cell never makes a prime implicant essential, because it does not have to be covered. Some functions have no essential prime implicant at all, and then several different covers can be minimal.",
+        "example": {
+          "problem": "For $F(A,B,C) = \\sum m(0, 1, 3, 7)$ list the prime implicants and mark the essential ones.",
+          "steps": [
+            "The largest groups are the pairs $\\{0,1\\}$ giving $A'B'$, $\\{1,3\\}$ giving $A'C$ and $\\{3,7\\}$ giving $BC$. These are the three prime implicants.",
+            "Minterm 0 is only in $A'B'$ and minterm 7 is only in $BC$, so both are essential.",
+            "$A'C$ is not essential: minterm 1 is also in $A'B'$ and minterm 3 is also in $BC$."
+          ],
+          "result": "Three prime implicants, two essential ($A'B'$ and $BC$), and the minimal form is $F = A'B' + BC$."
+        },
+        "misconceptions": [
+          "Calling every prime implicant essential; a prime whose cells are all covered by others is not.",
+          "Counting a prime implicant as essential because it covers a don't-care cell that nothing else covers."
+        ],
+        "recall": [
+          {
+            "q": "What makes an implicant prime?",
+            "a": "No literal can be dropped without it covering a 0; equivalently it sits in no larger valid group."
+          },
+          {
+            "q": "What makes a prime implicant essential?",
+            "a": "It contains at least one required 1 that no other prime implicant contains."
+          },
+          {
+            "q": "Must every minimal sum of products contain all essential prime implicants?",
+            "a": "Yes. Each essential prime is the only way to cover one of the 1s."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "$F(A,B,C,D) = \\sum m(0, 1, 2, 5, 6, 7, 8, 9, 10, 14)$ has six prime implicants. How many of them are essential?",
+          "answer": 2,
+          "explanation": "The primes are $B'C'$ (0, 1, 8, 9), $B'D'$ (0, 2, 8, 10), $CD'$ (2, 6, 10, 14), $A'BC$ (6, 7), $A'BD$ (5, 7) and $A'C'D$ (1, 5). Minterm 9 lies only in $B'C'$ and minterm 14 only in $CD'$, so these two are essential. Every other minterm sits in at least two primes. Answering 6 counts all the primes. Answering 3 adds $A'BD$, which a minimal cover does use for minterms 5 and 7, but it is not the only prime containing them, so it is not essential."
+        },
+        "summary": "List all prime implicants, then mark as essential any prime that alone covers a required 1; every minimal expression contains them."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.dont-cares",
+      "title": "Don't-care conditions",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        187,
+        199,
+        204,
+        205
+      ],
+      "points": [
+        "A don't-care (d or X) is an input that never occurs or whose output does not matter, written F = Σm(…) + d(…).",
+        "Treat each don't-care as 1 when it enlarges a group and as 0 otherwise; no don't-care ever has to be covered.",
+        "Σm(1, 3, 7) + d(0, 2, 5): the column C = 1 is m1, m3, m7 plus the don't-care m5, so F = C, a single literal.",
+        "Σm(0, 4, 8, 12, 13, 15) + d(2, 10) minimizes to C'D' + ABD; the don't-cares create the extra PI B'D' but do not shorten the answer."
+      ],
+      "keyTerms": [
+        "don't-care",
+        "incompletely specified function"
+      ],
+      "lesson": {
+        "why": "Many K-map questions give some inputs as don't-cares, and the minimal expression depends on using them well. Knowing the rule saves you from covering cells you were free to skip.",
+        "intro": "Sometimes an input combination never occurs, or the circuit's output does not matter for it. Such a row is a don't-care, written $d$ or $X$. You are free to read each don't-care as 1 or as 0, whichever gives a simpler expression. A function with don't-cares is written like $F = \\sum m(1, 3, 5) + d(7)$, where the $m$ part lists the rows that must output 1.",
+        "definitions": [
+          {
+            "term": "Don't-care",
+            "meaning": "An input row whose output is unspecified because it cannot occur or does not matter."
+          },
+          {
+            "term": "Incompletely specified function",
+            "meaning": "A function whose truth table has some don't-care rows."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.kmap-grouping",
+          "dl-boolean-algebra.prime-implicants"
+        ],
+        "principle": {
+          "text": "Treat a don't-care as 1 when that enlarges a group and as 0 otherwise. Every real 1 must be covered, but no don't-care has to be covered.",
+          "tex": "F = \\sum m(\\text{required ones}) + d(\\text{free cells})"
+        },
+        "limits": "A don't-care helps only when it lets a group grow or removes the need for a group. A group made only of don't-cares is never drawn. Never place a don't-care in the list of cells that must be covered.",
+        "example": {
+          "problem": "Minimize $F = \\sum m(1, 3, 5, 9, 13) + d(7, 11, 15)$.",
+          "steps": [
+            "Every required minterm and every don't-care has $D = 1$, since the numbers 1, 3, 5, 7, 9, 11, 13, 15 are all odd.",
+            "Treat all three don't-cares as 1. The eight cells with $D = 1$ form one group of 8.",
+            "A group of 8 in 4 variables keeps $4 - 3 = 1$ literal, namely $D$.",
+            "Without the don't-cares the cover would need $\\overline{A}\\,\\overline{B}D$ for $m_1, m_3$ and $\\overline{C}D$ for $m_1, m_5, m_9, m_{13}$, five literals."
+          ],
+          "result": "$F = D$, a single literal."
+        },
+        "misconceptions": [
+          "Forcing every don't-care into a group. They are optional, and unused ones are simply read as 0.",
+          "Counting a don't-care as a required cell when deciding whether a prime implicant is essential.",
+          "Reading all don't-cares as 1 without checking that this helps. It can create a larger cover that no required cell needs."
+        ],
+        "recall": [
+          {
+            "q": "What does a don't-care mean in a truth table?",
+            "a": "The output for that row is unspecified, so it may be read as 0 or 1."
+          },
+          {
+            "q": "When should a don't-care be treated as 1?",
+            "a": "When doing so enlarges a group and reduces the literals."
+          },
+          {
+            "q": "Must every don't-care be covered by a group?",
+            "a": "No. Only the required minterms must be covered."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "$F = \\sum m(2, 6, 9, 13) + d(4, 10, 11, 15)$ over $A, B, C, D$. How many literals does its minimal sum of products have?",
+          "answer": 5,
+          "explanation": "With $d(11, 15)$ read as 1, the cells $m_9, m_{11}, m_{13}, m_{15}$ form $AD$, two literals. The cells $m_2, m_6$ form $\\overline{A}C\\overline{D}$, three literals, so $F = \\overline{A}C\\overline{D} + AD$ with 5 literals. Without the don't-cares, $m_9, m_{13}$ gives $A\\overline{C}D$, three literals, for a total of 6, which is the tempting wrong answer."
+        },
+        "summary": "Read a don't-care as 1 only where it enlarges a group, cover every real 1, and leave the remaining don't-cares uncovered."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.pos-kmap",
+      "title": "POS minimization by grouping 0s",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        187,
+        188,
+        196,
+        197,
+        205
+      ],
+      "points": [
+        "Group the 0s (prime implicates) exactly as 1s are grouped; the groups form a minimal SOP of F'.",
+        "Read each 0-group as a sum term: a variable fixed at 0 appears uncomplemented and one fixed at 1 appears complemented.",
+        "Σm(0, 2, 5, 7) has 0s at 1, 3, 4, 6: {1, 3} has A = 0, C = 1 giving A + C', and {4, 6} gives A' + C, so F = (A + C')(A' + C) = A ⊙ C.",
+        "ΠM(0, 2, 4, 6) has all its 0s where C = 0, so F' = C' and F = C."
+      ],
+      "keyTerms": [
+        "prime implicate",
+        "minimal POS"
+      ],
+      "lesson": {
+        "why": "Minimum product-of-sums questions list the minterms or maxterms and ask for the cheapest POS; grouping the 0s is the fast route and the sign rule for each sum is where marks are lost.",
+        "intro": "A product-of-sums (POS) is an AND of OR terms, such as $(A + B')(C + D)$. It is 0 as soon as any one of its sums is 0. So to build it, look at where the function is 0 instead of where it is 1. Each group of 0s on the K-map becomes one sum term that is 0 exactly on that group, and the function is the AND of those sums.",
+        "prerequisites": [
+          "dl-boolean-algebra.kmap-grouping"
+        ],
+        "principle": {
+          "text": "Group the 0s of the map in rectangles of size 1, 2, 4, 8, as large as possible. For each group write one sum: a variable that is fixed at 0 in the group appears as itself, and a variable fixed at 1 appears complemented. AND the sums together. Equivalently, minimize $F'$ as an SOP over the 0s and complement the result with De Morgan.",
+          "tex": "F = \\prod_{\\text{0-groups}} \\Big(\\sum_{x_i=0} x_i + \\sum_{x_i=1} x_i'\\Big)"
+        },
+        "limits": "A don't care may be counted as a 0 when that enlarges a group, but it is never forced to be one. The POS read from the 0s is the same function as the SOP read from the 1s; the two minimal forms can have different literal counts, so neither is always cheaper.",
+        "example": {
+          "problem": "Find the minimal POS of $F(A,B,C) = \\prod M(1, 3, 6)$, which is 0 on rows 1, 3 and 6 and 1 on every other row.",
+          "steps": [
+            "Write the 0 rows as $ABC$: row 1 is 001, row 3 is 011, row 6 is 110.",
+            "Rows 1 and 3 are neighbours: $A = 0$ and $C = 1$ stay fixed while $B$ varies. $A$ is fixed at 0, so it appears as $A$; $C$ is fixed at 1, so it appears as $C'$. The sum is $A + C'$.",
+            "Neighbours differ in one bit, so row 6 (110) touches rows 2 (010), 4 (100) and 7 (111). All three are 1s, so row 6 has no neighbouring 0, so it stays a single cell. $A = 1$, $B = 1$, $C = 0$ give the sum $A' + B' + C$.",
+            "AND the two sums. A truth-table check of all eight rows confirms the result."
+          ],
+          "result": "$F = (A + C')(A' + B' + C)$."
+        },
+        "misconceptions": [
+          "Writing the variable fixed at 1 uncomplemented. In a sum term the fixed-0 variable is plain and the fixed-1 variable is primed, the opposite of an SOP product.",
+          "Mixing the two: grouping 1s and then writing sums, or grouping 0s and writing products. Pick the 0s for a POS and the 1s for an SOP, then keep to that rule."
+        ],
+        "recall": [
+          {
+            "q": "Which cells do you group to read a POS from a K-map?",
+            "a": "The 0 cells, plus any don't cares that make a group larger."
+          },
+          {
+            "q": "A 0-group has $A = 1$ and $C = 0$ fixed. Which sum term does it give?",
+            "a": "$A' + C$, because a variable fixed at 1 is complemented and one fixed at 0 is plain."
+          },
+          {
+            "q": "How does a POS relate to $F'$?",
+            "a": "Minimize $F'$ as an SOP from the 0s, then complement it with De Morgan to get the POS of $F$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "$F(A,B,C) = \\prod M(4, 5, 7)$. Which expression is a minimal product-of-sums for $F$?",
+          "options": [
+            "$(A' + B)(A' + C')$",
+            "$(A + B')(A + C)$",
+            "$(A' + B')(A' + C)$",
+            "$(A + B)(A + C')$"
+          ],
+          "answer": 0,
+          "explanation": "The 0 rows are 100, 101 and 111. Rows 4 and 5 fix $A = 1$, $B = 0$, giving $A' + B$; rows 5 and 7 fix $A = 1$, $C = 1$, giving $A' + C'$. Truth-table checking shows only the first option equals $F$. The second option complements every literal, the way an SOP would be written from the 1s, which is the tempting wrong sign rule. The others mix the signs of one variable."
+        },
+        "summary": "Group the 0s as large as possible, write each group as a sum with fixed-0 variables plain and fixed-1 variables primed, and AND the sums."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.quine-mccluskey",
+      "title": "Quine-McCluskey tabular method",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        188,
+        189,
+        190,
+        197,
+        198,
+        200
+      ],
+      "points": [
+        "List the minterms (and don't-cares) in binary, grouped by the number of 1s. Only neighbouring groups can combine.",
+        "Two terms with dashes in the same places that differ in exactly one bit merge into one term with a dash there, and both are ticked. Repeat on the new terms until nothing merges.",
+        "Unticked terms are the prime implicants. Build the PI chart, rows PIs and columns the true minterms only, and take every PI that is the sole cover of some column.",
+        "Σm(1, 4, 6, 7, 8, 9, 10, 11, 15) yields PIs -001, 01-0, 011-, -111, 1-11, 10--; the first, second and last are essential and -111 covers the leftover 7 and 15: F = B'C'D + A'BD' + AB' + BCD.",
+        "The method is mechanical and scales past the 5–6 variables where K-maps stop being readable, but the cover step is a set-cover problem."
+      ],
+      "keyTerms": [
+        "tabular method",
+        "PI chart",
+        "cube notation"
+      ],
+      "lesson": {
+        "why": "The tabular method finds all prime implicants without drawing a map, and questions ask for the number of prime or essential implicants it produces. It also shows how a computer minimizes functions with too many variables for a K-map.",
+        "intro": "Quine-McCluskey does what K-map grouping does, but in a table. Write each minterm in binary and group the list by how many 1s each has. Two terms can merge only when they differ in exactly one bit, and the merged term gets a dash in that position. Tick both terms used and repeat on the new terms. Terms that never get ticked are the prime implicants. A PI chart then shows which PIs cover which minterms.",
+        "definitions": [
+          {
+            "term": "Cube notation",
+            "meaning": "A term written with 0, 1 and a dash, where a dash marks a variable that has dropped out."
+          },
+          {
+            "term": "PI chart",
+            "meaning": "A table with prime implicants as rows and the required minterms as columns, with a mark where a PI covers a minterm."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.kmap-layout",
+          "dl-boolean-algebra.prime-implicants"
+        ],
+        "principle": {
+          "text": "Only terms in neighbouring 1-count groups with dashes in the same places can merge. A PI that is the only cover of some minterm in the chart is essential and must be taken.",
+          "tex": "ab\\text{-}1 + ab\\text{-}0 \\to ab\\text{--}"
+        },
+        "limits": "Don't-cares go into the merge columns, but they are left out of the PI chart, since they need no cover. The chart can still leave a set-cover choice among equal PIs, and this method does not make that choice for you.",
+        "example": {
+          "problem": "Use the tabular method on $F(A, B, C) = \\sum m(0, 1, 3, 7)$.",
+          "steps": [
+            "Group by number of 1s: 000 (0), 001 (1), 011 (3), 111 (7).",
+            "Merge neighbouring groups: $0,1 \\to 00\\text{-}$; $1,3 \\to 0\\text{-}1$; $3,7 \\to \\text{-}11$. All four minterms are ticked.",
+            "Nothing merges again, so the PIs are $00\\text{-}$, $0\\text{-}1$ and $\\text{-}11$.",
+            "In the chart, $m_0$ is only in $00\\text{-}$ and $m_7$ only in $\\text{-}11$, so both are essential. They already cover $m_1$ and $m_3$, so $0\\text{-}1$ is not needed."
+          ],
+          "result": "$F = \\overline{A}\\,\\overline{B} + BC$."
+        },
+        "misconceptions": [
+          "Merging terms whose dashes sit in different positions. The dashes must line up.",
+          "Putting don't-cares in the columns of the PI chart, which forces a cover for cells that need none.",
+          "Treating every PI as part of the answer. Only the essential ones and enough others to cover the rest are used."
+        ],
+        "recall": [
+          {
+            "q": "Which pairs of terms can be merged in the tabular method?",
+            "a": "Terms in neighbouring 1-count groups with dashes in the same places that differ in exactly one bit."
+          },
+          {
+            "q": "How do you recognise a prime implicant in the table?",
+            "a": "It is a term that was never ticked, because it merged with nothing."
+          },
+          {
+            "q": "When is a PI essential in the chart?",
+            "a": "When it is the only PI covering some required minterm."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many prime implicants does $F(A, B, C) = \\sum m(0, 1, 2, 5, 6, 7)$ have?",
+          "answer": 6,
+          "explanation": "The merges are $0,1 \\to 00\\text{-}$; $0,2 \\to 0\\text{-}0$; $1,5 \\to \\text{-}01$; $2,6 \\to \\text{-}10$; $5,7 \\to 1\\text{-}1$; $6,7 \\to 11\\text{-}$. None of these merges again, so all six are prime and none is essential. A minimal cover uses only 3 of them, which is the tempting wrong answer."
+        },
+        "summary": "Group minterms by 1-count, merge pairs that differ in one bit, collect the unticked terms as PIs, and use a chart on the required minterms to find the essential ones."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.petrick-cover",
+      "title": "Choosing a cover: PI chart reduction and Petrick's method",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        186,
+        189,
+        190
+      ],
+      "points": [
+        "After the EPIs are taken, write one OR clause per uncovered minterm listing the PIs that cover it, and AND the clauses.",
+        "Expand to SOP and absorb: (P1 + P2)(P2 + P3)P3 = P1P3 + P2P3, so any minimum cover has two PIs and must contain P3.",
+        "Each product of the result is a complete cover; pick the one with fewest PIs, then fewest literals.",
+        "Picking the PI that covers most minterms first is a heuristic and can miss the minimum; Petrick's product is exact."
+      ],
+      "keyTerms": [
+        "Petrick's method",
+        "set cover"
+      ],
+      "lesson": {
+        "why": "After essential prime implicants are taken, many functions still have minterms with a choice of covers. Petrick's method turns that choice into algebra and finds the exact minimum, which question setters use to test whether you can finish a Quine-McCluskey chart.",
+        "intro": "A prime implicant chart lists the prime implicants (PIs) as rows and the minterms as columns. Essential PIs are chosen first because some minterm has no other cover. What is left is a covering puzzle: pick as few PIs as possible so every remaining minterm is covered. Petrick's method writes each remaining minterm as a clause, an OR of the PIs that cover it. A cover must satisfy every clause at once, so the clauses are ANDed together. Multiplying this out into a sum of products gives one product per complete cover, and the shortest product is the answer.",
+        "definitions": [
+          {
+            "term": "Petrick's method",
+            "meaning": "Write one OR clause per uncovered minterm, AND the clauses, expand to SOP and absorb; each product term is a complete cover."
+          },
+          {
+            "term": "Set cover",
+            "meaning": "The problem of choosing the fewest PIs whose covered minterms together include every required minterm."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.prime-implicants",
+          "dl-boolean-algebra.quine-mccluskey"
+        ],
+        "principle": {
+          "text": "Let $P_i$ be true when prime implicant $i$ is chosen. A minterm is covered when at least one PI containing it is chosen, so the condition for a full cover is the product of the clauses. Expanding and applying $X + XY = X$ leaves only the irredundant covers; choose the product with the fewest PIs, then the fewest literals.",
+          "tex": "\\prod_{m \\text{ uncovered}} \\Big( \\sum_{P_i \\ni m} P_i \\Big) \\longrightarrow \\text{SOP of covers}"
+        },
+        "limits": "Petrick's method only matters when the chart is left with choices after the essential PIs. If the essential PIs already cover every minterm, there is nothing to expand. Don't-cares are never clauses, since they need no cover. The product grows quickly, so by hand it is practical only for small charts.",
+        "example": {
+          "problem": "After the essential PIs are chosen, three minterms remain. The first is covered by $P_1$ or $P_2$, the second by $P_2$ or $P_3$, the third by $P_1$ or $P_3$. Find every minimum cover.",
+          "steps": [
+            "Write the clauses and AND them: $(P_1 + P_2)(P_2 + P_3)(P_1 + P_3)$.",
+            "Multiply the first two: $P_1P_2 + P_1P_3 + P_2 + P_2P_3$. Since $P_2 + P_1P_2 = P_2$ and $P_2 + P_2P_3 = P_2$, this reduces to $P_2 + P_1P_3$.",
+            "Multiply by the third clause: $(P_2 + P_1P_3)(P_1 + P_3) = P_1P_2 + P_2P_3 + P_1P_3 + P_1P_3 = P_1P_2 + P_2P_3 + P_1P_3$.",
+            "Each product is a complete cover of two PIs, and none has fewer than two, because no single PI appears in all three clauses."
+          ],
+          "result": "Three minimum covers, each using two PIs: $P_1P_2$, $P_2P_3$ and $P_1P_3$. Choose among them by literal count."
+        },
+        "misconceptions": [
+          "Picking the PI covering the most minterms first and calling it minimal. That greedy choice is a heuristic and can give a larger cover than Petrick's exact product.",
+          "Adding the essential PIs into the product. They are already chosen and their minterms are already covered, so they contribute no clause.",
+          "Stopping at the product with the fewest PIs without comparing literals. Two covers of equal PI count can differ in cost, and the tie is broken by fewer literals."
+        ],
+        "recall": [
+          {
+            "q": "What does each clause in Petrick's method list?",
+            "a": "For one uncovered minterm, the OR of all prime implicants that cover it."
+          },
+          {
+            "q": "After expanding the clause product, how do you pick the answer?",
+            "a": "Pick the product term with the fewest PIs, then the fewest literals."
+          },
+          {
+            "q": "Which rule keeps the expansion short?",
+            "a": "Absorption, $X + XY = X$, which removes covers that contain a smaller cover."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "For $f(A,B,C) = \\sum m(0,1,2,5,6,7)$ the prime implicants are $A'B'$, $B'C$, $AC$, $AB$, $BC'$ and $A'C'$. How many different minimum-size covers does $f$ have?",
+          "answer": 2,
+          "explanation": "Every minterm lies in exactly two PIs, so there are no essential PIs and the whole chart is a cycle. Six minterms and two minterms per PI force at least 3 PIs. The clauses are $(P_{A'B'} + P_{A'C'})$ for $m_0$, and so on around the cycle; solving them gives exactly two covers of 3 PIs: $\\{A'B', AC, BC'\\}$ and $\\{B'C, AB, A'C'\\}$. The answer 6 tempts because each PI can start a cover, but a start fixes the whole alternating pattern, so each cover is counted three times."
+        },
+        "summary": "Petrick's method ANDs one OR clause per uncovered minterm, expands to SOP with absorption, and the shortest product, then fewest literals, is the minimum cover."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.universal-gates",
+      "title": "Universal gates: NAND and NOR",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        191,
+        192,
+        200,
+        207
+      ],
+      "points": [
+        "NAND alone and NOR alone each realize every Boolean function, because each yields NOT and then AND or OR.",
+        "With NAND: A' = NAND(A, A), AB = NAND(NAND(A, B), NAND(A, B)), A + B = NAND(A', B'). Gate counts 1, 2, 3.",
+        "With NOR: A' = NOR(A, A), A + B = NOR(NOR(A, B), NOR(A, B)), AB = NOR(A', B'). Gate counts 1, 2, 3.",
+        "XOR takes 4 two-input NANDs: with T = NAND(A, B), A ⊕ B = NAND(NAND(A, T), NAND(B, T)). XNOR needs 5 two-input NANDs."
+      ],
+      "keyTerms": [
+        "universal gate",
+        "NAND-only",
+        "NOR-only"
+      ],
+      "lesson": {
+        "why": "NAND and NOR gate-realization questions appear often, and every one rests on knowing how to build NOT, AND and OR from a single gate type and what each costs in gates.",
+        "intro": "A gate is universal when circuits made only of that gate can compute any Boolean function. NAND outputs the complement of AND, and NOR outputs the complement of OR. To show NAND is universal, it is enough to build NOT, and then AND and OR, because every function can be written with those three. Tying both inputs of a NAND together makes it an inverter. A NAND followed by that inverter makes AND. Inverting both inputs before a NAND makes OR, by De Morgan. NOR works the same way with the roles of AND and OR swapped.",
+        "definitions": [
+          {
+            "term": "Universal gate",
+            "meaning": "A gate type from which NOT and either AND or OR can be built, so that any function can be realized with only that gate."
+          },
+          {
+            "term": "NAND-only",
+            "meaning": "A circuit that uses nothing but NAND gates; likewise NOR-only for NOR gates."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.de-morgan-complement"
+        ],
+        "principle": {
+          "text": "With NAND: $A' = \\mathrm{NAND}(A,A)$, $AB$ is a NAND followed by an inverter, and $A+B = \\mathrm{NAND}(A',B')$ costs 3 gates. With NOR: $A' = \\mathrm{NOR}(A,A)$, $A+B$ is a NOR followed by an inverter, and $AB = \\mathrm{NOR}(A',B')$. XOR needs 4 two-input NANDs and XNOR needs 5.",
+          "tex": "A + B = \\overline{\\overline{A}\\cdot\\overline{B}}, \\qquad AB = \\overline{A + B}\\text{ with inputs inverted}"
+        },
+        "limits": "These counts assume two-input gates and no inverted inputs supplied for free. If complemented literals are available, an SOP can be built in two NAND levels without separate inverters, so always read what the question supplies. Counts for larger functions come from the two-level form, which is not always the true minimum.",
+        "example": {
+          "problem": "Build $A + B$ using only two-input NAND gates and count the gates.",
+          "steps": [
+            "De Morgan gives $A + B = (A'B')'$, which is a NAND of $A'$ and $B'$.",
+            "Make $A'$ with a NAND whose two inputs are both $A$, and $B'$ the same way: 2 gates.",
+            "Feed $A'$ and $B'$ into a third NAND. When $A = 0$ and $B = 0$ it receives 1, 1 and outputs 0; for every other input at least one of its inputs is 0, so it outputs 1."
+          ],
+          "result": "$A + B$ takes 3 two-input NAND gates, two as inverters and one as the output gate."
+        },
+        "misconceptions": [
+          "Believing OR needs one NAND. A single NAND of $A$ and $B$ is $(AB)'$, which is not OR; the inputs must be inverted first.",
+          "Counting XOR as 5 NANDs by building from SOP with inverters. Sharing $T = \\mathrm{NAND}(A,B)$ brings it to 4.",
+          "Mixing the two gates: the NOR realization of AND inverts the inputs, the NAND realization of OR does."
+        ],
+        "recall": [
+          {
+            "q": "How do you make an inverter from a NAND or a NOR?",
+            "a": "Tie both inputs together, giving $\\mathrm{NAND}(A,A) = A'$ and $\\mathrm{NOR}(A,A) = A'$."
+          },
+          {
+            "q": "How many two-input NANDs build AND, OR and NOT?",
+            "a": "AND takes 2, OR takes 3 and NOT takes 1."
+          },
+          {
+            "q": "How many two-input NANDs does XOR need, and XNOR?",
+            "a": "XOR needs 4 and XNOR needs 5."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "What is the minimum number of two-input NOR gates needed to realize $AB$, given only the inputs $A$ and $B$ (no complemented inputs)?",
+          "answer": 3,
+          "explanation": "By De Morgan, $AB = (A' + B')' = \\mathrm{NOR}(A', B')$. Each complement needs its own NOR with tied inputs, 2 gates, and a third NOR combines them: 3 gates. The answer 2 tempts by analogy with NAND, where AND costs 2, but for NOR it is OR that costs 2, and AND costs 3."
+        },
+        "summary": "NAND and NOR are universal because each gives NOT and then AND or OR; costs are 1, 2, 3 gates for NOT, AND, OR in NAND and 1, 3, 2 in NOR, with XOR 4 and XNOR 5 in NAND."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.nand-nor-realization",
+      "title": "Two-level NAND-NAND and NOR-NOR realization",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        191,
+        192,
+        197,
+        200,
+        202
+      ],
+      "points": [
+        "A minimal SOP maps directly to NAND-NAND: each product term becomes a NAND and one NAND combines them, since (T₁'T₂'…)' = T₁ + T₂ + …",
+        "AB + CD = NAND(NAND(A, B), NAND(C, D)) uses 3 gates; complemented inputs cost one extra NAND each unless they are available.",
+        "A minimal POS maps to NOR-NOR in the same way: each sum term is a NOR and a final NOR combines them.",
+        "A single-literal product term needs an inverter in place of a first-level NAND, and fan-in limits may force extra levels; count only after writing the final circuit."
+      ],
+      "keyTerms": [
+        "NAND-NAND",
+        "NOR-NOR",
+        "gate count"
+      ],
+      "lesson": {
+        "why": "Gate-count questions ask for the fewest NAND or NOR gates, and the answer is quick once you know that a minimal SOP becomes NAND-NAND gate for gate.",
+        "intro": "A NAND gate outputs 0 only when all its inputs are 1; a NOR gate outputs 1 only when all its inputs are 0. Each of them can build any function alone, so real circuits are often drawn with just one kind. A two-level circuit has one layer of gates feeding one output gate. An SOP (OR of ANDs) is the usual starting point, and swapping its AND-OR layers for NAND-NAND layers gives the same function.",
+        "prerequisites": [
+          "dl-boolean-algebra.de-morgan-complement"
+        ],
+        "principle": {
+          "text": "For the minimal SOP $T_1 + T_2 + \\dots$, build each product $T_i$ as a NAND whose output is $T_i'$, then feed all of them into one NAND. De Morgan makes the output equal $T_1 + T_2 + \\dots$. With two or more product terms the gate count is the number of terms plus one, plus any inverters needed for complemented inputs that are not available. A function that is a single product (or a single sum) needs only one gate when complements are free: $\\mathrm{NOR}(a, c') = a'c$. A minimal POS maps to NOR-NOR in the same way, and don't cares are used as 0s or 1s before the form is chosen.",
+          "tex": "(T_1' \\cdot T_2' \\cdots T_k')' = T_1 + T_2 + \\dots + T_k"
+        },
+        "limits": "The count holds for two-level circuits with unlimited fan-in and with complemented inputs available. A single-literal product term needs an inverter instead of a first-level NAND when its complement is not available, and a fan-in limit can force extra levels. Multi-level circuits can sometimes beat the two-level count.",
+        "example": {
+          "problem": "Implement $F = AB + CD + EG$ with NAND gates only, as a two-level circuit. How many gates are used?",
+          "steps": [
+            "The expression is already a minimal SOP with three product terms.",
+            "First level: $\\mathrm{NAND}(A,B) = (AB)'$, $\\mathrm{NAND}(C,D) = (CD)'$ and $\\mathrm{NAND}(E,G) = (EG)'$. That is 3 gates.",
+            "Second level: one 3-input NAND of those outputs gives $((AB)'(CD)'(EG)')' = AB + CD + EG$ by De Morgan. That is 1 gate.",
+            "Total gates: 3 + 1. A simulation over all 64 input rows confirms the output equals $F$."
+          ],
+          "result": "4 NAND gates."
+        },
+        "misconceptions": [
+          "Forgetting the output gate: with $k$ product terms the circuit has $k$ first-level NANDs and one more NAND, so $k + 1$ gates.",
+          "Counting from an unsimplified expression. Minimize to the minimal SOP (or POS) first, because the redundant terms cost gates that the minimal form does not."
+        ],
+        "recall": [
+          {
+            "q": "What two-level NAND circuit realizes an SOP?",
+            "a": "One NAND per product term, followed by one NAND that combines their outputs."
+          },
+          {
+            "q": "Why does NAND-NAND equal AND-OR?",
+            "a": "The output NAND complements the AND of complemented products, and De Morgan turns that into the OR of the products."
+          },
+          {
+            "q": "Which form maps to NOR-NOR?",
+            "a": "A minimal POS: one NOR per sum term, then one NOR to combine them."
+          },
+          {
+            "q": "With complemented inputs free, how many 2-input NOR gates give $a'c$, and how many give the XNOR of $b$ and $d$?",
+            "a": "$a'c = \\mathrm{NOR}(a, c')$ takes 1 gate. XNOR is $(b + d')(b' + d)$, built as $\\mathrm{NOR}(\\mathrm{NOR}(b,d'), \\mathrm{NOR}(b',d))$, which takes 3 gates."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Implement $F = AB + A'C + BC$ as a two-level NAND-NAND circuit with the fewest gates. Assume every input and its complement is available. How many NAND gates are needed?",
+          "answer": 3,
+          "explanation": "The term $BC$ is the consensus of $AB$ and $A'C$, so it is redundant and the minimal SOP is $AB + A'C$. Two first-level NANDs and one output NAND give 3 gates. Implementing the given form would use 4 gates, which is the tempting answer when the expression is not simplified first."
+        },
+        "summary": "Minimize first, then use one NAND per product term plus one output NAND; the POS version uses NOR gates in the same pattern."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.functional-completeness",
+      "title": "Functional completeness (Post's criteria)",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "A set of operations is functionally complete when composing them builds every Boolean function; {AND, OR, NOT}, {AND, NOT}, {OR, NOT}, {NAND} and {NOR} all are.",
+        "Post's theorem: a set is complete exactly when it is not contained in any of five classes: 0-preserving, 1-preserving, monotone, linear (affine over GF(2)), or self-dual.",
+        "{AND, OR} is monotone and 0- and 1-preserving, so it cannot make NOT. {XOR, AND} and {XOR, OR} preserve 0: with no constant 1 they reach only the 128 of 256 three-variable functions with f(000) = 0.",
+        "Adding the constant 1 fixes it: {XOR, AND, 1} is complete (the Reed-Muller basis) because A ⊕ 1 = A'. Likewise implication alone is incomplete, but {→, 0} is complete."
+      ],
+      "keyTerms": [
+        "functionally complete",
+        "Post's theorem",
+        "0-preserving",
+        "Reed-Muller"
+      ],
+      "lesson": {
+        "why": "Questions ask which sets of operations can build every Boolean function. A fast test, rather than constructing circuits, saves time on the whole question and avoids the trap of sets that look complete but are not.",
+        "intro": "A set of operations is functionally complete when every Boolean function can be built by combining them. The sets {AND, OR, NOT}, {AND, NOT}, {OR, NOT}, {NAND} and {NOR} are complete. Other sets can fail because they are trapped: every combination of their operations keeps some property. For example, AND and OR give 0 when all inputs are 0, so no combination of them can ever produce NOT, which gives 1 on input 0. A set escapes only if it breaks every such trap at least once.",
+        "definitions": [
+          {
+            "term": "Functionally complete",
+            "meaning": "A set of operations that can express every Boolean function by composition."
+          },
+          {
+            "term": "0-preserving",
+            "meaning": "A function that outputs 0 when all inputs are 0; a set of 0-preserving operations can never make the constant 1 or NOT."
+          },
+          {
+            "term": "Reed-Muller basis",
+            "meaning": "The set {XOR, AND, 1}, which writes every function as an XOR of AND-products."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.universal-gates",
+          "dl-boolean-algebra.xor-xnor"
+        ],
+        "principle": {
+          "text": "Post's theorem: a set is functionally complete exactly when it is not contained in any one of five classes: 0-preserving, 1-preserving, monotone, linear (affine over GF(2)), or self-dual. To show a set is incomplete, find one class that holds every operation in it. To show it is complete, build NOT and AND or OR.",
+          "tex": "\\mathcal{F}\\text{ complete} \\iff \\mathcal{F}\\not\\subseteq T_0,\\, T_1,\\, M,\\, L,\\, S"
+        },
+        "limits": "The test is about operations only. A constant such as 1 counts as a member of the set only when it is listed, which is how {XOR, AND} fails while {XOR, AND, 1} succeeds. The criteria also assume operations may be reused and combined freely, with unlimited fan-out.",
+        "example": {
+          "problem": "Is {XOR, AND} functionally complete?",
+          "steps": [
+            "XOR gives 0 on input $(0,0)$ and AND gives 0 on input $(0,0)$, so both are 0-preserving.",
+            "Any combination of 0-preserving operations is 0-preserving, so every function built from them gives 0 when all inputs are 0.",
+            "NOT gives 1 when its input is 0, so NOT cannot be built. Over 3 variables only the 128 of 256 functions with $f(000)=0$ are reachable."
+          ],
+          "result": "{XOR, AND} is not functionally complete. Adding the constant 1 makes it complete, because $A \\oplus 1 = A'$."
+        },
+        "misconceptions": [
+          "Treating {XOR, AND} as complete because $A \\oplus 1 = A'$. The constant 1 is not in the set, so that identity is not available.",
+          "Thinking a bigger set is automatically complete. {AND, OR} sits inside the 0-preserving, 1-preserving and monotone classes. {XOR, XNOR, 0, 1} is still incomplete because every member is linear (affine).",
+          "Assuming a set is complete because it can build AND. It must also build NOT, or another way out of every class."
+        ],
+        "recall": [
+          {
+            "q": "Name the five classes in Post's theorem.",
+            "a": "0-preserving, 1-preserving, monotone, linear (affine over GF(2)) and self-dual."
+          },
+          {
+            "q": "Why can {AND, OR} not build NOT?",
+            "a": "Both are monotone and keep 0 as 0, so any combination does too, while NOT reverses order."
+          },
+          {
+            "q": "Which two single gates are complete on their own?",
+            "a": "NAND and NOR."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which of these sets of operations is functionally complete?",
+          "options": [
+            "{AND, OR}",
+            "{XOR, AND}",
+            "{XOR, OR}",
+            "{XOR, AND, constant 1}"
+          ],
+          "answer": 3,
+          "explanation": "{XOR, AND, 1} gives NOT as $A \\oplus 1$ and then AND with NOT, which is complete: closing the set over 3 variables reaches all 256 functions. The other three are all trapped. {AND, OR} is monotone. {XOR, AND} and {XOR, OR} are 0-preserving and reach only 128 functions. {XOR, AND} tempts most because XOR with a constant would give NOT, but no constant is in the set."
+        },
+        "summary": "A set is complete exactly when it escapes all five Post classes; to refute a set, find one class containing all its operations, and remember that a constant counts only if listed."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.xor-xnor",
+      "title": "XOR and XNOR properties",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        179,
+        192,
+        193,
+        200,
+        204
+      ],
+      "points": [
+        "A ⊕ 0 = A, A ⊕ 1 = A', A ⊕ A = 0, A ⊕ A' = 1; XOR is commutative and associative, so A ⊕ A ⊕ B = B.",
+        "A ⊕ B = AB' + A'B = (A + B)(A' + B'), and (A ⊕ B)' = A ⊙ B = AB + A'B'.",
+        "An n-input XOR is 1 exactly when an odd number of inputs are 1, which makes it the parity generator and checker.",
+        "AND distributes over XOR, A(B ⊕ C) = AB ⊕ AC, but OR does not: A + (B ⊕ C) ≠ (A + B) ⊕ (A + C) when A = 1.",
+        "A ⊕ B is a controlled inverter: B passes through when A = 0 and is inverted when A = 1. Three-input XNOR chains satisfy A ⊙ B ⊙ C = A ⊕ B ⊕ C."
+      ],
+      "keyTerms": [
+        "parity",
+        "controlled inverter",
+        "XNOR"
+      ],
+      "lesson": {
+        "why": "XOR and XNOR identities are tested directly as 'which equation is not valid', and quick algebra with them saves a full truth table.",
+        "intro": "XOR, written $A \\oplus B$, is 1 when its two inputs are different and 0 when they are the same. XNOR, written $A \\odot B$, is the opposite: 1 when the inputs are the same. With several inputs, XOR is 1 when an odd number of inputs are 1, so it acts as a parity checker. XOR can also be read as a controlled inverter: one input decides whether the other passes through or is flipped.",
+        "definitions": [
+          {
+            "term": "XOR",
+            "meaning": "$A \\oplus B = AB' + A'B$, true when the inputs differ."
+          },
+          {
+            "term": "XNOR",
+            "meaning": "$A \\odot B = AB + A'B' = (A \\oplus B)'$, true when the inputs are equal."
+          }
+        ],
+        "principle": {
+          "text": "XOR is commutative and associative, with $A \\oplus 0 = A$, $A \\oplus 1 = A'$ $A \\oplus A = 0$ and $A \\oplus A' = 1$. XNOR is also associative, with $A \\odot 1 = A$, $A \\odot 0 = A'$ and $A \\odot A' = 0$. Complementing one input complements the output; complementing both changes nothing. So equal terms cancel in a chain of XORs. AND distributes over XOR, but OR does not.",
+          "tex": "A \\oplus B = AB' + A'B, \\qquad A' \\oplus B = A \\oplus B' = (A \\oplus B)', \\qquad A' \\oplus B' = A \\oplus B"
+        },
+        "limits": "Cancelling repeated terms works for XOR only; in OR the rule is $A + A = A$. XOR equals OR only when the inputs can never be 1 together, and $A + (B \\oplus C)$ does not equal $(A + B) \\oplus (A + C)$.",
+        "example": {
+          "problem": "Simplify $(A \\oplus B) \\oplus (A \\oplus C)$.",
+          "steps": [
+            "XOR is associative and commutative, so drop the brackets and reorder: $A \\oplus A \\oplus B \\oplus C$.",
+            "Use $A \\oplus A = 0$ to remove the pair, leaving $0 \\oplus B \\oplus C$.",
+            "Use $0 \\oplus X = X$: the expression is $B \\oplus C$. A check of all eight rows of $(A,B,C)$ gives the same values on both sides."
+          ],
+          "result": "$(A \\oplus B) \\oplus (A \\oplus C) = B \\oplus C$."
+        },
+        "misconceptions": [
+          "Treating $\\oplus$ like $+$. In OR, $1 + 1 = 1$, but $1 \\oplus 1 = 0$, so the two functions differ on the row where both inputs are 1.",
+          "Thinking OR distributes over XOR. Only AND does; with $A = 1$, $A + (B \\oplus C)$ is always 1 while $(A+B) \\oplus (A+C)$ is $1 \\oplus 1 = 0$."
+        ],
+        "recall": [
+          {
+            "q": "When is a multi-input XOR equal to 1?",
+            "a": "When an odd number of its inputs are 1."
+          },
+          {
+            "q": "What is $A \\oplus 1$ and what is $A \\oplus A$?",
+            "a": "$A \\oplus 1 = A'$ and $A \\oplus A = 0$."
+          },
+          {
+            "q": "What happens when you complement both inputs of an XOR?",
+            "a": "Nothing: $A' \\oplus B' = A \\oplus B$."
+          },
+          {
+            "q": "What are $A \\odot 1$, $A \\odot 0$ and $A \\oplus A'$?",
+            "a": "$A \\odot 1 = A$, $A \\odot 0 = A'$ and $A \\oplus A' = 1$."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which expression equals $A \\oplus (A + B)$?",
+          "options": [
+            "$A'B$",
+            "$AB'$",
+            "$A \\oplus B$",
+            "$B$"
+          ],
+          "answer": 0,
+          "explanation": "If $A = 0$, then $A + B = B$ and $0 \\oplus B = B$. If $A = 1$, then $A + B = 1$ and $1 \\oplus 1 = 0$. So the result is $B$ when $A = 0$ and 0 when $A = 1$, which is $A'B$. The option $A \\oplus B$ tempts because it agrees at $A = 0$, but at $A = 1$, $B = 0$ it gives 1 where the expression gives 0."
+        },
+        "summary": "XOR is 1 when inputs differ, equal terms cancel in an XOR chain, complementing one input complements the output, and AND distributes over XOR but OR does not."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.self-dual",
+      "title": "Self-dual functions",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        193,
+        194,
+        196
+      ],
+      "points": [
+        "f is self-dual when f(x₁', …, xₙ') = f'(x₁, …, xₙ): complementing every input complements the output.",
+        "Rows pair up as x and its bitwise complement, the two rows of a pair must get opposite outputs, and the 2^(n−1) pairs are free, giving 2^(2^(n−1)) self-dual functions: 2, 4, 16, 256 for n = 1 to 4.",
+        "A self-dual function is 1 on exactly half the rows, so every self-dual function is neutral, but not conversely.",
+        "Majority AB + BC + CA and A ⊕ B ⊕ C are self-dual; AB + C, AB + A'C and A ⊕ B are not."
+      ],
+      "keyTerms": [
+        "self-dual",
+        "complementary rows"
+      ],
+      "lesson": {
+        "why": "Self-dual questions ask you to test a function or count how many exist. Both reduce to one fact: rows pair off with their complements and the paired outputs must differ.",
+        "intro": "The dual of a function swaps AND with OR and 0 with 1. A function is self-dual when it equals its own dual. In truth-table terms, imagine flipping every input bit. The row you land on is the complementary row, and for a self-dual function its output must be the opposite of the row you started on. So the rows of the table split into pairs, such as 000 with 111 and 001 with 110, and each pair must hold one 0 and one 1. That explains both the counting rule and why a self-dual function is 1 on exactly half the rows.",
+        "definitions": [
+          {
+            "term": "Self-dual",
+            "meaning": "A function with $f(x_1',\\dots,x_n') = f'(x_1,\\dots,x_n)$: complementing every input complements the output."
+          },
+          {
+            "term": "Complementary rows",
+            "meaning": "Two truth-table rows whose input bits are all opposite, such as 010 and 101."
+          }
+        ],
+        "prerequisites": [
+          "dl-boolean-algebra.postulates-duality",
+          "dl-boolean-algebra.function-counting"
+        ],
+        "principle": {
+          "text": "A function of $n$ variables is self-dual when each of the $2^{n-1}$ pairs of complementary rows holds outputs 0 and 1. Each pair has 2 choices, so the number of self-dual functions is $2^{2^{n-1}}$, which is 2, 4, 16, 256 for $n = 1$ to $4$. A self-dual function is 1 on exactly half the rows.",
+          "tex": "N_{\\mathrm{sd}}(n) = 2^{2^{n-1}}, \\qquad f(\\overline{x}) = \\overline{f(x)}"
+        },
+        "limits": "Being 1 on exactly half the rows is necessary but not enough: a balanced function must also give opposite outputs on every complementary pair. $A \\oplus B$ is balanced but not self-dual, since rows 00 and 11 both give 0.",
+        "example": {
+          "problem": "Is $f = AB + BC + CA$ self-dual?",
+          "steps": [
+            "List the rows where $f = 1$ as $(A,B,C)$: 011, 101, 110, 111 (at least two inputs are 1).",
+            "Pair each row with its complement: 000 with 111, 001 with 110, 010 with 101, 011 with 100.",
+            "Check each pair: $f(000)=0$, $f(111)=1$; $f(001)=0$, $f(110)=1$; $f(010)=0$, $f(101)=1$; $f(100)=0$, $f(011)=1$. Every pair has one 0 and one 1."
+          ],
+          "result": "Yes, $AB + BC + CA$ (the majority function) is self-dual."
+        },
+        "misconceptions": [
+          "Assuming any function with half its outputs equal to 1 is self-dual. $A \\oplus B$ has two 1-rows of four but is not self-dual.",
+          "Confusing the dual with the complement. The dual $f^d(x) = f'(x')$ complements both inputs and output, so the dual of $AB$ is $A + B$, not $A' + B'$.",
+          "Counting $2^{2^n}$ or $2^{n}$ instead of one free output per pair. The exponent is the number of pairs, $2^{n-1}$."
+        ],
+        "recall": [
+          {
+            "q": "What condition must the outputs of two complementary rows satisfy in a self-dual function?",
+            "a": "They must be opposite, one 0 and one 1."
+          },
+          {
+            "q": "How many self-dual functions of $n$ variables are there?",
+            "a": "$2^{2^{n-1}}$, for example 16 for $n = 3$."
+          },
+          {
+            "q": "Name two self-dual 3-variable functions.",
+            "a": "Majority $AB + BC + CA$ and $A \\oplus B \\oplus C$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many self-dual functions $f(A,B,C)$ satisfy $f(0,0,0) = 0$?",
+          "answer": 8,
+          "explanation": "There are 4 complementary row pairs, so 16 self-dual functions in all. Fixing $f(000)=0$ forces $f(111)=1$ and leaves the other 3 pairs free, giving $2^3 = 8$. The answer 16 tempts by ignoring the condition, and 4 by fixing a whole pair as if both rows were free to choose."
+        },
+        "summary": "A self-dual function gives opposite outputs on every pair of complementary rows, so it is 1 on exactly half the rows and there are $2^{2^{n-1}}$ of them."
+      }
+    },
+    {
+      "id": "dl-boolean-algebra.special-functions",
+      "title": "Symmetric, threshold, linear and monotone functions",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        193,
+        194,
+        195,
+        203
+      ],
+      "points": [
+        "A symmetric function depends only on how many inputs are 1. The n + 1 possible counts each map to 0 or 1, so there are 2^(n+1): 16 for n = 3, 32 for n = 4. AND, OR, XOR and majority are symmetric.",
+        "A threshold function is 1 when w₁x₁ + … + wₙxₙ ≥ T. Majority is threshold; 2-input XOR is not, because no single line separates its 1s from its 0s.",
+        "Affine functions c₀ ⊕ c₁x₁ ⊕ … ⊕ cₙxₙ number 2^(n+1); those with c₀ = 0 (strictly linear) number 2ⁿ.",
+        "Monotone increasing functions never drop from 1 to 0 when an input rises from 0 to 1; their count is the Dedekind number 2, 3, 6, 20, 168, 7581 for n = 0 to 5."
+      ],
+      "keyTerms": [
+        "symmetric function",
+        "threshold function",
+        "affine",
+        "Dedekind number"
+      ],
+      "lesson": {
+        "why": "Occasional questions count how many functions have a given property or test whether a function is symmetric or threshold; the counting rule is a one-line formula once you know it.",
+        "intro": "An $n$-variable Boolean function assigns 0 or 1 to each of the $2^n$ input rows. A symmetric function gives the same output to rows that have the same number of 1s, so only the count of 1s matters, not which inputs are 1. A threshold function adds up weighted inputs and outputs 1 when the sum reaches a limit. The majority function $X(a,b,c)$ is the best-known symmetric one: it is 1 when at least two of its three inputs are 1. Both are small special families inside all $2^{2^n}$ functions.",
+        "principle": {
+          "text": "A symmetric function of $n$ variables is fixed by choosing 0 or 1 for each possible count $0, 1, \\dots, n$ of ones. There are $n + 1$ counts, so there are $2^{n+1}$ symmetric functions. AND, OR, XOR and majority are all symmetric. A threshold function is 1 when $w_1x_1 + \\dots + w_nx_n \\ge T$. For the 3-input majority $X$, two rules settle nested expressions: repetition, $X(u,u,v) = u$ for any $v$, and tie-break, $X(0,1,v) = X(1,0,v) = v$ when the first two inputs differ.",
+          "tex": "\\#\\{\\text{symmetric functions of } n \\text{ variables}\\} = 2^{\\,n+1}"
+        },
+        "limits": "Symmetric means symmetric in all variables at once; a function can be unchanged when two variables swap and still not be symmetric. Not every function is threshold: 2-input XOR has no single line separating its 1s from its 0s.",
+        "example": {
+          "problem": "How many symmetric functions of 3 variables exist, and is $f = x_1x_2 + x_3$ one of them?",
+          "steps": [
+            "The number of 1s among three inputs can be 0, 1, 2 or 3: four counts.",
+            "Each count is assigned 0 or 1 independently, so there are $2^4$ symmetric functions. Listing all of them by script gives 16 distinct truth tables.",
+            "For $f$, take two rows with exactly one 1: $x = (0,0,1)$ gives $f = 1$ but $x = (0,1,0)$ gives $f = 0$.",
+            "Rows with the same count gave different outputs, so $f$ is not symmetric."
+          ],
+          "result": "There are 16 symmetric functions of 3 variables, and $f$ is not one of them."
+        },
+        "misconceptions": [
+          "Counting $2^n$ symmetric functions. The choice is made per count of ones, and there are $n + 1$ counts, not $n$.",
+          "Confusing symmetric with commutative in a pair of variables. A function that is unchanged under swapping $x_1$ and $x_2$ only need not be symmetric in all variables."
+        ],
+        "recall": [
+          {
+            "q": "What does a symmetric function depend on?",
+            "a": "Only on how many of its inputs are 1."
+          },
+          {
+            "q": "How many symmetric functions do $n$ variables have?",
+            "a": "$2^{n+1}$, one 0 or 1 choice for each count from 0 to $n$."
+          },
+          {
+            "q": "Why is 2-input XOR not a threshold function?",
+            "a": "No weights and threshold make the sum reach the limit for inputs 01 and 10 but not for 00 and 11."
+          },
+          {
+            "q": "What is $X(a, b, X(a, a, c))$ for the majority function $X$?",
+            "a": "By repetition $X(a,a,c) = a$, so the expression is $X(a,b,a)$, and repetition again gives $a$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many Boolean functions of 5 variables are symmetric?",
+          "answer": 64,
+          "explanation": "There are six possible counts of ones, 0 to 5, and each is assigned output 0 or 1, giving $2^6 = 64$. Enumerating those assignments gives 64 distinct truth tables. The tempting answer $2^5 = 32$ forgets the count 0."
+        },
+        "summary": "Symmetric functions depend only on the number of 1s, so there are $2^{n+1}$ of them; threshold functions test a weighted sum against a limit."
+      }
+    }
+  ],
+  "formulas": [
+    {
+      "id": "dl-boolean-algebra.de-morgan",
+      "name": "De Morgan's laws",
+      "tex": "\\overline{A \\cdot B} = \\overline{A} + \\overline{B}, \\qquad \\overline{A + B} = \\overline{A} \\cdot \\overline{B}",
+      "text": "(AB)' = A' + B'; (A + B)' = A'B'",
+      "note": "Both halves change: the operator flips and every literal is complemented. Extends to any number of variables.",
+      "topic": "dl-boolean-algebra.de-morgan-complement",
+      "origin": "source",
+      "pages": [
+        179,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.absorption",
+      "name": "Absorption",
+      "tex": "A + AB = A, \\qquad A(A + B) = A",
+      "text": "A + AB = A; A(A + B) = A",
+      "topic": "dl-boolean-algebra.identities",
+      "origin": "source",
+      "pages": [
+        179,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.adjacency",
+      "name": "Adjacency (combining)",
+      "tex": "AB + A\\overline{B} = A, \\qquad (A + B)(A + \\overline{B}) = A",
+      "text": "AB + AB' = A; (A + B)(A + B') = A",
+      "note": "This is the merge step of every K-map group and every Quine-McCluskey combination.",
+      "topic": "dl-boolean-algebra.identities",
+      "origin": "source",
+      "pages": [
+        179,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.redundant-literal",
+      "name": "Redundant literal",
+      "tex": "A + \\overline{A}B = A + B, \\qquad A(\\overline{A} + B) = AB",
+      "text": "A + A'B = A + B; A(A' + B) = AB",
+      "topic": "dl-boolean-algebra.identities",
+      "origin": "source",
+      "pages": [
+        179,
+        195,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.consensus",
+      "name": "Consensus theorem",
+      "tex": "AB + \\overline{A}C + BC = AB + \\overline{A}C",
+      "text": "AB + A'C + BC = AB + A'C",
+      "where": [
+        [
+          "BC",
+          "consensus of AB and A'C: the literals left after removing the opposed pair A, A'"
+        ]
+      ],
+      "note": "Dual: (A + B)(A' + C)(B + C) = (A + B)(A' + C). The consensus term may be dropped only when both parent terms are present.",
+      "topic": "dl-boolean-algebra.identities",
+      "origin": "source",
+      "pages": [
+        179,
+        199,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.or-distributes",
+      "name": "OR distributes over AND",
+      "tex": "A + BC = (A + B)(A + C)",
+      "text": "A + BC = (A + B)(A + C)",
+      "note": "Holds in Boolean algebra but not in arithmetic; it turns SOP into POS.",
+      "topic": "dl-boolean-algebra.postulates-duality",
+      "origin": "source",
+      "pages": [
+        178,
+        179
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.dual",
+      "name": "Dual of a function",
+      "tex": "f^{d}(x_1, \\dots, x_n) = \\overline{f(\\overline{x_1}, \\dots, \\overline{x_n})}",
+      "text": "f^d(x₁, …, xₙ) = f'(x₁', …, xₙ')",
+      "note": "Syntactically: swap AND with OR and 0 with 1, keeping the literals. The complement additionally complements every literal.",
+      "topic": "dl-boolean-algebra.postulates-duality",
+      "origin": "source",
+      "pages": [
+        180,
+        194
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.canonical-relation",
+      "name": "Minterm and maxterm index sets",
+      "tex": "F = \\sum m(S) = \\prod M(U \\setminus S), \\qquad \\overline{F} = \\sum m(U \\setminus S)",
+      "text": "F = Σm(S) = ΠM(U − S); F' = Σm(U − S)",
+      "where": [
+        [
+          "U",
+          "{0, 1, …, 2ⁿ − 1}, all row indices"
+        ],
+        [
+          "S",
+          "rows where F = 1"
+        ]
+      ],
+      "note": "Mᵢ is the complement of mᵢ, so the same index i names the 1-row of mᵢ and the 0-row of Mᵢ.",
+      "topic": "dl-boolean-algebra.canonical-forms",
+      "origin": "source",
+      "pages": [
+        182,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.group-literals",
+      "name": "Literals in a K-map group",
+      "tex": "\\text{literals} = n - k \\quad \\text{for a group of } 2^{k} \\text{ cells}",
+      "text": "literals = n − k for a group of 2ᵏ cells",
+      "where": [
+        [
+          "n",
+          "number of variables"
+        ],
+        [
+          "k",
+          "variables that change inside the group"
+        ]
+      ],
+      "topic": "dl-boolean-algebra.kmap-grouping",
+      "origin": "source",
+      "pages": [
+        184,
+        199
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.total-functions",
+      "name": "Number of Boolean functions",
+      "tex": "N(n) = 2^{2^{n}}",
+      "text": "N(n) = 2^(2ⁿ)",
+      "note": "With the output fixed on k rows: 2^(2ⁿ − k). For n = 3 and f(000) = 1: 128.",
+      "topic": "dl-boolean-algebra.function-counting",
+      "origin": "source",
+      "pages": [
+        180,
+        193,
+        203,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.neutral-count",
+      "name": "Number of neutral functions",
+      "tex": "N_{\\text{neutral}}(n) = \\binom{2^{n}}{2^{n-1}}",
+      "text": "N_neutral(n) = C(2ⁿ, 2^(n−1))",
+      "note": "Choose which half of the rows output 1: 6 for n = 2, 70 for n = 3.",
+      "topic": "dl-boolean-algebra.function-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.self-dual-count",
+      "name": "Number of self-dual functions",
+      "tex": "N_{\\text{sd}}(n) = 2^{2^{n-1}}",
+      "text": "N_sd(n) = 2^(2^(n−1))",
+      "note": "One free output per complementary pair of rows: 4 for n = 2, 16 for n = 3.",
+      "topic": "dl-boolean-algebra.self-dual",
+      "origin": "source",
+      "pages": [
+        193,
+        194,
+        208
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.symmetric-count",
+      "name": "Number of symmetric functions",
+      "tex": "N_{\\text{sym}}(n) = 2^{n+1}",
+      "text": "N_sym(n) = 2^(n+1)",
+      "note": "The same count holds for affine functions c₀ ⊕ c₁x₁ ⊕ … ⊕ cₙxₙ, a coincidence of formulas, not of sets.",
+      "topic": "dl-boolean-algebra.special-functions",
+      "origin": "source",
+      "pages": [
+        193,
+        194,
+        195,
+        208
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.xor-parity",
+      "name": "Multi-input XOR",
+      "tex": "x_1 \\oplus x_2 \\oplus \\cdots \\oplus x_n = \\left(\\sum_{i} x_i\\right) \\bmod 2",
+      "text": "x₁ ⊕ x₂ ⊕ … ⊕ xₙ = (Σ xᵢ) mod 2",
+      "note": "1 exactly when an odd number of inputs are 1.",
+      "topic": "dl-boolean-algebra.xor-xnor",
+      "origin": "source",
+      "pages": [
+        193,
+        200,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.xor-forms",
+      "name": "XOR in SOP and POS",
+      "tex": "A \\oplus B = A\\overline{B} + \\overline{A}B = (A + B)(\\overline{A} + \\overline{B})",
+      "text": "A ⊕ B = AB' + A'B = (A + B)(A' + B')",
+      "topic": "dl-boolean-algebra.xor-xnor",
+      "origin": "source",
+      "pages": [
+        177,
+        192,
+        207
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.shannon-expansion",
+      "name": "Shannon expansion",
+      "tex": "f = x\\, f|_{x=1} + \\overline{x}\\, f|_{x=0}",
+      "text": "f = x·f(x=1) + x'·f(x=0)",
+      "note": "Splitting on one variable proves identities by cases and underlies the 5-variable K-map (one half per value of the fifth variable).",
+      "topic": "dl-boolean-algebra.algebraic-simplification",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [
+    {
+      "id": "dl-boolean-algebra.truth-table-check",
+      "name": "Equivalence check by truth table",
+      "worst": "O(2ⁿ · |expression|)",
+      "notes": "Evaluate both expressions on every row; exact but exponential in the number of variables.",
+      "topic": "dl-boolean-algebra.operators",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.qm-prime-generation",
+      "name": "Quine-McCluskey prime-implicant generation",
+      "worst": "O(3ⁿ) candidate cubes",
+      "notes": "Each cube fixes every position to 0, 1 or dash; a function can have up to about 3ⁿ/n prime implicants.",
+      "topic": "dl-boolean-algebra.quine-mccluskey",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.pi-cover",
+      "name": "Minimum PI cover (Petrick's method)",
+      "worst": "Exponential (NP-hard set cover)",
+      "notes": "EPI extraction and row/column dominance shrink the chart in polynomial time; the residual cyclic core needs search.",
+      "topic": "dl-boolean-algebra.petrick-cover",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "problemTypes": [
+    {
+      "id": "dl-boolean-algebra.kmap-minimal-sop",
+      "title": "Minimal SOP or POS of a 4-variable function with don't-cares",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Plot the 1s and the don't-cares on a Gray-coded map; mark which cells wrap.",
+        "Circle every 1 that has only one possible largest group first: those groups are the EPIs.",
+        "Cover the remaining 1s with the fewest, largest groups, using don't-cares only where they enlarge a group.",
+        "Check each option by expanding it to minterms: it must cover every 1 and no 0."
+      ],
+      "trap": "Two equally minimal covers often exist; an option is wrong only if it misses a 1, covers a 0, or uses more terms or literals.",
+      "topic": "dl-boolean-algebra.kmap-grouping",
+      "origin": "source",
+      "pages": [
+        184,
+        185,
+        187,
+        196,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.pi-epi-count",
+      "title": "Count prime and essential prime implicants",
+      "frequency": "high",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Plot the map and, for each 1-cell, find every maximal group containing it.",
+        "Collect the distinct maximal groups: that is the PI count, including PIs that no minimal cover uses.",
+        "A PI is essential when some true minterm (not a don't-care) lies in no other PI."
+      ],
+      "trap": "Students count only the PIs of their chosen cover and miss the redundant ones, such as BC' in Σm(0, 1, 4, 5, 12, 13, 14, 15).",
+      "topic": "dl-boolean-algebra.prime-implicants",
+      "origin": "source",
+      "pages": [
+        185,
+        186,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.identity-simplification",
+      "title": "Simplify an expression with identities",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Merge adjacent terms (XY + XY' = X) and absorb (X + XY = X).",
+        "Remove redundant literals (X + X'Y = X + Y) and consensus terms whose parents are both present.",
+        "When unsure, convert the expression and each option to minterm lists and compare."
+      ],
+      "trap": "Removing a term as consensus when one parent is missing, as in reducing AB + AC + A'BC to AB + AC.",
+      "topic": "dl-boolean-algebra.algebraic-simplification",
+      "origin": "source",
+      "pages": [
+        179,
+        195,
+        202,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.count-functions",
+      "title": "Count Boolean functions with a property",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Ask what is free: one output per row (2^(2ⁿ)), per complementary row pair (self-dual), or per weight class (symmetric).",
+        "Fixed rows reduce the exponent: k fixed rows give 2^(2ⁿ − k).",
+        "Counting constraints on the number of 1s become binomial coefficients, as in C(8, 4) = 70 neutral 3-variable functions."
+      ],
+      "trap": "Writing 2ⁿ (rows) instead of 2^(2ⁿ) (functions).",
+      "topic": "dl-boolean-algebra.function-counting",
+      "origin": "source",
+      "pages": [
+        180,
+        193,
+        194,
+        203,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.nand-nor-gate-count",
+      "title": "Minimum NAND or NOR gates for a function",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Minimize the function first (SOP for NAND, POS for NOR).",
+        "Two-level form: one gate per multi-literal term plus one output gate; add an inverter per complemented input not available.",
+        "For XOR, XNOR and other small functions, recall the known minima (XOR 4 NANDs, XNOR 5) instead of the two-level count."
+      ],
+      "trap": "The two-level count is not always minimal; XOR in two-level NAND form needs 5 gates with inverters, but 4 suffice with a shared NAND.",
+      "topic": "dl-boolean-algebra.nand-nor-realization",
+      "origin": "source",
+      "pages": [
+        192,
+        197,
+        202,
+        203
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.completeness-check",
+      "title": "Is a gate set functionally complete?",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MSQ",
+      "recipe": [
+        "Try to build NOT: if every operation outputs 0 on all-0 inputs (or 1 on all-1 inputs), NOT is impossible.",
+        "Check monotone (AND, OR), linear (XOR, XNOR) and self-dual classes; a set trapped in one class is incomplete.",
+        "If NOT plus AND or OR can be built, the set is complete."
+      ],
+      "trap": "{XOR, AND} looks complete because A ⊕ 1 = A', but the constant 1 is not in the set.",
+      "topic": "dl-boolean-algebra.functional-completeness",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.qm-tabular",
+      "title": "Quine-McCluskey table: prime and essential implicants",
+      "frequency": "low",
+      "marks": 2,
+      "format": "MSQ",
+      "recipe": [
+        "Group minterms by number of 1s and merge neighbouring groups that differ in one bit.",
+        "Repeat on merged cubes with matching dash positions; unticked cubes are the PIs.",
+        "Build the PI chart on true minterms only and take the sole covers as EPIs, then finish with Petrick's method."
+      ],
+      "trap": "Merging cubes whose dashes sit in different positions, or putting don't-cares in the chart's columns.",
+      "topic": "dl-boolean-algebra.quine-mccluskey",
+      "origin": "source",
+      "pages": [
+        188,
+        189,
+        197,
+        198
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "dl-boolean-algebra.q-majority-simplify",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Simplify F = ABC + AB'C + ABC' + A'BC.",
+      "options": [
+        "AB + AC",
+        "AB + BC + CA",
+        "A + BC",
+        "AC + A'BC"
+      ],
+      "answer": 1,
+      "explanation": "The terms are minterms 7, 5, 6 and 3, the rows with at least two 1s. ABC + AB'C = AC, ABC + ABC' = AB and ABC + A'BC = BC (ABC may be reused). So F = AB + BC + CA, the majority function. AB + AC misses m3 = A'BC, which only BC covers, so BC is not a removable consensus term here.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.algebraic-simplification",
+      "origin": "source",
+      "sourceLabel": "PYQ-10 (GATE 2022) — Simplify",
+      "pages": [
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-consensus-product",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Which expression equals (A + B)(A' + C)?",
+      "options": [
+        "AC + A'B",
+        "AB + A'C",
+        "AC + A'B + AB",
+        "BC"
+      ],
+      "answer": 0,
+      "explanation": "Multiply out: AA' + AC + A'B + BC = AC + A'B + BC. BC is the consensus of AC and A'B, so it drops: AC + A'B. Check row A = 1, B = 1, C = 0: the original is 1·0 = 0, AC + A'B = 0, but AB + A'C = 1 and AC + A'B + AB = 1, so those are wrong.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.algebraic-simplification",
+      "origin": "source",
+      "sourceLabel": "PYQ-6 (GATE 2016) — Simplify",
+      "pages": [
+        202,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-de-morgan",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The complement of (X + Y)(Y + Z) is:",
+      "options": [
+        "(X' + Y')(Y' + Z')",
+        "Y'(X' + Z')",
+        "X'Y'Z'",
+        "Y' + X'Z'"
+      ],
+      "answer": 1,
+      "explanation": "De Morgan on the product: (X + Y)' + (Y + Z)' = X'Y' + Y'Z' = Y'(X' + Z'). Option (X' + Y')(Y' + Z') complements the literals but keeps the operators. X'Y'Z' misses the row X = 1, Y = 0, Z = 0 where the original is 1·0 = 0. Y' + X'Z' is 1 at X = 0, Y = 1, Z = 0, where the original is 1.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.de-morgan-complement",
+      "origin": "source",
+      "sourceLabel": "PYQ-12 (GATE 2018) — De Morgan",
+      "pages": [
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-dual-vs-complement",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "For f = A + BC' + 0, which is the dual of f?",
+      "options": [
+        "A(B + C') · 1",
+        "A'(B' + C) · 1",
+        "A' + B'C + 1",
+        "A + B'C"
+      ],
+      "answer": 0,
+      "explanation": "The dual swaps + with · and 0 with 1 and keeps every literal: A + BC' + 0 becomes A · (B + C') · 1 = A(B + C'). A'(B' + C) is the complement of f (dual plus complemented literals). The other two options keep the operators and are neither.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.postulates-duality",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.q-kmap-sparse",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Which is a minimal sum-of-products for F(A, B, C, D) = Σm(2, 4, 6, 8, 10)?",
+      "options": [
+        "BD' + AC'D'",
+        "A'BD' + AB'D' + B'CD'",
+        "A'BD' + AB'D' + A'B'CD'",
+        "BD' + B'D'"
+      ],
+      "answer": 1,
+      "explanation": "The PIs are A'BD' (4, 6), AB'D' (8, 10), A'CD' (2, 6) and B'CD' (2, 10). Minterm 4 lies only in A'BD' and 8 only in AB'D', so both are essential; m2 is left and needs A'CD' or B'CD'. So B'CD' + A'BD' + AB'D' is minimal (9 literals). BD' covers m12 and m14, which are 0. A'B'CD' covers m2 but is not prime. BD' + B'D' = D' covers every even minterm, including the 0s 0, 12 and 14.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.kmap-grouping",
+      "origin": "source",
+      "sourceLabel": "PYQ-13 (GATE 2017) — K-map",
+      "pages": [
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-dont-care-column",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The minimal SOP of F(A, B, C) = Σm(1, 3, 7) + d(0, 2, 5) is:",
+      "options": [
+        "A' + BC",
+        "C",
+        "A'C + BC",
+        "A' + C"
+      ],
+      "answer": 1,
+      "explanation": "The column C = 1 holds m1, m3, m7 and the don't-care m5: one 4-cell group, F = C. A' + BC covers every 1 but costs 3 literals instead of 1. A'C + BC is valid but larger. A' + C also works but has an extra term; the single literal C is the unique minimum.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.dont-cares",
+      "origin": "curated",
+      "pages": [
+        187
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-pos-xnor",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The minimal product-of-sums of F(A, B, C) = Σm(0, 2, 5, 7) is:",
+      "options": [
+        "(A + C')(A' + C)",
+        "(A' + C')(A + C)",
+        "(A + C)(B + C')",
+        "(A + B + C')(A' + B + C)"
+      ],
+      "answer": 0,
+      "explanation": "The 0s are at 1 (001), 3 (011), 4 (100) and 6 (110). {1, 3} has A = 0, C = 1, giving sum term A + C'. {4, 6} has A = 1, C = 0, giving A' + C. F = (A + C')(A' + C), which is A ⊙ C. The second option is A ⊕ C, the complement. The last is the product of maxterms M1 and M4 only, so it would wrongly output 1 at rows 3 and 6.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.pos-kmap",
+      "origin": "source",
+      "pages": [
+        188
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-five-variable",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Using a 5-variable K-map with A as the most significant bit, minimize F(A, B, C, D, E) = Σm(0, 2, 5, 7, 8, 10, 16, 18, 21, 23, 24, 26).",
+      "options": [
+        "C'E' + B'CE",
+        "C'E' + A'B'CE + AB'CE",
+        "B'D' + CE",
+        "A'C'E' + AC'E' + CE"
+      ],
+      "answer": 0,
+      "explanation": "In binary, 0, 2, 8, 10, 16, 18, 24, 26 all have C = 0 and E = 0 with A, B, D free: an 8-cell group across both halves, C'E'. The rest, 5, 7, 21, 23, are 00101, 00111, 10101, 10111: B = 0, C = 1, E = 1 with A and D free, B'CE. Splitting B'CE by A wastes a term, since cells at the same position in the A = 0 and A = 1 halves are adjacent. CE also covers 13 and 15, which are 0.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.kmap-layout",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.q-epi-tabular",
+      "type": "msq",
+      "marks": 2,
+      "stem": "For F(A, B, C, D) = Σm(1, 4, 6, 7, 8, 9, 10, 11, 15), which of the following are essential prime implicants?",
+      "options": [
+        "B'C'D",
+        "A'BD'",
+        "AB'",
+        "BCD"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "The tabular method gives six PIs: -001 = B'C'D, 01-0 = A'BD', 011- = A'BC, -111 = BCD, 1-11 = ACD and 10-- = AB'. Minterm 1 lies only in B'C'D, 4 only in A'BD' and 8 only in AB', so these three are essential. BCD is prime and appears in the minimal cover B'C'D + A'BD' + AB' + BCD, but it is not essential: 7 is also in A'BC and 15 in ACD.",
+      "difficulty": "hard",
+      "topic": "dl-boolean-algebra.quine-mccluskey",
+      "origin": "source",
+      "pages": [
+        197,
+        198
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-pi-count-corrected",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many prime implicants does F(A, B, C, D) = Σm(0, 1, 4, 5, 12, 13, 14, 15) have?",
+      "answer": 3,
+      "explanation": "Maximal groups: A'C' = {0, 1, 4, 5}, AB = {12, 13, 14, 15}, and BC' = {4, 5, 12, 13}, which cannot be enlarged because 0, 1, 8 and 9 are not all 1. So there are 3 PIs. A'C' (only cover of m0) and AB (only cover of m14) are essential; BC' is redundant, and F = A'C' + AB.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.prime-implicants",
+      "origin": "curated",
+      "pages": [
+        186
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-cyclic-pi-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many prime implicants does F(A, B, C) = Σm(0, 1, 2, 5, 6, 7) have?",
+      "answer": 6,
+      "explanation": "Each 1-cell has two neighbouring 1s and no 4-cell group exists, so the PIs are the six pairs A'B' (0, 1), A'C' (0, 2), B'C (1, 5), BC' (2, 6), AC (5, 7) and AB (6, 7). Every minterm lies in exactly two of them, so none is essential; the two minimal covers A'B' + BC' + AC and A'C' + B'C + AB each use 3.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.prime-implicants",
+      "origin": "source",
+      "sourceLabel": "PYQ-9 (GATE 2021) — PI count",
+      "pages": [
+        189,
+        190,
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-fixed-row-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many Boolean functions of 3 variables satisfy f(0, 0, 0) = 1?",
+      "answer": 128,
+      "explanation": "There are 2³ = 8 rows. Fixing one row's output leaves 7 rows free, each 0 or 1, so 2⁷ = 128 functions, half of the 256.",
+      "difficulty": "easy",
+      "topic": "dl-boolean-algebra.function-counting",
+      "origin": "source",
+      "sourceLabel": "PYQ-11 (GATE 2014) — Boolean count",
+      "pages": [
+        204
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-neutral-count",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A Boolean function is called neutral if its truth table has as many 1s as 0s. How many neutral functions of 3 variables exist?",
+      "answer": 70,
+      "explanation": "The truth table has 8 rows; choose which 4 output 1: C(8, 4) = 8·7·6·5 / 4! = 70. The 16 self-dual functions are among them, since each is 1 on exactly half the rows.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.function-counting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.q-xor-nand-count",
+      "type": "nat",
+      "marks": 1,
+      "stem": "What is the minimum number of 2-input NAND gates needed to realize A ⊕ B, with only A and B available as inputs?",
+      "answer": 4,
+      "explanation": "Let T = NAND(A, B) = (AB)'. Then NAND(A, T) = (AT)' = (AB')' and NAND(B, T) = (A'B)', and NAND of these two is AB' + A'B = A ⊕ B: 4 gates. An exhaustive search over all 2-input NAND circuits finds none with 3 gates.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.universal-gates",
+      "origin": "source",
+      "pages": [
+        193
+      ]
+    },
+    {
+      "id": "dl-boolean-algebra.q-functional-completeness",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of these gate sets are functionally complete, with no constants available?",
+      "options": [
+        "{NAND}",
+        "{AND, OR}",
+        "{XOR, AND}",
+        "{OR, NOT}"
+      ],
+      "answer": [
+        0,
+        3
+      ],
+      "explanation": "NAND gives NOT as NAND(A, A) and then AND and OR, so it is complete. {OR, NOT} gives AND as (A' + B')'. {AND, OR} is monotone and cannot produce NOT. {XOR, AND} outputs 0 whenever all inputs are 0, so it cannot produce NOT without the constant 1; it reaches only the 128 of 256 three-variable functions with f(000) = 0.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.functional-completeness",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "dl-boolean-algebra.q-self-dual-pick",
+      "type": "msq",
+      "marks": 2,
+      "stem": "Which of the following functions of A, B, C are self-dual?",
+      "options": [
+        "AB + BC + CA",
+        "A ⊕ B ⊕ C",
+        "AB + C",
+        "AB + A'C"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Self-dual means complementing all inputs complements the output. Majority: A'B' + B'C' + C'A' is 1 exactly when at most one input is 1, the complement of majority, so it is self-dual. XOR: A' ⊕ B' ⊕ C' = (A ⊕ B ⊕ C)', self-dual. AB + C is 1 on five rows, not four, so it cannot be. AB + A'C at 001 gives 1 and at 110 also gives 1, so it fails.",
+      "difficulty": "medium",
+      "topic": "dl-boolean-algebra.self-dual",
+      "origin": "source",
+      "pages": [
+        194
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "De Morgan changes two things: the operator flips and every literal is complemented. Doing only one gives (X' + Y')(Y' + Z') for the complement of (X + Y)(Y + Z).",
+      "origin": "source",
+      "pages": [
+        205
+      ]
+    },
+    {
+      "text": "A consensus term is redundant only while both parent terms remain. In AB + AC + BC with no A' term, BC is not a consensus and cannot be dropped.",
+      "origin": "source",
+      "pages": [
+        204,
+        205
+      ]
+    },
+    {
+      "text": "K-map groups must be rectangles of 1, 2, 4, 8 or 16 cells; three 1s in a row or an L-shape is never one term. Remember the edges wrap.",
+      "origin": "source",
+      "pages": [
+        205
+      ]
+    },
+    {
+      "text": "Counting PIs means all maximal groups, including ones no minimal cover uses; counting EPIs means only those that solely cover a true minterm.",
+      "origin": "source",
+      "pages": [
+        186,
+        205
+      ]
+    },
+    {
+      "text": "Don't-cares are optional: use one only when it enlarges a group, and never let a don't-care cell decide that a PI is essential.",
+      "origin": "source",
+      "pages": [
+        187,
+        205
+      ]
+    },
+    {
+      "text": "In POS, a 0-group with A = 0 contributes the literal A, not A'. Read sum terms with the opposite polarity to product terms.",
+      "origin": "source",
+      "pages": [
+        187,
+        205
+      ]
+    },
+    {
+      "text": "The dual keeps literals and swaps operators and constants; the complement also complements literals. Confusing them is the most common error on self-dual questions.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "AND, OR and XOR are each incomplete, and so are {XOR, AND} and {AND, OR}; only NAND or NOR alone is universal among two-input gates.",
+      "origin": "source",
+      "pages": [
+        192,
+        205
+      ]
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Identities",
+      "lines": [
+        "A + AB = A;  A(A + B) = A",
+        "AB + AB' = A;  A + A'B = A + B",
+        "AB + A'C + BC = AB + A'C (consensus)",
+        "(AB)' = A' + B';  (A + B)' = A'B'",
+        "A + BC = (A + B)(A + C)",
+        "Dual: swap +/· and 0/1, keep literals"
+      ],
+      "origin": "source",
+      "pages": [
+        207,
+        208
+      ]
+    },
+    {
+      "heading": "K-map and tabular method",
+      "lines": [
+        "Gray order 00 01 11 10; edges wrap; 5-var = two 4-var halves",
+        "Group of 2ᵏ cells → n − k literals",
+        "All EPIs first, then cheapest cover; don't-cares only if they help",
+        "POS: group 0s, read A = 0 as A",
+        "QM: merge by one-bit difference, unticked = PIs, chart on true minterms"
+      ],
+      "origin": "source",
+      "pages": [
+        207
+      ]
+    },
+    {
+      "heading": "Gates",
+      "lines": [
+        "NAND or NOR alone is complete; {AND, OR}, {XOR, AND} are not",
+        "NAND counts: NOT 1, AND 2, OR 3, XOR 4",
+        "SOP → NAND-NAND; POS → NOR-NOR",
+        "n-input XOR = 1 iff odd number of 1s"
+      ],
+      "origin": "source",
+      "pages": [
+        192,
+        193,
+        207
+      ]
+    },
+    {
+      "heading": "Counting (n variables)",
+      "lines": [
+        "All: 2^(2ⁿ); k rows fixed: 2^(2ⁿ − k)",
+        "Self-dual: 2^(2^(n−1)); neutral: C(2ⁿ, 2^(n−1))",
+        "Symmetric: 2^(n+1); affine: 2^(n+1)"
+      ],
+      "origin": "source",
+      "pages": [
+        207,
+        208
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 186,
+      "claim": "The prime implicants of Σm(0, 1, 4, 5, 12, 13, 14, 15) are only A'C' and AB.",
+      "correction": "BC' = {4, 5, 12, 13} is also a prime implicant, so there are 3 PIs. It is not essential, and the minimal SOP stays A'C' + AB."
+    },
+    {
+      "page": 186,
+      "claim": "After the essential PIs, the remaining minterms are covered by choosing PIs greedily.",
+      "correction": "Greedy selection can miss the minimum cover. An exact minimum needs Petrick's method or an exhaustive search of the reduced PI chart."
+    },
+    {
+      "page": 187,
+      "claim": "F = Σm(1, 3, 7) + d(0, 2, 5) minimizes to A' + BC.",
+      "correction": "The column C = 1 (m1, m3, m7 with don't-care m5) forms one 4-cell group, so the minimal SOP is F = C."
+    },
+    {
+      "page": 192,
+      "claim": "{XOR, AND} is universal (the Reed-Muller basis).",
+      "correction": "Without the constant 1, XOR and AND both output 0 on all-0 inputs, so NOT cannot be built and the set is incomplete. The Reed-Muller basis is {XOR, AND, 1}."
+    },
+    {
+      "page": 197,
+      "claim": "Example 5: for F = ΠM(0, 2, 4, 6), grouping the 0s gives F' = C and F = C'.",
+      "correction": "The 0s are exactly the cells with C = 0, so F' = C' and F = C, which matches the 1s at m1, m3, m5, m7."
+    },
+    {
+      "page": 201,
+      "claim": "Q10 asks for the minimum DFA of F = Σm(0, 2, 4, 6).",
+      "correction": "The question asks for the minimal SOP, which is F = C'; no automaton is involved."
+    },
+    {
+      "page": 201,
+      "claim": "Q12: Σm(1, 3, 7) + d(0, 5) gives F = C or A' + BC, depending.",
+      "correction": "The unique minimum is F = C (m1, m3, m7 and don't-care m5). A' + BC is not even valid here, since it covers m2, which is 0."
+    },
+    {
+      "page": 204,
+      "claim": "PYQ-10: ABC + AB'C + ABC' + A'BC simplifies to AC + AB by consensus.",
+      "correction": "The function is Σm(3, 5, 6, 7), the majority AB + BC + CA. BC cannot be dropped because m3 = A'BC is covered only by BC."
+    },
+    {
+      "page": 204,
+      "claim": "PYQ-13: the minimal SOP of Σm(2, 4, 6, 8, 10) is BD' + AC'D'.",
+      "correction": "BD' covers the 0s m12 and m14. The minimal SOP is A'BD' + AB'D' + B'CD' (or A'CD' in place of B'CD'), with A'BD' and AB'D' essential."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "dl-minimization",
+      "status": "covered",
+      "topics": [
+        "dl-boolean-algebra.identities",
+        "dl-boolean-algebra.algebraic-simplification",
+        "dl-boolean-algebra.de-morgan-complement",
+        "dl-boolean-algebra.canonical-forms",
+        "dl-boolean-algebra.kmap-layout",
+        "dl-boolean-algebra.kmap-grouping",
+        "dl-boolean-algebra.prime-implicants",
+        "dl-boolean-algebra.dont-cares",
+        "dl-boolean-algebra.pos-kmap",
+        "dl-boolean-algebra.quine-mccluskey",
+        "dl-boolean-algebra.petrick-cover"
+      ]
+    }
+  ]
+}

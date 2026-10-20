@@ -1,0 +1,2098 @@
+{
+  "id": "cn-network-layer",
+  "summary": "The network layer carries datagrams across many networks: routing algorithms build forwarding tables, and routers forward each datagram by longest prefix match. For IPv4 the syllabus names CIDR (masks, network and broadcast addresses, host counts, subnetting and aggregation), fragmentation (data in multiples of 8 bytes, offsets in 8-byte units, the MF flag, reassembly only at the destination) and NAT with port translation. For routing it names distance vector (Bellman-Ford updates, count to infinity, split horizon, poison reverse) and link state (flooded LSAs plus Dijkstra). ARP, DHCP, ICMP and IPv6 stay as background.",
+  "highYield": [
+    "From IP/n: the mask, network address (IP AND mask), broadcast address, host range and 2^(32 − n) − 2 hosts, especially when the prefix ends inside the third octet.",
+    "Dividing a block into subnets, VLSM, checking that an allocation is aligned and non-overlapping, and aggregating contiguous blocks into one prefix.",
+    "Longest prefix match over a forwarding table with nested prefixes and a default route.",
+    "Fragmentation: data per fragment rounded down to a multiple of 8, offsets in 8-byte units, MF flags, Total Length, and reassembly only at the destination.",
+    "Distance vector updates by Bellman-Ford, count to infinity with split horizon and poison reverse, and link-state forwarding tables from Dijkstra.",
+    "NAT with port translation: how addresses and ports are rewritten in each direction, and what it breaks."
+  ],
+  "topics": [
+    {
+      "id": "cn-network-layer.network-layer-functions",
+      "title": "Network layer functions: forwarding and routing",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        638
+      ],
+      "points": [
+        "The network layer carries datagrams from the source host to the destination host across many networks. Its jobs are logical (IP) addressing, routing, forwarding, fragmentation and error reporting.",
+        "Forwarding is the local, per-datagram step: a router looks up the destination address in its forwarding table and moves the datagram from an input port to the right output port (the data plane).",
+        "Routing is the network-wide process that builds those tables by running a routing algorithm such as distance vector or link state (the control plane).",
+        "IP offers best-effort datagram service: no connection set-up and no guarantee of delivery, order or timing. Reliability is left to TCP at the end hosts."
+      ],
+      "keyTerms": [
+        "forwarding",
+        "routing",
+        "data plane",
+        "control plane",
+        "best effort"
+      ],
+      "lesson": {
+        "why": "Statements about what a router does and does not do appear as true-or-false sets, and each one turns on separating forwarding from routing.",
+        "intro": "A datagram is one self-contained packet of the Internet Protocol. The network layer moves each datagram from the sending host to the receiving host across many networks, using the destination address written in its header. Two different jobs hide in that sentence. Forwarding is what a router does to one datagram right now: it reads the destination address, looks it up in a table and sends the datagram out of one port. Routing is the slower, network-wide work of filling those tables with correct entries.",
+        "analogy": {
+          "text": "Forwarding is a postal sorter dropping each letter into the right bin using a chart on the wall; routing is the planning office that drew the chart.",
+          "breaksWhen": "A router can run without any planning office, because its table may be filled by hand (static routes) instead of by a routing protocol."
+        },
+        "definitions": [
+          {
+            "term": "Forwarding table",
+            "meaning": "The list of destination prefixes in a router, each paired with the output port or next hop to use."
+          },
+          {
+            "term": "Best effort",
+            "meaning": "The network tries to deliver each datagram but promises nothing about arrival, order or delay."
+          }
+        ],
+        "principle": {
+          "text": "Forwarding is a per-datagram table lookup that runs in the data plane; routing is the control-plane process that builds the table. The header is touched only for the fields that must change at each hop."
+        },
+        "limits": "A router that uses only static entries never runs a routing algorithm, yet it still forwards. Fragmentation can happen at a router, but putting fragments back together is done only at the destination host.",
+        "example": {
+          "problem": "A router receives a datagram with destination 10.2.3.4 and TTL 5. Its table lists 10.2.0.0/16 on port 3. What does the router do, and does it need to run a routing protocol at that moment?",
+          "steps": [
+            "It looks up 10.2.3.4 in the forwarding table and finds the entry 10.2.0.0/16, which sends the datagram out of port 3.",
+            "It lowers TTL from 5 to 4 and recomputes the header checksum, because the TTL field is part of the header.",
+            "It transmits the datagram on port 3. No routing algorithm ran for this datagram; one ran earlier, or a person typed the entry."
+          ],
+          "result": "The datagram leaves port 3 with TTL 4; forwarding needed only the table, not a routing protocol."
+        },
+        "misconceptions": [
+          "Saying a router never modifies a packet is wrong: every hop lowers TTL and so changes the header checksum too.",
+          "Routers do not reassemble fragments on the way. A router may fragment, but only the destination host reassembles.",
+          "Best effort does not mean IP is unreliable by mistake; reliability is deliberately left to TCP at the end hosts."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between forwarding and routing?",
+            "a": "Forwarding moves one datagram using the table; routing builds the table by running an algorithm."
+          },
+          {
+            "q": "Which device reassembles IP fragments?",
+            "a": "Only the destination host, never an intermediate router."
+          },
+          {
+            "q": "What does best-effort service guarantee?",
+            "a": "Nothing about delivery, order or timing; the network just tries."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which statement about an IP router is correct?",
+          "options": [
+            "It must run a routing protocol to be able to forward datagrams.",
+            "It decrements the TTL of every datagram it forwards.",
+            "It reassembles fragments before sending them to the next link.",
+            "It guarantees in-order delivery of datagrams on each flow."
+          ],
+          "answer": 1,
+          "explanation": "Every forwarded datagram has its TTL lowered by one. A router with static entries forwards without any routing protocol, so the first option is false and tempts anyone who merges the two jobs. Reassembly is left to the destination host, and best-effort IP gives no ordering guarantee."
+        },
+        "summary": "Forwarding is the per-datagram table lookup, routing is the process that fills the table. Routers change TTL and checksum, never reassemble, and IP promises only best effort."
+      }
+    },
+    {
+      "id": "cn-network-layer.ipv4-addressing",
+      "title": "IPv4 addresses, classful addressing and special ranges",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        56,
+        57,
+        639
+      ],
+      "points": [
+        "An IPv4 address has 32 bits, written as four decimal octets (a.b.c.d). It splits into a network part, shared by every host on one network, and a host part.",
+        "Classful addressing (legacy) fixed the split by the leading bits: class A starts 0 (/8, first octet 0–127), class B 10 (/16, 128–191), class C 110 (/24, 192–223), class D 1110 (multicast, 224–239) and class E 1111 (reserved, 240–255).",
+        "A class A network has 2²⁴ − 2 = 16 777 214 usable host addresses, class B 2¹⁶ − 2 = 65 534 and class C 2⁸ − 2 = 254. The three classes have 2⁷, 2¹⁴ and 2²¹ network numbers, and class A loses 0 and 127 to special uses.",
+        "Special addresses: 0.0.0.0 means this host, 127.0.0.0/8 is loopback (usually 127.0.0.1), 255.255.255.255 is the limited broadcast, which routers never forward, and a network's all-1s host part is its directed broadcast.",
+        "Private ranges (RFC 1918) are 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16. Public routers do not carry them, so hosts using them reach the Internet through NAT.",
+        "Fixed class sizes wasted addresses: an organisation with 300 hosts needed a class B and left over 65 000 addresses unused. CIDR replaced classes with prefixes of any length."
+      ],
+      "keyTerms": [
+        "dotted decimal",
+        "classful addressing",
+        "loopback",
+        "limited broadcast",
+        "directed broadcast",
+        "RFC 1918"
+      ],
+      "lesson": {
+        "why": "Class ranges, special addresses and the private blocks are the vocabulary of every addressing question, and they decide which addresses can appear on the public Internet.",
+        "intro": "An IPv4 address is 32 bits, written as four decimal numbers from 0 to 255 separated by dots. One part of it names the network and the rest names a host on that network. Early Internet design fixed where that split falls by looking at the first few bits of the address; this is called classful addressing. Today prefixes of any length replace it, but the class ranges and a handful of reserved addresses are still tested.",
+        "prerequisites": [
+          "cn-network-layer.network-layer-functions"
+        ],
+        "definitions": [
+          {
+            "term": "Dotted decimal",
+            "meaning": "The four 8-bit octets of an address written as decimal numbers, such as 150.20.5.9."
+          },
+          {
+            "term": "Loopback",
+            "meaning": "The block 127.0.0.0/8, used by a host to send packets to itself; they never leave the machine."
+          },
+          {
+            "term": "Directed broadcast",
+            "meaning": "An address whose host bits are all 1, reaching every host of one specific network."
+          }
+        ],
+        "principle": {
+          "text": "The first octet of a classful address fixes its class: A is 0 to 127 (network /8), B is 128 to 191 (/16), C is 192 to 223 (/24), D is 224 to 239 (multicast) and E is 240 to 255 (reserved). A network with h host bits holds $2^h-2$ usable hosts, because the all-0s and all-1s host parts are reserved.",
+          "tex": "\\text{usable hosts}=2^{h}-2,\\quad h=24,16,8\\ \\text{for classes A, B, C}"
+        },
+        "limits": "Classes describe the legacy scheme only; with CIDR the split comes from the prefix length, so a 192.x address can sit in a /20 or a /30. Classes D and E have no host part, so the host formula does not apply to them.",
+        "example": {
+          "problem": "For the address 150.20.5.9 under classful addressing, give its class, its network address and the number of usable hosts on its network.",
+          "steps": [
+            "The first octet is 150, which lies in 128 to 191, so the address is class B.",
+            "Class B uses a /16 split, so the first two octets are the network part and the network address is 150.20.0.0.",
+            "The host part has 16 bits, so the network holds $2^{16}=65536$ addresses.",
+            "Remove the all-0s and all-1s host parts to get $65536-2=65534$ usable hosts."
+          ],
+          "result": "Class B, network 150.20.0.0, 65534 usable hosts."
+        },
+        "misconceptions": [
+          "The addresses 0.0.0.0 and 127.x.x.x look like class A addresses but are special, so they cannot be assigned to ordinary hosts on a network.",
+          "The limited broadcast 255.255.255.255 is not forwarded by routers, while a directed broadcast such as 150.20.255.255 can reach a remote network.",
+          "The private ranges are not only 192.168.0.0/16: 10.0.0.0/8 and 172.16.0.0/12 are private too, and 172.32.x.x is outside the 172.16.0.0/12 block."
+        ],
+        "recall": [
+          {
+            "q": "Which first-octet ranges define classes A, B and C?",
+            "a": "A is 0 to 127, B is 128 to 191 and C is 192 to 223."
+          },
+          {
+            "q": "How many usable hosts does a class C network hold?",
+            "a": "$2^8-2=254$, since the all-0s and all-1s host parts are reserved."
+          },
+          {
+            "q": "Name the three RFC 1918 private blocks.",
+            "a": "10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16."
+          },
+          {
+            "q": "What does 127.0.0.1 mean?",
+            "a": "Loopback: the host is addressing itself, and the packet never leaves the machine."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "An organisation needs one classful network for about 1000 hosts. Which is the smallest class whose network can hold them?",
+          "options": [
+            "Class A",
+            "Class B",
+            "Class C",
+            "Class D"
+          ],
+          "answer": 1,
+          "explanation": "A class C network gives only $2^8-2=254$ usable hosts, which is too few, while class B gives $2^{16}-2=65534$, enough for 1000 and the smallest that fits. Class A also fits but is larger than needed. Class D is tempting as a later letter but is multicast and has no host part."
+        },
+        "summary": "The first octet gives the class and so the split; hosts per network are $2^h-2$. Remember the reserved addresses: 0.0.0.0, 127.0.0.0/8, 255.255.255.255 and the three private blocks."
+      }
+    },
+    {
+      "id": "cn-network-layer.cidr",
+      "title": "CIDR notation, masks and host counts",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        639,
+        640,
+        646,
+        647
+      ],
+      "points": [
+        "CIDR writes a block as a.b.c.d/n: the first n bits are the network prefix and the other 32 − n bits number the hosts. The mask has n leading 1s, so /20 is 255.255.240.0 and /26 is 255.255.255.192.",
+        "Network address = IP AND mask (host bits all 0); broadcast address = IP OR NOT mask (host bits all 1). The usable hosts lie strictly between the two: 2^(32 − n) − 2 addresses.",
+        "Shortcut: in the octet where the mask is neither 255 nor 0, the block size is 256 minus the mask octet, and the network starts at the largest multiple of the block size not above the address's octet.",
+        "Example: 10.1.77.130/19 has mask 255.255.224.0 and block size 32 in the third octet, so the network is 10.1.64.0, the broadcast 10.1.95.255, and the 2¹³ − 2 = 8190 hosts run from 10.1.64.1 to 10.1.95.254.",
+        "Exam questions apply the −2 rule unless they say otherwise; /31 point-to-point links and /32 host routes are the practical exceptions."
+      ],
+      "keyTerms": [
+        "prefix length",
+        "subnet mask",
+        "network address",
+        "broadcast address",
+        "block size"
+      ],
+      "lesson": {
+        "why": "Finding the network address, broadcast address or host count of a prefix, and checking whether a block is validly aligned, underlies every addressing question.",
+        "intro": "An IPv4 address has 32 bits. CIDR writes it as an address, a slash and a number n, such as 172.16.37.200/21. The first n bits are the network prefix, shared by every address in the block, and the remaining 32 - n bits distinguish hosts inside it. The mask is the same idea written as bits: n ones followed by zeros. Setting all host bits to 0 gives the first address of the block, and setting them all to 1 gives the last.",
+        "prerequisites": [
+          "cn-network-layer.network-layer-functions"
+        ],
+        "definitions": [
+          {
+            "term": "Prefix length",
+            "meaning": "The number n in /n: how many leading bits name the network."
+          },
+          {
+            "term": "Block size",
+            "meaning": "The count of addresses in a block, 2 to the power 32 - n."
+          }
+        ],
+        "principle": {
+          "text": "A /n block holds $2^{32-n}$ addresses and must start at an address whose host bits are all zero. Network address = IP AND mask; broadcast = IP OR NOT mask; usable hosts = block size minus 2.",
+          "tex": "\\text{hosts}=2^{32-n}-2"
+        },
+        "limits": "The minus 2 removes the network and broadcast addresses, so it applies to ordinary subnets only. Questions that count all addresses of a block, or that use /31 or /32, do not subtract it.",
+        "example": {
+          "problem": "Find the network address, broadcast address and number of usable hosts of 172.16.37.200/21.",
+          "steps": [
+            "A /21 mask is 255.255.248.0, so the third octet is the one that splits: its block size is 256 - 248 = 8.",
+            "The largest multiple of 8 not above 37 is 32, so the network address is 172.16.32.0.",
+            "The block spans third octets 32 to 39, so the broadcast address is 172.16.39.255.",
+            "Host bits number 32 - 21 = 11, so usable hosts are $2^{11}-2=2046$."
+          ],
+          "result": "Network 172.16.32.0, broadcast 172.16.39.255, 2046 usable hosts."
+        },
+        "misconceptions": [
+          "A /n block cannot start anywhere: a block of 2^k addresses must start at a multiple of 2^k, so an unaligned start is not a valid CIDR block.",
+          "A larger n means a smaller block. A /27 holds fewer addresses than a /24, not more.",
+          "Counting only the last octet is wrong once the prefix is shorter than /24; the host bits then span several octets."
+        ],
+        "recall": [
+          {
+            "q": "How many addresses does a /n block contain?",
+            "a": "$2^{32-n}$, of which $2^{32-n}-2$ are usable hosts in an ordinary subnet."
+          },
+          {
+            "q": "How do you get the network address from an IP and a mask?",
+            "a": "AND the address with the mask, which sets every host bit to 0."
+          },
+          {
+            "q": "What is the block size in the splitting octet?",
+            "a": "256 minus the mask's value in that octet."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "How many usable host addresses does the block 10.4.0.0/22 contain, using the usual rule that the network and broadcast addresses are not usable?",
+          "answer": 1022,
+          "explanation": "A /22 leaves 32 - 22 = 10 host bits, so the block has 1024 addresses and 1024 - 2 = 1022 are usable. The value 1024 tempts anyone who forgets the network and broadcast addresses."
+        },
+        "summary": "A /n block has $2^{32-n}$ addresses, starts on a multiple of its size, and loses two to the network and broadcast addresses. Work in the one octet where the mask is neither 255 nor 0."
+      }
+    },
+    {
+      "id": "cn-network-layer.subnetting",
+      "title": "Subnetting and variable-length subnet masks (VLSM)",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        639,
+        640,
+        643,
+        646
+      ],
+      "points": [
+        "Subnetting borrows s host bits as a subnet field: a /n block becomes 2ˢ subnets of prefix /(n + s), each with 2^(32 − n − s) − 2 usable hosts. A /24 split into /26 gives 4 subnets of 62 hosts; split into /28, 16 subnets of 14.",
+        "For k subnets borrow the smallest s with 2ˢ ≥ k; for h hosts per subnet keep the smallest number of host bits b with 2ᵇ − 2 ≥ h.",
+        "Older classful practice discarded the all-0s and all-1s subnets, leaving 2ˢ − 2; with CIDR every subnet is usable unless a question says otherwise.",
+        "VLSM carves subnets of different sizes from one block: allocate the largest first and start each subnet at a multiple of its own size, so that no two overlap.",
+        "Example: 200.10.20.0/24 for 100, 50 and 20 hosts gives 200.10.20.0/25 (126 hosts), 200.10.20.128/26 (62) and 200.10.20.192/27 (30), leaving 200.10.20.224/27 free."
+      ],
+      "keyTerms": [
+        "subnet field",
+        "borrowed bits",
+        "VLSM",
+        "alignment"
+      ],
+      "lesson": {
+        "why": "Questions ask you to count subnets and hosts per subnet and to place differently sized subnets without overlap.",
+        "intro": "Subnetting splits one block into smaller blocks by moving the boundary between network and host bits to the right. The bits the boundary passes over are the borrowed bits, and each pattern of them names one subnet. Borrowing s bits turns a /n block into 2 to the power s subnets, each with prefix /(n + s) and fewer host bits left. When subnets need different sizes, variable-length masks let each one take only the room it needs.",
+        "prerequisites": [
+          "cn-network-layer.cidr"
+        ],
+        "definitions": [
+          {
+            "term": "Borrowed bits",
+            "meaning": "Host bits of the original block that are reused as the subnet number."
+          },
+          {
+            "term": "VLSM",
+            "meaning": "Variable-length subnet masks: subnets cut from one block with different prefix lengths."
+          }
+        ],
+        "principle": {
+          "text": "Borrowing s bits from a /n block gives $2^s$ subnets of prefix /(n + s). For h hosts keep the smallest b with $2^b-2\\ge h$; for VLSM place the largest subnet first and start each on a multiple of its own size.",
+          "tex": "\\text{subnets}=2^{s},\\qquad \\text{hosts per subnet}=2^{32-n-s}-2"
+        },
+        "limits": "Older classful rules discarded the all-zeros and all-ones subnets, giving $2^s-2$ subnets. With CIDR all are usable unless the question says otherwise. A mask in the middle of an octet also makes the subnet boundary fall inside that octet. In a network diagram, every point-to-point router link and every shared segment (one Ethernet, however many hosts) is one subnet, so count links and segments, not devices.",
+        "example": {
+          "problem": "Split 192.168.10.0/24 into three subnets for 60, 25 and 10 hosts using VLSM.",
+          "steps": [
+            "For 60 hosts, $2^6-2=62\\ge60$, so 6 host bits and a /26 of 64 addresses. For 25 hosts, 5 bits give 30, so a /27. For 10 hosts, 4 bits give 14, so a /28.",
+            "Place the largest first: 192.168.10.0/26 covers .0 to .63.",
+            "The /27 starts at the next multiple of 32, which is .64: 192.168.10.64/27 covers .64 to .95.",
+            "The /28 starts at the next multiple of 16, which is .96: 192.168.10.96/28 covers .96 to .111."
+          ],
+          "result": "/26 at .0, /27 at .64, /28 at .96; the free space starts at 192.168.10.112."
+        },
+        "misconceptions": [
+          "More subnets does not mean more hosts. Borrowing a bit doubles the subnet count and roughly halves each subnet's hosts.",
+          "Placing a small subnet first can leave gaps, because the next larger subnet must then jump to its own alignment.",
+          "Two devices share a subnet only if the mask applied to both addresses gives the same network address, not if the addresses look close."
+        ],
+        "recall": [
+          {
+            "q": "How many subnets result from borrowing s bits?",
+            "a": "$2^s$, each with prefix length n + s."
+          },
+          {
+            "q": "In what order does VLSM allocate subnets?",
+            "a": "Largest first, each starting at a multiple of its own size."
+          },
+          {
+            "q": "How many host bits are needed for h hosts?",
+            "a": "The smallest b with $2^b-2\\ge h$."
+          },
+          {
+            "q": "How do you turn a dotted mask such as 255.255.240.0 into a prefix length?",
+            "a": "Count the one bits: 8 + 8 + 4 (240 is 11110000) gives /20, leaving 12 host bits."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A /22 block is divided into equal subnets of prefix length /26. How many subnets are produced?",
+          "answer": 16,
+          "explanation": "The prefix grows from 22 to 26, so 4 bits are borrowed and $2^4=16$ subnets result. The value 4 tempts anyone who reports the borrowed bits instead of $2^4$, and 62 tempts anyone who gives the usable hosts per subnet instead of the subnet count."
+        },
+        "summary": "Borrowing s bits gives $2^s$ subnets of prefix n + s. Size each VLSM subnet from its host count and allocate the largest first, aligned to its own size."
+      }
+    },
+    {
+      "id": "cn-network-layer.route-aggregation-lpm",
+      "title": "Route aggregation and longest prefix match",
+      "frequency": "high",
+      "origin": "curated",
+      "pages": [
+        640
+      ],
+      "points": [
+        "Aggregation (supernetting) advertises several contiguous blocks as one shorter prefix, which keeps routing tables small. 2ᵏ blocks of the same /n combine into one /(n − k) only if they are consecutive and the first starts on a multiple of the combined size.",
+        "Example: 140.20.32.0/21 and 140.20.40.0/21 (third octets 32–47) form 140.20.32.0/20. Blocks covering third octets 68–83 cannot form one /20, because a /20 must start at a multiple of 16.",
+        "A router forwards each datagram by longest prefix match: among all entries whose prefix matches the destination, it uses the one with the longest prefix. The default route 0.0.0.0/0 matches everything, so it is used only when nothing longer matches.",
+        "Longest match lets an aggregate and a more specific exception coexist: with 172.20.0.0/16 on one link and 172.20.64.0/18 on another, addresses 172.20.64.0–172.20.127.255 take the second link and the rest of the /16 the first.",
+        "To test a match, compare only the first n bits: convert the octet where the prefix ends to binary, or check that the address lies between the entry's network and broadcast addresses."
+      ],
+      "keyTerms": [
+        "supernetting",
+        "route aggregation",
+        "longest prefix match",
+        "default route"
+      ],
+      "lesson": {
+        "why": "Questions ask you to choose the output interface for a destination and to find the shortest prefix that covers several subnets.",
+        "intro": "A router's table holds prefixes, and one destination address can match several of them. The router resolves this by longest prefix match: among all entries whose first bits agree with the destination, it uses the one with the longest prefix, because that is the most specific. Aggregation is the reverse move on the sending side: several adjacent blocks are announced as a single shorter prefix so that tables stay small. The default route 0.0.0.0/0 matches everything and wins only when nothing longer matches.",
+        "prerequisites": [
+          "cn-network-layer.cidr",
+          "cn-network-layer.subnetting"
+        ],
+        "definitions": [
+          {
+            "term": "Longest prefix match",
+            "meaning": "Rule that, among matching entries, the one with the most prefix bits decides the route."
+          },
+          {
+            "term": "Default route",
+            "meaning": "The entry 0.0.0.0/0, used when no other prefix matches."
+          }
+        ],
+        "principle": {
+          "text": "Forward on the matching entry with the largest prefix length. Blocks combine into a /(n - k) only when there are $2^k$ consecutive blocks of the same /n and the first starts on a multiple of the combined size."
+        },
+        "limits": "A shorter prefix is not wrong, it is just less specific, and it still serves every address the longer entries do not cover. Aggregation that includes addresses owned by someone else is invalid even when the block is aligned.",
+        "example": {
+          "problem": "A router has 10.8.0.0/16 to port A, 10.8.32.0/19 to port B and 0.0.0.0/0 to port C. Where do 10.8.40.9, 10.8.70.1 and 11.0.0.1 go?",
+          "steps": [
+            "A /19 spans 32 third-octet values, so 10.8.32.0/19 covers third octets 32 to 63.",
+            "10.8.40.9 has third octet 40, which matches /16, /19 and /0; the longest is /19, so port B.",
+            "10.8.70.1 has third octet 70, outside 32 to 63, so only /16 and /0 match; the longer is /16, so port A.",
+            "11.0.0.1 differs from 10 in the first octet, so only the default route matches and the datagram goes to port C."
+          ],
+          "result": "10.8.40.9 goes to B, 10.8.70.1 to A, 11.0.0.1 to C."
+        },
+        "misconceptions": [
+          "The first matching row in the table does not decide; the longest matching prefix does, wherever it sits in the list.",
+          "Two adjacent blocks of the same size cannot always merge. Their combined block must start on a multiple of its own size.",
+          "A smaller mask number is not a smaller network: /16 is shorter and covers more addresses than /19."
+        ],
+        "recall": [
+          {
+            "q": "Which entry is used when several prefixes match a destination?",
+            "a": "The one with the longest prefix length."
+          },
+          {
+            "q": "When can two /n blocks merge into one /(n - 1)?",
+            "a": "When they are adjacent and the first starts on a multiple of the combined size."
+          },
+          {
+            "q": "When is the default route used?",
+            "a": "Only when no longer prefix matches the destination."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Two adjacent blocks, 10.9.48.0/21 and 10.9.56.0/21, are to be advertised as one prefix that covers exactly these two blocks. Which prefix should be used?",
+          "options": [
+            "10.9.48.0/20",
+            "10.9.48.0/19",
+            "10.9.56.0/20",
+            "10.9.32.0/20"
+          ],
+          "answer": 0,
+          "explanation": "The blocks cover third octets 48 to 63, which is 16 values, so one /20 starting at 48 (a multiple of 16) covers exactly them. 10.9.48.0/19 is not an aligned /19: a /19 spans 32 third-octet values, so its network address is 10.9.32.0 and it covers 32 to 63, taking in 32 to 47, which belongs to neither block. 10.9.56.0/20 and 10.9.32.0/20 start at the wrong place."
+        },
+        "summary": "Forward on the longest matching prefix, with 0.0.0.0/0 as the last resort. Merge blocks into a shorter prefix only when they are consecutive, equal in size and aligned."
+      }
+    },
+    {
+      "id": "cn-network-layer.ip-header",
+      "title": "IPv4 header fields",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        57,
+        640,
+        643
+      ],
+      "points": [
+        "The header is 20 bytes without options and at most 60. IHL gives its length in 32-bit words (5 to 15), so the header is 4 × IHL bytes; Total Length (16 bits) counts header plus data, up to 65 535 bytes.",
+        "Identification, Flags and Fragment Offset serve fragmentation: every fragment of a datagram carries the same identification, the three flag bits are a reserved bit, DF (don't fragment) and MF (more fragments), and the 13-bit offset counts 8-byte units.",
+        "TTL is decremented by every router. When it reaches 0 the router discards the datagram and sends an ICMP time-exceeded message back, which bounds the lifetime of a datagram caught in a routing loop.",
+        "Protocol names the payload (1 ICMP, 6 TCP, 17 UDP). The header checksum covers the header only and is recomputed at every hop, because the TTL changes.",
+        "Type of service (now DSCP and ECN) marks priority and congestion; the source and destination addresses take 32 bits each; options such as record route and timestamp are rare."
+      ],
+      "keyTerms": [
+        "IHL",
+        "Total Length",
+        "TTL",
+        "Protocol field",
+        "header checksum",
+        "DF and MF flags"
+      ],
+      "lesson": {
+        "why": "Questions ask which header fields a router changes, how long the header and data are, and what the options area can hold.",
+        "intro": "Every IPv4 datagram starts with a header that tells routers and the destination how to handle it. The header is measured in 32-bit words, and its length field says how many words there are. Besides the two addresses, it holds a total length, fields used when a datagram is split, a time-to-live counter that limits how long a datagram can circulate, a protocol number naming what the payload is, and a checksum protecting the header itself.",
+        "prerequisites": [
+          "cn-network-layer.network-layer-functions"
+        ],
+        "definitions": [
+          {
+            "term": "IHL",
+            "meaning": "Internet header length: the header size in 32-bit words, from 5 to 15."
+          },
+          {
+            "term": "TTL",
+            "meaning": "A counter lowered by one at each router; at 0 the datagram is discarded."
+          }
+        ],
+        "principle": {
+          "text": "Header bytes = 4 x IHL and data bytes = Total Length - 4 x IHL. A router always lowers TTL and so must recompute the header checksum, which covers the header only.",
+          "tex": "\\text{data}=\\text{Total Length}-4\\times\\text{IHL}"
+        },
+        "limits": "The minimum header is 20 bytes (IHL 5) and the maximum is 60 (IHL 15), so options never exceed 40 bytes. Total Length is limited to 65 535 bytes, and other fields such as addresses stay unchanged unless a device like NAT rewrites them. The record-route option spends 3 of its 40 bytes on its own header, leaving 37 bytes, so it holds $\\lfloor 37/4\\rfloor=9$ addresses.",
+        "example": {
+          "problem": "An IPv4 header has IHL = 8 and Total Length = 1500. How many header bytes, option bytes and data bytes does the datagram carry?",
+          "steps": [
+            "IHL counts 32-bit words, so the header is 8 x 4 = 32 bytes.",
+            "The basic header is 20 bytes, so options take 32 - 20 = 12 bytes.",
+            "Total Length covers header plus data, so data is 1500 - 32 = 1468 bytes."
+          ],
+          "result": "32 header bytes, 12 option bytes, 1468 data bytes."
+        },
+        "misconceptions": [
+          "IHL is not a byte count. A value of 5 means 20 bytes, because the unit is a 32-bit word.",
+          "Total Length includes the header, so it is not the payload size.",
+          "The header checksum does not cover the data, and it changes at every hop because TTL changes."
+        ],
+        "recall": [
+          {
+            "q": "How do you get header bytes from IHL?",
+            "a": "Multiply IHL by 4, since IHL counts 32-bit words."
+          },
+          {
+            "q": "Which fields does every router change?",
+            "a": "TTL, and with it the header checksum."
+          },
+          {
+            "q": "What does the Protocol field hold?",
+            "a": "A number naming the payload protocol: 1 for ICMP, 6 for TCP, 17 for UDP. ICMP (1), IGMP (2) and OSPF (89) sit directly in IP with no transport layer, while RIP rides on UDP and BGP on TCP, so RIP never appears in this field."
+          },
+          {
+            "q": "How many addresses can the record-route option hold?",
+            "a": "The option area is at most 40 bytes, 3 go to the option header, and each address takes 4: $\\lfloor 37/4\\rfloor=9$."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "An IPv4 datagram has IHL = 12 and Total Length = 700 bytes. How many bytes of data does it carry?",
+          "answer": 652,
+          "explanation": "The header is 12 x 4 = 48 bytes, so the data is 700 - 48 = 652 bytes. The value 680 tempts anyone who subtracts the basic 20-byte header and forgets that options enlarge it."
+        },
+        "summary": "Header bytes are 4 x IHL and data is Total Length minus that. Routers lower TTL and recompute the header-only checksum at every hop."
+      }
+    },
+    {
+      "id": "cn-network-layer.fragmentation",
+      "title": "IPv4 fragmentation and reassembly",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        640,
+        641,
+        643,
+        646
+      ],
+      "points": [
+        "A router fragments a datagram that is larger than the next link's MTU. Each fragment gets a copy of the header with its own Total Length, flags and offset; only the final destination reassembles, never a router on the way.",
+        "Every fragment except the last must carry a multiple of 8 data bytes, because the offset counts 8-byte units: data per fragment = ⌊(MTU − header)/8⌋ × 8. With an MTU of 1000 and a 20-byte header that is 976, not 980.",
+        "Offset = index of the fragment's first data byte ÷ 8. MF = 1 on every fragment but the last, and all fragments keep the original identification.",
+        "Example: 4000 data bytes with a 20-byte header over an MTU of 1500 give fragments of 1480, 1480 and 1040 data bytes, with offsets 0, 185 and 370, MF = 1, 1, 0, and total lengths 1500, 1500 and 1060.",
+        "If DF is set and the datagram does not fit, the router drops it and returns an ICMP 'fragmentation needed' message, which path-MTU discovery relies on. Losing any one fragment loses the whole datagram.",
+        "A fragment may be split again on a later link. Its pieces' offsets still count from the original datagram (o + j·d′/8), and the last piece of a non-final fragment keeps MF = 1: a 1480-byte fragment at offset 185 over MTU 620 gives 600, 600 and 280 bytes at offsets 185, 260 and 335, all MF = 1."
+      ],
+      "keyTerms": [
+        "MTU",
+        "fragment offset",
+        "MF flag",
+        "DF flag",
+        "reassembly"
+      ],
+      "lesson": {
+        "why": "Questions ask you to count fragments and find offsets or lengths, and one rounding rule decides the answer.",
+        "intro": "Each link has a maximum transmission unit, the largest datagram it can carry in one piece. When a datagram is bigger than the next link's limit, the router cuts its data into fragments, and each fragment travels as an ordinary datagram with its own copy of the header. The header fields say how to put the pieces back: all fragments share one identification, the offset tells where each piece's data starts, and a more-fragments flag is on for every piece except the last.",
+        "prerequisites": [
+          "cn-network-layer.ip-header"
+        ],
+        "definitions": [
+          {
+            "term": "MTU",
+            "meaning": "The largest datagram, header included, that a link can carry."
+          },
+          {
+            "term": "Fragment offset",
+            "meaning": "The position of a fragment's first data byte in the original data, counted in units of 8 bytes."
+          }
+        ],
+        "principle": {
+          "text": "Data per fragment = the largest multiple of 8 not above MTU - header. Fragment offset = bytes before it divided by 8. Every fragment but the last has MF = 1, and the last carries the remainder. A fragment cut again follows the same rule with the next link's MTU, and its last piece inherits the fragment's MF. The transport header (TCP or UDP) is part of the IP data, so it counts toward the bytes being fragmented.",
+          "tex": "d=8\\left\\lfloor\\frac{\\text{MTU}-h}{8}\\right\\rfloor"
+        },
+        "limits": "If the DF flag is set and the datagram does not fit, the router drops it instead of fragmenting. Reassembly happens only at the destination, and losing one fragment loses the whole datagram. All fragments share one identification value. A lost fragment is not repaired by a router: the sender must resend the whole datagram, and only the first fragment carries the transport header.",
+        "example": {
+          "problem": "A datagram has a 20-byte header and 2800 data bytes. It crosses a link with MTU 1000. Give the fragments.",
+          "steps": [
+            "Room for data is 1000 - 20 = 980 bytes, and the largest multiple of 8 not above 980 is 976.",
+            "Two full fragments carry 976 bytes each, using 1952; the remaining 2800 - 1952 = 848 bytes go in the third.",
+            "Offsets are 0, 976/8 = 122 and 1952/8 = 244.",
+            "MF is 1, 1 and 0; the total lengths are 996, 996 and 868."
+          ],
+          "result": "Three fragments with data 976, 976, 848, offsets 0, 122, 244."
+        },
+        "misconceptions": [
+          "Using MTU - 20 directly is wrong when it is not a multiple of 8; round down first, as 980 becomes 976.",
+          "The offset is not a byte count. It counts 8-byte units, so a fragment starting at byte 976 has offset 122.",
+          "A fragment cut again does not restart its numbering. Its last piece inherits the MF of the fragment it came from, so it is 1 if that fragment was not the original last one and 0 if it was, and offsets stay measured from the start of the original data.",
+          "A fragment that crosses a smaller-MTU link is split again with that link's rounded-down data size, so the count is a sum of ceilings per fragment, not one ceiling of the total. After the MTU-1000 link above, a 600-byte link carries 576 data bytes per piece: 976 splits into 576 + 400, 848 into 576 + 272, giving 6 pieces in all with offsets 0, 72, 122, 194, 244, 316."
+        ],
+        "recall": [
+          {
+            "q": "Why must each non-last fragment carry a multiple of 8 data bytes?",
+            "a": "The offset field counts in 8-byte units, so every fragment must start on an 8-byte boundary."
+          },
+          {
+            "q": "Where are fragments reassembled?",
+            "a": "Only at the destination host."
+          },
+          {
+            "q": "What does a router do with a too-large datagram that has DF set?",
+            "a": "It drops the datagram and returns an ICMP fragmentation-needed message."
+          },
+          {
+            "q": "How are fragments counted when the path has two links with decreasing MTU?",
+            "a": "Split each first-link fragment again using the second link's rounded-down data size; the total is the sum of the per-fragment ceilings."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A datagram with a 20-byte header and 4900 data bytes is sent over a link with MTU 1000. How many fragments are produced?",
+          "answer": 6,
+          "explanation": "Data per fragment is the largest multiple of 8 not above 980, which is 976. Five full fragments carry 4880 bytes, leaving 20 more, so 6 fragments result. Using 980 gives exactly 5 and tempts anyone who skips the rounding."
+        },
+        "summary": "Round MTU minus header down to a multiple of 8, divide the data by that, and take the ceiling. Offsets count 8-byte units and only the destination reassembles."
+      }
+    },
+    {
+      "id": "cn-network-layer.nat",
+      "title": "Network address translation (NAT)",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [
+        58,
+        641,
+        644
+      ],
+      "points": [
+        "NAT lets the hosts of a private network (RFC 1918 addresses) share one or a few public IPv4 addresses; the NAT router rewrites addresses as packets cross between the inside and the outside.",
+        "The common form, NAPT or port address translation, maps each inside (private address, port) pair to a public port of its own. Outgoing packets leave with the public address and that port as their source; replies to that port are rewritten back to the inside host.",
+        "The translation table is filled by outgoing traffic, so an outside host cannot open a connection inward unless an entry is configured in advance (port forwarding).",
+        "Rewriting addresses and ports forces the router to recompute the IP header checksum and the TCP or UDP checksum, which covers a pseudo-header containing the addresses.",
+        "NAT stretches the IPv4 address space and hides inside addresses, but it breaks the end-to-end principle: protocols that carry addresses in their payload or need inbound connections, such as active-mode FTP and much peer-to-peer and VoIP traffic, need extra help.",
+        "Static NAT pins one private address to one public address, dynamic NAT lends addresses from a pool, and NAPT shares one. NAPT keys each mapping by public port, so one address holds at most 2¹⁶ − 1 = 65 535 concurrent mappings per transport protocol, or 64 512 using only ports 1024–65 535."
+      ],
+      "keyTerms": [
+        "NAPT",
+        "port address translation",
+        "translation table",
+        "port forwarding",
+        "end-to-end principle"
+      ],
+      "lesson": {
+        "why": "NAT explains how thousands of private hosts share one public address, and the exam asks which header fields a NAT device must rewrite.",
+        "intro": "Private addresses such as 192.168.1.10 are not routable on the public Internet, and public IPv4 addresses are scarce. A NAT router sits at the edge of a private network and swaps addresses on packets that cross it. For a packet leaving the network it replaces the private source address and source port with its own public address and a port it picks, and it writes that choice into a translation table. When a reply arrives for that public port, the router looks the port up and rewrites the packet back to the private host.",
+        "prerequisites": [
+          "cn-network-layer.ipv4-addressing"
+        ],
+        "analogy": {
+          "text": "A company switchboard: staff dial out through one public number, and the operator notes which extension asked for which call so the answer is routed back to the right desk.",
+          "breaksWhen": "A switchboard can ring an extension from outside on request, but a NAT router has no table entry for an unsolicited inbound packet and drops it."
+        },
+        "definitions": [
+          {
+            "term": "Translation table",
+            "meaning": "The NAT router's record pairing each inside address and port with the public port assigned to it."
+          },
+          {
+            "term": "NAPT",
+            "meaning": "Network address and port translation: many inside hosts share one public address, told apart by the public port."
+          }
+        ],
+        "principle": {
+          "text": "On the way out the router rewrites the source address and source port and recomputes the checksums that cover them; on the way back it rewrites the destination address and port using the table entry that the outgoing packet created.",
+          "tex": "(\\text{private IP},\\ \\text{port}) \\;\\longleftrightarrow\\; (\\text{public IP},\\ \\text{public port})"
+        },
+        "limits": "Only traffic that starts inside creates a table entry, so an outside host cannot open a connection inward unless port forwarding is configured. Protocols that carry addresses inside their payload also break unless the router helps.",
+        "example": {
+          "problem": "Host 192.168.1.10 sends from port 5000 to a web server at 93.184.1.1 port 80. The NAT router's public address is 203.0.113.5 and it assigns public port 40001. Describe the outgoing and returning packets.",
+          "steps": [
+            "Outgoing packet arrives at the router as 192.168.1.10:5000 to 93.184.1.1:80, and the router stores 192.168.1.10:5000 against public port 40001.",
+            "The router sends it on as 203.0.113.5:40001 to 93.184.1.1:80. The destination is unchanged, and the IP header checksum is recomputed because the source address changed.",
+            "The server replies to 203.0.113.5:40001. The router finds port 40001 in its table and rewrites the destination to 192.168.1.10:5000."
+          ],
+          "result": "The server only ever sees 203.0.113.5; the table entry is what carries the reply back to the right host."
+        },
+        "misconceptions": [
+          "The destination address is not rewritten on an outgoing packet; only the source side changes, which is why a reply can find its way back.",
+          "NAT does not leave the packet size or checksum alone: the address bytes change, so the header checksum must be recomputed even though the total length stays the same."
+        ],
+        "recall": [
+          {
+            "q": "Which fields of an outgoing packet does a NAPT router change?",
+            "a": "The source address and source port, which forces new IP header and TCP or UDP checksums."
+          },
+          {
+            "q": "Why can an outside host not start a connection to an inside host?",
+            "a": "The translation table is filled only by outgoing packets, so no entry exists for unsolicited inbound traffic."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A NAPT router has 3 public IPv4 addresses and may assign only ports 1024 to 65535 on each. What is the largest number of simultaneous TCP mappings it can hold?",
+          "answer": 193536,
+          "explanation": "Ports 1024 to 65535 give 65535 - 1024 + 1 = 64512 per address, and 3 addresses give 3 x 64512 = 193536. Using 65536 per address is tempting, but it counts the reserved ports 0 to 1023 that the stem excludes."
+        },
+        "summary": "A NAT router rewrites the source address and port of outgoing packets, remembers the mapping, and reverses it for replies; the header checksum changes, the destination and total length do not."
+      }
+    },
+    {
+      "id": "cn-network-layer.ip-support-protocols",
+      "title": "ARP, RARP, DHCP and ICMP",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        58,
+        641,
+        644,
+        646
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "ARP resolves an IP address on the local network to a MAC address: the request is broadcast ('who has 10.0.0.7?'), the owner answers by unicast, and answers are cached. It sits between the network and data link layers.",
+        "RARP mapped a MAC address to an IP address; BOOTP and then DHCP replaced it.",
+        "DHCP leases a host its IP address, mask, default gateway and DNS server in four messages: DISCOVER (broadcast), OFFER, REQUEST and ACK, which confirms the lease. It runs over UDP ports 67 and 68.",
+        "ICMP carries error reports (destination unreachable, time exceeded, fragmentation needed) and diagnostics: ping uses echo request and reply, and traceroute sends datagrams with TTL 1, 2, 3, … and collects the time-exceeded replies."
+      ],
+      "keyTerms": [
+        "ARP cache",
+        "DHCP DORA",
+        "ICMP",
+        "ping",
+        "traceroute"
+      ],
+      "lesson": {
+        "why": "ARP and DHCP questions ask whether a message is broadcast or unicast, and getting that right depends on one idea: what the sender already knows.",
+        "intro": "A host that wants to send data on a local network needs two addresses for the receiver: an IP address and a MAC address, the hardware address that Ethernet frames use. ARP finds a MAC address when only the IP address is known. DHCP gives a newly connected host its IP address, which it does not have yet. ICMP is the protocol routers and hosts use to report errors and to run tests such as ping. ARP and DHCP share one habit: a sender broadcasts only when it does not know whom to address.",
+        "definitions": [
+          {
+            "term": "Broadcast",
+            "meaning": "A message delivered to every host on the local network, using the all-ones address."
+          },
+          {
+            "term": "ARP cache",
+            "meaning": "A host's short-lived table of IP-to-MAC pairs learned from earlier ARP replies."
+          },
+          {
+            "term": "DHCP lease",
+            "meaning": "The time a server lets a host keep an address it handed out."
+          }
+        ],
+        "principle": {
+          "text": "A sender broadcasts when it must find a party it cannot yet name, and unicasts once it knows. ARP asks everyone, then the owner answers one host. DHCP is DISCOVER, OFFER, REQUEST, ACK; DISCOVER must be a broadcast because the client has no address and does not know the server."
+        },
+        "limits": "ARP works only inside one subnet. For a destination outside the subnet the host does not ARP for the destination at all; it ARPs for the default gateway.",
+        "example": {
+          "problem": "Host A at 10.0.0.5 with mask 255.255.255.0 wants to send to a host at 10.0.0.9 and has no ARP entry for it. Trace the ARP exchange.",
+          "steps": [
+            "10.0.0.9 is inside A's subnet 10.0.0.0/24, so A can reach it directly and needs its MAC address.",
+            "A broadcasts an ARP request in a frame to ff:ff:ff:ff:ff:ff asking who has 10.0.0.9. Every host receives it, and only the owner of 10.0.0.9 answers.",
+            "The owner read A's IP and MAC from the request, so it replies by unicast to A's MAC, and A caches the pair."
+          ],
+          "result": "The request is a broadcast; the reply is a unicast."
+        },
+        "misconceptions": [
+          "An ARP reply is not broadcast. The owner already learned the asker's MAC from the request, so it has no need to ask everyone again.",
+          "A host does not ARP for a destination outside its subnet; it resolves the MAC of its default gateway instead, because the gateway is the next hop on the link."
+        ],
+        "recall": [
+          {
+            "q": "What are the four DHCP messages in order?",
+            "a": "DISCOVER, OFFER, REQUEST and ACK."
+          },
+          {
+            "q": "Why must DHCP DISCOVER be a broadcast?",
+            "a": "The client has no IP address and does not know the server, so it sends to everyone on the link."
+          },
+          {
+            "q": "How does traceroute find each router on a path?",
+            "a": "It sends packets with TTL 1, 2, 3 and so on, and each router that drops one on TTL expiry returns an ICMP time-exceeded message."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Host A has address 10.0.0.5 with mask 255.255.255.0 and default gateway 10.0.0.1. It sends a packet to 10.0.1.9 and has an empty ARP cache. Whose MAC address does A resolve with ARP?",
+          "options": [
+            "The host 10.0.1.9",
+            "The gateway 10.0.0.1",
+            "The DHCP server",
+            "The broadcast address of 10.0.1.0/24"
+          ],
+          "answer": 1,
+          "explanation": "10.0.1.9 is outside A's subnet 10.0.0.0/24, so the frame must go to the next hop, the gateway, and A ARPs for 10.0.0.1. Resolving the final host is tempting, but a host on another subnet cannot hear A's link-layer broadcast. The DHCP server plays no part in forwarding."
+        },
+        "summary": "ARP maps an IP address to a MAC address by broadcast request and unicast reply within one subnet; DHCP's DISCOVER is broadcast because the client knows nothing; ICMP reports errors and drives ping and traceroute."
+      }
+    },
+    {
+      "id": "cn-network-layer.routing-overview",
+      "title": "Routing: static and dynamic, and the three algorithm families",
+      "frequency": "medium",
+      "origin": "source",
+      "pages": [
+        57,
+        641,
+        642,
+        644
+      ],
+      "points": [
+        "Static routes are configured by hand; dynamic routing protocols discover routes and react to failures. Interior gateway protocols (RIP, OSPF) work inside one autonomous system (AS), exterior ones (BGP) between autonomous systems.",
+        "Distance vector routers learn only what their neighbours tell them; link state routers learn the whole topology and compute routes themselves; path vector routers advertise the full AS path of each route.",
+        "Shortest-path computation and flooding serve here as building blocks: Dijkstra's algorithm runs inside link state routing, and flooding is how link-state advertisements reach every router.",
+        "BGP is a path vector protocol running over TCP port 179. A router rejects any route whose AS path already contains its own AS, which prevents loops, and route choice follows business policy rather than the shortest distance.",
+        "A metric can be hop count (RIP), a cost derived from bandwidth (OSPF) or delay; routing finds the path whose link costs add up to the least."
+      ],
+      "keyTerms": [
+        "static routing",
+        "IGP",
+        "EGP",
+        "autonomous system",
+        "path vector",
+        "BGP"
+      ],
+      "lesson": {
+        "why": "Questions ask which protocol belongs to which family and which information each router uses, so the three families and where each runs must be clear before the details.",
+        "intro": "A router must decide, for each packet, which neighbour to hand it to. The entries in its table can be typed in by an administrator, which is static routing, or learned by exchanging messages with other routers, which is dynamic routing. Dynamic protocols differ in what they exchange: a distance vector router shares its list of distances, a link state router shares the state of its own links, and a path vector router shares the full list of networks a route crosses.",
+        "prerequisites": [
+          "cn-network-layer.network-layer-functions"
+        ],
+        "definitions": [
+          {
+            "term": "Autonomous system",
+            "meaning": "A set of routers under one administration that presents a common routing policy to the outside."
+          },
+          {
+            "term": "IGP",
+            "meaning": "An interior gateway protocol, which routes inside one autonomous system, such as RIP or OSPF."
+          },
+          {
+            "term": "Path vector",
+            "meaning": "A scheme where each route advertisement carries the list of autonomous systems it passed through."
+          }
+        ],
+        "principle": {
+          "text": "Static routes are fixed by hand and do not react to failures. Dynamic protocols fall in three families: distance vector (neighbours' distances, RIP), link state (whole topology, then Dijkstra, OSPF) and path vector (AS paths, BGP). IGPs run within an AS and BGP runs between ASes. A BGP router discards a route whose AS path already contains its own AS."
+        },
+        "limits": "The families describe what is exchanged, not who is better: BGP chooses routes by policy rather than the shortest distance, so its answer need not be the least-cost path that distance vector or link state would find.",
+        "example": {
+          "problem": "A router in AS 3 receives a BGP advertisement whose AS path is 7, 3, 9. Does it accept the route, and why?",
+          "steps": [
+            "BGP is a path vector protocol, so the advertisement lists every autonomous system the route has crossed.",
+            "The path 7, 3, 9 contains AS 3, the router's own AS.",
+            "Accepting it could send traffic around a loop that returns to AS 3, so the router rejects it."
+          ],
+          "result": "The route is rejected because the AS path contains the router's own AS."
+        },
+        "misconceptions": [
+          "OSPF and RIP are not exterior protocols; they run inside one autonomous system, and only BGP joins different ones.",
+          "BGP does not pick the shortest path by metric; it applies business policy, so the chosen route can be longer.",
+          "A distance vector router does not know the whole topology; it knows only the distances its neighbours report."
+        ],
+        "recall": [
+          {
+            "q": "What is the difference between static and dynamic routing?",
+            "a": "Static routes are configured by hand and ignore failures; dynamic routes are learned by protocols that react to topology changes."
+          },
+          {
+            "q": "Which information does each of the three algorithm families exchange?",
+            "a": "Distance vector shares distances, link state shares link states of the whole topology, and path vector shares full AS paths."
+          },
+          {
+            "q": "How does BGP prevent routing loops?",
+            "a": "A router rejects any route whose AS path already contains its own AS."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "Which protocol is a path vector protocol that runs between autonomous systems?",
+          "options": [
+            "RIP",
+            "OSPF",
+            "BGP",
+            "ARP"
+          ],
+          "answer": 2,
+          "explanation": "BGP advertises full AS paths between autonomous systems, over TCP port 179. RIP is distance vector and OSPF is link state, and both are tempting as routing protocols but run inside one AS. ARP is not a routing protocol at all."
+        },
+        "summary": "Routes are static or dynamic. Dynamic ones are distance vector (RIP), link state (OSPF) or path vector (BGP); the first two are interior and BGP runs between ASes, rejecting any path that contains its own AS."
+      }
+    },
+    {
+      "id": "cn-network-layer.distance-vector",
+      "title": "Distance vector routing and RIP",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644
+      ],
+      "points": [
+        "Each router keeps a vector of its best known distance to every destination, with the next hop for each, and sends that vector only to its neighbours, periodically and whenever it changes.",
+        "Bellman-Ford update: D_x(y) = min over neighbours v of [c(x, v) + D_v(y)]. The neighbour that achieves the minimum becomes the next hop; the router's own previous estimate plays no part.",
+        "Worked example: X has neighbours Y (link cost 2) and Z (cost 5); Y advertises distance 6 to D and Z advertises 1. X's distance to D is min(2 + 6, 5 + 1) = 6, with next hop Z.",
+        "Good news travels fast: a shorter path spreads one hop per exchange. Bad news travels slowly, because neighbours keep advertising routes that may lead back through the router itself.",
+        "RIP uses hop count and treats 16 as infinity, so a path has at most 15 hops. It sends its vector every 30 s over UDP port 520 and marks a route unreachable when it has not been refreshed for 180 s.",
+        "Rounds: if routers start knowing only their own link costs and exchange vectors in synchronous rounds, after e exchanges each estimate is the least cost over paths of at most e + 1 links. Tables stop changing once that covers the longest least-cost path, which has at most N − 1 links."
+      ],
+      "keyTerms": [
+        "distance vector",
+        "Bellman-Ford",
+        "next hop",
+        "RIP",
+        "hop count"
+      ],
+      "lesson": {
+        "why": "Distance vector questions give you a router's link costs and its neighbours' advertisements and ask for the new table, which is one small calculation done correctly.",
+        "intro": "In distance vector routing, a router never sees the whole network. It knows the cost of its own links and what each neighbour claims its own distance to every destination is. For each destination the router adds the cost of the link to a neighbour to that neighbour's claim, which gives the cost of going through that neighbour. It keeps the smallest of these sums as its distance and remembers which neighbour gave it, called the next hop. Routers repeat this each time neighbours send updates.",
+        "definitions": [
+          {
+            "term": "Next hop",
+            "meaning": "The neighbouring router to which packets for a destination are handed."
+          },
+          {
+            "term": "Distance vector",
+            "meaning": "The list of a router's current best distances to all destinations."
+          }
+        ],
+        "principle": {
+          "text": "The new distance to destination $y$ is the minimum over neighbours $v$ of the link cost to $v$ plus $v$'s advertised distance to $y$; the winning neighbour is the next hop.",
+          "tex": "D_x(y)=\\min_{v}\\bigl[c(x,v)+D_v(y)\\bigr]"
+        },
+        "limits": "The rule assumes neighbours advertise honest, current distances. After a link fails, stale advertisements can mislead it and the table may take many updates to settle. RIP also caps a path at 15 hops.",
+        "example": {
+          "problem": "Router X has neighbours Y (link cost 3) and Z (link cost 2). Y advertises distance 2 to D and 9 to E. Z advertises distance 6 to D and 4 to E. Find X's new distance and next hop for D and for E.",
+          "steps": [
+            "For D: through Y costs 3 + 2 = 5, and through Z costs 2 + 6 = 8. The minimum is 5, so the next hop is Y.",
+            "For E: through Y costs 3 + 9 = 12, and through Z costs 2 + 4 = 6. The minimum is 6, so the next hop is Z.",
+            "Each destination is decided separately, so the two destinations can use different neighbours."
+          ],
+          "result": "D: distance 5 via Y. E: distance 6 via Z."
+        },
+        "misconceptions": [
+          "The neighbour with the smallest link cost is not automatically the next hop. Here Z has the cheaper link but Y wins for D, because the advertised distance matters as well.",
+          "A neighbour's advertised distance alone is not the answer: the cost of the link to that neighbour must be added before comparing."
+        ],
+        "recall": [
+          {
+            "q": "What is the Bellman-Ford update for distance vector routing?",
+            "a": "The new distance to y is the minimum over neighbours v of the link cost c(x, v) plus v's advertised distance to y."
+          },
+          {
+            "q": "What does RIP treat as infinity, and how often does it send its vector?",
+            "a": "Infinity is 16 hops, and the vector is sent every 30 seconds over UDP port 520."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "Router R has neighbours A, B and C at link costs 2, 6 and 3. They advertise distances 9, 4 and 5 to a destination T. What is R's new distance to T?",
+          "answer": 8,
+          "explanation": "Through A the cost is 2 + 9 = 11, through B it is 6 + 4 = 10, and through C it is 3 + 5 = 8. The minimum is 8, via C. Choosing B is tempting because it advertises the smallest distance, 4, but its link is expensive."
+        },
+        "summary": "A distance vector router computes, per destination, the minimum of link cost plus neighbour's advertised distance and uses that neighbour as its next hop."
+      }
+    },
+    {
+      "id": "cn-network-layer.count-to-infinity",
+      "title": "Count to infinity, split horizon and poison reverse",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644,
+        646
+      ],
+      "points": [
+        "After a link fails, neighbours may still advertise routes that used it. In the line A–B–C with unit costs, when B–C fails, B hears A offer C at distance 2 and adopts distance 3 via A, a route that runs back through B itself.",
+        "A then raises its distance to 4 via B, B to 5 via A, and so on: each update adds the A–B cost, so the two reach RIP's infinity of 16 after 15 updates in all, while packets for C loop between them.",
+        "Split horizon: never advertise a route back to the neighbour it was learned from. Poison reverse: advertise it to that neighbour with distance infinity, which actively kills the bad route.",
+        "Both stop loops between two routers but not loops through three or more. A small infinity such as RIP's 16 bounds the counting, triggered updates spread bad news sooner, and hold-down timers make a router wait before trusting a replacement route."
+      ],
+      "keyTerms": [
+        "count to infinity",
+        "split horizon",
+        "poison reverse",
+        "hold-down timer",
+        "triggered update"
+      ],
+      "lesson": {
+        "why": "This is the standard failure of distance vector routing, and the exam asks when a loop forms and which fix stops it.",
+        "intro": "Distance vector routers trust what their neighbours advertise. After a link fails, a router can hear an old advertisement that still describes a route through the broken link. If that advertisement came from a neighbour whose route actually runs back through the router itself, the router adopts a route that loops. The two routers then keep raising their distances by one each update, each believing the other can reach the lost destination, until the count reaches the value the protocol treats as unreachable.",
+        "prerequisites": [
+          "cn-network-layer.distance-vector"
+        ],
+        "definitions": [
+          {
+            "term": "Split horizon",
+            "meaning": "A rule that a router does not advertise a route to the neighbour it learned that route from."
+          },
+          {
+            "term": "Poison reverse",
+            "meaning": "Advertising a route back to the neighbour it came from, but with distance infinity."
+          }
+        ],
+        "principle": {
+          "text": "A loop forms when a router accepts a neighbour's advertisement for a route that depends on the router itself. Split horizon withholds that advertisement, and poison reverse replaces it with infinity, so the router never sees a false way out."
+        },
+        "limits": "Split horizon and poison reverse stop loops between two routers only. A loop through three or more routers can still count to infinity, so RIP also keeps its infinity small, at 16.",
+        "example": {
+          "problem": "Routers A, B and C lie in a line with unit link costs. A and B both reach C: B at cost 1, A at cost 2. Link B-C fails, and A's advertisement reaches B before B advertises anything. Follow the distances to C for the first four updates, with infinity at 16.",
+          "steps": [
+            "B loses its direct route to C. A advertises C at distance 2, so B adopts 1 + 2 = 3 via A.",
+            "B advertises 3 to A. A's next hop for C is B, so A follows and sets 1 + 3 = 4.",
+            "A advertises 4 to B, which sets 5, then B advertises 5 and A sets 6. The distances run 3, 4, 5, 6, and so on."
+          ],
+          "result": "The distance rises by 1 per update, and packets bounce between A and B until it reaches 16. The loop forms only because A's stale advertisement arrives before B announces infinity; if B announced first, A would adopt infinity and no loop would form."
+        },
+        "misconceptions": [
+          "The loop does not need a long delay: it forms the moment a router adopts a route through the neighbour that already routes via that router.",
+          "Split horizon does not fix every loop. It handles two-router loops and leaves three-router loops untouched."
+        ],
+        "recall": [
+          {
+            "q": "What does split horizon forbid?",
+            "a": "Advertising a route back to the neighbour from which it was learned."
+          },
+          {
+            "q": "How does poison reverse differ from split horizon?",
+            "a": "It does advertise the route to that neighbour, but with distance infinity, so the neighbour drops it at once."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "In a two-router loop, router B first adopts distance 3 to the lost destination. Each later update raises the distance by 1, alternating between A and B. Infinity is 10. Counting the update that sets 3 and the one that reaches 10, how many updates occur?",
+          "answer": 8,
+          "explanation": "The values 3, 4, 5, 6, 7, 8, 9, 10 are each one update, so 8 updates. Counting 10 - 3 = 7 is tempting, but it misses the update that sets the first value of 3."
+        },
+        "summary": "After a failure, two routers can feed each other stale routes and count upward until infinity; split horizon, poison reverse, and a small infinity bounds the damage."
+      }
+    },
+    {
+      "id": "cn-network-layer.link-state",
+      "title": "Link state routing and OSPF",
+      "frequency": "high",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644,
+        646
+      ],
+      "points": [
+        "Every router discovers its neighbours with HELLO packets, measures the cost of each of its links, and describes them in a link-state advertisement (LSA).",
+        "LSAs are flooded to every router; sequence numbers and an age field let routers discard old or duplicate copies, so all routers end up with the same map of the network.",
+        "Each router runs Dijkstra's algorithm with itself as the source and installs, for every destination, the first hop of its shortest path as the next hop.",
+        "Example: with links A–B of cost 1, B–C of cost 1 and A–C of cost 3, A reaches C at cost 2 via B, even though a direct link exists.",
+        "OSPF derives each link's cost from its bandwidth (reference bandwidth ÷ link bandwidth), splits large networks into areas joined by backbone area 0, authenticates its messages, and runs directly over IP (protocol 89).",
+        "Link state converges faster than distance vector and never counts to infinity, at the cost of more memory, computation and flooding traffic."
+      ],
+      "keyTerms": [
+        "LSA",
+        "HELLO",
+        "flooding",
+        "Dijkstra",
+        "OSPF area"
+      ],
+      "lesson": {
+        "why": "OSPF is the standard link state protocol, and the exam tests which algorithm it uses, what it runs over and how it scales.",
+        "intro": "In link state routing every router builds a complete map of the network, then works out its own best routes from it. A router first finds its neighbours by sending HELLO packets and notes the cost of each of its links. It packs this list into a link-state advertisement and floods it, so a copy reaches every router. When every router holds all advertisements, they hold the same map. Each then runs Dijkstra's shortest path algorithm from itself and keeps the first hop of each shortest path as the next hop.",
+        "definitions": [
+          {
+            "term": "LSA",
+            "meaning": "Link-state advertisement: a router's list of its own links and their costs, flooded to all routers."
+          },
+          {
+            "term": "OSPF area",
+            "meaning": "A group of routers that flood LSAs only among themselves, joined to other areas through the backbone area 0."
+          }
+        ],
+        "principle": {
+          "text": "Flood every router's link costs so all routers share one map, then each router runs Dijkstra on that map with itself as the source; OSPF is the interior protocol that does this, with areas for hierarchy."
+        },
+        "limits": "Link state needs more memory, computation and flooding traffic than distance vector. OSPF runs inside one autonomous system; between systems the Internet uses BGP. OSPF messages ride directly in IP, not in TCP or UDP.",
+        "example": {
+          "problem": "A network has links A-B cost 2, A-C cost 5, B-C cost 1, B-D cost 4 and C-D cost 1. Router A has the full map. Find A's least cost and next hop to D.",
+          "steps": [
+            "A starts at distance 0. B is reached at 2 and C directly at 5.",
+            "Taking B next, C improves to 2 + 1 = 3 via B, and D is reached at 2 + 4 = 6.",
+            "Taking C next, D improves to 3 + 1 = 4. The path is A, B, C, D, so the first hop is B."
+          ],
+          "result": "Least cost to D is 4, with next hop B."
+        },
+        "misconceptions": [
+          "OSPF does not use Bellman-Ford. That is the distance vector computation; OSPF runs Dijkstra on its link-state database.",
+          "OSPF is not an inter-domain protocol. It routes inside one autonomous system, even though it splits that system into areas."
+        ],
+        "recall": [
+          {
+            "q": "Which algorithm does a link state router run, and on what?",
+            "a": "Dijkstra's algorithm, on the map built from all flooded LSAs, with itself as the source."
+          },
+          {
+            "q": "How are OSPF messages carried?",
+            "a": "Directly over IP as protocol 89, not over TCP or UDP."
+          }
+        ],
+        "practice": {
+          "type": "nat",
+          "stem": "A link state router S holds the full map with links S-P cost 3, S-Q cost 1, Q-P cost 1, P-T cost 2 and Q-T cost 6. What is S's least cost to T?",
+          "answer": 4,
+          "explanation": "Dijkstra from S reaches Q at 1, then P at 1 + 1 = 2 instead of 3, then T at 2 + 2 = 4. The direct-looking route through Q-T costs 1 + 6 = 7, and S-P-T costs 3 + 2 = 5, so both are longer."
+        },
+        "summary": "Link state routers flood their link costs so all share one map, each runs Dijkstra from itself, and OSPF does this inside one autonomous system using areas."
+      }
+    },
+    {
+      "id": "cn-network-layer.dv-vs-ls",
+      "title": "Distance vector versus link state",
+      "frequency": "medium",
+      "origin": "curated",
+      "pages": [],
+      "points": [
+        "Knowledge: a distance vector router knows only its neighbours' distance estimates; a link state router knows the whole topology.",
+        "Messages: distance vector sends one vector to each neighbour per update; link state floods every router's LSA over every link, about O(N·E) messages for N routers and E links.",
+        "Computation: a distance vector update is one minimum over the neighbours per destination; link state runs Dijkstra, O(N²) with an array or O(E log N) with a heap.",
+        "Convergence: distance vector can form loops and count to infinity after a failure; link state converges quickly and cannot count to infinity, though short loops can appear while LSAs are still spreading.",
+        "Robustness: a distance vector router that advertises wrong distances corrupts its neighbours' tables and, through them, everyone's; in link state each router computes its own routes, so a wrong LSA affects only the links it describes.",
+        "Once the network is stable both reach the same least-cost routes; they differ in how they get there and how they react to change."
+      ],
+      "keyTerms": [
+        "message complexity",
+        "convergence",
+        "robustness"
+      ],
+      "lesson": {
+        "why": "Comparison questions ask what each family knows, how much traffic it sends and how it behaves after a failure, and the answers follow from one difference in what a router knows.",
+        "intro": "Distance vector and link state both produce least-cost routes, but they get there differently. A distance vector router knows only its own links and what its neighbours report, so it sends compact tables to neighbours and computes a minimum for each destination. A link state router learns the whole map by flooding and computes shortest paths itself. Most differences in speed, traffic and failure behaviour come from this gap between rumour from neighbours and a shared map.",
+        "prerequisites": [
+          "cn-network-layer.distance-vector",
+          "cn-network-layer.link-state"
+        ],
+        "definitions": [
+          {
+            "term": "Convergence",
+            "meaning": "The point at which all routers hold consistent, correct routes after a change."
+          }
+        ],
+        "principle": {
+          "text": "Distance vector trades knowledge for cheapness: small messages to neighbours, but slow and loop-prone convergence. Link state spends memory, computation and flooding traffic to hold the full map, and so converges quickly without counting to infinity."
+        },
+        "limits": "Once both are stable they find the same least-cost routes. The differences are about the path to that state, so a question about steady-state routes does not distinguish them.",
+        "example": {
+          "problem": "Eight routers form a line with unit link costs. Each starts knowing only its own link costs and exchanges distance vectors in synchronous rounds. How many exchanges until every router holds its final distances?",
+          "steps": [
+            "After 0 exchanges a router knows only paths of 1 link; after e exchanges, paths of up to e + 1 links.",
+            "The farthest pair of routers in the line is joined by 7 links.",
+            "So e + 1 must reach 7, giving e = 6 exchanges."
+          ],
+          "result": "Six exchanges; a link state router would instead have the full map after its LSAs have flooded across the line."
+        },
+        "misconceptions": [
+          "Link state is not loop-free in every moment. While LSAs are still spreading, routers briefly hold different maps and short loops can appear; it only avoids counting to infinity.",
+          "More messages do not mean slower convergence. Link state floods more but settles faster, because each router has the whole map."
+        ],
+        "recall": [
+          {
+            "q": "What does a link state router know that a distance vector router does not?",
+            "a": "The whole topology, from every router's flooded LSA."
+          },
+          {
+            "q": "Which family can count to infinity, and why?",
+            "a": "Distance vector, because routers trust neighbours' distances, which may depend on the router itself."
+          },
+          {
+            "q": "Which family is more robust to one router advertising wrong data?",
+            "a": "Link state, since each router computes its own routes and a wrong LSA affects only the links it describes."
+          }
+        ],
+        "practice": {
+          "type": "mcq",
+          "stem": "After a link fails, which statement about the two protocol families is correct?",
+          "options": [
+            "Distance vector floods the change to every router and then runs Dijkstra.",
+            "Link state can count to infinity because it trusts neighbours' distances.",
+            "Distance vector can count to infinity, while link state floods the new link state and recomputes.",
+            "Both always converge in the same number of messages."
+          ],
+          "answer": 2,
+          "explanation": "Distance vector can count to infinity because routers trust stale neighbour advertisements, while link state floods the change and each router recomputes on its map. The first option swaps the two protocols. The second makes the same swap in the opposite direction."
+        },
+        "summary": "Distance vector knows only neighbours' estimates and is cheap but slow to converge; link state knows the whole map, costs more traffic and computation, and converges quickly."
+      }
+    },
+    {
+      "id": "cn-network-layer.ipv6-overview",
+      "title": "IPv6 overview",
+      "frequency": "low",
+      "origin": "source",
+      "pages": [
+        643,
+        644,
+        647
+      ],
+      "beyondSyllabus": true,
+      "points": [
+        "Addresses have 128 bits, written as eight groups of four hex digits. Leading zeros may be dropped and one run of all-zero groups replaced by '::', so 2001:0db8:0000:0000:0000:0000:0000:0001 becomes 2001:db8::1.",
+        "The base header is a fixed 40 bytes with no checksum and no fragmentation fields; options move into extension headers, and Hop Limit replaces TTL.",
+        "Routers never fragment: the source discovers the path MTU and uses a fragment extension header, and every link must carry packets of at least 1280 bytes.",
+        "IPsec support was mandatory in the first IPv6 node requirements and is now recommended rather than required. Adoption has been slow, largely because NAT extended the life of IPv4."
+      ],
+      "keyTerms": [
+        "128-bit address",
+        "extension header",
+        "hop limit",
+        "path MTU discovery"
+      ]
+    }
+  ],
+  "formulas": [
+    {
+      "id": "cn-network-layer.usable-hosts",
+      "name": "Usable hosts in a /n block",
+      "tex": "\\text{hosts} = 2^{32 - n} - 2",
+      "text": "hosts = 2^(32 − n) − 2",
+      "where": [
+        [
+          "n",
+          "prefix length (network bits)"
+        ]
+      ],
+      "note": "The −2 removes the network address (host bits all 0) and the broadcast address (host bits all 1); the block itself holds 2^(32 − n) addresses.",
+      "topic": "cn-network-layer.cidr",
+      "origin": "source",
+      "pages": [
+        57,
+        639,
+        647
+      ]
+    },
+    {
+      "id": "cn-network-layer.network-broadcast",
+      "name": "Network and broadcast addresses",
+      "tex": "\\text{network} = \\text{IP} \\wedge \\text{mask}, \\qquad \\text{broadcast} = \\text{IP} \\vee \\lnot\\,\\text{mask}",
+      "text": "network = IP AND mask; broadcast = IP OR (NOT mask)",
+      "topic": "cn-network-layer.cidr",
+      "origin": "source",
+      "pages": [
+        57
+      ]
+    },
+    {
+      "id": "cn-network-layer.prefix-mask",
+      "name": "Mask and block size for a prefix",
+      "tex": "\\text{mask} = 2^{32} - 2^{32 - n}, \\qquad \\text{block size} = 256 - m",
+      "text": "mask = 2^32 − 2^(32 − n); block size = 256 − m",
+      "where": [
+        [
+          "m",
+          "the mask octet that is neither 255 nor 0"
+        ]
+      ],
+      "note": "Example: /21 gives mask 255.255.248.0 and a block size of 256 − 248 = 8 in the third octet.",
+      "topic": "cn-network-layer.cidr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.subnet-count",
+      "name": "Subnets from borrowed bits",
+      "tex": "\\text{subnets} = 2^{s}, \\qquad \\text{hosts per subnet} = 2^{32 - n - s} - 2",
+      "text": "subnets = 2^s; hosts per subnet = 2^(32 − n − s) − 2",
+      "where": [
+        [
+          "n",
+          "original prefix length"
+        ],
+        [
+          "s",
+          "host bits borrowed for the subnet field"
+        ]
+      ],
+      "topic": "cn-network-layer.subnetting",
+      "origin": "source",
+      "pages": [
+        639,
+        640
+      ]
+    },
+    {
+      "id": "cn-network-layer.host-bits",
+      "name": "Host bits needed for h hosts",
+      "tex": "b = \\min\\{\\, b : 2^{b} - 2 \\ge h \\,\\}, \\qquad \\text{prefix} = 32 - b",
+      "text": "b = smallest b with 2^b − 2 ≥ h; prefix = 32 − b",
+      "note": "100 hosts need b = 7 (/25, 126 hosts), 50 need b = 6 (/26) and 20 need b = 5 (/27).",
+      "topic": "cn-network-layer.subnetting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.aggregation-prefix",
+      "name": "Prefix of an aggregate",
+      "tex": "2^{k} \\text{ aligned blocks of } /n \\;\\longrightarrow\\; \\text{one } /(n - k)",
+      "text": "2^k consecutive, aligned /n blocks combine into one /(n − k)",
+      "note": "Aligned means the first block's network address is a multiple of the aggregate's size; otherwise no single prefix covers exactly those blocks.",
+      "topic": "cn-network-layer.route-aggregation-lpm",
+      "origin": "curated",
+      "pages": [
+        640
+      ]
+    },
+    {
+      "id": "cn-network-layer.header-length",
+      "name": "Header length and payload of an IPv4 datagram",
+      "tex": "\\text{header} = 4 \\times \\text{IHL bytes}, \\qquad \\text{payload} = \\text{Total Length} - 4 \\times \\text{IHL}",
+      "text": "header = 4 × IHL bytes; payload = Total Length − 4 × IHL",
+      "note": "IHL runs from 5 to 15, so the header is 20 to 60 bytes. Total Length has 16 bits, which caps a datagram at 65 535 bytes.",
+      "topic": "cn-network-layer.ip-header",
+      "origin": "source",
+      "pages": [
+        640
+      ]
+    },
+    {
+      "id": "cn-network-layer.fragment-data-size",
+      "name": "Data bytes per fragment",
+      "tex": "d = 8 \\left\\lfloor \\frac{\\text{MTU} - H}{8} \\right\\rfloor",
+      "text": "d = 8 × ⌊(MTU − H) / 8⌋",
+      "where": [
+        [
+          "H",
+          "IP header length of each fragment, usually 20 bytes"
+        ]
+      ],
+      "note": "Applies to every fragment except the last, which carries whatever data is left.",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.fragment-offset",
+      "name": "Fragment offset",
+      "tex": "\\text{offset} = \\frac{\\text{index of the first data byte}}{8}",
+      "text": "offset = (index of the fragment's first data byte) / 8",
+      "note": "Data bytes of the original datagram are counted from 0. When every earlier fragment carries d bytes, fragment k (counting from 0) has offset k·d/8.",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "source",
+      "pages": [
+        57,
+        640
+      ]
+    },
+    {
+      "id": "cn-network-layer.fragment-count",
+      "name": "Number of fragments",
+      "tex": "\\text{fragments} = \\left\\lceil \\frac{D}{d} \\right\\rceil",
+      "text": "fragments = ⌈D / d⌉",
+      "where": [
+        [
+          "D",
+          "data bytes of the original datagram (Total Length minus its header)"
+        ],
+        [
+          "d",
+          "data bytes per fragment"
+        ]
+      ],
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.refragment-offset",
+      "name": "Offsets after refragmentation",
+      "tex": "\\text{offset}_j = o + \\frac{j\\,d'}{8}, \\qquad \\text{MF}_{\\text{last piece}} = \\text{MF}_{\\text{fragment}}",
+      "text": "offset_j = o + j·d′/8; the last piece inherits the fragment's MF flag",
+      "where": [
+        [
+          "o",
+          "offset of the fragment being split again"
+        ],
+        [
+          "d′",
+          "data bytes per piece on the new link, a multiple of 8"
+        ],
+        [
+          "j",
+          "piece index counted from 0"
+        ]
+      ],
+      "note": "Offsets always refer to the original datagram and never restart at 0. Only the piece holding the original's final byte has MF = 0.",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.napt-capacity",
+      "name": "Concurrent NAPT mappings per public address",
+      "tex": "\\text{mappings} \\le 2^{16} - 1 = 65\\,535 \\text{ per transport protocol}",
+      "text": "mappings ≤ 2^16 − 1 = 65 535 per transport protocol",
+      "note": "Port 0 is unused; a router that hands out only ports 1024–65 535 has 64 512. Each active (private address, port) pair needs its own public port, or replies to that port would be ambiguous.",
+      "topic": "cn-network-layer.nat",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.bellman-ford",
+      "name": "Distance vector (Bellman-Ford) update",
+      "tex": "D_x(y) = \\min_{v \\in N(x)} \\big( c(x, v) + D_v(y) \\big)",
+      "text": "D_x(y) = min over neighbours v of (c(x, v) + D_v(y))",
+      "where": [
+        [
+          "c(x, v)",
+          "cost of the link from x to neighbour v"
+        ],
+        [
+          "D_v(y)",
+          "distance to y advertised by neighbour v"
+        ]
+      ],
+      "note": "The neighbour that achieves the minimum becomes the next hop for y.",
+      "topic": "cn-network-layer.distance-vector",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644
+      ]
+    },
+    {
+      "id": "cn-network-layer.dv-rounds",
+      "name": "Distance vector estimates after synchronous rounds",
+      "tex": "D^{k}_x(y) = \\text{least cost of an } x\\text{–}y \\text{ path with at most } k \\text{ links}, \\qquad \\text{rounds} = h \\le N - 1",
+      "text": "D^k_x(y) = least cost of an x–y path with at most k links; rounds to converge = h ≤ N − 1",
+      "where": [
+        [
+          "k",
+          "rounds counted from tables that hold only the router itself"
+        ],
+        [
+          "h",
+          "largest number of links on any least-cost path"
+        ],
+        [
+          "N",
+          "number of routers"
+        ]
+      ],
+      "note": "Tables that already hold the direct link costs are the state k = 1, so after e exchanges the estimates cover paths of at most e + 1 links.",
+      "topic": "cn-network-layer.distance-vector",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.dijkstra-relaxation",
+      "name": "Dijkstra relaxation in link state routing",
+      "tex": "D(v) \\leftarrow \\min\\big( D(v),\\; D(w) + c(w, v) \\big)",
+      "text": "D(v) ← min(D(v), D(w) + c(w, v))",
+      "where": [
+        [
+          "w",
+          "the router just made permanent, the one with the smallest tentative distance"
+        ]
+      ],
+      "note": "Repeat until every router is permanent. The next hop to a destination is the first router on its shortest path. O(N²) with an array, O(E log N) with a heap.",
+      "topic": "cn-network-layer.link-state",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "complexity": [],
+  "problemTypes": [
+    {
+      "id": "cn-network-layer.subnet-calculation",
+      "title": "Network, broadcast, host range and host count from IP/n",
+      "frequency": "high",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Write the mask and find the octet where it is neither 255 nor 0; the block size there is 256 minus that mask octet.",
+        "Network: round that octet of the address down to a multiple of the block size and set every later octet to 0.",
+        "Broadcast: network octet + block size − 1 in that octet, and 255 in every later octet.",
+        "Hosts run from network + 1 to broadcast − 1, and there are 2^(32 − n) − 2 of them."
+      ],
+      "trap": "Treating the block as a /24 and changing only the last octet when the prefix ends in the third octet.",
+      "topic": "cn-network-layer.cidr",
+      "origin": "source",
+      "pages": [
+        57,
+        639,
+        646,
+        647
+      ]
+    },
+    {
+      "id": "cn-network-layer.subnet-division",
+      "title": "Dividing or allocating a block: subnets, VLSM and valid allocations",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Equal subnets: borrow s bits for 2ˢ subnets, each with 2^(32 − n − s) − 2 hosts.",
+        "Required sizes: choose each prefix from its host count, and allocate the largest block first.",
+        "Check every block in every option: it must start on a multiple of its own size, lie inside the parent block and overlap no other block."
+      ],
+      "trap": "Accepting an allocation whose start is not aligned, such as a /21 that starts at third octet 36.",
+      "topic": "cn-network-layer.subnetting",
+      "origin": "source",
+      "pages": [
+        639,
+        640,
+        646
+      ]
+    },
+    {
+      "id": "cn-network-layer.longest-prefix-match",
+      "title": "Forwarding by longest prefix match",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For each table entry, check whether the destination's first n bits equal the prefix, i.e. whether it lies between the entry's network and broadcast addresses.",
+        "Among the matching entries, take the one with the largest n.",
+        "Use the default route 0.0.0.0/0 only if no other entry matches."
+      ],
+      "trap": "Taking the first matching row of the table instead of the longest match.",
+      "topic": "cn-network-layer.route-aggregation-lpm",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.route-aggregation",
+      "title": "Aggregating contiguous blocks into one prefix",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "NAT",
+      "recipe": [
+        "Write the varying octet of the first and last block in binary and count the leading bits common to the whole range.",
+        "Check that the blocks are consecutive, that there are 2ᵏ of the same size, and that the first starts on a multiple of the combined size.",
+        "The aggregate is /(n − k) for 2ᵏ blocks of /n."
+      ],
+      "trap": "Aggregating blocks that are not aligned, which would also claim addresses that belong to someone else.",
+      "topic": "cn-network-layer.route-aggregation-lpm",
+      "origin": "curated",
+      "pages": [
+        640
+      ]
+    },
+    {
+      "id": "cn-network-layer.fragmentation-fields",
+      "title": "Fragment count, offsets, MF flags and lengths",
+      "frequency": "high",
+      "marks": 2,
+      "format": "NAT",
+      "recipe": [
+        "Find the data to carry: the original Total Length minus its header.",
+        "Data per fragment: MTU minus the fragment header, rounded down to a multiple of 8.",
+        "Fragments = ⌈data / per-fragment data⌉; offsets run 0, d/8, 2d/8, …; MF = 1 on all but the last.",
+        "The last fragment carries the remainder; each fragment's Total Length is its data plus its header.",
+        "If a fragment is split again, repeat with the new MTU, add its own offset to each piece's offset, and give the last piece the fragment's MF flag."
+      ],
+      "trap": "Forgetting to round MTU − header down to a multiple of 8, or giving the offset in bytes instead of 8-byte units.",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "source",
+      "pages": [
+        57,
+        640,
+        641,
+        643
+      ]
+    },
+    {
+      "id": "cn-network-layer.distance-vector-update",
+      "title": "Distance vector table update",
+      "frequency": "high",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "For each destination, add the cost of the link to each neighbour to that neighbour's advertised distance.",
+        "Take the minimum; the neighbour that achieves it is the next hop.",
+        "Ignore the router's own old entries unless the question says otherwise; its distance to itself stays 0.",
+        "For 'after e exchanges' questions starting from direct link costs, the estimate is the least cost over paths of at most e + 1 links."
+      ],
+      "trap": "Picking the neighbour with the smallest advertised distance, or the cheapest link, instead of the smallest sum.",
+      "topic": "cn-network-layer.distance-vector",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644
+      ]
+    },
+    {
+      "id": "cn-network-layer.link-state-table",
+      "title": "Forwarding table from link state information",
+      "frequency": "medium",
+      "marks": 2,
+      "format": "MCQ",
+      "recipe": [
+        "Run Dijkstra from the router: repeatedly make permanent the router with the smallest tentative distance and relax its links.",
+        "Record each destination's predecessor, then trace back to find the first hop out of the source.",
+        "The table holds the cost and the first hop for every destination."
+      ],
+      "trap": "Choosing the path with the fewest hops, or the direct link, when a longer path is cheaper.",
+      "topic": "cn-network-layer.link-state",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.count-to-infinity-trace",
+      "title": "Count to infinity after a link failure",
+      "frequency": "medium",
+      "marks": 1,
+      "format": "MCQ",
+      "recipe": [
+        "Note which routes used the failed link and what each neighbour is still advertising.",
+        "Recompute with Bellman-Ford using those stale vectors: a router may adopt a route that leads back through itself.",
+        "Repeat exchange by exchange; with split horizon or poison reverse, drop the advertisement back to the neighbour the route was learned from."
+      ],
+      "trap": "Assuming the router marks the destination unreachable at once; without split horizon it accepts the stale route.",
+      "topic": "cn-network-layer.count-to-infinity",
+      "origin": "source",
+      "pages": [
+        57,
+        642,
+        644,
+        646
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "cn-network-layer.q-broadcast-address",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "A host has the address 172.16.45.200/21. What is the broadcast address of its network?",
+      "options": [
+        "172.16.45.255",
+        "172.16.40.255",
+        "172.16.47.255",
+        "172.16.63.255"
+      ],
+      "answer": 2,
+      "explanation": "/21 leaves 11 host bits and the mask is 255.255.248.0, so the third octet moves in blocks of 256 − 248 = 8. 45 lies in the block 40–47, so the network is 172.16.40.0 and the broadcast address, with every host bit 1, is 172.16.47.255. Usable hosts run from 172.16.40.1 to 172.16.47.254, 2046 in all. 172.16.45.255 treats the block as a /24, 172.16.40.255 sets only the last octet's host bits, and 172.16.63.255 is the answer for /19.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.cidr",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-hosts-per-prefix",
+      "type": "nat",
+      "marks": 1,
+      "stem": "How many host addresses can be assigned in an IPv4 block with prefix length /22, given that its network and broadcast addresses cannot be assigned?",
+      "answer": 1022,
+      "explanation": "A /22 leaves 32 − 22 = 10 host bits, so the block holds 2¹⁰ = 1024 addresses. Removing the network address (host bits all 0) and the broadcast address (host bits all 1) leaves 1022.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.cidr",
+      "origin": "source",
+      "sourceLabel": "PYQ-1 (GATE 2014) — Subnetting",
+      "pages": [
+        57,
+        646
+      ]
+    },
+    {
+      "id": "cn-network-layer.q-subnet-split",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "The block 192.168.1.0/24 is divided into equal /27 subnets. How many subnets are there, and how many usable host addresses does each have?",
+      "options": [
+        "8 subnets, 32 hosts each",
+        "8 subnets, 30 hosts each",
+        "6 subnets, 30 hosts each",
+        "16 subnets, 14 hosts each"
+      ],
+      "answer": 1,
+      "explanation": "Going from /24 to /27 borrows 3 bits, giving 2³ = 8 subnets. Each keeps 5 host bits: 2⁵ = 32 addresses, of which 30 are usable once the network and broadcast addresses are removed. 32 forgets those two, 6 applies the obsolete rule that discards the all-0s and all-1s subnets, and 16 subnets of 14 hosts is the split into /28.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.subnetting",
+      "origin": "source",
+      "sourceLabel": "PYQ-5 (GATE 2019) — Subnet",
+      "pages": [
+        639,
+        640,
+        646
+      ]
+    },
+    {
+      "id": "cn-network-layer.q-block-allocation",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "An ISP holds 130.40.32.0/20. It gives half of these addresses to organisation X and a quarter to organisation Y, and keeps the rest. Which allocation is valid?",
+      "options": [
+        "X: 130.40.36.0/21, Y: 130.40.32.0/22",
+        "X: 130.40.32.0/21, Y: 130.40.36.0/22",
+        "X: 130.40.32.0/22, Y: 130.40.40.0/23",
+        "X: 130.40.32.0/21, Y: 130.40.40.0/22"
+      ],
+      "answer": 3,
+      "explanation": "The /20 spans third octets 32–47. Half of it is a /21 (8 values of the third octet) and a quarter is a /22 (4 values), and each block must start on a multiple of its own size. X = 130.40.32.0/21 with Y = 130.40.40.0/22 gives X 32–39 and Y 40–43, leaving 44–47 to the ISP. 130.40.36.0/21 is not a valid block: a /21 must start at a multiple of 8, and the /21 holding 36 is 32–39, which overlaps Y's 32–35. Y = 130.40.36.0/22 covers 36–39, inside X's 32–39. A /22 and a /23 hand out a quarter and an eighth, not a half and a quarter.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.subnetting",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-lpm-forwarding",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "A router's forwarding table has these entries: 10.0.0.0/8 → eth0, 10.16.0.0/12 → eth1, 10.20.0.0/16 → eth2, 10.20.128.0/17 → eth3, and the default route 0.0.0.0/0 → eth4. On which interfaces does it forward datagrams for 10.20.200.1, 10.40.1.1 and 10.25.1.1, in that order?",
+      "options": [
+        "eth3, eth0, eth1",
+        "eth2, eth0, eth1",
+        "eth3, eth1, eth1",
+        "eth3, eth0, eth0"
+      ],
+      "answer": 0,
+      "explanation": "10.20.200.1 matches the /8, the /12, the /16 and the /17, which covers 10.20.128.0–10.20.255.255; the longest is the /17, so eth3. 10.40.1.1 matches only 10.0.0.0/8, because 10.16.0.0/12 spans second octets 16–31: eth0. 10.25.1.1 matches the /8 and the /12 but not 10.20.0.0/16, so the /12 wins: eth1. The default route is used only when nothing else matches.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.route-aggregation-lpm",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-aggregate-prefix",
+      "type": "nat",
+      "marks": 1,
+      "stem": "An ISP owns the four blocks 160.12.64.0/22, 160.12.68.0/22, 160.12.72.0/22 and 160.12.76.0/22 and wants to advertise them as one CIDR prefix that covers exactly these addresses. What is the prefix length of that advertisement?",
+      "answer": 20,
+      "explanation": "The third octets run from 64 to 79: 16 consecutive values starting at 64 = 01000000, a multiple of 16. All of them share the first 4 bits, 0100, of the third octet, so 8 + 8 + 4 = 20 bits are common. The aggregate 160.12.64.0/20 holds exactly the 4 × 1024 = 4096 addresses of the four /22 blocks.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.route-aggregation-lpm",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-identification-field",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "What is the Identification field of the IPv4 header used for?",
+      "options": [
+        "Detecting corruption of the header in transit",
+        "Naming the transport protocol carried in the payload",
+        "Letting the destination tell which fragments belong to the same original datagram",
+        "Putting the segments of a TCP connection back in order"
+      ],
+      "answer": 2,
+      "explanation": "The sending host gives each datagram an identification value and every fragment carries a copy, so the destination can group fragments before reassembling them with the offsets and the MF flag. Header corruption is caught by the header checksum, the payload's protocol is named by the Protocol field (6 for TCP, 17 for UDP), and TCP orders its bytes with its own sequence numbers.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.ip-header",
+      "origin": "source",
+      "sourceLabel": "PYQ-2 (GATE 2017) — IP fields",
+      "pages": [
+        57,
+        640,
+        646
+      ]
+    },
+    {
+      "id": "cn-network-layer.q-ip-payload",
+      "type": "nat",
+      "marks": 1,
+      "stem": "An IPv4 datagram arrives with header length field IHL = 8 and Total Length = 1000. How many bytes of payload does it carry?",
+      "answer": 968,
+      "explanation": "IHL counts 32-bit words, so the header is 8 × 4 = 32 bytes: the 20 fixed bytes plus 12 bytes of options. Total Length counts the whole datagram in bytes, header included, so the payload is 1000 − 32 = 968 bytes. Reading IHL as bytes would give 992.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.ip-header",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-fragment-offset",
+      "type": "nat",
+      "marks": 2,
+      "stem": "A router must forward a 3020-byte IPv4 datagram (a 20-byte header with no options and 3000 bytes of data) onto a link whose MTU is 600 bytes. Each fragment carries a 20-byte header. What value does the fragment-offset field hold in the last fragment?",
+      "answer": 360,
+      "explanation": "Each fragment has room for 600 − 20 = 580 data bytes, but every fragment except the last must carry a multiple of 8, so each carries 576. Five such fragments carry 2880 bytes and the sixth, the last, carries the remaining 120. Its first data byte is byte 2880, so its offset is 2880 / 8 = 360; the offsets run 0, 72, 144, 216, 288 and 360. Using 580 bytes per fragment would start the last fragment at byte 2900, which is not even a multiple of 8.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-fragment-fields",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A router receives an IPv4 fragment with IHL = 5, Total Length = 1020, fragment offset = 100 and MF = 1. Data bytes of the original datagram are numbered from 0. Which of the following statements are true?",
+      "options": [
+        "It is the last fragment of the original datagram.",
+        "It carries data bytes 800 to 1799 of the original datagram.",
+        "The router may reassemble it with the other fragments before forwarding the datagram.",
+        "The data that follows it in the original datagram begins at fragment offset 225."
+      ],
+      "answer": [
+        1,
+        3
+      ],
+      "explanation": "The header is 5 × 4 = 20 bytes, so the fragment carries 1000 data bytes. Offset 100 puts its first data byte at 100 × 8 = 800, so it holds bytes 800–1799, and the next data starts at byte 1800, offset 225. MF = 1 says more fragments follow, so it is not the last. Only the final destination reassembles; routers forward fragments independently and may even fragment them again.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-refragmentation",
+      "type": "msq",
+      "marks": 2,
+      "stem": "A 4020-byte IPv4 datagram (20-byte header, 4000 data bytes) crosses a link with MTU 1500 and is split into fragments of 1480, 1480 and 1040 data bytes. The second fragment then reaches a link with MTU 620 and is fragmented again; every header is 20 bytes. Which of the following statements about the pieces of the second fragment are true?",
+      "options": [
+        "The second fragment is split into 3 pieces.",
+        "The last of these pieces has MF = 0.",
+        "The pieces have fragment offsets 185, 260 and 335.",
+        "The last of these pieces has Total Length 280."
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "The second fragment carries original bytes 1480–2959 at offset 1480/8 = 185 with MF = 1. On the 620-byte link each piece holds 8 × ⌊600/8⌋ = 600 data bytes, so the 1480 bytes split into 600, 600 and 280: 3 pieces. Offsets count from the original datagram: 185, 185 + 600/8 = 260 and 260 + 75 = 335. The third original fragment still follows, so the last piece keeps MF = 1. Its Total Length is 280 + 20 = 300; 280 is only its data.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.fragmentation",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-nat-translation",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Host H (192.168.1.10) sits behind a NAT router whose public address is 203.0.113.5. H opens a TCP connection from port 5000 to a web server at 198.51.100.7, port 80, and the router maps the connection to public port 40001. How does the server's reply arrive at the router, and what does the router do with it?",
+      "options": [
+        "It arrives from 198.51.100.7:80 addressed to 192.168.1.10:5000, and the router forwards it unchanged.",
+        "It arrives from 198.51.100.7:80 addressed to 203.0.113.5:40001, and the router rewrites the source to 203.0.113.5:80.",
+        "It arrives from 203.0.113.5:40001 addressed to 198.51.100.7:80, and the router rewrites the source to 192.168.1.10:5000.",
+        "It arrives from 198.51.100.7:80 addressed to 203.0.113.5:40001, and the router rewrites the destination to 192.168.1.10:5000."
+      ],
+      "answer": 3,
+      "explanation": "On the way out the router replaced the source 192.168.1.10:5000 with 203.0.113.5:40001, so the server only ever sees the public address and replies to 203.0.113.5:40001. The router looks up port 40001 in its translation table, rewrites the destination back to 192.168.1.10:5000 and recomputes the checksums. A private address never appears on the public side, and the server's own address and port are left alone.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.nat",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-nat-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements about network address translation (NAT) with port translation are true?",
+      "options": [
+        "Many inside hosts can share one public IPv4 address, because each (private address, port) pair is mapped to a different public port.",
+        "Packets with source addresses in 172.16.0.0/12 are routed across the public Internet without translation.",
+        "An outside host cannot open a connection to an inside host unless a mapping, such as a configured port forward, already exists.",
+        "Because it rewrites addresses and ports, the router must recompute the IP header checksum and the TCP or UDP checksum."
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Port translation tells inside hosts apart by the public port each mapping receives, so one public address serves many hosts. The table is filled by outgoing traffic, so an unsolicited inbound connection finds no entry unless one is configured. The TCP and UDP checksums cover a pseudo-header holding the addresses, so they change along with the IP header checksum. 172.16.0.0/12 is an RFC 1918 private range, which public routers do not carry; that is why NAT is needed.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.nat",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-dv-update",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Router R runs distance vector routing. Its links to neighbours P, Q and S cost 4, 2 and 6. It has just received these distance vectors to destinations (A, B, C, D): from P (3, 8, 2, 7), from Q (7, 4, 6, 9) and from S (2, 2, 5, 1). R computes its new table from these vectors alone. What are R's new entries?",
+      "options": [
+        "A: 8 via S, B: 8 via S, C: 6 via P, D: 7 via S",
+        "A: 7 via P, B: 6 via Q, C: 6 via P, D: 7 via S",
+        "A: 9 via Q, B: 6 via Q, C: 8 via Q, D: 11 via Q",
+        "A: 7 via S, B: 6 via Q, C: 6 via P, D: 7 via S"
+      ],
+      "answer": 1,
+      "explanation": "Bellman-Ford adds each link cost to that neighbour's advertisement and keeps the minimum. A: min(4 + 3, 2 + 7, 6 + 2) = 7 via P. B: min(4 + 8, 2 + 4, 6 + 2) = 6 via Q. C: min(4 + 2, 2 + 6, 6 + 5) = 6 via P. D: min(4 + 7, 2 + 9, 6 + 1) = 7 via S. Following the smallest advertised distance puts A and B at 8 via S, and sending everything to the cheapest neighbour Q gives 9, 6, 8 and 11. 'A: 7 via S' pairs the right cost with the wrong next hop, since A via S costs 6 + 2 = 8.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.distance-vector",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-dv-rounds",
+      "type": "nat",
+      "marks": 2,
+      "stem": "Six routers run distance vector routing over links with these costs: A–B 1, A–C 4, A–D 2, B–C 2, B–E 7, C–D 2, C–E 3, D–F 4 and E–F 1. Each router starts knowing only the costs of its own links. In each exchange every router sends its vector to its neighbours at the same moment and then recomputes with Bellman-Ford. What is A's distance to E after the first exchange?",
+      "answer": 7,
+      "explanation": "The starting tables cover paths of one link, so after one exchange A knows the cheapest paths of at most two links. A has no link to E; the two-link paths are A–B–E = 1 + 7 = 8 and A–C–E = 4 + 3 = 7, so A records 7 via C. The true least cost, 6 over A–B–C–E, needs three links and appears only after the second exchange, and a third exchange changes nothing. Answering 6 ignores the rounds, and 8 follows the cheapest neighbour B.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.distance-vector",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-count-to-infinity",
+      "type": "mcq",
+      "marks": 1,
+      "stem": "Routers A, B and C form a line A–B–C with link costs A–B = 2 and B–C = 1, and run distance vector routing without split horizon or poison reverse. In the converged tables B reaches C at distance 1 and A reaches C at distance 3 via B. The link B–C then fails. B notices at once, and before A learns of the failure, B receives A's periodic vector, which still lists C at distance 3. What does B now record as its route to C?",
+      "options": [
+        "Distance 5, via A",
+        "Distance 3, via A",
+        "Distance 4, via A",
+        "Unreachable (infinity)"
+      ],
+      "answer": 0,
+      "explanation": "With its direct link gone, B's only candidate is A's advertisement: c(B, A) + D_A(C) = 2 + 3 = 5, via A. B cannot tell that A's route to C runs through B itself. A then moves to 2 + 5 = 7 via B, B to 9 via A, and so on, counting up until the metric reaches infinity (16 in RIP) while packets for C bounce between A and B. 3 forgets the link cost and 4 adds the cost of the failed link. With split horizon A would not advertise C to B at all, and with poison reverse it would advertise infinity, so B would mark C unreachable.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.count-to-infinity",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-link-state-routes",
+      "type": "mcq",
+      "marks": 2,
+      "stem": "Six routers run link state routing over links with these costs: A–B 1, A–C 4, A–D 2, B–C 2, B–E 7, C–D 2, C–E 3, D–F 4 and E–F 1. After running Dijkstra's algorithm, which forwarding-table entries does router A hold for destinations E and F?",
+      "options": [
+        "E: cost 7, next hop C; F: cost 6, next hop D",
+        "E: cost 6, next hop B; F: cost 6, next hop D",
+        "E: cost 6, next hop B; F: cost 7, next hop B",
+        "E: cost 8, next hop B; F: cost 6, next hop D"
+      ],
+      "answer": 1,
+      "explanation": "From A, Dijkstra fixes B at 1, D at 2, then C at 3 via A–B–C (cheaper than the direct link of cost 4), then E at 6 via A–B–C–E and F at 6 via A–D–F. The next hop is the first router on each path: B for E and D for F. A–C–E costs 7 and A–B–E costs 8, and A–B–C–E–F costs 7, more than A–D–F.",
+      "difficulty": "medium",
+      "topic": "cn-network-layer.link-state",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "id": "cn-network-layer.q-dv-ls-statements",
+      "type": "msq",
+      "marks": 1,
+      "stem": "Which of the following statements comparing distance vector and link state routing are true?",
+      "options": [
+        "A link-state advertisement is delivered only to the neighbours of the router that created it.",
+        "Count to infinity can occur in distance vector routing but not in link state routing.",
+        "A distance vector router sends its vector only to its directly connected neighbours.",
+        "After a topology change, link state routing usually converges faster than distance vector routing."
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "explanation": "Distance vector routers trust their neighbours' estimates, so after a failure they can feed each other stale routes and count to infinity; link state routers each compute routes from a complete map, so this cannot happen. Distance vectors go only to neighbours, while link-state advertisements are flooded to every router, which is what gives each router the full topology. Flooding plus local computation is also why link state converges faster.",
+      "difficulty": "easy",
+      "topic": "cn-network-layer.dv-vs-ls",
+      "origin": "source",
+      "pages": [
+        642,
+        644
+      ]
+    }
+  ],
+  "pitfalls": [
+    {
+      "text": "The n in /n counts network bits, and hosts = 2^(32 − n) − 2: the all-0s (network) and all-1s (broadcast) host addresses cannot be assigned.",
+      "origin": "source",
+      "pages": [
+        647
+      ]
+    },
+    {
+      "text": "Fragments are reassembled only at the final destination; routers forward each fragment on its own and may even fragment it again.",
+      "origin": "source",
+      "pages": [
+        647
+      ]
+    },
+    {
+      "text": "TTL counts hops, not seconds: every router decrements it by one and discards the datagram when it reaches 0.",
+      "origin": "source",
+      "pages": [
+        647
+      ]
+    },
+    {
+      "text": "NAT breaks the end-to-end principle: an outside host cannot reach an inside host unless a translation entry already exists.",
+      "origin": "source",
+      "pages": [
+        647
+      ]
+    },
+    {
+      "text": "Every fragment but the last must carry a multiple of 8 data bytes, so round MTU − header down before dividing; offsets are in 8-byte units, not bytes.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "IHL counts 4-byte words (IHL = 5 means 20 bytes), while Total Length counts bytes and includes the header.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "Longest prefix match picks the most specific matching entry, not the first matching row, and never the default route when a longer prefix matches.",
+      "origin": "curated",
+      "pages": []
+    },
+    {
+      "text": "In a distance vector update the next hop is the neighbour with the smallest link cost + advertised distance, not the one with the smallest advertisement or the cheapest link.",
+      "origin": "curated",
+      "pages": []
+    }
+  ],
+  "revisionCard": [
+    {
+      "heading": "Addressing and NAT",
+      "lines": [
+        "Hosts in /n: 2^(32 − n) − 2; /24 into /26 gives 4 subnets of 62",
+        "Network = IP AND mask; broadcast = host bits all 1",
+        "Private: 10/8, 172.16/12, 192.168/16",
+        "Forwarding: longest prefix match, default route 0.0.0.0/0",
+        "NAPT maps private IP:port to a public port; inbound needs a mapping"
+      ],
+      "origin": "source",
+      "pages": [
+        639,
+        641,
+        647
+      ]
+    },
+    {
+      "heading": "IP header and fragmentation",
+      "lines": [
+        "Header 20–60 B; IHL in 4-byte words; Total Length includes the header",
+        "TTL −1 per router; Protocol 1 ICMP, 6 TCP, 17 UDP",
+        "Fragment data a multiple of 8; offset = first byte / 8; MF = 1 except last",
+        "Same identification in every fragment; reassembly only at the destination"
+      ],
+      "origin": "source",
+      "pages": [
+        640,
+        647
+      ]
+    },
+    {
+      "heading": "Routing",
+      "lines": [
+        "DV (RIP): Bellman-Ford with neighbours, hop count ≤ 15, 16 = infinity",
+        "Count to infinity: split horizon, poison reverse",
+        "LS (OSPF): flood LSAs, run Dijkstra, areas",
+        "BGP: path vector between autonomous systems"
+      ],
+      "origin": "source",
+      "pages": [
+        642,
+        647
+      ]
+    }
+  ],
+  "errata": [
+    {
+      "page": 57,
+      "claim": "Classful addressing: class A has 2^24 hosts per network, class B 2^16 hosts and class C 2^8 hosts.",
+      "correction": "Those are the numbers of addresses per network. The all-0s and all-1s host addresses are reserved, as the −2 rule for CIDR on the same page says, so the usable hosts are 2²⁴ − 2 = 16 777 214, 2¹⁶ − 2 = 65 534 and 2⁸ − 2 = 254."
+    },
+    {
+      "page": 643,
+      "claim": "IPv6 improvements over IPv4 include 'IPSec mandatory'; the voice note on page 644 repeats 'mandatory IPSec support'.",
+      "correction": "IPsec support was mandatory only in the early IPv6 node requirements (RFC 4294). RFC 6434 relaxed it from MUST to SHOULD in 2011 and RFC 8504 keeps it there, so IPv6 nodes are recommended, not required, to support IPsec."
+    }
+  ],
+  "syllabusCoverage": [
+    {
+      "item": "cn-routing",
+      "status": "partial",
+      "topics": [
+        "cn-network-layer.routing-overview",
+        "cn-network-layer.distance-vector",
+        "cn-network-layer.count-to-infinity",
+        "cn-network-layer.link-state",
+        "cn-network-layer.dv-vs-ls"
+      ]
+    },
+    {
+      "item": "cn-ipv4",
+      "status": "partial",
+      "topics": [
+        "cn-network-layer.ipv4-addressing",
+        "cn-network-layer.cidr",
+        "cn-network-layer.subnetting",
+        "cn-network-layer.route-aggregation-lpm",
+        "cn-network-layer.ip-header",
+        "cn-network-layer.fragmentation",
+        "cn-network-layer.nat"
+      ]
+    }
+  ]
+}

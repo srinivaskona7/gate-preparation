@@ -1,0 +1,878 @@
+{
+  "chapter": "os-file-systems",
+  "papers": [
+    "gate-cse-2026-s2",
+    "gate-cse-2026-s1",
+    "gate-cse-2025-s2",
+    "gate-cse-2025-s1",
+    "gate-cse-2024-s2",
+    "gate-cse-2024-s1",
+    "gate-cse-2019",
+    "gate-cse-2018",
+    "gate-cse-2017-s2",
+    "gate-cse-2022",
+    "gate-cse-2021-s1"
+  ],
+  "questions": [
+    {
+      "id": "gate-cse-2026-s2-q53",
+      "type": "nat",
+      "marks": 2,
+      "key": "16417",
+      "topic": "os-file-systems.free-space-management",
+      "difficulty": "medium",
+      "stem": "To keep track of free blocks in a file system, one of the two approaches is generally used – using bitmaps (bit vectors) or using linked lists. Consider that the linked list approach is used to keep track of free blocks in a file system. Assume that the disk size is 16 GB, block size is 2 KB, and block numbers used are 32-bit long. A single pointer of size 4 bytes is used in each block of the list to point to the next block of the list. The number of blocks required to hold the free disk block numbers is ____________. (answer in integer)\n\nNote: $1\\text{K} = 2^{10}$ and $1\\text{G} = 2^{30}$",
+      "answer": 16417,
+      "solutionDiagram": {
+        "alt": "Chain of free-list blocks: each holds 511 block numbers and a 4-byte next pointer; 16416 full blocks plus a last block of 32 numbers make 16417."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a linked free list stores",
+            "body": "The file system must remember which disk blocks are free. In the linked-list method the free block numbers are written into some blocks of the disk, and each such list block also holds a pointer to the next list block, so the list is a chain. A list block of $B$ bytes with a $p$-byte next pointer holds $(B - p)/b$ block numbers of $b$ bytes each. The number of list blocks is the number of block numbers to store divided by that capacity, rounded up, because a block cannot be partly used."
+          },
+          {
+            "title": "Count the block numbers to store",
+            "body": "The disk has $16\\text{ GB}/2\\text{ KB} = 2^{34}/2^{11} = 2^{23} = 8{,}388{,}608$ blocks. The question gives no count of free blocks, so the list is sized to hold every block number, as on an empty disk.",
+            "tex": "n = \\frac{2^{34}}{2^{11}} = 2^{23} = 8\\,388\\,608"
+          },
+          {
+            "title": "Block numbers per list block",
+            "body": "A list block has 2048 bytes. The 4-byte pointer to the next list block leaves 2044 bytes, which hold $2044/4 = 511$ block numbers of 32 bits. In the chapter's terms this is grouping with $N = 2048/4 = 512$ slots per block, $N - 1$ of them free-block numbers (derivation: free-space maps).",
+            "tex": "\\frac{2048 - 4}{4} = 511"
+          },
+          {
+            "title": "Divide and round up",
+            "body": "A block holds a whole number of entries, so the count is a ceiling. 16416 full blocks hold $511 \\times 16416 = 8{,}388{,}576$ numbers, 32 short of $2^{23}$, so one more block holds the last 32. The answer is 16417.",
+            "tex": "\\left\\lceil \\frac{8\\,388\\,608}{511} \\right\\rceil = 16417"
+          }
+        ],
+        "shortcut": {
+          "body": "Divide by 512 first: $2^{23}/2^9 = 16384$. Giving one slot per block to the pointer multiplies the count by $512/511$, which adds $16384/511 \\approx 32.06$. Round the total, 16416.06, up to 16417. Round only at the end, since the ceiling applies to the exact quotient."
+        },
+        "traps": [
+          {
+            "text": "Forgetting the next pointer, so that a block holds $2048/4 = 512$ numbers, gives exactly $2^{23}/512 = 16384$."
+          },
+          {
+            "text": "Leaving out the numbers of the list blocks themselves, which are in use, gives $511k \\ge 2^{23} - k$ and $k = 16384$. The official key, 16417, counts all $2^{23}$ block numbers."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.free-space-management",
+          "clues": "The words \"linked list approach\", \"single pointer of size 4 bytes in each block\" and \"blocks required to hold the free disk block numbers\" ask for the size of a free-space chain.",
+          "contrast": "A bitmap would need only one bit per block and no pointers; the pointer in each chain block is what makes the capacity per block one entry less than the block size over the entry size."
+        },
+        "check": {
+          "body": "Use remainders instead of division. Since $512 \\equiv 1 \\pmod{511}$, $2^{23} = 2^5\\,(2^9)^2 \\equiv 32 \\pmod{511}$. The remainder is not 0, so the count is the whole quotient plus one, and $(2^{23}-32)/511 = 16416$ gives 16417."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 2, Question 43 (paper Q.53)",
+          "url": "https://gateoverflow.in/523103/gate-cse-2026-set-2-question-43"
+        },
+        {
+          "label": "GATE 2026 CS-2 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS2_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-2 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What has to be written into the list blocks, and how many such numbers are there in total?"
+        },
+        {
+          "kind": "concept",
+          "text": "A linked free list is a chain of disk blocks. Each chain block carries free block numbers plus one pointer to the next chain block."
+        },
+        {
+          "kind": "principle",
+          "text": "Blocks are used whole, so the number of chain blocks is a ceiling of (numbers to store) divided by (numbers one block can hold)."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the capacity of one chain block after setting aside room for the next pointer, and find how many blocks the disk has in powers of 2."
+        },
+        {
+          "kind": "partial",
+          "text": "The disk has $2^{34}$ bytes and a block is $2^{11}$ bytes, so count the block numbers first, then divide by the per-block capacity."
+        }
+      ],
+      "variation": {
+        "stem": "A file system tracks free blocks with a linked list. The disk is 8 GB, the block size is 1 KB, block numbers are 32 bits long, and each list block ends with a 4-byte pointer to the next list block. The list is sized to hold every block number of the disk. The number of blocks needed for the list is ____________. (answer in integer; $1\\text{K}=2^{10}$, $1\\text{G}=2^{30}$)",
+        "answer": 32897,
+        "explanation": "The disk has $2^{33}/2^{10}=2^{23}$ blocks. A 1024-byte list block spends 4 bytes on the pointer and holds $(1024-4)/4=255$ block numbers. The list needs $\\lceil 2^{23}/255\\rceil=32897$ blocks; dividing by 256 instead would undercount."
+      }
+    },
+    {
+      "id": "gate-cse-2026-s1-q59",
+      "type": "nat",
+      "marks": 2,
+      "key": "77.3",
+      "topic": "os-file-systems.disk-capacity-arithmetic",
+      "difficulty": "medium",
+      "stem": "Consider a hard disk with a rotational speed of 15000 rpm. The time to move the read/write head from a track to its adjacent track is 1 millisecond. Initially, the head is on track 0. The number of sectors per track is 400. The sector size is 1024 bytes. It is necessary to transfer data from 10 randomly located sectors in each of the following tracks in the order: 5, 12 and 7.\n\nThe total time for the data transfer (in milliseconds) from the hard disk is _________. (rounded off to one decimal place)",
+      "answer": 77.3,
+      "solutionDiagram": {
+        "alt": "Head path over tracks 0, 5, 12, 7 on a track axis with 5, 7 and 5 ms of seek, then 30 random sectors at 2.01 ms each, total 77.3 ms."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Rotation, latency and sector time",
+            "body": "At 15000 rpm one revolution takes $60\\,000/15000 = 4$ ms, so the average rotational latency is half of it, 2 ms. A track has 400 sectors, so one sector passes under the head in $4/400 = 0.01$ ms (derivation: disk geometry). The sector size, 1024 bytes, is not needed.",
+            "tex": "T_{\\text{rot}} = \\frac{60\\,000}{15\\,000} = 4\\ \\text{ms}, \\quad \\frac{T_{\\text{rot}}}{2} = 2\\ \\text{ms}, \\quad \\frac{T_{\\text{rot}}}{400} = 0.01\\ \\text{ms}"
+          },
+          {
+            "title": "Seek along the path 0, 5, 12, 7",
+            "body": "The head starts on track 0 and visits the tracks in the given order, at 1 ms per track crossed: 5 tracks to reach track 5, 7 more to reach 12, and 5 back to reach 7, which is 17 ms.",
+            "tex": "\\lvert 5 - 0 \\rvert + \\lvert 12 - 5 \\rvert + \\lvert 7 - 12 \\rvert = 17\\ \\text{ms}"
+          },
+          {
+            "title": "Latency and transfer for each sector",
+            "body": "The 10 sectors on a track are randomly located, so each one costs an average latency and its own transfer: $2 + 0.01 = 2.01$ ms. Three tracks of 10 sectors give $30 \\times 2.01 = 60.3$ ms. The total is $17 + 60.3 = 77.3$ ms.",
+            "tex": "T = 17 + 30 \\times (2 + 0.01) = 77.3\\ \\text{ms}"
+          }
+        ],
+        "shortcut": {
+          "body": "Seek is the length of the path, $5 + 7 + 5 = 17$ track moves. Every sector costs half a revolution plus one sector time, $30 \\times 2.01 = 60.3$. Total 77.3 ms. The per-sector latency rests on the word \"randomly\": if the 10 sectors of a track were consecutive, the track would cost one latency and 10 sector times instead."
+        },
+        "traps": [
+          {
+            "text": "Taking a full revolution as the latency gives $17 + 30 \\times 4.01 = 137.3$ ms."
+          },
+          {
+            "text": "Charging one latency per track, as if the 10 sectors were adjacent, gives $17 + 3 \\times (2 + 0.1) = 23.3$ ms. Randomly located sectors each need their own wait."
+          },
+          {
+            "text": "Measuring every seek from track 0 gives $5 + 12 + 7 = 24$ ms of seek and 84.3 ms in all. The head stays where the previous transfer left it."
+          },
+          {
+            "text": "Leaving out the transfer time gives 77.0 ms, and leaving out the latency gives 17.3 ms."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.disk-capacity-arithmetic",
+          "clues": "The rpm, the time per adjacent track, the sectors per track and \"randomly located sectors\" on three tracks visited in a fixed order point to seek plus latency plus transfer arithmetic.",
+          "contrast": "If the sectors were consecutive on a track, the track would cost one latency and a run of sector times; \"randomly located\" is what separates the two."
+        },
+        "check": {
+          "body": "Bracket the answer. With zero rotational latency the total is $17 + 30\\times 0.01 = 17.3$ ms; with the worst latency, a full 4 ms revolution per sector, it is $17 + 30\\times 4.01 = 137.3$ ms. Average latency is half the worst case, so the total sits at the midpoint, $(17.3 + 137.3)/2 = 77.3$ ms."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2026 Set 1, Question 49 (paper Q.59)",
+          "url": "https://gateoverflow.in/523031/gate-cse-2026-set-1-question-49"
+        },
+        {
+          "label": "GATE 2026 CS-1 answer key, IIT Guwahati (organising institute)",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/Keys/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2026 CS-1 question paper, IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2026/QPs/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which three costs does reading one sector add up, and which of them depend on the track order given?"
+        },
+        {
+          "kind": "concept",
+          "text": "Disk access time is seek time plus rotational latency plus transfer time. Rotational latency on average is half a revolution."
+        },
+        {
+          "kind": "principle",
+          "text": "The word \"randomly\" means every requested sector pays its own average latency and its own transfer, while seek is paid only when the head changes track."
+        },
+        {
+          "kind": "setup",
+          "text": "Convert rpm to the time of one revolution, derive the time of one sector from the sectors per track, and trace the head path from its starting track through the tracks in order."
+        },
+        {
+          "kind": "partial",
+          "text": "One revolution at 15000 rpm takes 4 ms, so one of the 400 sectors passes the head in 0.01 ms."
+        }
+      ],
+      "variation": {
+        "stem": "A disk rotates at 12000 rpm and has 500 sectors per track. Moving the head across one track takes 1 millisecond, and the head starts on track 0. Data must be read from 8 randomly located sectors on each of the tracks 3, 9 and 4, in that order. Taking average rotational latency for each sector, the total time in milliseconds is _________. (rounded off to two decimal places)",
+        "answer": 74.24,
+        "explanation": "One revolution takes 5 ms, so latency is 2.5 ms and a sector passes in $5/500=0.01$ ms. Seek is $3+6+5=14$ ms. The 24 sectors cost $24\\times 2.51=60.24$ ms, so the total is 74.24 ms."
+      }
+    },
+    {
+      "id": "gate-cse-2025-s1-q51",
+      "type": "nat",
+      "marks": 2,
+      "key": "65468",
+      "topic": "os-file-systems.linked-allocation",
+      "difficulty": "medium",
+      "stem": "A disk of size 512M bytes is divided into blocks of 64K bytes. A file is stored in the disk using linked allocation. In linked allocation, each data block reserves 4 bytes to store the pointer to the next data block. The link part of the last data block contains a NULL pointer (also of 4 bytes). Suppose a file of 1M bytes needs to be stored in the disk. Assume, $1\\text{K} = 2^{10}$ and $1\\text{M} = 2^{20}$. The amount of space in bytes that will be wasted due to internal fragmentation is ______. (Answer in integer)",
+      "answer": 65468,
+      "solutionDiagram": {
+        "alt": "Linked allocation: 16 full blocks of 65532 data bytes and a 17th block holding 64 data bytes, with 65468 bytes unused."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Linked allocation and internal fragmentation",
+            "body": "Under linked allocation a file is a chain of disk blocks, and the last bytes of each block hold a pointer to the next block, so only the rest of the block carries file data. Internal fragmentation is the space inside allocated blocks that holds neither file data nor a pointer: only the last block can have it, because every earlier block is filled with data. So the waste is the data area of the last block minus the file bytes stored there."
+          },
+          {
+            "title": "Data bytes per block",
+            "body": "A 64 KB block has 65536 bytes, and 4 of them hold the link to the next block, so each block carries $65536 - 4 = 65532$ bytes of the file. The 512 MB disk size plays no part."
+          },
+          {
+            "title": "Blocks the file needs",
+            "body": "Under linked allocation a file of $S$ bytes needs $\\lceil S/(B - p) \\rceil$ blocks (derivation: contiguous, linked and FAT allocation). Here 16 blocks hold $16 \\times 65532 = 1{,}048{,}512$ bytes, 64 short of $2^{20} = 1{,}048{,}576$, so the file needs 17 blocks.",
+            "tex": "k = \\left\\lceil \\frac{1\\,048\\,576}{65\\,532} \\right\\rceil = 17"
+          },
+          {
+            "title": "Unused space in the last block",
+            "body": "The 17th block holds the last 64 bytes of the file and its 4-byte NULL link, so $65532 - 64 = 65468$ bytes of it are unused. The link fields, the NULL one included, hold pointers and are not waste. The answer is 65468.",
+            "tex": "65\\,536 - 4 - 64 = 65\\,468"
+          }
+        ],
+        "shortcut": {
+          "body": "Without links the file would fill 16 blocks exactly. The 16 links take $16 \\times 4 = 64$ bytes of that space, so 64 bytes spill into a 17th block, and the rest of its data area is wasted: $65532 - 64 = 65468$. The shortcut depends on the file size being a whole number of blocks; otherwise compute the ceiling directly."
+        },
+        "traps": [
+          {
+            "text": "Counting the NULL link of the last block as waste gives $65536 - 64 = 65472$."
+          },
+          {
+            "text": "Counting every link field as waste gives $17 \\times 65536 - 2^{20} = 65536$."
+          },
+          {
+            "text": "Ignoring the links, the file fills exactly 16 blocks and the waste comes out as 0. The links push 64 bytes into a 17th block."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.linked-allocation",
+          "clues": "\"Linked allocation\", \"each data block reserves 4 bytes to store the pointer\" and \"wasted due to internal fragmentation\" combine the pointer overhead with the partial last block.",
+          "contrast": "Contiguous allocation has no pointers, so a file of exact block size would waste nothing; here the pointer overhead is what pushes the file past a block boundary."
+        },
+        "check": {
+          "body": "Account for every byte in the 17 blocks: $17\\times 65536$ bytes in all must equal the file, plus 17 link fields, plus the waste. Subtracting the file and the 68 link bytes from the total must give the same waste."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2025 Set 1, Question 41 (paper Q.51)",
+          "url": "https://gateoverflow.in/460039/gate-cse-2025-set-1-question-41"
+        },
+        {
+          "label": "GATE 2025 CS-1 final answer key, IIT Roorkee (organising institute)",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_Key/CS1_Keys.pdf"
+        },
+        {
+          "label": "GATE 2025 CS-1 question paper, IIT Roorkee",
+          "url": "https://gate2025.iitr.ac.in/doc/2025/2025_QP/CS1.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which block of the file can hold unused bytes, and which bytes in a block are not waste?"
+        },
+        {
+          "kind": "concept",
+          "text": "Under linked allocation every block gives up a few bytes to the pointer, so a block carries less file data than its size."
+        },
+        {
+          "kind": "principle",
+          "text": "Internal fragmentation is only the unused part of the last block; link fields are used space, not waste."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the data bytes per block, take the ceiling of file size over that to get the block count, then see how much of the last block the leftover file bytes fill."
+        },
+        {
+          "kind": "partial",
+          "text": "Each block carries 65532 file bytes, which is slightly less than $2^{16}$, so the file needs more blocks than $2^{20}/2^{16}$."
+        }
+      ],
+      "variation": {
+        "stem": "A disk of 256 MB is divided into blocks of 32 KB. A file is stored with linked allocation, where each block reserves 4 bytes for the pointer to the next block, and the last block holds a NULL pointer of 4 bytes. A file of 2 MB is stored. Taking $1\\text{K}=2^{10}$ and $1\\text{M}=2^{20}$, the number of bytes wasted to internal fragmentation is ______. (answer in integer)",
+        "answer": 32508,
+        "explanation": "Each block carries $32768-4=32764$ file bytes. The file needs $\\lceil 2^{21}/32764\\rceil=65$ blocks, and the first 64 blocks hold 2096896 bytes, so the last block holds 256 file bytes and wastes 32508 bytes."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s2-q53",
+      "type": "nat",
+      "marks": 2,
+      "key": "29.50:30.50",
+      "topic": "os-file-systems.disk-capacity-arithmetic",
+      "difficulty": "easy",
+      "stem": "Consider a disk with the following specifications: rotation speed of 6000 RPM, average seek time of 5 milliseconds, 500 sectors/track, 512-byte sectors.\nA file has content stored in 3000 sectors located randomly on the disk. Assuming average rotational latency, the total time (in seconds, rounded off to 2 decimal places) to read the entire file from the disk is _________",
+      "answer": 30.06,
+      "solution": {
+        "steps": [
+          {
+            "title": "Rotation, latency and sector time",
+            "body": "At 6000 RPM one revolution takes $60\\,000/6000 = 10$ ms, so the average rotational latency is 5 ms, and one of the 500 sectors of a track passes under the head in $10/500 = 0.02$ ms (derivation: disk geometry). The 512-byte sector size is not needed.",
+            "tex": "T_{\\text{rot}} = 10\\ \\text{ms}, \\quad \\frac{T_{\\text{rot}}}{2} = 5\\ \\text{ms}, \\quad \\frac{T_{\\text{rot}}}{500} = 0.02\\ \\text{ms}"
+          },
+          {
+            "title": "One random sector, then all 3000",
+            "body": "Each sector lies at a random place, so each read pays a seek, a latency and a transfer: $5 + 5 + 0.02 = 10.02$ ms. For 3000 sectors that is $30{,}060$ ms, or 30.06 s, inside the official range 29.50 to 30.50.",
+            "tex": "T = 3000 \\times (5 + 5 + 0.02)\\ \\text{ms} = 30\\,060\\ \\text{ms} = 30.06\\ \\text{s}"
+          }
+        ],
+        "shortcut": {
+          "body": "Seek plus half a revolution is 10 ms, so 3000 sectors take 30 s, and the transfers add $3000 \\times 0.02 = 60$ ms: 30.06 s. The word \"randomly\" is what makes every sector pay a seek and a latency; for a contiguous file the time would be one seek, one latency and 3000 sector times."
+        },
+        "traps": [
+          {
+            "text": "Taking a full revolution as the latency gives $3000 \\times 15.02$ ms $= 45.06$ s."
+          },
+          {
+            "text": "Leaving out the seek, or the latency, gives $3000 \\times 5.02$ ms $= 15.06$ s."
+          },
+          {
+            "text": "Treating the file as one contiguous run gives $5 + 5 + 3000 \\times 0.02 = 70$ ms, which is 0.07 s. The sectors are randomly located, so each one is a separate access."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.disk-capacity-arithmetic",
+          "clues": "The rpm, the average seek time, the sectors per track and \"stored in 3000 sectors located randomly\" ask for an access-time total with one access per sector.",
+          "contrast": "For a contiguous file only one seek and one latency are paid and the sectors then stream by; \"located randomly\" removes that saving."
+        },
+        "check": {
+          "body": "Bound the result: the seek and latency parts alone give $3000\\times 10$ ms $=30$ s, and the transfer parts add $3000\\times 0.02$ ms, a small positive amount. The total therefore lies just above 30 s and below the official upper limit of 30.50."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 2, Question 43 (paper Q.53)",
+          "url": "https://gateoverflow.in/422854/gate-cse-2024-set-2-question-43"
+        },
+        {
+          "label": "GATE 2024 CS2 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS2FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS2 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS224S6.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does the head have to do for each one of the 3000 sectors, given they are scattered?"
+        },
+        {
+          "kind": "concept",
+          "text": "Reading a sector costs a seek, a rotational latency and the time for the sector to pass under the head."
+        },
+        {
+          "kind": "principle",
+          "text": "Sectors located randomly mean no sharing between reads: every sector pays the full seek plus latency plus transfer."
+        },
+        {
+          "kind": "setup",
+          "text": "Get the time of one revolution from the rpm, halve it for the average latency, divide it by the sectors per track for the transfer, add the seek and multiply by the sector count."
+        },
+        {
+          "kind": "partial",
+          "text": "At 6000 RPM one revolution takes 10 ms, so average latency is 5 ms and one sector takes 10/500 ms to pass the head."
+        }
+      ],
+      "variation": {
+        "stem": "A disk spins at 10000 rpm, has an average seek time of 4 milliseconds and 600 sectors per track with 512-byte sectors. A file occupies 2000 sectors located randomly on the disk. Assuming average rotational latency, the total time in seconds to read the entire file is _________. (rounded off to two decimal places)",
+        "answer": 14.02,
+        "explanation": "One revolution takes 6 ms, so latency is 3 ms and a sector passes in $6/600=0.01$ ms. Each random sector costs $4+3+0.01=7.01$ ms, and $2000\\times 7.01$ ms is 14.02 s."
+      }
+    },
+    {
+      "id": "gate-cse-2024-s1-q54",
+      "type": "nat",
+      "marks": 2,
+      "key": "4096",
+      "topic": "os-file-systems.disk-capacity-arithmetic",
+      "difficulty": "easy",
+      "stem": "Consider a 512 GB hard disk with 32 storage surfaces. There are 4096 sectors per track and each sector holds 1024 bytes of data. The number of cylinders in the hard disk is _________",
+      "answer": 4096,
+      "solutionDiagram": {
+        "alt": "Stack of 32 disk surfaces with the same track on each forming one cylinder of 2^27 bytes; 2^39 divided by 2^27 gives 4096 cylinders."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "Bytes in one cylinder",
+            "body": "A cylinder is the set of tracks at one arm position, one track on each of the 32 surfaces. A track holds $4096 \\times 1024 = 2^{22}$ bytes, so a cylinder holds $32 \\times 2^{22} = 2^{27}$ bytes.",
+            "tex": "32 \\times 4096 \\times 1024 = 2^{5} \\times 2^{12} \\times 2^{10} = 2^{27}"
+          },
+          {
+            "title": "Divide the capacity",
+            "body": "The capacity is $C = h \\times t \\times s \\times b$ (derivation: disk geometry), so the number of cylinders is $t = C/(h\\,s\\,b)$. With 512 GB $= 2^{39}$ bytes, $t = 2^{39}/2^{27} = 2^{12} = 4096$.",
+            "tex": "t = \\frac{2^{39}}{2^{27}} = 2^{12} = 4096"
+          }
+        ],
+        "shortcut": {
+          "body": "Work in exponents: $512\\text{ GB} = 2^{39}$ and $32 \\times 4096 \\times 1024 = 2^{5 + 12 + 10} = 2^{27}$, so the disk has $2^{39 - 27} = 2^{12} = 4096$ cylinders."
+        },
+        "traps": [
+          {
+            "text": "Dividing by the bytes of one track gives $2^{39}/2^{22} = 131072$, the number of tracks on all surfaces together. A cylinder has 32 of them."
+          },
+          {
+            "text": "Reading 512 GB as $512 \\times 10^9$ bytes gives 3814.7, not even a whole number of cylinders; the sizes here are powers of 2."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.disk-capacity-arithmetic",
+          "clues": "A total capacity with the number of storage surfaces, sectors per track and bytes per sector, and a request for the number of cylinders, is a capacity factorisation.",
+          "contrast": "Cylinders and tracks per surface are the same count; dividing by the bytes of a single track instead counts the tracks of all surfaces together."
+        },
+        "check": {
+          "body": "Multiply forward: 4096 cylinders times 32 surfaces times 4096 sectors times 1024 bytes must return $2^{39}$ bytes. Checking the exponents $12+5+12+10=39$ confirms it."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2024 Set 1, Question 44 (paper Q.54)",
+          "url": "https://gateoverflow.in/422798/gate-cse-2024-set-1-question-44"
+        },
+        {
+          "label": "GATE 2024 CS1 final answer key (organising institute IISc Bengaluru), GATE archive copy on the IIT Guwahati site",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS1FinalAnswerKey.pdf"
+        },
+        {
+          "label": "GATE 2024 CS1 master question paper, IISc Bengaluru",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2024/CS124S5.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "What does one cylinder contain, and how many bytes is that?"
+        },
+        {
+          "kind": "concept",
+          "text": "A cylinder is the set of tracks lying at one arm position, one on each surface."
+        },
+        {
+          "kind": "principle",
+          "text": "Capacity equals surfaces times tracks per surface times sectors per track times bytes per sector, so tracks per surface is capacity over the other three factors."
+        },
+        {
+          "kind": "setup",
+          "text": "Write every quantity as a power of 2 and divide the exponents instead of the numbers."
+        },
+        {
+          "kind": "partial",
+          "text": "One track holds $4096\\times 1024=2^{22}$ bytes, and a cylinder takes one track from each of the 32 surfaces."
+        }
+      ],
+      "variation": {
+        "stem": "A 1 TB hard disk has 16 storage surfaces, 2048 sectors per track and 512 bytes in each sector. The number of cylinders in the disk is _________. (take $1\\text{ TB}=2^{40}$ bytes)",
+        "answer": 65536,
+        "explanation": "A cylinder holds $16\\times 2048\\times 512=2^{4+11+9}=2^{24}$ bytes. The number of cylinders is $2^{40}/2^{24}=2^{16}=65536$."
+      }
+    },
+    {
+      "id": "gate-cse-2019-q42",
+      "type": "nat",
+      "marks": 2,
+      "key": "3.7:3.8|4.0:4.1",
+      "topic": "os-file-systems.unix-inode",
+      "difficulty": "easy",
+      "stem": "The index node (inode) of a Unix-like file system has 12 direct, one single-indirect and one double-indirect pointers. The disk block size is 4 kB, and the disk block address is 32-bits long. The maximum possible file size is (rounded off to 1 decimal place) _________ GB.",
+      "answer": 4,
+      "solutionDiagram": {
+        "alt": "Inode with 12 direct pointers, one single-indirect index block of 1024 data blocks and one double-indirect tree of 1024 index blocks, 1049612 data blocks in all, about 4.0 GB."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the inode pointers reach",
+            "body": "An inode lists the disk blocks of one file. A direct pointer holds the address of a data block. A single-indirect pointer holds the address of an index block, a block filled with addresses, each of which is a data block. A double-indirect pointer holds the address of an index block whose addresses are index blocks of the single-indirect kind. The maximum file size is the number of data blocks reachable through all pointers times the block size."
+          },
+          {
+            "title": "Pointers per index block",
+            "body": "A 4 kB block holds $4096/4 = 1024$ block addresses of 32 bits, that is 4 bytes, each (derivation: index blocks).",
+            "tex": "N = \\frac{4096}{4} = 1024"
+          },
+          {
+            "title": "Blocks the inode reaches",
+            "body": "The 12 direct pointers reach 12 blocks, the single-indirect pointer $N = 1024$ and the double-indirect pointer $N^2 = 1{,}048{,}576$, so a file has at most $12 + 1024 + 1{,}048{,}576 = 1{,}049{,}612$ data blocks."
+          },
+          {
+            "title": "Size in GB",
+            "body": "$1{,}049{,}612 \\times 4096 = 4{,}299{,}210{,}752$ bytes, and dividing by $2^{30}$ gives 4.0040, so 4.0 GB, inside the key's range 4.0 to 4.1 (derivation: maximum file size of an inode). The key also accepts 3.7 to 3.8, the value 3.729 that comes out when 1 kB is taken as 1000 bytes ($N = 1000$, 4000-byte blocks) and 1 GB as $2^{30}$ bytes.",
+            "tex": "S_{\\max} = (12 + 1024 + 1024^2) \\times 4096\\ \\text{B} = 4\\,299\\,210\\,752\\ \\text{B} \\approx 4.004\\ \\text{GB}"
+          }
+        ],
+        "shortcut": {
+          "body": "The double-indirect term dominates: $N^2 \\times B = 2^{20} \\times 2^{12} = 2^{32}$ B $= 4$ GB, and the direct and single-indirect blocks add only about 4 MB. Answer 4.0. With much smaller blocks the lower terms can move the first decimal, so add them when $N$ is small."
+        },
+        "traps": [
+          {
+            "text": "Taking the pointer size in bits gives $4096/32 = 128$ pointers per block and $(12 + 128 + 128^2) \\times 4096$ B, about 0.063 GB, which rounds to 0.1."
+          },
+          {
+            "text": "Dividing $4{,}299{,}210{,}752$ by $10^9$ gives 4.3, outside both ranges of the key. With 1 kB $= 2^{10}$ bytes, 1 GB is $2^{30}$ bytes."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.unix-inode",
+          "clues": "\"12 direct, one single-indirect and one double-indirect pointers\", a block size and a block address width ask for the largest file the inode can describe.",
+          "contrast": "This is not the same as the number of disk blocks: the address width limits how many blocks can be named, but here the pointer structure is the tighter limit."
+        },
+        "check": {
+          "body": "Factor out the double-indirect term: $4\\text{ GB}\\times\\left(1 + \\frac{1}{1024} + \\frac{12}{2^{20}}\\right) \\approx 4\\times 1.000989 = 4.0040$ GB. The single-indirect part is $1/1024$ of the main term and the direct part is smaller still, so the total stays inside the key's range 4.0 to 4.1."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2019, Question 42",
+          "url": "https://gateoverflow.in/302806/gate-cse-2019-question-42"
+        },
+        {
+          "label": "GATE 2019 CS final answer key (organised by IIT Madras), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2019-Ans.pdf"
+        },
+        {
+          "label": "GATE 2019 CS question paper with the same key table, official GATE archive at IIT Guwahati",
+          "url": "https://gate2026.iitg.ac.in/doc/download/2019/cs_2019.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which data blocks can the inode reach, and what limits each group?"
+        },
+        {
+          "kind": "concept",
+          "text": "A direct pointer names a data block, a single-indirect pointer names an index block of addresses, and a double-indirect pointer names an index block of index blocks."
+        },
+        {
+          "kind": "principle",
+          "text": "Maximum file size is the count of reachable data blocks times the block size; an index block holds block size over address size entries."
+        },
+        {
+          "kind": "setup",
+          "text": "Find the entries per index block from the 4 kB block and the 32-bit address, then add the blocks reached through the direct, single and double levels."
+        },
+        {
+          "kind": "partial",
+          "text": "A 4 kB block holds 1024 addresses, so the double-indirect level alone reaches $1024^2$ data blocks."
+        }
+      ],
+      "variation": {
+        "stem": "An inode has 10 direct pointers, one single-indirect pointer and one double-indirect pointer. The disk block size is 8 kB and a disk block address is 64 bits long. The maximum possible file size in GB is _________. (rounded off to two decimal places; $1\\text{ kB}=2^{10}$ bytes and $1\\text{ GB}=2^{30}$ bytes)",
+        "answer": 8.01,
+        "explanation": "An 8192-byte block holds $8192/8=1024$ addresses. The inode reaches $10+1024+1024^2=1049610$ data blocks, and $1049610\\times 8192$ bytes divided by $2^{30}$ is 8.01 GB."
+      }
+    },
+    {
+      "id": "gate-cse-2017-s2-q8",
+      "type": "mcq",
+      "marks": 1,
+      "key": "D",
+      "topic": "os-file-systems.contiguous-allocation",
+      "difficulty": "easy",
+      "stem": "In a file allocation system, which of the following allocation scheme(s) can be used if no external fragmentation is allowed?\n\nI. Contiguous\nII. Linked\nIII. Indexed",
+      "options": [
+        "I and III only",
+        "II only",
+        "III only",
+        "II and III only"
+      ],
+      "answer": 3,
+      "solution": {
+        "steps": [
+          {
+            "title": "Where external fragmentation comes from",
+            "body": "External fragmentation is free space broken into holes that are each too small for a request, although together they would be enough. Contiguous allocation needs one run of consecutive free blocks per file, so after files are created and deleted, a request can fail while enough blocks are free in total. Contiguous allocation is therefore excluded."
+          },
+          {
+            "title": "Linked and indexed allocation",
+            "body": "Linked allocation chains free blocks together through pointers stored in the blocks, and indexed allocation lists them in an index block. Neither needs adjacent blocks, so any free block can be used and a request fails only when too few blocks are free. Both can be used, so the answer is II and III only, option D (derivation: contiguous, linked and FAT allocation)."
+          }
+        ],
+        "shortcut": {
+          "body": "Only contiguous allocation needs adjacent free blocks, so it is the only scheme with external fragmentation. Strike every option that contains I, then take the one with both II and III: D."
+        },
+        "traps": [
+          {
+            "option": 0,
+            "text": "A includes contiguous allocation, the one scheme that does suffer external fragmentation: a file needs a single run of free blocks, and the holes left by deleted files can be too small for it."
+          },
+          {
+            "option": 1,
+            "text": "B leaves out indexed allocation. The index block is an overhead, but the file's blocks can still be anywhere on the disk, so there is no external fragmentation."
+          },
+          {
+            "option": 2,
+            "text": "C leaves out linked allocation, perhaps because of its slow direct access. That is a different drawback; any free block can join a chain, so linked allocation has no external fragmentation."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.contiguous-allocation",
+          "clues": "\"No external fragmentation is allowed\" asks which of the three schemes places no adjacency demand on the blocks of a file.",
+          "contrast": "Linked and indexed allocation have other costs (slow direct access, index overhead), but those are not external fragmentation; do not rule them out for that reason."
+        },
+        "check": {
+          "body": "Test the chosen set with a picture: free blocks 2, 5, 9 and 14 scattered on a disk, and a file needing four blocks. Contiguous fails, while a chain through those blocks or an index block listing them succeeds."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2017 Set 2, Question 8",
+          "url": "https://gateoverflow.in/118437/gate-cse-2017-set-2-question-08"
+        },
+        {
+          "label": "GATE 2017 CS session 2 final answer key (organised by IIT Roorkee), gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2-Ans.pdf"
+        },
+        {
+          "label": "GATE 2017 CS session 2 question paper, IIT Roorkee, gateexam.info copy",
+          "url": "https://www.gateexam.info/docs/papers/CS/CS-2017-2.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "Which kind of allocation forces a file to sit in one unbroken run of blocks?"
+        },
+        {
+          "kind": "concept",
+          "text": "External fragmentation is free space split into holes that are each too small, even though their total is large enough."
+        },
+        {
+          "kind": "principle",
+          "text": "A scheme suffers external fragmentation only if a file needs adjacent blocks; if any free block can be used, a request fails only when the total free space is too small."
+        },
+        {
+          "kind": "setup",
+          "text": "For each of the three schemes ask whether the blocks of a file must be adjacent, then keep the options that exclude the schemes that need adjacency."
+        }
+      ],
+      "variation": {
+        "stem": "Consider the allocation schemes: I. Contiguous, II. Linked, III. FAT (a table of next-block entries), IV. Indexed. Which of them can be used if no external fragmentation is allowed?",
+        "options": [
+          "I and II only",
+          "II, III and IV only",
+          "III and IV only",
+          "I, II, III and IV"
+        ],
+        "answer": 1,
+        "explanation": "Only contiguous allocation needs a file to occupy adjacent blocks, so only it suffers external fragmentation. Linked, FAT and indexed allocation can use any free block, so option B is right. Option A keeps contiguous and drops the others for the wrong reason."
+      }
+    },
+    {
+      "id": "gate-cse-2022-q63",
+      "type": "nat",
+      "marks": 2,
+      "key": "153",
+      "topic": "os-file-systems.linked-allocation",
+      "difficulty": "medium",
+      "stem": "Consider two files systems $A$ and $B$, that use contiguous allocation and linked allocation, respectively. A file of size 100 blocks is already stored in $A$ and also in $B$. Now, consider inserting a new block in the middle of the file (between 50th and 51st block), whose data is already available in the memory. Assume that there are enough free blocks at the end of the file and that the file control blocks are already in memory. Let the number of disk accesses required to insert a block in the middle of the file in $A$ and $B$ are $n_A$ and $n_B$, respectively, then the value of $n_A + n_B$ is ________.",
+      "answer": 153,
+      "solutionDiagram": {
+        "alt": "Contiguous file A shifts blocks 51 to 100 right by one (101 accesses). Linked file B reads blocks 1 to 50, writes the new block and rewrites block 50 (52 accesses). Total 153."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What the two layouts are and what counts as an access",
+            "body": "A file system stores a file in disk blocks. In contiguous allocation the file occupies consecutive blocks, so block $i+1$ sits physically right after block $i$ and nothing but the data is stored in a block. In linked allocation each block holds its data plus a pointer to the next block, so the blocks can lie anywhere and the only way to reach block $k$ is to follow the chain from block 1. A disk access here means one block read or one block write. The file control block (which holds the start address) is already in memory, so it costs nothing. The rule: count every block that must be read or written to make the file correct after the insertion."
+          },
+          {
+            "title": "Contiguous file A",
+            "body": "The new block must sit between blocks 50 and 51 and the file must stay contiguous, so blocks 51 to 100 each move one place to the right into the free space at the end. Moving one block means reading it and writing it at the new place: 2 accesses. There are 50 such blocks, giving 100 accesses. Block 50 is untouched. Then the new block, already in memory, is written into the gap: 1 access. (Shifting starts from block 100 so nothing is overwritten.)",
+            "tex": "n_A = 2\\times(100-50) + 1 = 101"
+          },
+          {
+            "title": "Linked file B",
+            "body": "No data moves. To change the chain we need the address of block 50, and the only route is to read blocks 1, 2, ..., 50: 50 accesses (the pointer inside block 50 gives the address of the old block 51). Write the new block with its pointer set to block 51: 1 access. Then change block 50's pointer to the new block and write block 50 back: 1 access. Block 50 is already in memory from the traversal, so no extra read is needed.",
+            "tex": "n_B = 50 + 1 + 1 = 52"
+          },
+          {
+            "title": "Add",
+            "body": "The question asks for the sum, so $n_A + n_B = 101 + 52 = 153$, which matches the official key.",
+            "tex": "n_A + n_B = 101 + 52 = 153"
+          }
+        ],
+        "shortcut": {
+          "body": "Contiguous costs read plus write per shifted block: $2\\times 50 + 1 = 101$. Linked costs a walk to block 50 plus two writes: $50 + 2 = 52$. Add: 153. Safe whenever the stem says the control block is in memory and the new data is in memory."
+        },
+        "traps": [
+          {
+            "text": "Counting only 50 accesses for A (one per shifted block, ignoring that each move is a read and a write) gives 50 + 1 + 52 = 103."
+          },
+          {
+            "text": "Forgetting to rewrite block 50 in B (52 becomes 51) gives 152; the pointer change is a disk write."
+          },
+          {
+            "text": "Reading block 51 too in B, as if the pointer of block 50 were not enough, gives 53 and 154; the pointer is inside block 50 already."
+          },
+          {
+            "text": "Taking the insertion as 'free' for B and counting only the walk gives 101 + 50 = 151."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.linked-allocation",
+          "clues": "The two file systems named by their allocation, a new block inserted \"in the middle\" and the count of \"disk accesses\" with the control block already in memory compare shifting data with walking a chain.",
+          "contrast": "Contiguous allocation moves data but reaches any block directly; linked allocation moves nothing but has to walk to the point of insertion."
+        },
+        "check": {
+          "body": "Check each side by its extreme case: inserting at the very end costs A only 1 access and B a walk of the whole file; inserting at the very start costs A a shift of every block and B almost nothing. The formulas $2(n-i)+1$ and $i+2$ reproduce both extremes."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2022, Question 53",
+          "url": "https://gateoverflow.in/371883/gate-cse-2022-question-53"
+        },
+        {
+          "label": "GATE 2022 CS official answer key, IIT Kharagpur",
+          "url": "https://gate2022.iitkgp.ac.in/"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "In each layout, which blocks have to be touched to make room for the new block, and what do you have to read first?"
+        },
+        {
+          "kind": "concept",
+          "text": "Contiguous files store consecutive blocks side by side. Linked files store a pointer to the next block inside each block, so reaching block $k$ means following the chain from the start."
+        },
+        {
+          "kind": "principle",
+          "text": "Count every block read and every block write as one disk access, and skip anything already in memory."
+        },
+        {
+          "kind": "setup",
+          "text": "For A, count the blocks after the insertion point that must shift, at a read and a write each, plus the new block. For B, count the walk to the block before the insertion point plus the writes that fix the chain."
+        },
+        {
+          "kind": "partial",
+          "text": "In A the blocks 51 to 100 are the ones that move, which is 50 blocks."
+        }
+      ],
+      "variation": {
+        "stem": "File systems A and B use contiguous and linked allocation respectively. A file of 60 blocks is stored in each. A new block, whose data is in memory, is inserted between the 20th and 21st blocks. There are enough free blocks at the end of the file in A, and the file control blocks are in memory. If the numbers of disk accesses are $n_A$ and $n_B$, then $n_A+n_B$ is ________.",
+        "answer": 103,
+        "explanation": "In A, blocks 21 to 60 move: 40 blocks at a read and a write each, plus 1 write of the new block, giving $n_A=81$. In B, reading blocks 1 to 20 takes 20 accesses, then 2 writes fix the chain, giving $n_B=22$. The sum is 103."
+      }
+    },
+    {
+      "id": "gate-cse-2021-s1-q15",
+      "type": "msq",
+      "marks": 1,
+      "key": "A;C",
+      "topic": "os-file-systems.directory-structures",
+      "difficulty": "medium",
+      "stem": "Consider a linear list based directory implementation in a file system. Each directory is a list of nodes, where each node contains the file name along with the file metadata, such as the list of pointers to the data blocks. Consider a given directory foo.\nWhich of the following operations will necessarily require a full scan of foo for successful completion?",
+      "options": [
+        "Creation of a new file in foo",
+        "Deletion of an existing file from foo",
+        "Renaming of an existing file in foo",
+        "Opening of an existing file in foo"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "solutionDiagram": {
+        "alt": "A linear directory list of nodes f1 to fn with an arrow showing a full scan for create and rename, and early exit at the match for delete and open."
+      },
+      "solution": {
+        "steps": [
+          {
+            "title": "What a linear-list directory is",
+            "body": "A directory is a file whose contents are a list of entries, one per file, each holding a file name and the file's metadata (block pointers). In a linear list there is no index: to find a name the system compares it with the entries one by one from the start. A full scan means examining every entry. The rule: an operation needs a full scan only if it cannot be sure of its result before the last entry has been seen. A search for a name that is known to exist can stop at the match; a check that a name does not exist cannot stop early."
+          },
+          {
+            "title": "Operations that must prove a name is absent",
+            "body": "Creation: file names in a directory are unique, so before adding a new entry the system must check that the name is not already there. The only way to know it is absent is to look at every entry. Renaming: the old name must be found, and the new name must also be proven absent, again needing every entry. Both are full scans."
+          },
+          {
+            "title": "Operations that stop at a match",
+            "body": "Deleting an existing file: the system searches for its entry and removes it as soon as it is found, so on average half the list is read and no check of absence is needed. Opening an existing file: the entry is found, its metadata is read and the search ends. Neither necessarily scans the whole list, since the file exists and the search ends at the match. So the operations that necessarily require a full scan are creation and renaming: options A and C."
+          }
+        ],
+        "shortcut": {
+          "body": "Ask of each option: do I have to prove that some name is not in the list? Create and rename do (the new name), delete and open do not. Select A and C in under a minute. The shortcut is safe because the stem says existing file for delete, rename and open."
+        },
+        "traps": [
+          {
+            "option": 1,
+            "text": "Deletion looks like it needs to scan, but the file exists, so the search ends at its entry; the worst case (last entry) is not the same as necessarily."
+          },
+          {
+            "option": 3,
+            "text": "Opening an existing file is a lookup that ends at the match, so it does not necessarily scan the whole directory."
+          },
+          {
+            "text": "Leaving out rename: candidates see it as a lookup of one name and miss that the new name must be checked for a clash."
+          }
+        ],
+        "recognize": {
+          "concept": "os-file-systems.directory-structures",
+          "clues": "The stem fixes a linear list with no index and asks which operations necessarily need a full scan, so the question is about early exit versus proving absence.",
+          "contrast": "A hashed or tree-structured directory finds or rejects a name without reading every entry; only the linear list forces a full read to prove absence."
+        },
+        "check": {
+          "body": "Take a list of 6 entries. Open or delete on an existing name ends after between 1 and 6 comparisons, so a full scan is not forced. Create or rename must compare the new name with all 6 before it is safe, whatever the list holds, so those two are forced."
+        }
+      },
+      "sources": [
+        {
+          "label": "GATE Overflow: GATE CSE 2021 Set 1, Question 15",
+          "url": "https://gateoverflow.in/357437/gate-cse-2021-set-1-question-15"
+        },
+        {
+          "label": "GATE 2021 CS answer key, IIT Bombay, IIT Guwahati archive copy",
+          "url": "https://gate2026.iitg.ac.in/doc/download/Answer_keys2021/cs_merged_2021.pdf"
+        }
+      ],
+      "hints": [
+        {
+          "kind": "guide",
+          "text": "For each operation, ask whether it can finish the moment it meets one entry, or whether it must have looked at every entry first."
+        },
+        {
+          "kind": "concept",
+          "text": "A linear list has no index, so the only test for a name is comparing it with entries one at a time from the start."
+        },
+        {
+          "kind": "principle",
+          "text": "Finding a name that is known to be present can stop at the match. Proving that a name is not present can never stop early."
+        },
+        {
+          "kind": "setup",
+          "text": "Directory names are unique. List which operations introduce a name that must be proven unused, and which only touch a name already in the list."
+        }
+      ],
+      "variation": {
+        "stem": "A directory bar is stored as a linear list of entries with no index, and names in a directory are unique. Which of the following operations will necessarily require a full scan of bar?",
+        "options": [
+          "Reading the size of an existing file in bar",
+          "Copying an existing file in bar to a new name in bar",
+          "Verifying that no file named report exists in bar",
+          "Changing the permission bits of an existing file in bar"
+        ],
+        "answer": [
+          1,
+          2
+        ],
+        "explanation": "Reading a size or changing permissions finds an existing entry and can stop at the match. Copying to a new name needs the new name proven unused, and verifying that report is absent is exactly an absence proof; both must look at every entry."
+      }
+    }
+  ],
+  "skipped": []
+}
